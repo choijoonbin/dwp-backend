@@ -24,7 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
         name = "dwp.hris.time.interpretation.enabled",
         havingValue = "true",
         matchIfMissing = false)
-final class JdbcInterpretationPopulationProjectionResolver
+class JdbcInterpretationPopulationProjectionResolver
         implements InterpretationPopulationProjectionResolver {
 
     private static final String SET_TENANT_SQL =

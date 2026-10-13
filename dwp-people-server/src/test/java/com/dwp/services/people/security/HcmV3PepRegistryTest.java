@@ -14,11 +14,11 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV37PeopleClosure() {
-        assertThat(registry.bindingContracts()).hasSize(100);
+    void loadsTheExactV38PeopleClosure() {
+        assertThat(registry.bindingContracts()).hasSize(108);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(73);
+                .distinct()).hasSize(81);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -40,7 +40,7 @@ class HcmV3PepRegistryTest {
                         && value.servicePath().equals(
                         "/v1/hris/employee-change-requests/{requestPublicId}/apply"));
         assertThat(registry.highRiskBindingContracts())
-                .hasSize(11)
+                .hasSize(12)
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
                 .containsExactlyInAnyOrder(
                         "route.hcm.management.org-publish.action",
@@ -53,15 +53,17 @@ class HcmV3PepRegistryTest {
                         "route.hcm.operations.performance-cycle-publish.action",
                         "route.hcm.operations.performance-population-freeze.action",
                         "route.hcm.operations.assignment-proposal-submit.action",
-                        "route.hcm.operations.employee-change-request-apply.action");
+                        "route.hcm.operations.employee-change-request-apply.action",
+                        "route.hcm.operations.assignment-event-publish.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
-                .hasSize(14)
+                .hasSize(15)
                 .containsOnlyKeys(
                         "predicate.directory-visible-person.v1",
                         "predicate.hcm-configuration-scope.v1",
                         "predicate.hcm-domain-target-population.v1",
                         "predicate.hcm-export-population.v1",
                         "predicate.hcm-integration-nonsecret-update.v1",
+                        "predicate.hcm-originating-command-receipt.v1",
                         "predicate.hcm-employee-change-authority.v1",
                         "predicate.hcm-org-approval-sod.v1",
                         "predicate.hcm-org-publish-sod.v1",

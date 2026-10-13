@@ -34,10 +34,10 @@ public final class InterpretationService {
     public static final String RUN_ACTION = "hris.action.tim.interpretation.run";
     public static final String RECEIPT_COMMAND_TYPE = "INTERPRETATION_RUN";
     public static final String RECEIPT_ACTION = "TIME_INTERPRET_RUN";
-    public static final String RUN_PERMISSION = "hcm.operations.time.update";
-    public static final String SELF_RUN_PERMISSION = "hcm.personal.time.submit";
-    public static final String VIEW_PERMISSION = "hcm.operations.time.view";
-    public static final String TRACE_PERMISSION = "hcm.personal.time.view";
+    public static final String RUN_PERMISSION = "DATA.HR_TIME:UPDATE";
+    public static final String SELF_RUN_PERMISSION = "DATA.HR_TIME:CREATE";
+    public static final String VIEW_PERMISSION = "DATA.HR_TIME:VIEW";
+    public static final String TRACE_PERMISSION = "DATA.HR_TIME:VIEW";
 
     private final InterpretationRepository repository;
     private final DeterministicTimeInterpreter interpreter;

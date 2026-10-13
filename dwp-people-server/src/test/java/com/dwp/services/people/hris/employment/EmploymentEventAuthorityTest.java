@@ -63,6 +63,25 @@ class EmploymentEventAuthorityTest {
     }
 
     @Test
+    void detailAndReceiptUseDedicatedDataBindingsAndReceiptCapability() {
+        assertThat(EmploymentEventAuthority.EVENT_DETAIL_BINDING_ID).isEqualTo("PEP-HRM-015");
+        assertThat(EmploymentEventAuthority.RECEIPT_BINDING_ID).isEqualTo("PEP-HRM-014");
+        actor();
+        pep(EmploymentEventAuthority.RECEIPT_ROUTE,
+                EmploymentEventAuthority.RECEIPT_CAPABILITY, "GET", true);
+
+        assertThat(authority.require("RECEIPT"))
+                .isEqualTo(EmploymentEventAuthority.RECEIPT_CAPABILITY);
+
+        pep(EmploymentEventAuthority.RECEIPT_ROUTE,
+                EmploymentEventAuthority.OPERATIONS_READ_CAPABILITY, "GET", true);
+        assertThatThrownBy(() -> authority.require("RECEIPT"))
+                .isInstanceOf(BaseException.class)
+                .satisfies(error -> assertThat(((BaseException) error).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
     void workplaceSnapshotRequiresExactCallerPurposeAndActiveTenantGrant() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
         EmploymentSnapshotAuthority snapshots = new EmploymentSnapshotAuthority(jdbc);

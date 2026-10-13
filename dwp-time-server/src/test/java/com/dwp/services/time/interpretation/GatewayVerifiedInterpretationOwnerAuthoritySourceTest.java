@@ -51,7 +51,7 @@ class GatewayVerifiedInterpretationOwnerAuthoritySourceTest {
         MockHttpServletRequest request = request(
                 InterpretationOwnerRoute.WORKBENCH,
                 PopulationKind.LEGAL_ENTITY,
-                "APP.HCM:VIEW,hcm.operations.time.view,hcm.operations.time.update");
+                "APP.HCM:VIEW,DATA.HR_TIME:VIEW,DATA.HR_TIME:UPDATE");
         request.addHeader(
                 GatewayVerifiedInterpretationOwnerAuthoritySource.MASKED_FIELD_GROUPS_HEADER,
                 "TRACE_SUMMARY");
@@ -75,13 +75,13 @@ class GatewayVerifiedInterpretationOwnerAuthoritySourceTest {
         MockHttpServletRequest request = request(
                 InterpretationOwnerRoute.RUN,
                 PopulationKind.SELF,
-                "APP.HCM:VIEW,hcm.personal.time.submit");
+                "APP.HCM:VIEW,DATA.HR_TIME:CREATE");
 
         var verified = source.verify(request, InterpretationOwnerRoute.RUN).orElseThrow();
 
         assertThat(verified.actions()).containsExactly(InterpretationAction.RUN);
         assertThat(verified.purposeCode()).isEqualTo("TIME_INTERPRETATION");
-        assertThat(verified.permissions()).contains("hcm.personal.time.submit");
+        assertThat(verified.permissions()).contains("DATA.HR_TIME:CREATE");
     }
 
     @Test
@@ -89,7 +89,7 @@ class GatewayVerifiedInterpretationOwnerAuthoritySourceTest {
         MockHttpServletRequest request = request(
                 InterpretationOwnerRoute.RUN,
                 PopulationKind.TIME_GROUP,
-                "APP.HCM:VIEW,hcm.personal.time.submit");
+                "APP.HCM:VIEW,DATA.HR_TIME:CREATE");
 
         assertThat(source.verify(request, InterpretationOwnerRoute.RUN)).isEmpty();
     }
@@ -99,7 +99,7 @@ class GatewayVerifiedInterpretationOwnerAuthoritySourceTest {
         MockHttpServletRequest request = request(
                 InterpretationOwnerRoute.RUN,
                 PopulationKind.SELF,
-                "APP.HCM:VIEW,hcm.personal.time.submit");
+                "APP.HCM:VIEW,DATA.HR_TIME:CREATE");
         request.removeHeader(
                 GatewayVerifiedInterpretationOwnerAuthoritySource.EXPECTED_REVISION_HEADER);
         request.addHeader(
@@ -117,7 +117,7 @@ class GatewayVerifiedInterpretationOwnerAuthoritySourceTest {
         MockHttpServletRequest wrongRoute = request(
                 InterpretationOwnerRoute.TRACE,
                 PopulationKind.SELF,
-                "APP.HCM:VIEW,hcm.personal.time.view");
+                "APP.HCM:VIEW,DATA.HR_TIME:VIEW");
         wrongRoute.removeHeader(
                 GatewayVerifiedInterpretationOwnerAuthoritySource.ROUTE_HEADER);
         wrongRoute.addHeader(
@@ -128,7 +128,7 @@ class GatewayVerifiedInterpretationOwnerAuthoritySourceTest {
         MockHttpServletRequest wrongPurpose = request(
                 InterpretationOwnerRoute.RUN,
                 PopulationKind.SELF,
-                "APP.HCM:VIEW,hcm.personal.time.submit");
+                "APP.HCM:VIEW,DATA.HR_TIME:CREATE");
         wrongPurpose.removeHeader(
                 GatewayVerifiedInterpretationOwnerAuthoritySource.PURPOSE_HEADER);
         wrongPurpose.addHeader(
@@ -139,7 +139,7 @@ class GatewayVerifiedInterpretationOwnerAuthoritySourceTest {
         MockHttpServletRequest noApp = request(
                 InterpretationOwnerRoute.WORKBENCH,
                 PopulationKind.SELF,
-                "hcm.operations.time.view");
+                "DATA.HR_TIME:VIEW");
         assertThat(source.verify(noApp, InterpretationOwnerRoute.WORKBENCH)).isEmpty();
     }
 
@@ -148,7 +148,7 @@ class GatewayVerifiedInterpretationOwnerAuthoritySourceTest {
         MockHttpServletRequest request = request(
                 InterpretationOwnerRoute.WORKBENCH,
                 PopulationKind.SELF,
-                "APP.HCM:VIEW,hcm.operations.time.view");
+                "APP.HCM:VIEW,DATA.HR_TIME:VIEW");
         request.addHeader(
                 GatewayVerifiedInterpretationOwnerAuthoritySource.OMITTED_FIELD_GROUPS_HEADER,
                 "INTERPRETATION_RESULT,RULE_VERSION,TRACE_SUMMARY");

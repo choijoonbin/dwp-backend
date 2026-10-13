@@ -14,7 +14,7 @@ class ProductAuthorizationReleaseLineageTest {
             new ProductAuthorizationContractValidator(mapper);
 
     @Test
-    void preservesV33ThroughV36AndAcceptsOnlyThePinnedHrisG7V37() throws Exception {
+    void preservesV33ThroughV37AndAcceptsOnlyThePinnedHrisWave2V38() throws Exception {
         try (var v33Input = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v33.generated.json")
                 .getInputStream();
@@ -29,12 +29,16 @@ class ProductAuthorizationReleaseLineageTest {
                      .getInputStream();
              var v37Input = new ClassPathResource(
                      "product-authorization/product-surfaces-v1.bundle-v37.generated.json")
+                     .getInputStream();
+             var v38Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v38.generated.json")
                      .getInputStream()) {
             var v33 = validator.validateDocument(v33Input);
             var v34 = validator.validateDocument(v34Input);
             var v35 = validator.validateDocument(v35Input);
             var v36 = validator.validateDocument(v36Input);
             var v37 = validator.validateDocument(v37Input);
+            var v38 = validator.validateDocument(v38Input);
 
             assertThat(v33.checksum()).isEqualTo(
                     "9c9a18b44eb83de0e98f4ec16e44c1df0ce216e00bc7075462f4e35f7fb87639");
@@ -55,6 +59,10 @@ class ProductAuthorizationReleaseLineageTest {
                     "1f23280116bc5b29f1a7ea6cc4ccbd2092a91673979d6bb46164a0dbb95ae10c");
             assertThat(v37.capabilities()).hasSize(237);
             assertThat(v37.routes()).hasSize(974);
+            assertThat(v38.checksum()).isEqualTo(
+                    "a41145d6a2faefd2e6030a2ca9a070769019d4db5513ea214bf542dda31c374a");
+            assertThat(v38.capabilities()).hasSize(242);
+            assertThat(v38.routes()).hasSize(991);
         }
     }
 

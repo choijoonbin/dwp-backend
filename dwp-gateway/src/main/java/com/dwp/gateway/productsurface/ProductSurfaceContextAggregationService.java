@@ -294,6 +294,7 @@ public class ProductSurfaceContextAggregationService {
                             data,
                             contextKey,
                             scope,
+                            resolution.revisions(),
                             resolution.authRouteProductNotRegistered());
                 });
     }
@@ -658,6 +659,15 @@ public class ProductSurfaceContextAggregationService {
             ProductSurfaceContextDtos.ProductEvaluationData data,
             String contextKey,
             ProductSurfaceContextDtos.EffectiveScope scope,
+            ProductSurfaceContextDtos.SourceRevisions revisions,
             boolean authRouteProductNotRegistered) {
+
+        public TrustedProductEvaluation(
+                ProductSurfaceContextDtos.ProductEvaluationData data,
+                String contextKey,
+                ProductSurfaceContextDtos.EffectiveScope scope,
+                boolean authRouteProductNotRegistered) {
+            this(data, contextKey, scope, null, authRouteProductNotRegistered);
+        }
     }
 }

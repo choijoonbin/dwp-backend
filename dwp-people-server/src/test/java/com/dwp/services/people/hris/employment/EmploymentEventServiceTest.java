@@ -189,6 +189,27 @@ class EmploymentEventServiceTest {
     }
 
     @Test
+    void receiptDisclosesOnlyASealedOriginatingCommandForTheCurrentSubject() {
+        EmploymentEventRepository.ReceiptRow sealed = receipt(
+                "SUCCEEDED", "created", "a".repeat(64));
+        when(repository.receipt(TENANT, sealed.receiptId()))
+                .thenReturn(Optional.of(sealed));
+
+        assertThat(service.receipt(sealed.receiptId()).receiptId())
+                .isEqualTo(sealed.receiptId());
+
+        EmploymentEventRepository.ReceiptRow mismatched = receipt(
+                "SUCCEEDED", "created", "a".repeat(64),
+                "PUBLISH_ASSIGNMENT_EVENT");
+        when(repository.receipt(TENANT, mismatched.receiptId()))
+                .thenReturn(Optional.of(mismatched));
+        assertThatThrownBy(() -> service.receipt(mismatched.receiptId()))
+                .isInstanceOf(EmploymentEventProblem.class)
+                .satisfies(error -> assertThat(((EmploymentEventProblem) error).status())
+                        .isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
     void sameIdempotencyBindingRecoversOriginalReceiptAndDigestDriftConflicts() {
         EmploymentEventDtos.CreateCommand originalRequest = hire(false);
         String digest = canonicalizer.requestDigest(
@@ -425,9 +446,14 @@ class EmploymentEventServiceTest {
 
     private EmploymentEventRepository.ReceiptRow receipt(
             String state, String result, String requestDigest) {
+        return receipt(state, result, requestDigest, "CREATE_ASSIGNMENT_EVENT");
+    }
+
+    private EmploymentEventRepository.ReceiptRow receipt(
+            String state, String result, String requestDigest, String action) {
         return new EmploymentEventRepository.ReceiptRow(
                 uuid(41), TENANT, "HRM_ASSIGNMENT_EVENT_CREATE", KEY, requestDigest,
-                ACTOR, "CREATE_ASSIGNMENT_EVENT", ACTOR, "d".repeat(64), 3,
+                ACTOR, action, ACTOR, "d".repeat(64), 3,
                 EmploymentEventDtos.PURPOSE, 5, "e".repeat(64), null, 0L,
                 state, state, result, CORRELATION, NOW);
     }

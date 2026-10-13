@@ -58,33 +58,55 @@ class PayrollConfigurationContractTest {
     void exactPepRoutesAndCurrentHeadersAreBound() throws Exception {
         assertThat(PayrollConfigurationRoute.resolve(
                 "GET", "/v1/workbench/settings-payroll")).get()
-                .extracting(PayrollConfigurationRoute::contractId)
+                .extracting(PayrollConfigurationRoute::bindingId)
                 .isEqualTo("IAQ-055");
         assertThat(PayrollConfigurationRoute.resolve(
                 "POST", "/v1/elements/versions")).get()
-                .extracting(PayrollConfigurationRoute::contractId)
+                .extracting(PayrollConfigurationRoute::bindingId)
                 .isEqualTo("PEP-PAY-004");
         UUID formulaId = UUID.randomUUID();
         assertThat(PayrollConfigurationRoute.resolve(
                 "POST", "/v1/formulas/versions")).get()
-                .extracting(PayrollConfigurationRoute::contractId)
+                .extracting(PayrollConfigurationRoute::bindingId)
                 .isEqualTo("PEP-PAY-005");
         assertThat(PayrollConfigurationRoute.resolve(
                 "POST", "/v1/formulas/" + formulaId + "/validations")).get()
-                .extracting(PayrollConfigurationRoute::contractId)
+                .extracting(PayrollConfigurationRoute::bindingId)
                 .isEqualTo("PEP-PAY-006");
         assertThat(PayrollConfigurationRoute.resolve(
                 "POST", "/v1/formulas/" + formulaId + "/simulations")).get()
-                .extracting(PayrollConfigurationRoute::contractId)
+                .extracting(PayrollConfigurationRoute::bindingId)
                 .isEqualTo("PEP-PAY-007");
         assertThat(PayrollConfigurationRoute.resolve(
                 "POST", "/v1/formulas/" + formulaId + "/publish")).get()
-                .extracting(PayrollConfigurationRoute::contractId)
+                .extracting(PayrollConfigurationRoute::bindingId)
                 .isEqualTo("PEP-PAY-008");
+        assertThat(PayrollConfigurationRoute.values())
+                .extracting(PayrollConfigurationRoute::authorityContractKey)
+                .containsExactly(
+                        "route.hcm.configuration.payroll.page",
+                        "route.hcm.configuration.payroll-element-version-create.action",
+                        "route.hcm.configuration.payroll-formula-version-create.action",
+                        "route.hcm.configuration.payroll-formula-validate.action",
+                        "route.hcm.configuration.payroll-formula-simulate.action",
+                        "route.hcm.configuration.payroll-formula-publish.action");
+        assertThat(PayrollConfigurationRoute.AUTHORIZATION_VERSION).isEqualTo(38);
+        assertThat(PayrollConfigurationRoute.AUTHORIZATION_SHA256).isEqualTo(
+                "a41145d6a2faefd2e6030a2ca9a070769019d4db5513ea214bf542dda31c374a");
+        assertThat(PayrollConfigurationRoute.GATEWAY_OPENAPI_SHA256).isEqualTo(
+                "453f3620dca02a5ce82df273be986633fb5d694084ca080859bb47472027d234");
+        assertThat(Action.WORKBENCH_VIEW.permission())
+                .isEqualTo("CONFIG.HRIS_WORKBENCH:VIEW");
+        assertThat(Action.ELEMENT_VERSION_CREATE.permission())
+                .isEqualTo("DATA.HRIS_PAYROLL_INPUT:UPDATE");
+        assertThat(Action.FORMULA_PUBLISH.permission())
+                .isEqualTo("ACTION.HRIS_POLICY_PUBLISH:PUBLISH");
         assertThat(PayrollConfigurationController.EXPECTED_VERSION)
                 .isEqualTo("X-DWP-Expected-Object-Version");
         assertThat(PayrollConfigurationSecurityFilter.STEP_UP_CHALLENGE)
                 .isEqualTo("X-DWP-Step-Up-Challenge");
+        assertThat(PayrollConfigurationSecurityFilter.AUTHORIZATION_REVISION)
+                .isEqualTo("X-DWP-Authorization-Revision");
     }
 
     @Test

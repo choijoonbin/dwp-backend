@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.dwp.core.exception.GlobalExceptionHandler;
 import com.dwp.services.time.interpretation.InterpretationModels.InterpretCommand;
 import com.dwp.services.time.interpretation.InterpretationModels.InterpretationAction;
 import com.dwp.services.time.interpretation.InterpretationModels.InterpretationCommandReceipt;
@@ -29,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -43,6 +45,8 @@ class InterpretationOwnerBoundaryContractTest {
             UUID.fromString("74000000-0000-4000-8000-000000000003");
     private static final UUID CORRELATION =
             UUID.fromString("74000000-0000-4000-8000-000000000004");
+    private static final UUID OTHER_CORRELATION =
+            UUID.fromString("74000000-0000-4000-8000-000000000014");
     private static final UUID IDEMPOTENCY =
             UUID.fromString("74000000-0000-4000-8000-000000000005");
 
@@ -66,6 +70,7 @@ class InterpretationOwnerBoundaryContractTest {
                 Clock.fixed(NOW, ZoneOffset.UTC));
         var filter = new InterpretationOwnerAccessFilter(authoritySource, objectMapper);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler(new StaticMessageSource()))
                 .addFilters(filter)
                 .build();
     }
@@ -83,18 +88,18 @@ class InterpretationOwnerBoundaryContractTest {
         assertThat(InterpretationOwnerRoute.TRACE.bindingId()).isEqualTo("PEP-TIM-010");
         assertThat(InterpretationOwnerRoute.RUN.requiredPurpose())
                 .isEqualTo("TIME_INTERPRETATION");
-        assertThat(InterpretationOwnerRoute.AUTHORIZATION_VERSION).isEqualTo(37);
+        assertThat(InterpretationOwnerRoute.AUTHORIZATION_VERSION).isEqualTo(38);
         assertThat(InterpretationOwnerRoute.AUTHORIZATION_SHA256)
-                .isEqualTo("1f23280116bc5b29f1a7ea6cc4ccbd2092a91673979d6bb46164a0dbb95ae10c");
+                .isEqualTo("a41145d6a2faefd2e6030a2ca9a070769019d4db5513ea214bf542dda31c374a");
         assertThat(InterpretationOwnerRoute.GATEWAY_OPENAPI_SHA256)
-                .isEqualTo("9d788107956401a3c319f81ed2ca4fe4b1b2ac1e8c23aec9ce2f0a71d55d330a");
+                .isEqualTo("453f3620dca02a5ce82df273be986633fb5d694084ca080859bb47472027d234");
     }
 
     @Test
     void runReturnsTheContractualAcceptedStatusAndReceiptConvention() throws Exception {
         VerifiedInterpretationRequest authority = authority(
                 InterpretationAction.RUN,
-                Set.of("APP.HCM:VIEW", "hcm.operations.time.update"),
+                Set.of("APP.HCM:VIEW", "DATA.HR_TIME:UPDATE"),
                 "TIME_INTERPRETATION");
         when(authoritySource.verify(
                 any(HttpServletRequest.class), eq(InterpretationOwnerRoute.RUN)))
@@ -125,7 +130,7 @@ class InterpretationOwnerBoundaryContractTest {
     void workbenchPassesNormalizedFiltersSortAndLookaheadToRepository() throws Exception {
         VerifiedInterpretationRequest authority = authority(
                 InterpretationAction.VIEW,
-                Set.of("APP.HCM:VIEW", "hcm.operations.time.view"),
+                Set.of("APP.HCM:VIEW", "DATA.HR_TIME:VIEW"),
                 "TIME_OPERATIONS");
         when(authoritySource.verify(
                 any(HttpServletRequest.class), eq(InterpretationOwnerRoute.WORKBENCH)))
@@ -133,6 +138,7 @@ class InterpretationOwnerBoundaryContractTest {
         when(repository.query(any())).thenReturn(List.of());
 
         mockMvc.perform(get("/v1/hris/workbench/time-interpretation")
+                        .header("X-Correlation-ID", CORRELATION)
                         .queryParam("limit", "1")
                         .queryParam("sort", "traceSummary:DESC", "ruleVersion:ASC")
                         .queryParam("locale", "en-US")
@@ -172,6 +178,30 @@ class InterpretationOwnerBoundaryContractTest {
     }
 
     @Test
+    void workbenchCorrelationHeaderAndQueryMustMatch() throws Exception {
+        VerifiedInterpretationRequest authority = authority(
+                InterpretationAction.VIEW,
+                Set.of("APP.HCM:VIEW", "DATA.HR_TIME:VIEW"),
+                "TIME_OPERATIONS");
+        when(authoritySource.verify(
+                any(HttpServletRequest.class), eq(InterpretationOwnerRoute.WORKBENCH)))
+                .thenReturn(Optional.of(authority));
+
+        mockMvc.perform(get("/v1/hris/workbench/time-interpretation")
+                        .header("X-Correlation-ID", CORRELATION)
+                        .queryParam("limit", "1")
+                        .queryParam("sort", "itemPublicId:ASC")
+                        .queryParam("locale", "en-US")
+                        .queryParam("timeZone", "UTC")
+                        .queryParam("correlationId", OTHER_CORRELATION.toString()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("AUTHORITY_RESOLUTION_UNAVAILABLE"));
+
+        verifyNoInteractions(service, repository);
+    }
+
+    @Test
     void malformedOrUnregisteredOwnerRouteFailsBeforeAuthorityResolution() throws Exception {
         mockMvc.perform(get("/v1/interpretation-runs/not-a-uuid/trace"))
                 .andExpect(status().isForbidden());
@@ -186,7 +216,7 @@ class InterpretationOwnerBoundaryContractTest {
     void staleOrPermissionMismatchedAuthorityNeverReachesController() throws Exception {
         VerifiedInterpretationRequest stale = authority(
                 InterpretationAction.RUN,
-                Set.of("APP.HCM:VIEW", "hcm.operations.time.update"),
+                Set.of("APP.HCM:VIEW", "DATA.HR_TIME:UPDATE"),
                 "TIME_INTERPRETATION",
                 Instant.now().minusSeconds(1));
         when(authoritySource.verify(
@@ -204,7 +234,7 @@ class InterpretationOwnerBoundaryContractTest {
 
     private VerifiedInterpretationRequest authority(
             InterpretationAction action, Set<String> permissions, String purpose) {
-        return authority(action, permissions, purpose, NOW.plusSeconds(600));
+        return authority(action, permissions, purpose, Instant.now().plusSeconds(600));
     }
 
     private VerifiedInterpretationRequest authority(

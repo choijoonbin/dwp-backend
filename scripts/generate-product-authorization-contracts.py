@@ -137,8 +137,11 @@ LEGACY_HCM_PEOPLE_PEP_V35_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
 LEGACY_HCM_PEOPLE_PEP_V36_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
     "hcm-people-pep-v36.generated.json"
 )
-HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+LEGACY_HCM_PEOPLE_PEP_V37_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
     "hcm-people-pep-v37.generated.json"
+)
+HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v38.generated.json"
 )
 LEGACY_HCM_TIME_PEP_V35_OUTPUT = (
     ROOT
@@ -148,8 +151,11 @@ LEGACY_HCM_TIME_PEP_V35_OUTPUT = (
 LEGACY_HCM_TIME_PEP_V36_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
     "hcm-time-pep-v36.generated.json"
 )
-HCM_TIME_PEP_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
+LEGACY_HCM_TIME_PEP_V37_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
     "hcm-time-pep-v37.generated.json"
+)
+HCM_TIME_PEP_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
+    "hcm-time-pep-v38.generated.json"
 )
 LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT = (
     ROOT
@@ -159,15 +165,23 @@ LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT = (
 LEGACY_HCM_PLATFORM_PEP_V36_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v36.generated.json"
 )
-HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+LEGACY_HCM_PLATFORM_PEP_V37_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v37.generated.json"
+)
+HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v38.generated.json"
+)
+HCM_PAYROLL_PEP_OUTPUT = (
+    ROOT
+    / "dwp-payroll-server/src/main/resources/product-authorization/"
+    / "hcm-payroll-pep-v38.generated.json"
 )
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 38))
+BUNDLE_VERSIONS = tuple(range(1, 39))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -275,6 +289,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 57, "routes": 974, "PAGE": 124, "DATA": 295, "ACTION": 555},
     37: {"capabilities": 237, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 57, "routes": 974, "PAGE": 124, "DATA": 295, "ACTION": 555},
+    38: {"capabilities": 242, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 59, "routes": 991, "PAGE": 128, "DATA": 298, "ACTION": 565},
 }
 
 V37_TIME_VOID_ROUTE = "route.hcm.operations.time-clock-event-void.action"
@@ -3153,13 +3169,17 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PEOPLE_PEP_V34_OUTPUT,
         LEGACY_HCM_PEOPLE_PEP_V35_OUTPUT,
         LEGACY_HCM_PEOPLE_PEP_V36_OUTPUT,
+        LEGACY_HCM_PEOPLE_PEP_V37_OUTPUT,
         HCM_PEOPLE_PEP_OUTPUT,
         LEGACY_HCM_TIME_PEP_V35_OUTPUT,
         LEGACY_HCM_TIME_PEP_V36_OUTPUT,
+        LEGACY_HCM_TIME_PEP_V37_OUTPUT,
         HCM_TIME_PEP_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V36_OUTPUT,
+        LEGACY_HCM_PLATFORM_PEP_V37_OUTPUT,
         HCM_PLATFORM_PEP_OUTPUT,
+        HCM_PAYROLL_PEP_OUTPUT,
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -3180,6 +3200,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         *HCM_PEOPLE_PEP_OUTPUT.parent.glob("hcm-people-pep-v*.generated.json"),
         *HCM_TIME_PEP_OUTPUT.parent.glob("hcm-time-pep-v*.generated.json"),
         *HCM_PLATFORM_PEP_OUTPUT.parent.glob("hcm-platform-pep-v*.generated.json"),
+        *HCM_PAYROLL_PEP_OUTPUT.parent.glob("hcm-payroll-pep-v*.generated.json"),
     }
     stale = sorted(path.relative_to(ROOT) for path in candidates - allowed)
     require(not stale, f"out-of-lineage generated artifacts are forbidden: {stale}")
@@ -3481,7 +3502,7 @@ def main() -> int:
             version=36,
             product_key="hcm",
         )
-        hcm_people_pep = build_approvals_pep(
+        legacy_hcm_people_pep_v37 = build_approvals_pep(
             snapshots[36],
             "people",
             "hcm-people-pep-v37",
@@ -3495,6 +3516,22 @@ def main() -> int:
                 "predicatePolicies": 14,
             },
             version=37,
+            product_key="hcm",
+        )
+        hcm_people_pep = build_approvals_pep(
+            snapshots[37],
+            "people",
+            "hcm-people-pep-v38",
+            {
+                "routes": 81,
+                "bindings": 108,
+                "routeKinds": {"ACTION": 38, "DATA": 15, "PAGE": 28},
+                "capabilities": 46,
+                "accessPolicies": 5,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 15,
+            },
+            version=38,
             product_key="hcm",
         )
         legacy_hcm_time_pep_v35 = build_approvals_pep(
@@ -3529,7 +3566,7 @@ def main() -> int:
             version=36,
             product_key="hcm",
         )
-        hcm_time_pep = build_approvals_pep(
+        legacy_hcm_time_pep_v37 = build_approvals_pep(
             snapshots[36],
             "time",
             "hcm-time-pep-v37",
@@ -3543,6 +3580,22 @@ def main() -> int:
                 "predicatePolicies": 3,
             },
             version=37,
+            product_key="hcm",
+        )
+        hcm_time_pep = build_approvals_pep(
+            snapshots[37],
+            "time",
+            "hcm-time-pep-v38",
+            {
+                "routes": 15,
+                "bindings": 15,
+                "routeKinds": {"ACTION": 9, "DATA": 3, "PAGE": 3},
+                "capabilities": 10,
+                "accessPolicies": 0,
+                "entitlementExpressions": 0,
+                "predicatePolicies": 3,
+            },
+            version=38,
             product_key="hcm",
         )
         legacy_hcm_platform_pep_v35 = build_approvals_pep(
@@ -3577,7 +3630,7 @@ def main() -> int:
             version=36,
             product_key="hcm",
         )
-        hcm_platform_pep = build_approvals_pep(
+        legacy_hcm_platform_pep_v37 = build_approvals_pep(
             snapshots[36],
             "platform",
             "hcm-platform-pep-v37",
@@ -3591,6 +3644,38 @@ def main() -> int:
                 "predicatePolicies": 3,
             },
             version=37,
+            product_key="hcm",
+        )
+        hcm_platform_pep = build_approvals_pep(
+            snapshots[37],
+            "platform",
+            "hcm-platform-pep-v38",
+            {
+                "routes": 19,
+                "bindings": 20,
+                "routeKinds": {"ACTION": 10, "DATA": 6, "PAGE": 3},
+                "capabilities": 5,
+                "accessPolicies": 4,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 3,
+            },
+            version=38,
+            product_key="hcm",
+        )
+        hcm_payroll_pep = build_approvals_pep(
+            snapshots[37],
+            "payroll",
+            "hcm-payroll-pep-v38",
+            {
+                "routes": 16,
+                "bindings": 16,
+                "routeKinds": {"ACTION": 11, "DATA": 4, "PAGE": 1},
+                "capabilities": 10,
+                "accessPolicies": 0,
+                "entitlementExpressions": 0,
+                "predicatePolicies": 3,
+            },
+            version=38,
             product_key="hcm",
         )
     except ContractError as exc:
@@ -3715,6 +3800,11 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_PEOPLE_PEP_V37_OUTPUT,
+                render(legacy_hcm_people_pep_v37),
+                args.check,
+            ),
+            write_or_check(
                 HCM_PEOPLE_PEP_OUTPUT,
                 render(hcm_people_pep),
                 args.check,
@@ -3727,6 +3817,11 @@ def main() -> int:
             write_or_check(
                 LEGACY_HCM_TIME_PEP_V36_OUTPUT,
                 render(legacy_hcm_time_pep_v36),
+                args.check,
+            ),
+            write_or_check(
+                LEGACY_HCM_TIME_PEP_V37_OUTPUT,
+                render(legacy_hcm_time_pep_v37),
                 args.check,
             ),
             write_or_check(
@@ -3745,8 +3840,18 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_PLATFORM_PEP_V37_OUTPUT,
+                render(legacy_hcm_platform_pep_v37),
+                args.check,
+            ),
+            write_or_check(
                 HCM_PLATFORM_PEP_OUTPUT,
                 render(hcm_platform_pep),
+                args.check,
+            ),
+            write_or_check(
+                HCM_PAYROLL_PEP_OUTPUT,
+                render(hcm_payroll_pep),
                 args.check,
             ),
         ]
@@ -3812,12 +3917,18 @@ def main() -> int:
         verify_approvals_pep(
             LEGACY_HCM_PEOPLE_PEP_V36_OUTPUT, legacy_hcm_people_pep_v36
         )
+        verify_approvals_pep(
+            LEGACY_HCM_PEOPLE_PEP_V37_OUTPUT, legacy_hcm_people_pep_v37
+        )
         verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)
         verify_approvals_pep(
             LEGACY_HCM_TIME_PEP_V35_OUTPUT, legacy_hcm_time_pep_v35
         )
         verify_approvals_pep(
             LEGACY_HCM_TIME_PEP_V36_OUTPUT, legacy_hcm_time_pep_v36
+        )
+        verify_approvals_pep(
+            LEGACY_HCM_TIME_PEP_V37_OUTPUT, legacy_hcm_time_pep_v37
         )
         verify_approvals_pep(HCM_TIME_PEP_OUTPUT, hcm_time_pep)
         verify_approvals_pep(
@@ -3826,7 +3937,11 @@ def main() -> int:
         verify_approvals_pep(
             LEGACY_HCM_PLATFORM_PEP_V36_OUTPUT, legacy_hcm_platform_pep_v36
         )
+        verify_approvals_pep(
+            LEGACY_HCM_PLATFORM_PEP_V37_OUTPUT, legacy_hcm_platform_pep_v37
+        )
         verify_approvals_pep(HCM_PLATFORM_PEP_OUTPUT, hcm_platform_pep)
+        verify_approvals_pep(HCM_PAYROLL_PEP_OUTPUT, hcm_payroll_pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1

@@ -28,7 +28,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-/** Projects a sealed Gateway v37 route decision into owner-local interpretation predicates. */
+/** Projects a sealed Gateway v38 route decision into owner-local interpretation predicates. */
 @Component
 @ConditionalOnProperty(
         name = "dwp.hris.time.interpretation.enabled",

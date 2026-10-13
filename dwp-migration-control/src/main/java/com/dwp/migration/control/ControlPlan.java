@@ -534,6 +534,12 @@ record ControlPlan(
                 "public.tme_clock_outbox_events.publish_attempts", "UPDATE"));
         privileges.add(allowedObject(role, "COLUMN", "public",
                 "public.tme_clock_outbox_events.published_at", "UPDATE"));
+        privileges.add(allowedObject(role, "RELATION", "public",
+                "public.tme_interpretation_outbox_events", "SELECT"));
+        privileges.add(allowedObject(role, "COLUMN", "public",
+                "public.tme_interpretation_outbox_events.publish_attempts", "UPDATE"));
+        privileges.add(allowedObject(role, "COLUMN", "public",
+                "public.tme_interpretation_outbox_events.published_at", "UPDATE"));
         for (String column : List.of(
                 "tim_target_population_projections.projection_revision",
                 "tim_target_population_projections.lifecycle_state",

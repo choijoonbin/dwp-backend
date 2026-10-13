@@ -3,6 +3,7 @@ package com.dwp.services.time.interpretation;
 import static com.dwp.services.time.interpretation.InterpretationOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.time.interpretation.InterpretationModels.InterpretCommand;
 import com.dwp.services.time.interpretation.InterpretationModels.InterpretationCommandReceipt;
@@ -11,6 +12,7 @@ import com.dwp.services.time.interpretation.InterpretationModels.InterpretationS
 import com.dwp.services.time.interpretation.InterpretationModels.InterpretationTrace;
 import com.dwp.services.time.interpretation.InterpretationModels.VerifiedInterpretationRequest;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import java.time.Clock;
 import java.time.Instant;
@@ -41,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class InterpretationOwnerController {
 
     private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+    private static final String CORRELATION_ID = "X-Correlation-ID";
 
     private final InterpretationService service;
     private final InterpretationRepository repository;
@@ -71,10 +74,14 @@ public class InterpretationOwnerController {
     public ApiResponse<InterpretationIaQueryModels.InterpretationProjection> workbench(
             @RequestAttribute(VERIFIED_REQUEST_ATTRIBUTE)
             VerifiedInterpretationRequest verified,
+            @Parameter(description = "Client-declared UUID that must exactly match the "
+                    + "correlationId query parameter.")
+            @RequestHeader(CORRELATION_ID) UUID correlationHeader,
             @RequestParam int limit,
             @RequestParam List<String> sort,
             @RequestParam String locale,
             @RequestParam String timeZone,
+            @Parameter(description = "Must exactly match the X-Correlation-ID request header.")
             @RequestParam UUID correlationId,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant asOf,
@@ -87,6 +94,12 @@ public class InterpretationOwnerController {
             @RequestParam(required = false) Long minimumRuleVersionRevision,
             @RequestParam(required = false) Long minimumTraceItemCount,
             @RequestParam(required = false) Long maximumTraceItemCount) {
+        if (!correlationHeader.equals(correlationId)
+                || !correlationHeader.equals(verified.correlationId())) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "The TIM workbench correlation contract is mismatched.");
+        }
         service.requireViewAuthority(verified);
         Instant effectiveAsOf = asOf == null && cursor == null ? clock.instant() : asOf;
         InterpretationIaQueryModels.StatusFilter status =

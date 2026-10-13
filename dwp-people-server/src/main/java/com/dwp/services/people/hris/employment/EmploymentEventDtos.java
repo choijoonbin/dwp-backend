@@ -86,7 +86,7 @@ public final class EmploymentEventDtos {
             @NotNull @Valid AssignmentDraft assignment) {
     }
 
-    @Schema(name = "EmptyCommandV1")
+    @Schema(name = "AssignmentEventEmptyCommandV1")
     @JsonIgnoreProperties(ignoreUnknown = false)
     public record EmptyCommand() {
     }

@@ -14,12 +14,12 @@ final class PayrollConfigurationAccess {
     }
 
     enum Action {
-        WORKBENCH_VIEW("hcm.configuration.workbench.view"),
-        ELEMENT_VERSION_CREATE("hcm.operations.payroll-inputs.update"),
-        FORMULA_VERSION_CREATE("hcm.operations.payroll-inputs.update"),
-        FORMULA_VALIDATE("hcm.operations.payroll-inputs.update"),
-        FORMULA_SIMULATE("hcm.operations.payroll-inputs.update"),
-        FORMULA_PUBLISH("hcm.configuration.policy.publish");
+        WORKBENCH_VIEW("CONFIG.HRIS_WORKBENCH:VIEW"),
+        ELEMENT_VERSION_CREATE("DATA.HRIS_PAYROLL_INPUT:UPDATE"),
+        FORMULA_VERSION_CREATE("DATA.HRIS_PAYROLL_INPUT:UPDATE"),
+        FORMULA_VALIDATE("DATA.HRIS_PAYROLL_INPUT:UPDATE"),
+        FORMULA_SIMULATE("DATA.HRIS_PAYROLL_INPUT:UPDATE"),
+        FORMULA_PUBLISH("ACTION.HRIS_POLICY_PUBLISH:PUBLISH");
 
         private final String permission;
 

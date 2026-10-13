@@ -24,6 +24,21 @@ SERVICE_PACKAGES = {
     "dwp-gateway": "com.dwp.gateway",
 }
 
+# Services that may participate in an explicitly registered owner-internal
+# interface. Keep this separate from SERVICE_PACKAGES: the latter is also the
+# scan boundary for the legacy module/import checks below.
+SERVICE_INTERFACE_SERVICES = set(SERVICE_PACKAGES) | {
+    "dwp-time-server",
+    "dwp-payroll-server",
+}
+
+INTERNAL_OWNER_ENDPOINT_REQUIRED_HEADERS = {
+    "X-DWP-Service-Token",
+    "X-DWP-Service-Identity",
+    "X-DWP-Tenant-ID",
+    "X-Purpose-Code",
+}
+
 EXTERNAL_DWP_SERVICE_TARGETS = {"dwp-agent-runtime"}
 
 SHARED_MODULES = {
@@ -1630,6 +1645,146 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                         violations.append(
                             f"{section}:{entry_id} metadata scanners must forbid {write_marker!r}"
                         )
+
+    internal_owner_endpoints = policy.get("internalOwnerEndpoints", [])
+    if not isinstance(internal_owner_endpoints, list):
+        violations.append(
+            f"{POLICY_FILE.relative_to(ROOT)} internalOwnerEndpoints must be an array"
+        )
+        internal_owner_endpoints = []
+    seen_owner_paths: dict[Path, str] = {}
+    for index, entry in enumerate(internal_owner_endpoints, start=1):
+        if not isinstance(entry, dict):
+            violations.append(f"internalOwnerEndpoints[{index}] must be an object")
+            continue
+        entry_id = entry.get("id")
+        if not isinstance(entry_id, str) or not entry_id.strip():
+            entry_id = f"#{index}"
+            violations.append(
+                f"internalOwnerEndpoints[{index}] must define a non-empty id"
+            )
+        elif entry_id in seen_ids:
+            violations.append(
+                f"internalOwnerEndpoints:{entry_id} duplicates id from {seen_ids[entry_id]}"
+            )
+        else:
+            seen_ids[entry_id] = "internalOwnerEndpoints"
+
+        for key in ("classification", "ownerService", "purpose", "endpoint"):
+            value = entry.get(key)
+            if not isinstance(value, str) or not value.strip():
+                violations.append(
+                    f"internalOwnerEndpoints:{entry_id} must define non-empty {key}"
+                )
+
+        owner_service = entry.get("ownerService")
+        if (isinstance(owner_service, str)
+                and owner_service not in SERVICE_INTERFACE_SERVICES):
+            violations.append(
+                f"internalOwnerEndpoints:{entry_id} has unknown ownerService {owner_service}"
+            )
+        callers = validate_string_list(
+            violations, "internalOwnerEndpoints", str(entry_id), entry,
+            "permittedCallerServices",
+        )
+        for caller in callers:
+            if caller not in SERVICE_INTERFACE_SERVICES:
+                violations.append(
+                    f"internalOwnerEndpoints:{entry_id} has unknown permitted caller {caller}"
+                )
+
+        source_paths: list[Path] = []
+        relative = validate_relative_path(
+            violations, "internalOwnerEndpoints", str(entry_id), entry.get("path")
+        )
+        if relative is not None:
+            source_paths.append(relative)
+            if relative in seen_owner_paths:
+                violations.append(
+                    f"internalOwnerEndpoints:{entry_id} duplicates path from "
+                    f"{seen_owner_paths[relative]}: {relative}"
+                )
+            else:
+                seen_owner_paths[relative] = str(entry_id)
+            if (isinstance(owner_service, str) and relative.parts
+                    and relative.parts[0] != owner_service):
+                violations.append(
+                    f"internalOwnerEndpoints:{entry_id} path must live under "
+                    f"ownerService {owner_service}: {relative}"
+                )
+        support_values = validate_string_list(
+            violations, "internalOwnerEndpoints", str(entry_id), entry,
+            "supportPaths",
+        )
+        for support_value in support_values:
+            support = validate_relative_path(
+                violations, "internalOwnerEndpoints", str(entry_id), support_value
+            )
+            if support is None:
+                continue
+            if (isinstance(owner_service, str) and support.parts
+                    and support.parts[0] != owner_service):
+                violations.append(
+                    f"internalOwnerEndpoints:{entry_id} supportPaths must live under "
+                    f"ownerService {owner_service}: {support}"
+                )
+            source_paths.append(support)
+        if len(source_paths) != len(set(source_paths)):
+            violations.append(
+                f"internalOwnerEndpoints:{entry_id} path and supportPaths must be unique"
+            )
+
+        if entry.get("method") not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
+            violations.append(
+                f"internalOwnerEndpoints:{entry_id} must define a supported HTTP method"
+            )
+        endpoint = entry.get("endpoint")
+        if isinstance(endpoint, str) and not endpoint.startswith("/internal/"):
+            violations.append(
+                f"internalOwnerEndpoints:{entry_id} endpoint must start with /internal/"
+            )
+        trusted_headers = validate_string_list(
+            violations, "internalOwnerEndpoints", str(entry_id), entry,
+            "requiredTrustedHeaders",
+        )
+        missing_headers = INTERNAL_OWNER_ENDPOINT_REQUIRED_HEADERS - set(trusted_headers)
+        if missing_headers:
+            violations.append(
+                f"internalOwnerEndpoints:{entry_id} is missing trusted headers "
+                f"{sorted(missing_headers)}"
+            )
+        if entry.get("publicGatewayExposure") is not False:
+            violations.append(
+                f"internalOwnerEndpoints:{entry_id} publicGatewayExposure must be false"
+            )
+        if entry.get("productAuthorizationRegistration") is not False:
+            violations.append(
+                f"internalOwnerEndpoints:{entry_id} productAuthorizationRegistration must be false"
+            )
+        if entry.get("failureMode") != "fail-closed":
+            violations.append(
+                f"internalOwnerEndpoints:{entry_id} failureMode must be fail-closed"
+            )
+
+        readable_sources = [
+            (ROOT / path).read_text(encoding="utf-8")
+            for path in source_paths
+            if (ROOT / path).is_file()
+        ]
+        combined_source = "\n".join(readable_sources)
+        source_markers = [entry.get("endpoint"), entry.get("purpose"), *callers,
+                          *trusted_headers]
+        for marker in source_markers:
+            if (isinstance(marker, str) and marker.strip()
+                    and marker not in combined_source):
+                violations.append(
+                    f"internalOwnerEndpoints:{entry_id} owner sources are missing "
+                    f"contract marker {marker!r}"
+                )
+        if readable_sources and "@Hidden" not in readable_sources[0]:
+            violations.append(
+                f"internalOwnerEndpoints:{entry_id} controller must be hidden from OpenAPI"
+            )
 
     return violations
 

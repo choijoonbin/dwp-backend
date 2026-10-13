@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Fail-closed owner check layered after the shared People service-token filter. */
 @Component
-final class EmploymentSnapshotAuthority {
+class EmploymentSnapshotAuthority {
 
     static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
     static final String CALLER = "dwp-time-server";

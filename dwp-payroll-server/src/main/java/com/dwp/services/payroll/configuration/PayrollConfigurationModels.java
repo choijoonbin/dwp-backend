@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -851,6 +852,7 @@ public final class PayrollConfigurationModels {
         }
     }
 
+    @Schema(name = "PayrollConfigurationPartialFailureV1")
     public record PartialFailure(
             @NotBlank String componentKey,
             @NotBlank String errorCode,

@@ -105,6 +105,100 @@ class ApplicationLayerBoundaryTest(unittest.TestCase):
         self.assertEqual([], CHECKER_MODULE.policy_manifest_violations(policy))
 
 
+class InternalOwnerEndpointManifestTest(unittest.TestCase):
+
+    CONTROLLER = (
+        "dwp-people-server/src/main/java/com/dwp/services/people/hris/"
+        "employment/EmploymentEventController.java"
+    )
+    AUTHORITY = (
+        "dwp-people-server/src/main/java/com/dwp/services/people/hris/"
+        "employment/EmploymentSnapshotAuthority.java"
+    )
+    SECURITY = (
+        "dwp-people-server/src/main/java/com/dwp/services/people/security/"
+        "PeopleSecurityFilter.java"
+    )
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.original_root = CHECKER_MODULE.ROOT
+        CHECKER_MODULE.ROOT = self.root
+        self.write(self.CONTROLLER, '''@Hidden
+@GetMapping("/internal/hris-people/v1/workplace-assignment-snapshots")
+final class EmploymentEventController { String purpose = "X-Purpose-Code"; }
+''')
+        self.write(self.AUTHORITY, '''final class EmploymentSnapshotAuthority {
+static final String IDENTITY = "X-DWP-Service-Identity";
+static final String CALLER = "dwp-time-server";
+static final String PURPOSE = "HRIS_WORKPLACE_ASSIGNMENT_SNAPSHOT_BOOTSTRAP";
+}''')
+        self.write(self.SECURITY, '''final class PeopleSecurityFilter {
+static final String TOKEN = "X-DWP-Service-Token";
+static final String TENANT = "X-DWP-Tenant-ID";
+}''')
+        self.entry = {
+            "id": "people-time-workplace-assignment-snapshot",
+            "classification": "hris-owner-snapshot-bootstrap",
+            "ownerService": "dwp-people-server",
+            "permittedCallerServices": ["dwp-time-server"],
+            "path": self.CONTROLLER,
+            "supportPaths": [self.AUTHORITY, self.SECURITY],
+            "method": "GET",
+            "endpoint": "/internal/hris-people/v1/workplace-assignment-snapshots",
+            "purpose": "HRIS_WORKPLACE_ASSIGNMENT_SNAPSHOT_BOOTSTRAP",
+            "requiredTrustedHeaders": [
+                "X-DWP-Service-Token", "X-DWP-Service-Identity",
+                "X-DWP-Tenant-ID", "X-Purpose-Code",
+            ],
+            "publicGatewayExposure": False,
+            "productAuthorizationRegistration": False,
+            "failureMode": "fail-closed",
+        }
+        self.policy = {
+            "version": 2,
+            "resilienceDefaults": {
+                "connectTimeoutMs": 1_000, "readTimeoutMs": 5_000,
+                "bulkheadMaxConcurrentCalls": 10, "maximumRetryAttempts": 1,
+                "circuitBreaker": True,
+            },
+            "httpClients": [], "crossDatabaseExceptions": [],
+            "metadataScanners": [], "internalOwnerEndpoints": [self.entry],
+        }
+
+    def tearDown(self) -> None:
+        CHECKER_MODULE.ROOT = self.original_root
+        self.directory.cleanup()
+
+    def write(self, relative: str, source: str) -> None:
+        target = self.root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+
+    def test_accepts_hidden_fail_closed_owner_interface(self) -> None:
+        self.assertEqual([], CHECKER_MODULE.policy_manifest_violations(self.policy))
+
+    def test_rejects_public_or_untrusted_owner_interface_drift(self) -> None:
+        mutations = (
+            ("publicGatewayExposure", True),
+            ("productAuthorizationRegistration", True),
+            ("failureMode", "fail-contained"),
+            ("endpoint", "/api/people/v1/workplace-assignment-snapshots"),
+            ("ownerService", "dwp-unknown-server"),
+        )
+        for field, value in mutations:
+            with self.subTest(field=field):
+                changed = copy.deepcopy(self.policy)
+                changed["internalOwnerEndpoints"][0][field] = value
+                self.assertTrue(CHECKER_MODULE.policy_manifest_violations(changed))
+
+        for header in CHECKER_MODULE.INTERNAL_OWNER_ENDPOINT_REQUIRED_HEADERS:
+            with self.subTest(header=header):
+                changed = copy.deepcopy(self.policy)
+                changed["internalOwnerEndpoints"][0]["requiredTrustedHeaders"].remove(header)
+                self.assertTrue(CHECKER_MODULE.policy_manifest_violations(changed))
+
 class ExternalConnectorRequiredMarkerSourceTest(unittest.TestCase):
 
     CLIENT = (

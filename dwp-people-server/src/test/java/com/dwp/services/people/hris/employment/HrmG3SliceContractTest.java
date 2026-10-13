@@ -40,6 +40,8 @@ class HrmG3SliceContractTest {
         assertResponseBody("publish", CommandReceiptV1.class);
         assertResponseBody("receipt", CommandReceiptV1.class);
         assertThat(EmploymentEventDtos.PURPOSE).isEqualTo("HR_LIFECYCLE");
+        assertThat(EmploymentEventAuthority.RECEIPT_BINDING_ID).isEqualTo("PEP-HRM-014");
+        assertThat(EmploymentEventAuthority.EVENT_DETAIL_BINDING_ID).isEqualTo("PEP-HRM-015");
 
         Method publish = method("publish");
         List<String> headers = Arrays.stream(publish.getParameterAnnotations())

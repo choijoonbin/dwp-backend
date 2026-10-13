@@ -12,6 +12,7 @@ import com.dwp.services.people.security.HcmStepUpHeaders;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +29,7 @@ import java.util.UUID;
 
 /** Owner service for the canonical BASE-TFR-HRM-008 employment-event lifecycle. */
 @Service
-final class EmploymentEventService {
+class EmploymentEventService {
 
     private static final String CREATE_COMMAND = "HRM_ASSIGNMENT_EVENT_CREATE";
     private static final String VALIDATE_COMMAND = "HRM_ASSIGNMENT_EVENT_VALIDATE";
@@ -40,6 +41,11 @@ final class EmploymentEventService {
     private static final String PUBLISH_ACTION = "PUBLISH_ASSIGNMENT_EVENT";
     private static final String CREATE_PATH = "/api/people/v1/hris/assignment-events";
     private static final String EVENT_PATH = "/api/people/v1/hris/assignment-events/";
+    private static final Map<String, String> SEALED_RECEIPT_COMMANDS = Map.of(
+            CREATE_COMMAND, CREATE_ACTION,
+            VALIDATE_COMMAND, VALIDATE_ACTION,
+            SUBMIT_COMMAND, SUBMIT_ACTION,
+            PUBLISH_COMMAND, PUBLISH_ACTION);
 
     private final EmploymentEventRepository repository;
     private final EmploymentEventCanonicalizer canonicalizer;
@@ -50,6 +56,7 @@ final class EmploymentEventService {
     private final ObjectMapper mapper;
     private final Clock clock;
 
+    @Autowired
     EmploymentEventService(
             EmploymentEventRepository repository,
             EmploymentEventCanonicalizer canonicalizer,
@@ -323,7 +330,18 @@ final class EmploymentEventService {
         PeopleRequestContext.Actor actor = actor();
         EmploymentEventRepository.ReceiptRow row = repository.receipt(
                 actor.tenantId(), receiptId).orElseThrow(this::notDisclosed);
-        if (!actor.personPublicId().equals(row.subjectPublicId())) throw notDisclosed();
+        if (!actor.personPublicId().equals(row.subjectPublicId())
+                || !Objects.equals(
+                        SEALED_RECEIPT_COMMANDS.get(row.commandType()), row.action())
+                || !EmploymentEventDtos.PURPOSE.equals(row.purpose())
+                || row.requestDigest() == null || !row.requestDigest().matches("[0-9a-f]{64}")
+                || row.populationDigest() == null
+                || !row.populationDigest().matches("[0-9a-f]{64}")
+                || row.contextDigest() == null || !row.contextDigest().matches("[0-9a-f]{64}")
+                || row.fieldRevision() < 1 || row.authorizationRevision() < 1
+                || row.correlationId() == null) {
+            throw notDisclosed();
+        }
         return toReceipt(row);
     }
 

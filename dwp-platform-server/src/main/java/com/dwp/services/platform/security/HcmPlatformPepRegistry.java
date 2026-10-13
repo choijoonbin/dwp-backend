@@ -23,14 +23,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/** Closed Platform-owned HCM PEP projection for the v37 SYS configuration handoff. */
+/** Closed Platform-owned HCM PEP projection for the v38 SYS configuration handoff. */
 @Component
 public final class HcmPlatformPepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-platform-pep-v37.generated.json";
-    static final String REGISTRY_V37_CHECKSUM =
-            "1f23280116bc5b29f1a7ea6cc4ccbd2092a91673979d6bb46164a0dbb95ae10c";
+            "product-authorization/hcm-platform-pep-v38.generated.json";
+    static final String REGISTRY_V38_CHECKSUM =
+            "a41145d6a2faefd2e6030a2ca9a070769019d4db5513ea214bf542dda31c374a";
     private static final String CONFIGURATION_ROOT = "/v1/admin/hris/configurations";
     private static final String WORKBENCH_PATH = "/v1/hris/workbench/settings-reference";
 
@@ -131,14 +131,14 @@ public final class HcmPlatformPepRegistry {
     private void validateEnvelope(ObjectNode projection) {
         JsonNode registry = projection.path("registryRef");
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-platform-pep-v37".equals(
+                        && "hcm-platform-pep-v38".equals(
                         projection.path("projectionKey").asText())
                         && "platform".equals(projection.path("ownerServiceKey").asText())
                         && "product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 37
-                        && REGISTRY_V37_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 38
+                        && REGISTRY_V38_CHECKSUM.equals(registry.path("sha256").asText()),
                 "Unexpected HCM Platform PEP envelope");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 974
+        require(projection.path("sourceRegistryRouteCount").asInt() == 991
                         && projection.path("projectedRouteContractCount").asInt() == 19
                         && projection.path("bindingPairCount").asInt() == 20
                         && requiredArray(projection, "capabilities").size() == 5

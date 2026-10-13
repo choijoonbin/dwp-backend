@@ -99,7 +99,10 @@ SERVICES = (
         "dwp_payroll_migration",
         "dwp_payroll_runtime",
         publisher_role="dwp_payroll_projection_publisher",
-        feature_environment=(("DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED", "true"),),
+        feature_environment=(
+            ("DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED", "true"),
+            ("DWP_HRIS_PAYROLL_CONFIGURATION_WAVE2_ENABLED", "true"),
+        ),
     ),
     ServiceSpec(
         "time",
@@ -113,6 +116,11 @@ SERVICES = (
         feature_environment=(
             ("DWP_TIME_WORK_REGIME_API_ENABLED", "true"),
             ("DWP_HRIS_TIME_CLOCK_INGESTION_ENABLED", "true"),
+            ("DWP_HRIS_TIME_INTERPRETATION_ENABLED", "true"),
+            (
+                "DWP_HRIS_TIME_INTERPRETATION_CURSOR_SECRET",
+                "g7-openapi-time-interpretation-cursor-secret-v1",
+            ),
             (
                 "DWP_HRIS_TIME_CLOCK_INGESTION_CURSOR_SECRET",
                 "g7-openapi-time-clock-ingestion-cursor-secret-v1",
@@ -125,6 +133,35 @@ STABLE_OPENAPI_INFO = {
     "payroll": {"title": "DWP Payroll Service API", "version": "1.0.0"},
     "time": {"title": "DWP Time Service API", "version": "1.0.0"},
 }
+
+# Exact Wave2 owner operations admitted by the controlled snapshot refresh.
+# Existing operations remain byte/constraint protected below; no other path or
+# operation addition is accepted by this harness.
+WAVE2_OPENAPI_ADDITIONS = {
+    "people": frozenset({
+        ("/v1/hris/workbench/self-service/employment-documents", "get"),
+        ("/v1/hris/workbench/operations/employment/assignments", "get"),
+        ("/v1/hris/assignment-events", "post"),
+        ("/v1/hris/assignment-events/{eventPublicId}", "get"),
+        ("/v1/hris/assignment-events/{eventPublicId}/validate", "post"),
+        ("/v1/hris/assignment-events/{eventPublicId}/submit", "post"),
+        ("/v1/hris/assignment-events/{eventPublicId}/publish", "post"),
+        ("/v1/hris/command-receipts/{receiptId}", "get"),
+    }),
+    "time": frozenset({
+        ("/v1/hris/workbench/time-interpretation", "get"),
+        ("/v1/interpretation-runs", "post"),
+        ("/v1/interpretation-runs/{runId}/trace", "get"),
+    }),
+    "payroll": frozenset({
+        ("/v1/workbench/settings-payroll", "get"),
+        ("/v1/elements/versions", "post"),
+        ("/v1/formulas/versions", "post"),
+        ("/v1/formulas/{formulaId}/validations", "post"),
+        ("/v1/formulas/{formulaId}/simulations", "post"),
+        ("/v1/formulas/{formulaId}/publish", "post"),
+    }),
+}
 PARAMETER_CONTRACT_KEYS = (
     "allowEmptyValue",
     "allowReserved",
@@ -134,6 +171,20 @@ PARAMETER_CONTRACT_KEYS = (
     "schema",
     "style",
 )
+
+# Reviewed exception to the otherwise additive-only parameter rule. IAQ-041
+# binds its required query correlation UUID to the same required public header;
+# admit exactly that header shape and no wider parameter drift.
+REVIEWED_REQUIRED_PARAMETER_ADDITIONS = {
+    (
+        "time",
+        "GET /v1/hris/workbench/time-interpretation",
+        ("header", "x-correlation-id"),
+    ): {
+        "required": True,
+        "schema": {"format": "uuid", "type": "string"},
+    },
+}
 
 
 def status(message: str) -> None:
@@ -765,11 +816,18 @@ def require_safe_parameter_refresh(
         identity for identity in set(live) - set(approved)
         if live[identity]["required"]
     )
-    if removed or changed or added_required:
+    unreviewed_required = []
+    for identity in added_required:
+        expected = REVIEWED_REQUIRED_PARAMETER_ADDITIONS.get(
+            (service_name, operation_label, identity)
+        )
+        if expected is None or live[identity] != expected:
+            unreviewed_required.append(identity)
+    if removed or changed or unreviewed_required:
         raise GateFailure(
             f"{service_name} snapshot refresh changes parameter constraints for "
             f"{operation_label}: removed={removed}, changed={changed}, "
-            f"addedRequired={added_required}"
+            f"addedRequired={unreviewed_required}"
         )
 
 
@@ -786,7 +844,13 @@ def require_safe_snapshot_refresh(
         )
     approved_paths = approved.get("paths", {})
     live_paths = live.get("paths", {})
-    if set(approved_paths) != set(live_paths):
+    expected_additions = WAVE2_OPENAPI_ADDITIONS.get(service.name, frozenset())
+    expected_addition_paths = {path for path, _ in expected_additions}
+    removed_paths = set(approved_paths) - set(live_paths)
+    unexpected_paths = (
+        set(live_paths) - set(approved_paths) - expected_addition_paths
+    )
+    if removed_paths or unexpected_paths:
         raise GateFailure(f"{service.name} snapshot refresh changes the path set")
     methods = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
     approved_operations = {
@@ -801,7 +865,8 @@ def require_safe_snapshot_refresh(
         for method, operation in item.items()
         if method in methods
     }
-    if set(approved_operations) != set(live_operations):
+    expected_operations = set(approved_operations) | set(expected_additions)
+    if set(live_operations) != expected_operations:
         raise GateFailure(f"{service.name} snapshot refresh changes the operation set")
     changed_ids = {
         f"{method.upper()} {path}": (

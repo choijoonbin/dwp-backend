@@ -217,6 +217,95 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void wave2OwnerEvidenceIsStrippedAndReprojectedFromTrustedAuthority() {
+        ProductSurfaceContextAggregationService authority = authority(
+                allowedWave2("LEGAL_ENTITY"));
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        String subject = "10000000-0000-4000-8000-000000000041";
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/time/v1/hris/workbench/time-interpretation"
+                                + "?correlationId=20000000-0000-4000-8000-000000000041")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER, subject)
+                .header(ProductSurfaceDecisionContextFilter.SUBJECT_PRINCIPAL_HEADER,
+                        "client-forged-subject")
+                .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_REVISION_HEADER, "999")
+                .header(ProductSurfaceDecisionContextFilter.AUTHORIZATION_REVISION_HEADER, "888")
+                .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER, "SELF")
+                .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED")
+                .header(ProductSurfaceDecisionContextFilter.MASKED_FIELD_GROUPS_HEADER,
+                        "TRACE_SUMMARY"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.SUBJECT_PRINCIPAL_HEADER))
+                .isEqualTo(subject);
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.FIELD_POLICY_REVISION_HEADER))
+                .matches("[1-9][0-9]*").isNotEqualTo("999");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.AUTHORIZATION_REVISION_HEADER))
+                .matches("[1-9][0-9]*").isNotEqualTo("888");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                .isEqualTo("LEGAL_ENTITY");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                .isEqualTo("TIME_OPERATIONS");
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceDecisionContextFilter.MASKED_FIELD_GROUPS_HEADER)).isFalse();
+    }
+
+    @Test
+    void wave2HrmAndPayPurposesAreGatewayOwned() {
+        ProductSurfaceDecisionContextFilter filter = filter(authority(
+                allowedWave2("LEGAL_ENTITY")));
+        record Case(String method, String path, String purpose, boolean command) {}
+        List<Case> cases = List.of(
+                new Case("POST", "/api/people/v1/hris/assignment-events",
+                        "HR_LIFECYCLE", true),
+                new Case("GET", "/api/payroll/v1/workbench/settings-payroll",
+                        "PAYROLL_CONFIGURATION", false));
+
+        for (Case requestCase : cases) {
+            MockServerHttpRequest.BaseBuilder<?> builder = MockServerHttpRequest.method(
+                            HttpMethod.valueOf(requestCase.method()), requestCase.path())
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000041")
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED");
+            if (requestCase.command()) {
+                builder.header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                        REVISION);
+            }
+            MockServerWebExchange exchange = exchange(builder);
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange, filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).isNotNull();
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                    .isEqualTo(requestCase.purpose());
+        }
+    }
+
+    @Test
     void selectedScopeIsLiveEvaluatedAndConsumedBeforeOwnerForwarding() {
         ProductSurfaceContextAggregationService authority = authority(allowed());
         ProductSurfaceDecisionContextFilter filter = filter(authority);
@@ -875,6 +964,31 @@ class ProductSurfaceDecisionContextFilterTest {
                         context, "grant-dwaion", scope, false, REVALIDATE_AT,
                         null, null, null, REVALIDATE_AT),
                 contextKey, scope, false);
+    }
+
+    private ProductSurfaceContextAggregationService.TrustedProductEvaluation allowedWave2(
+            String scopeKind) {
+        ProductSurfaceContextDtos.EffectiveScope scope =
+                new ProductSurfaceContextDtos.EffectiveScope(
+                        HCM_DERIVED_SCOPE, scopeKind, scopeKind, true, false, REVALIDATE_AT);
+        String contextKey = "psc-" + "d".repeat(64);
+        ProductSurfaceContextDtos.EffectiveContext context =
+                new ProductSurfaceContextDtos.EffectiveContext(
+                        contextKey, "hcm", "hcm.operations", "work",
+                        ProductSurfaceContextDtos.AccessMode.NORMAL,
+                        ProductSurfaceContextDtos.AccessSource.RELATIONSHIP,
+                        "APP.HCM", List.of(), List.of(scope), REVALIDATE_AT);
+        return new ProductSurfaceContextAggregationService.TrustedProductEvaluation(
+                new ProductSurfaceContextDtos.ProductEvaluationData(
+                        ProductSurfaceContextDtos.Decision.ALLOWED, "ALLOWED", REVISION,
+                        context, "grant-hcm-wave2", scope, false, REVALIDATE_AT,
+                        null, null, null, REVALIDATE_AT),
+                contextKey,
+                scope,
+                new ProductSurfaceContextDtos.SourceRevisions(
+                        "auth-v38", "policy-v38", "relationship-v1",
+                        "population-v1", null),
+                false);
     }
 
     private ProductSurfaceContextAggregationService.TrustedProductEvaluation stepUp() {

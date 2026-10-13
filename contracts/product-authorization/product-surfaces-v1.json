@@ -3400,6 +3400,30 @@
       "surfaceKey": "dwaion.work"
     },
     {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.command-receipt.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "DATA.HRIS_COMMAND_RECEIPT:VIEW",
+      "resourceKey": "DATA.HRIS_COMMAND_RECEIPT",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.hcm.operations.assignment-command-receipt.data"
+      ],
+      "scopeResolver": "ORIGINATING_COMMAND_SCOPE",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
       "action": "PUBLISH",
       "activationPolicy": "STEPUP-MGMT-HIGH-V1",
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
@@ -3422,7 +3446,8 @@
         "route.hcm.configuration.configuration-version-rollback.action",
         "route.hcm.configuration.configuration-version-schedule.action",
         "route.hcm.configuration.configuration-version.data",
-        "route.hcm.configuration.configurations.data"
+        "route.hcm.configuration.configurations.data",
+        "route.hcm.configuration.payroll-formula-publish.action"
       ],
       "scopeResolver": "APP_RESOURCE_SET:RS_HCM_CONFIG",
       "sodPolicyId": "NO_PUBLISH_OWN_POLICY",
@@ -3475,6 +3500,7 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "HIGH",
       "routeContractKeys": [
+        "route.hcm.configuration.payroll.page",
         "route.hcm.configuration.settings-reference.page"
       ],
       "scopeResolver": "APP_RESOURCE_SET:RS_HCM_CONFIG",
@@ -3849,6 +3875,33 @@
       "surfaceKey": "hcm.operations"
     },
     {
+      "action": "MANAGE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.assignment.manage",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ACTION.HRIS_ASSIGNMENT_EVENT:MANAGE",
+      "resourceKey": "ACTION.HRIS_ASSIGNMENT_EVENT",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.hcm.operations.assignment-event-create.action",
+        "route.hcm.operations.assignment-event-detail.data",
+        "route.hcm.operations.assignment-event-submit.action",
+        "route.hcm.operations.assignment-event-validate.action"
+      ],
+      "scopeResolver": "WORKFORCE_TARGET_POPULATION",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
       "action": "VIEW",
       "activationPolicy": null,
       "authorityMode": "PERMISSION",
@@ -4047,6 +4100,33 @@
       "surfaceKey": "hcm.operations"
     },
     {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.payroll-inputs.update",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "DATA.HRIS_PAYROLL_INPUT:UPDATE",
+      "resourceKey": "DATA.HRIS_PAYROLL_INPUT",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.hcm.configuration.payroll-element-version-create.action",
+        "route.hcm.configuration.payroll-formula-simulate.action",
+        "route.hcm.configuration.payroll-formula-validate.action",
+        "route.hcm.configuration.payroll-formula-version-create.action"
+      ],
+      "scopeResolver": "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.management"
+    },
+    {
       "action": "APPROVE",
       "activationPolicy": "STEPUP-MGMT-HIGH-V1",
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
@@ -4063,6 +4143,7 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "HIGH",
       "routeContractKeys": [
+        "route.hcm.operations.assignment-event-publish.action",
         "route.hcm.operations.employee-change-request-apply.action"
       ],
       "scopeResolver": "WORKFORCE_TARGET_POPULATION",
@@ -4112,7 +4193,9 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
-        "route.hcm.operations.employee-change-requests.page"
+        "route.hcm.operations.assignment-event-detail.data",
+        "route.hcm.operations.employee-change-requests.page",
+        "route.hcm.operations.employment-assignments.page"
       ],
       "scopeResolver": "WORKFORCE_TARGET_POPULATION",
       "sodPolicyId": null,
@@ -4360,7 +4443,9 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "HIGH",
       "routeContractKeys": [
-        "route.hcm.operations.time-clock-event-void.action"
+        "route.hcm.operations.time-clock-event-void.action",
+        "route.hcm.operations.time-interpretation-run.action",
+        "route.hcm.operations.time-interpretation-trace.data"
       ],
       "scopeResolver": "TIME_TARGET_POPULATION",
       "sodPolicyId": null,
@@ -4385,7 +4470,8 @@
       "riskTier": "LOW",
       "routeContractKeys": [
         "route.hcm.operations.time-clock-ingestion.page",
-        "route.hcm.operations.time-exceptions.page"
+        "route.hcm.operations.time-exceptions.page",
+        "route.hcm.operations.time-interpretation.page"
       ],
       "scopeResolver": "TIME_TARGET_POPULATION",
       "sodPolicyId": null,
@@ -4577,6 +4663,30 @@
       "surfaceKey": "hcm.personal"
     },
     {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.personal.profile.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "DATA.HRIS_SELF_PROFILE:VIEW",
+      "resourceKey": "DATA.HRIS_SELF_PROFILE",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.hcm.personal.employment-documents.page"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.personal"
+    },
+    {
       "action": "CREATE",
       "activationPolicy": null,
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
@@ -4593,7 +4703,32 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "MEDIUM",
       "routeContractKeys": [
+        "route.hcm.operations.time-interpretation-run.action",
         "route.hcm.personal.time-clock-event-record.action"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.personal"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.personal.time.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "DATA.HR_TIME:VIEW",
+      "resourceKey": "DATA.HR_TIME",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.hcm.operations.time-interpretation-trace.data"
       ],
       "scopeResolver": "SELF",
       "sodPolicyId": null,
@@ -7205,7 +7340,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "1f23280116bc5b29f1a7ea6cc4ccbd2092a91673979d6bb46164a0dbb95ae10c",
+  "checksum": "a41145d6a2faefd2e6030a2ca9a070769019d4db5513ea214bf542dda31c374a",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -8368,10 +8503,17 @@
       "policyVersion": 1,
       "predicatePolicyKey": "predicate.hcm-employee-change-authority.v1",
       "routeContractKeys": [
+        "route.hcm.operations.assignment-event-create.action",
+        "route.hcm.operations.assignment-event-detail.data",
+        "route.hcm.operations.assignment-event-publish.action",
+        "route.hcm.operations.assignment-event-submit.action",
+        "route.hcm.operations.assignment-event-validate.action",
         "route.hcm.operations.employee-change-request-apply.action",
         "route.hcm.operations.employee-change-request-create.action",
         "route.hcm.operations.employee-change-request-submit.action",
-        "route.hcm.operations.employee-change-requests.page"
+        "route.hcm.operations.employee-change-requests.page",
+        "route.hcm.operations.employment-assignments.page",
+        "route.hcm.personal.employment-documents.page"
       ],
       "targetBindingKinds": [
         "SELF",
@@ -8476,6 +8618,54 @@
       ],
       "targetBindingKinds": [
         "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmOriginatingCommandReceiptAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "People + HCM + Security",
+      "ownerServiceKey": "people",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-originating-command-receipt.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-originating-command-receipt.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.assignment-command-receipt.data"
+      ],
+      "targetBindingKinds": [
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmPayrollConfigurationAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Payroll + HCM + Security",
+      "ownerServiceKey": "payroll",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-payroll-configuration-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-payroll-configuration-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.configuration.payroll-element-version-create.action",
+        "route.hcm.configuration.payroll-formula-publish.action",
+        "route.hcm.configuration.payroll-formula-simulate.action",
+        "route.hcm.configuration.payroll-formula-validate.action",
+        "route.hcm.configuration.payroll-formula-version-create.action",
+        "route.hcm.configuration.payroll.page"
+      ],
+      "targetBindingKinds": [
+        "CONFIG_SCOPE",
+        "OBJECT",
+        "TARGET_POPULATION"
       ]
     },
     {
@@ -8624,6 +8814,9 @@
         "route.hcm.operations.time-clock-event-void.action",
         "route.hcm.operations.time-clock-ingestion.page",
         "route.hcm.operations.time-exceptions.page",
+        "route.hcm.operations.time-interpretation-run.action",
+        "route.hcm.operations.time-interpretation-trace.data",
+        "route.hcm.operations.time-interpretation.page",
         "route.hcm.personal.time-clock-event-record.action"
       ],
       "targetBindingKinds": [
@@ -38299,6 +38492,355 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-payroll-configuration-authority.v1"
+          ],
+          "profileKey": "payroll-preparer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll-inputs.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "CONFIG_SCOPE",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll-element-version-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/payroll/v1/elements/versions",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.payroll-element-version-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll-element-version-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/elements/versions",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-configuration-authority.v1"
+          ],
+          "profileKey": "configuration-publisher",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.configuration.policy.publish",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "CONFIG_SCOPE",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll-formula-publish.action.binding.01",
+          "method": "POST",
+          "path": "/api/payroll/v1/formulas/{formulaId}/publish",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.payroll-formula-publish.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll-formula-publish.action.binding.01",
+          "method": "POST",
+          "path": "/v1/formulas/{formulaId}/publish",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-payroll-server",
+          "bindingKey": "route.hcm.configuration.payroll-formula-publish.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "payroll",
+          "targetIdPathParameter": "formulaId",
+          "targetType": "PAYROLL_FORMULA"
+        }
+      ],
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-configuration-authority.v1"
+          ],
+          "profileKey": "payroll-preparer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll-inputs.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "CONFIG_SCOPE",
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll-formula-simulate.action.binding.01",
+          "method": "POST",
+          "path": "/api/payroll/v1/formulas/{formulaId}/simulations",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.payroll-formula-simulate.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll-formula-simulate.action.binding.01",
+          "method": "POST",
+          "path": "/v1/formulas/{formulaId}/simulations",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-configuration-authority.v1"
+          ],
+          "profileKey": "payroll-preparer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll-inputs.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "CONFIG_SCOPE",
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll-formula-validate.action.binding.01",
+          "method": "POST",
+          "path": "/api/payroll/v1/formulas/{formulaId}/validations",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.payroll-formula-validate.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll-formula-validate.action.binding.01",
+          "method": "POST",
+          "path": "/v1/formulas/{formulaId}/validations",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-configuration-authority.v1"
+          ],
+          "profileKey": "payroll-preparer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll-inputs.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "CONFIG_SCOPE",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll-formula-version-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/payroll/v1/formulas/versions",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.payroll-formula-version-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll-formula-version-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/formulas/versions",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-configuration-authority.v1"
+          ],
+          "profileKey": "configuration-author",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.configuration.workbench.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.configuration.payroll.page.binding.01",
+              "projectionPolicyKey": "route.hcm.configuration.payroll.page.configuration-author.projection.v1",
+              "responseSchemaKey": "route.hcm.configuration.payroll.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll.page.binding.01",
+          "method": "GET",
+          "path": "/api/payroll/v1/workbench/settings-payroll",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.payroll.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.payroll.page.binding.01",
+          "method": "GET",
+          "path": "/v1/workbench/settings-payroll",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.configuration.payroll",
+      "uiRoutePattern": "/hr/settings/payroll"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-reference-configuration-authority.v1"
           ],
           "profileKey": "configuration-reader",
@@ -40179,6 +40721,68 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-originating-command-receipt.v1"
+          ],
+          "profileKey": "originating-command",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.command-receipt.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.assignment-command-receipt.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.assignment-command-receipt.data.originating-command.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.assignment-command-receipt.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-command-receipt.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/command-receipts/{receiptId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.assignment-command-receipt.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-command-receipt.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/command-receipts/{receiptId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-workforce-visible-person.v1"
           ],
           "profileKey": "full-management",
@@ -40223,6 +40827,302 @@
         }
       ],
       "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-employee-change-authority.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.assignment.manage",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-event-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/people/v1/hris/assignment-events",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.assignment-event-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-event-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/hris/assignment-events",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-employee-change-authority.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKeys": [
+              "hcm.operations.people.view",
+              "hcm.operations.assignment.manage"
+            ],
+            "mode": "ANY",
+            "type": "CAPABILITY_EXPRESSION"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.assignment-event-detail.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.assignment-event-detail.data.full-management.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.assignment-event-detail.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-event-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/assignment-events/{eventPublicId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.assignment-event-detail.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-event-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/assignment-events/{eventPublicId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-employee-change-authority.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.people-change.approve",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-event-publish.action.binding.01",
+          "method": "POST",
+          "path": "/api/people/v1/hris/assignment-events/{eventPublicId}/publish",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.assignment-event-publish.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-event-publish.action.binding.01",
+          "method": "POST",
+          "path": "/v1/hris/assignment-events/{eventPublicId}/publish",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-people-server",
+          "bindingKey": "route.hcm.operations.assignment-event-publish.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "people",
+          "targetIdPathParameter": "eventPublicId",
+          "targetType": "ASSIGNMENT_EVENT"
+        }
+      ],
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-employee-change-authority.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.assignment.manage",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-event-submit.action.binding.01",
+          "method": "POST",
+          "path": "/api/people/v1/hris/assignment-events/{eventPublicId}/submit",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.assignment-event-submit.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-event-submit.action.binding.01",
+          "method": "POST",
+          "path": "/v1/hris/assignment-events/{eventPublicId}/submit",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-employee-change-authority.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.assignment.manage",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-event-validate.action.binding.01",
+          "method": "POST",
+          "path": "/api/people/v1/hris/assignment-events/{eventPublicId}/validate",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.assignment-event-validate.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.assignment-event-validate.action.binding.01",
+          "method": "POST",
+          "path": "/v1/hris/assignment-events/{eventPublicId}/validate",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
       "subject": {
         "productKey": "hcm",
         "surfaceKey": "hcm.operations",
@@ -41072,6 +41972,67 @@
       },
       "uiRouteId": "hcm.operations.employee-change-requests",
       "uiRoutePattern": "/hr/operations/people/employee-change-requests"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-employee-change-authority.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.people.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.employment-assignments.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.employment-assignments.page.full-management.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.employment-assignments.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.employment-assignments.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/workbench/operations/employment/assignments",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.employment-assignments.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.employment-assignments.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/workbench/operations/employment/assignments",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.employment-assignments",
+      "uiRoutePattern": "/hr/operations/people/employment-assignments"
     },
     {
       "accessProfiles": [
@@ -43120,6 +44081,237 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-time-capture-authority.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKeys": [
+              "hcm.operations.time.update"
+            ],
+            "mode": "ANY",
+            "type": "CAPABILITY_EXPRESSION"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-capture-authority.v1"
+          ],
+          "profileKey": "self-service",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.personal.time.submit",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-interpretation-run.action.binding.01",
+          "method": "POST",
+          "path": "/api/time/v1/interpretation-runs",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-interpretation-run.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-interpretation-run.action.binding.01",
+          "method": "POST",
+          "path": "/v1/interpretation-runs",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-capture-authority.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKeys": [
+              "hcm.operations.time.update"
+            ],
+            "mode": "ANY",
+            "type": "CAPABILITY_EXPRESSION"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.time-interpretation-trace.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.time-interpretation-trace.data.full-management.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.time-interpretation-trace.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-capture-authority.v1"
+          ],
+          "profileKey": "self-service",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.personal.time.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.time-interpretation-trace.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.time-interpretation-trace.data.self-service.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.time-interpretation-trace.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-interpretation-trace.data.binding.01",
+          "method": "GET",
+          "path": "/api/time/v1/interpretation-runs/{runId}/trace",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-interpretation-trace.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-interpretation-trace.data.binding.01",
+          "method": "GET",
+          "path": "/v1/interpretation-runs/{runId}/trace",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-capture-authority.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.time-interpretation.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.time-interpretation.page.full-management.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.time-interpretation.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-interpretation.page.binding.01",
+          "method": "GET",
+          "path": "/api/time/v1/hris/workbench/time-interpretation",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-interpretation.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-interpretation.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/workbench/time-interpretation",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.time-interpretation",
+      "uiRoutePattern": "/hr/operations/time/interpretation"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-domain-target-population.v1"
           ],
           "profileKey": "full-management",
@@ -44156,6 +45348,67 @@
       },
       "uiRouteId": "hcm.personal.directory",
       "uiRoutePattern": "/hr/directory"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-employee-change-authority.v1"
+          ],
+          "profileKey": "self-service",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.personal.profile.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.personal.employment-documents.page.binding.01",
+              "projectionPolicyKey": "route.hcm.personal.employment-documents.page.self-service.projection.v1",
+              "responseSchemaKey": "route.hcm.personal.employment-documents.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.personal.employment-documents.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/workbench/self-service/employment-documents",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.personal",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.personal.employment-documents.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.personal.employment-documents.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/workbench/self-service/employment-documents",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.personal",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.personal.employment-documents",
+      "uiRoutePattern": "/hr/me/employment-documents"
     },
     {
       "accessProfiles": [
@@ -68431,5 +69684,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 37
+  "version": 38
 }

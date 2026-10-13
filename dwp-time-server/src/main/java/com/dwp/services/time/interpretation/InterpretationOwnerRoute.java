@@ -38,11 +38,11 @@ public enum InterpretationOwnerRoute {
             InterpretationService.PURPOSE,
             false);
 
-    public static final long AUTHORIZATION_VERSION = 37;
+    public static final long AUTHORIZATION_VERSION = 38;
     public static final String AUTHORIZATION_SHA256 =
-            "1f23280116bc5b29f1a7ea6cc4ccbd2092a91673979d6bb46164a0dbb95ae10c";
+            "a41145d6a2faefd2e6030a2ca9a070769019d4db5513ea214bf542dda31c374a";
     public static final String GATEWAY_OPENAPI_SHA256 =
-            "9d788107956401a3c319f81ed2ca4fe4b1b2ac1e8c23aec9ce2f0a71d55d330a";
+            "453f3620dca02a5ce82df273be986633fb5d694084ca080859bb47472027d234";
 
     private final String method;
     private final Pattern path;

@@ -23,12 +23,11 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v37.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v38.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 37
+PRODUCT_AUTHORIZATION_VERSION = 38
 HRIS_DESIGN_TIME_OVERLAY = CONTRACT_ROOT / "hris-wave1-design-time.json"
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
-SYS_REFERENCE_CONFIGURATION_ROUTE_PREFIX = "route.hcm.configuration."
 SYS_REFERENCE_CONFIGURATION_OPERATION_CONTRACTS = {
     "route.hcm.configuration.settings-reference.page": (
         "get",
@@ -192,6 +191,13 @@ HRM_CANONICAL_SCHEMA_SHA256 = {
     "CommandReceiptV1": "b464534080642275344bdfdf7d11c6b1dbf864d5c4307b425ad6b805857b58a2",
     "ApprovalDecisionCallbackV1": "1f9d93ba4c5263b19ab0209dec0b301447c149eb85120cdcbf51866cfdc07ec1",
 }
+# Springdoc cannot infer the closed-wire constraints enforced by the canonical
+# CommandReceiptV1 deserializer.  Admit only this exact lossy runtime projection;
+# the reviewed schema hash above remains the published contract.
+HRM_RUNTIME_SCHEMA_PROJECTION_SHA256 = {
+    ("people", "CommandReceiptV1"):
+        "1710749e86f42104b360e82893d184bc43b27da3b3976a678e154139a816233e",
+}
 HRM_WORKLOAD_PROOF_V2 = {
     "audience": "dwp-people-server",
     "bindingId": "SVC-PEP-HRM-001",
@@ -208,6 +214,25 @@ PUBLIC_COMMAND_PROOF_HEADERS = {
     "x-dwp-expected-decision-revision",
     "x-dwp-expected-object-version",
 }
+WAVE2_TRUSTED_PURPOSE_OPERATIONS = frozenset({
+    ("/api/people/v1/hris/workbench/self-service/employment-documents", "get"),
+    ("/api/people/v1/hris/workbench/operations/employment/assignments", "get"),
+    ("/api/people/v1/hris/assignment-events", "post"),
+    ("/api/people/v1/hris/assignment-events/{eventPublicId}", "get"),
+    ("/api/people/v1/hris/assignment-events/{eventPublicId}/validate", "post"),
+    ("/api/people/v1/hris/assignment-events/{eventPublicId}/submit", "post"),
+    ("/api/people/v1/hris/assignment-events/{eventPublicId}/publish", "post"),
+    ("/api/people/v1/hris/command-receipts/{receiptId}", "get"),
+    ("/api/time/v1/hris/workbench/time-interpretation", "get"),
+    ("/api/time/v1/interpretation-runs", "post"),
+    ("/api/time/v1/interpretation-runs/{runId}/trace", "get"),
+    ("/api/payroll/v1/workbench/settings-payroll", "get"),
+    ("/api/payroll/v1/elements/versions", "post"),
+    ("/api/payroll/v1/formulas/versions", "post"),
+    ("/api/payroll/v1/formulas/{formulaId}/validations", "post"),
+    ("/api/payroll/v1/formulas/{formulaId}/simulations", "post"),
+    ("/api/payroll/v1/formulas/{formulaId}/publish", "post"),
+})
 PLATFORM_DEVICE_SECURITY_SCHEMES = {
     "DeviceTenant": {
         "name": "X-Tenant-ID",
@@ -603,7 +628,19 @@ def merge_reviewed_components(
                 f"HRIS design-time component schema is invalid for {service_name}: {name}"
             )
         existing = target.get(name)
-        if existing is not None and existing != schema and not approved_snapshot:
+        exact_runtime_projection = (
+            existing is not None
+            and HRM_RUNTIME_SCHEMA_PROJECTION_SHA256.get((service_name, name))
+            == canonical_contract_hash(existing)
+            and HRM_CANONICAL_SCHEMA_SHA256.get(name)
+            == canonical_contract_hash(schema)
+        )
+        if (
+            existing is not None
+            and existing != schema
+            and not approved_snapshot
+            and not exact_runtime_projection
+        ):
             raise RuntimeError(
                 f"HRIS reviewed component collision for {service_name}: {name}"
             )
@@ -968,9 +1005,20 @@ def gateway_contract(
                             if not (
                                 isinstance(parameter, dict)
                                 and str(parameter.get("in", "")).lower() == "header"
-                                and str(parameter.get("name", "")).lower().startswith("x-dwp-")
-                                and str(parameter.get("name", "")).lower()
-                                not in PUBLIC_COMMAND_PROOF_HEADERS
+                                and (
+                                    (
+                                        str(parameter.get("name", "")).lower()
+                                        .startswith("x-dwp-")
+                                        and str(parameter.get("name", "")).lower()
+                                        not in PUBLIC_COMMAND_PROOF_HEADERS
+                                    )
+                                    or (
+                                        (public_path, method)
+                                        in WAVE2_TRUSTED_PURPOSE_OPERATIONS
+                                        and str(parameter.get("name", "")).lower()
+                                        == "x-purpose-code"
+                                    )
+                                )
                             )
                         ]
                     operation["tags"] = [service.name]
@@ -1194,10 +1242,7 @@ def validate_sys_reference_configuration_contract(
     routes = {
         route.get("routeContractKey"): route
         for route in registry["routes"]
-        if isinstance(route.get("routeContractKey"), str)
-        and route["routeContractKey"].startswith(
-            SYS_REFERENCE_CONFIGURATION_ROUTE_PREFIX
-        )
+        if route.get("routeContractKey") in SYS_REFERENCE_CONFIGURATION_ROUTE_KEYS
     }
     if set(routes) != SYS_REFERENCE_CONFIGURATION_ROUTE_KEYS:
         missing = sorted(SYS_REFERENCE_CONFIGURATION_ROUTE_KEYS - set(routes))
@@ -1656,10 +1701,10 @@ def validate_hrm_employee_change_contract(
                 f"{contract_name}"
             )
         if expected_pep is not None and (
-            operation.get("x-dwp-product-authorization-v37") != expected_pep
+            operation.get("x-dwp-product-authorization-v38") != expected_pep
         ):
             raise RuntimeError(
-                "HRM employee-change v37 PEP authorization linkage drift: "
+                "HRM employee-change v38 PEP authorization linkage drift: "
                 f"{contract_name}"
             )
 

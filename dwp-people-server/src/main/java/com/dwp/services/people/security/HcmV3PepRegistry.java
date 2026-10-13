@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Runtime-only, closed People PEP projection generated from CORE-006 registry v37.
+ * Runtime-only, closed People PEP projection generated from CORE-006 registry v38.
  * Provider-support profiles are parsed to detect contract drift, but they are not a service
  * readiness signal: {@link HcmProductSurfacePepFilter} denies them until the trusted request
  * carries the contractual legal-entity population boundary as well as the support session.
@@ -34,9 +34,9 @@ import java.util.stream.Collectors;
 public final class HcmV3PepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-people-pep-v37.generated.json";
-    static final String REGISTRY_V37_CHECKSUM =
-            "1f23280116bc5b29f1a7ea6cc4ccbd2092a91673979d6bb46164a0dbb95ae10c";
+            "product-authorization/hcm-people-pep-v38.generated.json";
+    static final String REGISTRY_V38_CHECKSUM =
+            "a41145d6a2faefd2e6030a2ca9a070769019d4db5513ea214bf542dda31c374a";
 
     private final ObjectMapper objectMapper;
     private final Map<String, JsonNode> capabilities;
@@ -342,7 +342,7 @@ public final class HcmV3PepRegistry {
                             ? route.path("stepUpCommandBindings").size() : 0),
                     routeKey + ": invalid step-up binding closure");
         }
-        require(result.size() == 100, "HCM People PEP binding count changed");
+        require(result.size() == 108, "HCM People PEP binding count changed");
         return List.copyOf(result);
     }
 
@@ -369,17 +369,17 @@ public final class HcmV3PepRegistry {
 
     private void validateEnvelope(ObjectNode projection) {
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-people-pep-v37".equals(projection.path("projectionKey").asText())
+                        && "hcm-people-pep-v38".equals(projection.path("projectionKey").asText())
                         && "people".equals(projection.path("ownerServiceKey").asText()),
                 "Unexpected HCM People PEP envelope");
         JsonNode registry = projection.path("registryRef");
         require("product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 37
-                        && REGISTRY_V37_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 38
+                        && REGISTRY_V38_CHECKSUM.equals(registry.path("sha256").asText()),
                 "HCM People registry reference mismatch");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 974
-                        && projection.path("projectedRouteContractCount").asInt() == 73
-                        && projection.path("bindingPairCount").asInt() == 100,
+        require(projection.path("sourceRegistryRouteCount").asInt() == 991
+                        && projection.path("projectedRouteContractCount").asInt() == 81
+                        && projection.path("bindingPairCount").asInt() == 108,
                 "HCM People release counts changed");
         ObjectNode payload = projection.deepCopy();
         JsonNode checksum = payload.remove("projectionChecksum");
@@ -388,8 +388,8 @@ public final class HcmV3PepRegistry {
     }
 
     private void validateClosure(ObjectNode projection) {
-        require(capabilities.size() == 43 && policies.size() == 5
-                        && expressions.size() == 3 && predicates.size() == 14,
+        require(capabilities.size() == 46 && policies.size() == 5
+                        && expressions.size() == 3 && predicates.size() == 15,
                 "HCM People descriptor closure count changed");
         Set<String> routes = new LinkedHashSet<>();
         for (JsonNode route : requiredArray(projection, "routes")) {

@@ -21,6 +21,8 @@ final class HcmScopeSelectionValidator {
                             "WorkforceExportService:locked-export-population"),
                     java.util.Map.entry("predicate.hcm-integration-nonsecret-update.v1",
                             "HrisImportService:nonsecret-command"),
+                    java.util.Map.entry("predicate.hcm-originating-command-receipt.v1",
+                            "EmploymentEventService:sealed-originating-command"),
                     java.util.Map.entry("predicate.hcm-org-approval-sod.v1",
                             "OrganizationScenarioDecisionService:approver-maker-sod"),
                     java.util.Map.entry("predicate.hcm-org-publish-sod.v1",

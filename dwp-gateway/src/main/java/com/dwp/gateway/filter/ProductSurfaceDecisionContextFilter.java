@@ -22,8 +22,11 @@ import reactor.core.publisher.Mono;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 
@@ -42,15 +45,57 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     public static final String CONTEXT_HEADER = "X-DWP-Context-Key";
     public static final String SCOPE_HEADER = "X-DWP-Context-Scope-Key";
     public static final String ACTIVE_ACCESS_MODE_HEADER = "X-DWP-Active-Access-Mode";
+    public static final String SUBJECT_PRINCIPAL_HEADER =
+            "X-DWP-Subject-Principal-Public-ID";
+    public static final String FIELD_POLICY_REVISION_HEADER =
+            "X-DWP-Field-Policy-Revision";
+    public static final String AUTHORIZATION_REVISION_HEADER =
+            "X-DWP-Authorization-Revision";
+    public static final String POPULATION_KIND_HEADER = "X-DWP-Population-Kind";
+    public static final String PURPOSE_HEADER = "X-Purpose-Code";
+    public static final String MASKED_FIELD_GROUPS_HEADER =
+            "X-DWP-Masked-Field-Groups";
+    public static final String OMITTED_FIELD_GROUPS_HEADER =
+            "X-DWP-Omitted-Field-Groups";
     public static final String SCOPE_QUERY_PARAMETER = "contextScopeKey";
     private static final Set<String> ROLLOUT_STATES = Set.of("000", "100", "110", "111");
     private static final Set<String> HOME_RUNTIME_ROUTE_KEYS = Set.of(
             "route.workplace.work.home-read-model.data",
             "route.workplace.work.home-shadow-receipt.action",
             "route.workplace.work.home-widget-action-execute.action");
+    private static final Set<String> TIM_WAVE2_ROUTE_KEYS = Set.of(
+            "route.hcm.operations.time-interpretation.page",
+            "route.hcm.operations.time-interpretation-run.action",
+            "route.hcm.operations.time-interpretation-trace.data");
+    private static final Map<String, String> WAVE2_OWNER_PURPOSE_BY_ROUTE = Map.ofEntries(
+            Map.entry("route.hcm.personal.employment-documents.page", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.employment-assignments.page", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.assignment-event-create.action", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.assignment-event-validate.action", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.assignment-event-submit.action", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.assignment-event-publish.action", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.assignment-event-detail.data", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.assignment-command-receipt.data", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.time-interpretation.page", "TIME_OPERATIONS"),
+            Map.entry("route.hcm.operations.time-interpretation-run.action", "TIME_INTERPRETATION"),
+            Map.entry("route.hcm.operations.time-interpretation-trace.data", "TIME_INTERPRETATION"),
+            Map.entry("route.hcm.configuration.payroll.page", "PAYROLL_CONFIGURATION"),
+            Map.entry("route.hcm.configuration.payroll-element-version-create.action",
+                    "PAYROLL_CONFIGURATION"),
+            Map.entry("route.hcm.configuration.payroll-formula-version-create.action",
+                    "PAYROLL_CONFIGURATION"),
+            Map.entry("route.hcm.configuration.payroll-formula-validate.action",
+                    "PAYROLL_CONFIGURATION"),
+            Map.entry("route.hcm.configuration.payroll-formula-simulate.action",
+                    "PAYROLL_CONFIGURATION"),
+            Map.entry("route.hcm.configuration.payroll-formula-publish.action",
+                    "PAYROLL_CONFIGURATION"));
     private static final List<String> INTERNAL_HEADERS = List.of(
             ROUTE_HEADER, CURRENT_REVISION_HEADER, CURRENT_REVALIDATE_AT_HEADER,
             RESPONSE_REVISION_HEADER, CONTEXT_HEADER, SCOPE_HEADER, ACTIVE_ACCESS_MODE_HEADER,
+            SUBJECT_PRINCIPAL_HEADER, FIELD_POLICY_REVISION_HEADER,
+            AUTHORIZATION_REVISION_HEADER, POPULATION_KIND_HEADER,
+            MASKED_FIELD_GROUPS_HEADER, OMITTED_FIELD_GROUPS_HEADER,
             "X-DWP-Current-Decision-Valid-Until");
 
     private final ProductSurfaceContextAggregationService aggregationService;
@@ -145,6 +190,11 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         sanitized = withoutScopeSelection(sanitized, scopeSelection);
         sanitizedExchange = sanitizedExchange.mutate().request(sanitized).build();
         GeneratedProductRouteCatalog.Route route = match.uniqueRoute();
+        if (WAVE2_OWNER_PURPOSE_BY_ROUTE.containsKey(route.routeContractKey())) {
+            sanitized = sanitized.mutate().headers(headers -> headers.remove(PURPOSE_HEADER))
+                    .build();
+            sanitizedExchange = sanitizedExchange.mutate().request(sanitized).build();
+        }
         String rollout = sanitized.getHeaders().getFirst(
                 ProductSurfaceRolloutHeaderFilter.STATE_HEADER);
         if (rollout == null || !ROLLOUT_STATES.contains(rollout)) {
@@ -270,6 +320,26 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
+        String purpose = WAVE2_OWNER_PURPOSE_BY_ROUTE.get(route.routeContractKey());
+        String subjectPrincipal = request.getHeaders().getFirst(
+                VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER);
+        ProductSurfaceContextDtos.SourceRevisions revisions = trustedResult.revisions();
+        String fieldPolicyRevision = revisions == null
+                ? null : numericRevision("field-policy", revisions.policy());
+        String authorizationRevision = revisions == null
+                ? null : numericRevision("authorization", revisions.auth());
+        if (purpose != null && (blank(subjectPrincipal)
+                || fieldPolicyRevision == null || authorizationRevision == null)) {
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+        }
+        String populationKind = TIM_WAVE2_ROUTE_KEYS.contains(route.routeContractKey())
+                && trustedResult.scope() != null ? trustedResult.scope().kind() : null;
+        if (TIM_WAVE2_ROUTE_KEYS.contains(route.routeContractKey())
+                && blank(populationKind)) {
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+        }
         responseRevision(exchange, result.decisionRevision());
         ServerHttpRequest trusted = request.mutate().headers(headers -> {
             headers.set(ROUTE_HEADER, route.routeContractKey());
@@ -279,6 +349,15 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             headers.set(ACTIVE_ACCESS_MODE_HEADER, activeAccessMode.name());
             if (result.revalidateAt() != null) {
                 headers.set(CURRENT_REVALIDATE_AT_HEADER, result.revalidateAt().toString());
+            }
+            if (purpose != null) {
+                headers.set(PURPOSE_HEADER, purpose);
+                headers.set(SUBJECT_PRINCIPAL_HEADER, subjectPrincipal);
+                headers.set(FIELD_POLICY_REVISION_HEADER, fieldPolicyRevision);
+                headers.set(AUTHORIZATION_REVISION_HEADER, authorizationRevision);
+            }
+            if (populationKind != null) {
+                headers.set(POPULATION_KIND_HEADER, populationKind);
             }
         }).build();
         return chain.filter(exchange.mutate().request(trusted).build());
@@ -388,6 +467,22 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             return parsed > 0 ? parsed : null;
         } catch (RuntimeException exception) {
             return null;
+        }
+    }
+
+    private String numericRevision(String domain, String sourceRevision) {
+        if (blank(sourceRevision)) return null;
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(
+                    (domain + ":" + sourceRevision).getBytes(StandardCharsets.UTF_8));
+            long value = 0L;
+            for (int index = 0; index < Long.BYTES; index++) {
+                value = (value << 8) | (digest[index] & 0xffL);
+            }
+            value &= Long.MAX_VALUE;
+            return Long.toString(value == 0L ? 1L : value);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
         }
     }
 

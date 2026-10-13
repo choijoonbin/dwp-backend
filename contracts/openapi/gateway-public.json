@@ -61557,6 +61557,65 @@
         },
         "type": "object"
       },
+      "payroll_ActionDescriptor": {
+        "properties": {
+          "actionKey": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "hrefTemplate": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "idempotencyPolicy": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "method": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "stepUpPolicy": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionKey",
+          "hrefTemplate",
+          "idempotencyPolicy",
+          "method",
+          "stepUpPolicy"
+        ],
+        "type": "object"
+      },
+      "payroll_ApiResponseCommandReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/payroll_CommandReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "payroll_ApiResponseConfigurationView": {
         "properties": {
           "correlationId": {
@@ -61641,6 +61700,33 @@
         },
         "type": "object"
       },
+      "payroll_ApiResponseWorkbenchView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/payroll_WorkbenchView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "payroll_ApiResponseWorkspaceView": {
         "properties": {
           "correlationId": {
@@ -61668,6 +61754,29 @@
         },
         "type": "object"
       },
+      "payroll_CachePolicy": {
+        "properties": {
+          "authorizationDecisionRevision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "invalidationEvent": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxAgeSeconds": {
+            "format": "int32",
+            "maximum": 300,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "authorizationDecisionRevision",
+          "invalidationEvent"
+        ],
+        "type": "object"
+      },
       "payroll_CalendarPeriod": {
         "properties": {
           "code": {
@@ -61692,6 +61801,86 @@
           "endsOn",
           "paymentDate",
           "startsOn"
+        ],
+        "type": "object"
+      },
+      "payroll_CommandReceipt": {
+        "properties": {
+          "authorizationRevision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "commandType": {
+            "enum": [
+              "CREATE_ELEMENT_VERSION",
+              "CREATE_FORMULA_VERSION",
+              "VALIDATE_FORMULA",
+              "SIMULATE_FORMULA",
+              "PUBLISH_FORMULA"
+            ],
+            "type": "string"
+          },
+          "correlationId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fieldPolicyRevision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "originatingAction": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "populationScopeDigest": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "purposeCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestDigest": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACCEPTED",
+              "RUNNING",
+              "SUCCEEDED",
+              "REJECTED",
+              "FAILED",
+              "RESULT_UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "subjectPrincipalPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorizationRevision",
+          "commandType",
+          "correlationId",
+          "createdAt",
+          "fieldPolicyRevision",
+          "originatingAction",
+          "populationScopeDigest",
+          "purposeCode",
+          "receiptId",
+          "requestDigest",
+          "status",
+          "subjectPrincipalPublicId"
         ],
         "type": "object"
       },
@@ -61814,6 +62003,136 @@
         ],
         "type": "object"
       },
+      "payroll_CreateElementVersionRequest": {
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "displayName": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "elementCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "elementId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "legalEntityId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "payrollGroupId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "rounding": {
+            "$ref": "#/components/schemas/payroll_RoundingPolicy"
+          },
+          "valueType": {
+            "enum": [
+              "BOOLEAN",
+              "NUMBER",
+              "RATE",
+              "MONEY",
+              "QUANTITY_MINUTE",
+              "QUANTITY_HOUR",
+              "QUANTITY_DAY",
+              "UNIT_PRICE_PER_MINUTE",
+              "UNIT_PRICE_PER_HOUR",
+              "UNIT_PRICE_PER_DAY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "effectiveFrom",
+          "elementCode",
+          "legalEntityId",
+          "payrollGroupId",
+          "rounding",
+          "valueType"
+        ],
+        "type": "object"
+      },
+      "payroll_CreateFormulaVersionRequest": {
+        "properties": {
+          "ast": {
+            "$ref": "#/components/schemas/payroll_PayFormulaAst"
+          },
+          "displayName": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "formulaCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "formulaId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "goldenTestDigest": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "legalEntityId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "payrollGroupId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ast",
+          "displayName",
+          "effectiveFrom",
+          "formulaCode",
+          "goldenTestDigest",
+          "legalEntityId",
+          "payrollGroupId"
+        ],
+        "type": "object"
+      },
+      "payroll_DeepLink": {
+        "properties": {
+          "resourcePublicId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "route": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "resourcePublicId",
+          "route"
+        ],
+        "type": "object"
+      },
       "payroll_DependencyPin": {
         "properties": {
           "owner": {
@@ -61848,6 +62167,124 @@
         },
         "required": [
           "startsOn"
+        ],
+        "type": "object"
+      },
+      "payroll_FieldDecision": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maskReason": {
+            "type": "string"
+          },
+          "maskedDisplayKey": {
+            "type": "string"
+          },
+          "value": {}
+        },
+        "required": [
+          "decision"
+        ],
+        "type": "object"
+      },
+      "payroll_FieldDecisionSummary": {
+        "properties": {
+          "maskedCount": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "omittedCount": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "viewCount": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_FormulaNode": {
+        "properties": {
+          "arguments": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 0,
+            "type": "array"
+          },
+          "collectionInputKey": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "inputKey": {
+            "type": "string"
+          },
+          "lookupRef": {
+            "$ref": "#/components/schemas/payroll_OwnerRef"
+          },
+          "nodeId": {
+            "minLength": 1,
+            "pattern": "[A-Za-z][A-Za-z0-9_]{0,63}",
+            "type": "string"
+          },
+          "operator": {
+            "enum": [
+              "LITERAL",
+              "INPUT",
+              "ADD",
+              "SUBTRACT",
+              "MULTIPLY",
+              "DIVIDE",
+              "MIN",
+              "MAX",
+              "COMPARE_EQ",
+              "COMPARE_LT",
+              "AND",
+              "OR",
+              "IF",
+              "ROUND",
+              "CONVERT_MINUTE_HOUR",
+              "LOOKUP",
+              "SUM",
+              "DATE_DIFFERENCE"
+            ],
+            "type": "string"
+          },
+          "returnType": {
+            "enum": [
+              "BOOLEAN",
+              "NUMBER",
+              "RATE",
+              "MONEY",
+              "QUANTITY_MINUTE",
+              "QUANTITY_HOUR",
+              "QUANTITY_DAY",
+              "UNIT_PRICE_PER_MINUTE",
+              "UNIT_PRICE_PER_HOUR",
+              "UNIT_PRICE_PER_DAY"
+            ],
+            "type": "string"
+          },
+          "roundingRef": {
+            "$ref": "#/components/schemas/payroll_OwnerRef"
+          },
+          "value": {}
+        },
+        "required": [
+          "arguments",
+          "nodeId",
+          "operator",
+          "returnType"
         ],
         "type": "object"
       },
@@ -61943,6 +62380,47 @@
         },
         "type": "object"
       },
+      "payroll_OwnerRef": {
+        "properties": {
+          "contentHash": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "owner": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "publicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "schemaId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validToExclusive": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contentHash",
+          "owner",
+          "publicId",
+          "schemaId"
+        ],
+        "type": "object"
+      },
       "payroll_PartialFailure": {
         "properties": {
           "code": {
@@ -61991,6 +62469,77 @@
         ],
         "type": "object"
       },
+      "payroll_PayFormulaAst": {
+        "properties": {
+          "declaredReturnType": {
+            "enum": [
+              "BOOLEAN",
+              "NUMBER",
+              "RATE",
+              "MONEY",
+              "QUANTITY_MINUTE",
+              "QUANTITY_HOUR",
+              "QUANTITY_DAY",
+              "UNIT_PRICE_PER_MINUTE",
+              "UNIT_PRICE_PER_HOUR",
+              "UNIT_PRICE_PER_DAY"
+            ],
+            "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/payroll_FormulaNode"
+            },
+            "maxItems": 2048,
+            "minItems": 1,
+            "type": "array"
+          },
+          "registryId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "registryVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "rootNodeId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "declaredReturnType",
+          "nodes",
+          "registryId",
+          "rootNodeId"
+        ],
+        "type": "object"
+      },
+      "payroll_PayrollConfigurationPartialFailureV1": {
+        "properties": {
+          "componentKey": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "errorCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "componentKey",
+          "correlationId",
+          "errorCode"
+        ],
+        "type": "object"
+      },
       "payroll_PayrollGroup": {
         "properties": {
           "code": {
@@ -62024,6 +62573,53 @@
           "id",
           "legalEntityId",
           "settlementCurrency"
+        ],
+        "type": "object"
+      },
+      "payroll_QueryState": {
+        "properties": {
+          "cachePolicy": {
+            "$ref": "#/components/schemas/payroll_CachePolicy"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fieldDecisionSummary": {
+            "$ref": "#/components/schemas/payroll_FieldDecisionSummary"
+          },
+          "freshness": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "partialFailures": {
+            "items": {
+              "$ref": "#/components/schemas/payroll_PayrollConfigurationPartialFailureV1"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
+          "scopeDecisionRevision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "state": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "cachePolicy",
+          "correlationId",
+          "fieldDecisionSummary",
+          "freshness",
+          "partialFailures",
+          "scopeDecisionRevision",
+          "state"
         ],
         "type": "object"
       },
@@ -62072,6 +62668,34 @@
         ],
         "type": "object"
       },
+      "payroll_SimulationCommand": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/payroll_TypedValue"
+            },
+            "type": "object"
+          },
+          "rounding": {
+            "$ref": "#/components/schemas/payroll_RoundingPolicy"
+          },
+          "timeoutMillis": {
+            "format": "int64",
+            "maximum": 2000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "inputs",
+          "rounding"
+        ],
+        "type": "object"
+      },
       "payroll_SimulationReport": {
         "properties": {
           "configurationVersion": {
@@ -62106,6 +62730,38 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "payroll_TypedValue": {
+        "properties": {
+          "booleanValue": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "BOOLEAN",
+              "NUMBER",
+              "RATE",
+              "MONEY",
+              "QUANTITY_MINUTE",
+              "QUANTITY_HOUR",
+              "QUANTITY_DAY",
+              "UNIT_PRICE_PER_MINUTE",
+              "UNIT_PRICE_PER_HOUR",
+              "UNIT_PRICE_PER_DAY"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
         "type": "object"
       },
       "payroll_UpdateConfigurationRequest": {
@@ -62150,6 +62806,81 @@
         "required": [
           "digest",
           "packId"
+        ],
+        "type": "object"
+      },
+      "payroll_WorkbenchItem": {
+        "properties": {
+          "availableActions": {
+            "items": {
+              "$ref": "#/components/schemas/payroll_ActionDescriptor"
+            },
+            "type": "array"
+          },
+          "deepLink": {
+            "$ref": "#/components/schemas/payroll_DeepLink"
+          },
+          "fieldGroups": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/payroll_FieldDecision"
+            },
+            "type": "object"
+          },
+          "itemPublicId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "statusCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "availableActions",
+          "deepLink",
+          "fieldGroups",
+          "itemPublicId",
+          "statusCode",
+          "title"
+        ],
+        "type": "object"
+      },
+      "payroll_WorkbenchView": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/payroll_WorkbenchItem"
+            },
+            "maxItems": 500,
+            "minItems": 0,
+            "type": "array"
+          },
+          "projectionVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "queryState": {
+            "$ref": "#/components/schemas/payroll_QueryState"
+          },
+          "variantKey": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "asOf",
+          "items",
+          "projectionVersion",
+          "queryState",
+          "variantKey"
         ],
         "type": "object"
       },
@@ -64073,6 +64804,35 @@
         },
         "type": "object"
       },
+      "people_AssignmentEventEmptyCommandV1": {},
+      "people_AssignmentImpactV1": {
+        "properties": {
+          "blockingIssues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "eventPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "impactDigest": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "people_AssignmentProposal": {
         "properties": {
           "assignmentKey": {
@@ -64708,6 +65468,35 @@
         },
         "required": [
           "version"
+        ],
+        "type": "object"
+      },
+      "people_CommandContext": {
+        "properties": {
+          "effectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "maxLength": 128,
+            "minLength": 16,
+            "type": "string"
+          },
+          "purpose": {
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Z0-9_]{2,79}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effectiveAt",
+          "idempotencyKey",
+          "purpose"
         ],
         "type": "object"
       },
@@ -66141,6 +66930,251 @@
           "personId": {
             "format": "uuid",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_EmploymentAssignmentV1": {
+        "properties": {
+          "assignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "assignmentStatus": {
+            "type": "string"
+          },
+          "assignmentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fte": {
+            "type": "string"
+          },
+          "jobRef": {
+            "$ref": "#/components/schemas/people_OwnerRef"
+          },
+          "legalEmployerRef": {
+            "$ref": "#/components/schemas/people_OwnerRef"
+          },
+          "organizationRef": {
+            "$ref": "#/components/schemas/people_OwnerRef"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionRef": {
+            "$ref": "#/components/schemas/people_OwnerRef"
+          },
+          "primary": {
+            "type": "boolean"
+          },
+          "relationshipEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "relationshipStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipType": {
+            "type": "string"
+          },
+          "relationshipVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "validFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "validToExclusive": {
+            "format": "date",
+            "type": "string"
+          },
+          "workLocationRef": {
+            "$ref": "#/components/schemas/people_OwnerRef"
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workerStatus": {
+            "type": "string"
+          },
+          "workerVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "people_EmploymentAssignmentWorkbenchV1": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/people_EmploymentAssignmentV1"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "people_EmploymentDocumentV1": {
+        "properties": {
+          "assignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "relationshipPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "relationshipType": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "validToExclusive": {
+            "format": "date",
+            "type": "string"
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_EmploymentDocumentsV1": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/people_EmploymentDocumentV1"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "people_EmploymentEventCommand": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/people_CommandContext"
+          },
+          "eventType": {
+            "minLength": 1,
+            "pattern": "HIRE|CONCURRENT_EMPLOYMENT",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/people_JsonNode"
+          }
+        },
+        "required": [
+          "context",
+          "eventType",
+          "payload"
+        ],
+        "type": "object"
+      },
+      "people_EmploymentEventV1": {
+        "properties": {
+          "approvalDecisionRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "eventPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "impactDigest": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "publishedAssignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedRelationshipPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedWorkerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "targetOwnerVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validationFindings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -68111,6 +69145,49 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "people_OwnerRef": {
+        "properties": {
+          "contentHash": {
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "owner": {
+            "minLength": 1,
+            "pattern": "HRM",
+            "type": "string"
+          },
+          "publicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "schemaId": {
+            "maxLength": 160,
+            "minLength": 3,
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validToExclusive": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contentHash",
+          "owner",
+          "publicId",
+          "schemaId"
+        ],
         "type": "object"
       },
       "people_PartialFailure": {
@@ -129405,6 +130482,87 @@
         },
         "type": "object"
       },
+      "time_ApiResponseInterpretationCommandReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/time_InterpretationCommandReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_ApiResponseInterpretationProjection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/time_InterpretationProjection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_ApiResponseInterpretationTrace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/time_InterpretationTrace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "time_ApiResponseReceiptView": {
         "properties": {
           "correlationId": {
@@ -129848,6 +131006,7 @@
         },
         "type": "object"
       },
+      "time_FieldDecisionAggregateValue": {},
       "time_FieldDecisionSummary": {
         "properties": {
           "maskedCount": {
@@ -129865,6 +131024,198 @@
         },
         "type": "object"
       },
+      "time_InterpretCommand": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "periodEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "workerIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "asOf",
+          "periodEnd",
+          "periodStart",
+          "workerIds"
+        ],
+        "type": "object"
+      },
+      "time_InterpretationCommandReceipt": {
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "authorizationRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "commandType": {
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "originatingAction": {
+            "type": "string"
+          },
+          "populationScopeDigest": {
+            "type": "string"
+          },
+          "purposeCode": {
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestDigest": {
+            "type": "string"
+          },
+          "resultRef": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "subjectPrincipalPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_InterpretationFieldGroups": {
+        "properties": {
+          "INTERPRETATION_RESULT": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/time_MaskedField"
+              },
+              {
+                "$ref": "#/components/schemas/time_ViewedField"
+              }
+            ]
+          },
+          "RULE_VERSION": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/time_MaskedField"
+              },
+              {
+                "$ref": "#/components/schemas/time_ViewedField"
+              }
+            ]
+          },
+          "TRACE_SUMMARY": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/time_MaskedField"
+              },
+              {
+                "$ref": "#/components/schemas/time_ViewedField"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "time_InterpretationItem": {
+        "properties": {
+          "availableActions": {
+            "items": {
+              "$ref": "#/components/schemas/time_AvailableAction"
+            },
+            "type": "array"
+          },
+          "deepLink": {
+            "$ref": "#/components/schemas/time_DeepLink"
+          },
+          "fieldGroups": {
+            "$ref": "#/components/schemas/time_InterpretationFieldGroups"
+          },
+          "itemPublicId": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_InterpretationProjection": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/time_InterpretationItem"
+            },
+            "type": "array"
+          },
+          "projectionVersion": {
+            "type": "string"
+          },
+          "queryState": {
+            "$ref": "#/components/schemas/time_QueryState"
+          },
+          "variantKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_InterpretationTrace": {
+        "properties": {
+          "inputDigest": {
+            "type": "string"
+          },
+          "ruleDigest": {
+            "type": "string"
+          },
+          "runId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/time_TraceStep"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "time_LifecycleRequest": {
         "properties": {
           "expectedVersion": {
@@ -129873,6 +131224,28 @@
           }
         },
         "type": "object"
+      },
+      "time_MaskedField": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/time_FieldDecisionAggregateValue"
+          },
+          {
+            "properties": {
+              "decision": {
+                "type": "string"
+              },
+              "maskReason": {
+                "type": "string"
+              },
+              "maskedDisplayKey": {
+                "type": "string"
+              },
+              "value": {}
+            },
+            "type": "object"
+          }
+        ]
       },
       "time_PartialFailure": {
         "properties": {
@@ -130445,6 +131818,42 @@
           }
         },
         "type": "object"
+      },
+      "time_TraceStep": {
+        "properties": {
+          "inputMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "outputMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "ruleCode": {
+            "type": "string"
+          },
+          "sequence": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "time_ViewedField": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/time_FieldDecisionAggregateValue"
+          },
+          {
+            "properties": {
+              "decision": {
+                "type": "string"
+              },
+              "value": {}
+            },
+            "type": "object"
+          }
+        ]
       },
       "time_VoidClockCommand": {
         "properties": {
@@ -181874,6 +183283,486 @@
         ]
       }
     },
+    "/api/payroll/v1/elements/versions": {
+      "post": {
+        "operationId": "payroll_payrollElementVersionCreate",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/payroll_CreateElementVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll"
+        ]
+      }
+    },
+    "/api/payroll/v1/formulas/versions": {
+      "post": {
+        "operationId": "payroll_payrollFormulaVersionCreate",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/payroll_CreateFormulaVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll"
+        ]
+      }
+    },
+    "/api/payroll/v1/formulas/{formulaId}/publish": {
+      "post": {
+        "operationId": "payroll_payrollFormulaPublish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formulaId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/payroll_VersionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll"
+        ]
+      }
+    },
+    "/api/payroll/v1/formulas/{formulaId}/simulations": {
+      "post": {
+        "operationId": "payroll_payrollFormulaSimulate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formulaId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/payroll_SimulationCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll"
+        ]
+      }
+    },
+    "/api/payroll/v1/formulas/{formulaId}/validations": {
+      "post": {
+        "operationId": "payroll_payrollFormulaValidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formulaId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/payroll_VersionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll"
+        ]
+      }
+    },
     "/api/payroll/v1/hris/payroll/foundation/configurations": {
       "get": {
         "operationId": "payroll_hrisPayrollConfigurations",
@@ -182559,6 +184448,171 @@
         ],
         "x-dwp-controller-method": "reconcile",
         "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/payroll/v1/workbench/settings-payroll": {
+      "get": {
+        "operationId": "payroll_payrollSettingsWorkbench",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "correlationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.effectiveOn",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.effectiveStatus.codes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.effectiveStatus.minimumRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.payrollPolicy.policyKeys",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.payrollPolicy.minimumRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.policyVersion.policyKeys",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.policyVersion.minimumRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseWorkbenchView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll"
+        ]
       }
     },
     "/api/people/v1/admin/workforce/access-policies": {
@@ -183831,6 +185885,484 @@
         ]
       }
     },
+    "/api/people/v1/hris/assignment-events": {
+      "post": {
+        "operationId": "people_createAssignmentEvent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_EmploymentEventCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_CommandReceiptV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hris/assignment-events/{eventPublicId}": {
+      "get": {
+        "operationId": "people_getAssignmentEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventPublicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_EmploymentEventV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hris/assignment-events/{eventPublicId}/publish": {
+      "post": {
+        "operationId": "people_publishAssignmentEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventPublicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_AssignmentEventEmptyCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_CommandReceiptV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hris/assignment-events/{eventPublicId}/submit": {
+      "post": {
+        "operationId": "people_submitAssignmentEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventPublicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_AssignmentEventEmptyCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_CommandReceiptV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hris/assignment-events/{eventPublicId}/validate": {
+      "post": {
+        "operationId": "people_validateAssignmentEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventPublicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_AssignmentEventEmptyCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_AssignmentImpactV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hris/command-receipts/{receiptId}": {
+      "get": {
+        "operationId": "people_getHrisCommandReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receiptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_CommandReceiptV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
     "/api/people/v1/hris/employee-change-requests": {
       "post": {
         "operationId": "people_createEmployeeChangeRequest",
@@ -184330,12 +186862,12 @@
           "people"
         ],
         "x-dwp-controller-method": "create",
-        "x-dwp-product-authorization-v37": {
+        "x-dwp-product-authorization-v38": {
           "authentication": "HUMAN_SESSION",
           "bindingKey": "route.hcm.operations.employee-change-request-create.action.binding.01",
           "ownerServiceKey": "people",
           "productKey": "hcm",
-          "registryVersion": 37,
+          "registryVersion": 38,
           "routeContractKey": "route.hcm.operations.employee-change-request-create.action",
           "subjectType": "PRODUCT",
           "surfaceKey": "hcm.operations"
@@ -184864,12 +187396,12 @@
         ],
         "x-dwp-command-proof-required": true,
         "x-dwp-controller-method": "apply",
-        "x-dwp-product-authorization-v37": {
+        "x-dwp-product-authorization-v38": {
           "authentication": "HUMAN_SESSION",
           "bindingKey": "route.hcm.operations.employee-change-request-apply.action.binding.01",
           "ownerServiceKey": "people",
           "productKey": "hcm",
-          "registryVersion": 37,
+          "registryVersion": 38,
           "routeContractKey": "route.hcm.operations.employee-change-request-apply.action",
           "subjectType": "PRODUCT",
           "surfaceKey": "hcm.operations"
@@ -185386,12 +187918,12 @@
           "people"
         ],
         "x-dwp-controller-method": "submit",
-        "x-dwp-product-authorization-v37": {
+        "x-dwp-product-authorization-v38": {
           "authentication": "HUMAN_SESSION",
           "bindingKey": "route.hcm.operations.employee-change-request-submit.action.binding.01",
           "ownerServiceKey": "people",
           "productKey": "hcm",
-          "registryVersion": 37,
+          "registryVersion": 38,
           "routeContractKey": "route.hcm.operations.employee-change-request-submit.action",
           "subjectType": "PRODUCT",
           "surfaceKey": "hcm.operations"
@@ -186726,12 +189258,12 @@
           "people"
         ],
         "x-dwp-controller-method": "workbench",
-        "x-dwp-product-authorization-v37": {
+        "x-dwp-product-authorization-v38": {
           "authentication": "HUMAN_SESSION",
           "bindingKey": "route.hcm.operations.employee-change-requests.page.binding.01",
           "ownerServiceKey": "people",
           "productKey": "hcm",
-          "registryVersion": 37,
+          "registryVersion": 38,
           "routeContractKey": "route.hcm.operations.employee-change-requests.page",
           "subjectType": "PRODUCT",
           "surfaceKey": "hcm.operations"
@@ -186741,6 +189273,92 @@
         },
         "x-dwp-reviewed-design-time-contract": "HRM-010",
         "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/people/v1/hris/workbench/operations/employment/assignments": {
+      "get": {
+        "operationId": "people_getOperationsEmploymentAssignments",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_EmploymentAssignmentWorkbenchV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hris/workbench/self-service/employment-documents": {
+      "get": {
+        "operationId": "people_getSelfServiceEmploymentDocuments",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_EmploymentDocumentsV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
       }
     },
     "/api/people/v1/org-chart": {
@@ -247931,6 +250549,294 @@
         "x-dwp-controller-method": "exceptions",
         "x-dwp-reviewed-springdoc-capture": true,
         "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/time/v1/hris/workbench/time-interpretation": {
+      "get": {
+        "operationId": "time_hrisTimeInterpretationWorkbench",
+        "parameters": [
+          {
+            "description": "Client-declared UUID that must exactly match the correlationId query parameter.",
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Must exactly match the X-Correlation-ID request header.",
+            "in": "query",
+            "name": "correlationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "effectiveOn",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "interpretationResultCodes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumInterpretationResultRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ruleVersionPolicyKeys",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumRuleVersionRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumTraceItemCount",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "maximumTraceItemCount",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_ApiResponseInterpretationProjection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "time"
+        ]
+      }
+    },
+    "/api/time/v1/interpretation-runs": {
+      "post": {
+        "operationId": "time_hrisTimeInterpretationRun",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/time_InterpretCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_ApiResponseInterpretationCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "time"
+        ]
+      }
+    },
+    "/api/time/v1/interpretation-runs/{runId}/trace": {
+      "get": {
+        "operationId": "time_hrisTimeInterpretationTrace",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "runId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_ApiResponseInterpretationTrace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "time"
+        ]
       }
     },
     "/scim/v2/Groups": {

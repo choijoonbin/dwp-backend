@@ -36,9 +36,9 @@ public final class InterpretationIaProjectionService {
     private static final String RUN_ACTION = "hris.action.tim.interpretation.run";
     private static final String RUN_HREF = "/api/time/v1/interpretation-runs";
     private static final String INVALIDATION_EVENT = "dwp.hris.access.assignment.changed.v1";
-    private static final String REQUIRED_VIEW_PERMISSION = "hcm.operations.time.view";
-    private static final String OPERATIONS_RUN_PERMISSION = "hcm.operations.time.update";
-    private static final String SELF_RUN_PERMISSION = "hcm.personal.time.submit";
+    private static final String REQUIRED_VIEW_PERMISSION = "DATA.HR_TIME:VIEW";
+    private static final String OPERATIONS_RUN_PERMISSION = "DATA.HR_TIME:UPDATE";
+    private static final String SELF_RUN_PERMISSION = "DATA.HR_TIME:CREATE";
     private static final String FIELD_POLICY_REASON = "FIELD_POLICY_DENIED";
     private static final Set<String> FIELD_GROUPS = Set.of(
             "INTERPRETATION_RESULT", "RULE_VERSION", "TRACE_SUMMARY");

@@ -447,7 +447,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_corrective_v37_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_wave2_v38_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -456,8 +456,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 37)
-        self.assertEqual(registry["version"], 37)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 38)
+        self.assertEqual(registry["version"], 38)
         void_route = next(
             route for route in registry["routes"]
             if route["routeContractKey"]
@@ -1030,8 +1030,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         missing_pep = copy.deepcopy(gateway)
         del missing_pep["paths"][
             "/api/people/v1/hris/employee-change-requests"
-        ]["post"]["x-dwp-product-authorization-v37"]
-        with self.assertRaisesRegex(RuntimeError, "v37 PEP authorization linkage drift"):
+        ]["post"]["x-dwp-product-authorization-v38"]
+        with self.assertRaisesRegex(RuntimeError, "v38 PEP authorization linkage drift"):
             EXPORTER["validate_hrm_employee_change_contract"](
                 people, missing_pep
             )
@@ -1039,8 +1039,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         empty_pep = copy.deepcopy(gateway)
         empty_pep["paths"][
             "/api/people/v1/hris/employee-change-requests"
-        ]["post"]["x-dwp-product-authorization-v37"] = {}
-        with self.assertRaisesRegex(RuntimeError, "v37 PEP authorization linkage drift"):
+        ]["post"]["x-dwp-product-authorization-v38"] = {}
+        with self.assertRaisesRegex(RuntimeError, "v38 PEP authorization linkage drift"):
             EXPORTER["validate_hrm_employee_change_contract"](
                 people, empty_pep
             )
@@ -1313,6 +1313,79 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 challenge = parameters[("header", "X-DWP-Step-Up-Challenge")]
                 self.assertTrue(challenge["required"])
                 self.assertEqual(challenge["schema"]["type"], "string")
+
+    def test_payroll_partial_failure_components_remain_owner_specific(self) -> None:
+        owner = json.loads(
+            (ROOT / "contracts/openapi/payroll.json").read_text(encoding="utf-8")
+        )
+        schemas = owner["components"]["schemas"]
+        self.assertEqual(
+            set(schemas["PartialFailure"]["properties"]),
+            {"source", "code"},
+        )
+        self.assertEqual(
+            set(schemas["PayrollConfigurationPartialFailureV1"]["properties"]),
+            {"componentKey", "errorCode", "correlationId", "retryable"},
+        )
+        self.assertEqual(
+            schemas["WorkspaceView"]["properties"]["partialFailures"]
+            ["items"]["$ref"],
+            "#/components/schemas/PartialFailure",
+        )
+        self.assertEqual(
+            schemas["QueryState"]["properties"]["partialFailures"]
+            ["items"]["$ref"],
+            "#/components/schemas/PayrollConfigurationPartialFailureV1",
+        )
+
+    def test_wave2_gateway_never_exposes_client_purpose_evidence(self) -> None:
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(len(EXPORTER["WAVE2_TRUSTED_PURPOSE_OPERATIONS"]), 17)
+        for path, method in EXPORTER["WAVE2_TRUSTED_PURPOSE_OPERATIONS"]:
+            operation = gateway["paths"][path][method]
+            headers = {
+                str(parameter.get("name", "")).lower()
+                for parameter in operation.get("parameters", [])
+                if parameter.get("in") == "header"
+            }
+            self.assertNotIn("x-purpose-code", headers, f"{method.upper()} {path}")
+
+    def test_time_workbench_requires_matching_uuid_correlation_header(self) -> None:
+        documents = {
+            "time": json.loads(
+                (ROOT / "contracts/openapi/time.json").read_text(encoding="utf-8")
+            ),
+            "gateway": json.loads(
+                (ROOT / "contracts/openapi/gateway-public.json").read_text(
+                    encoding="utf-8"
+                )
+            ),
+        }
+        paths = {
+            "time": "/v1/hris/workbench/time-interpretation",
+            "gateway": "/api/time/v1/hris/workbench/time-interpretation",
+        }
+        for name, document in documents.items():
+            with self.subTest(document=name):
+                operation = document["paths"][paths[name]]["get"]
+                parameters = {
+                    (parameter["in"], parameter["name"]): parameter
+                    for parameter in operation["parameters"]
+                }
+                header = parameters[("header", "X-Correlation-ID")]
+                query = parameters[("query", "correlationId")]
+                self.assertIs(header["required"], True)
+                self.assertEqual(
+                    header["schema"], {"format": "uuid", "type": "string"}
+                )
+                self.assertIn("exactly match", header["description"])
+                self.assertIs(query["required"], True)
+                self.assertEqual(
+                    query["schema"], {"format": "uuid", "type": "string"}
+                )
+                self.assertIn("exactly match", query["description"])
 
     def test_wave1_hris_live_overlay_rejects_controller_method_drift(self) -> None:
         service = next(
@@ -1687,6 +1760,37 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             reconciled["components"]["schemas"]["AssignmentProposal"],
             EXPORTER["load_design_time_overlays"]()["people"]
             ["components"]["schemas"]["AssignmentProposal"],
+        )
+
+    def test_canonical_receipt_replaces_only_its_pinned_runtime_projection(self) -> None:
+        service = next(
+            service for service in EXPORTER["SERVICES"] if service.name == "people"
+        )
+        document = json.loads(
+            (ROOT / "contracts/openapi/people.json").read_text(encoding="utf-8")
+        )
+        document["components"]["schemas"]["CommandReceiptV1"] = {
+            "properties": {
+                "authorizationRevision": {"format": "int64", "type": "integer"},
+                "commandType": {"type": "string"},
+                "correlationId": {"format": "uuid", "type": "string"},
+                "createdAt": {"format": "date-time", "type": "string"},
+                "fieldPolicyRevision": {"format": "int64", "type": "integer"},
+                "originatingAction": {"type": "string"},
+                "populationScopeDigest": {"type": "string"},
+                "purposeCode": {"type": "string"},
+                "receiptId": {"format": "uuid", "type": "string"},
+                "requestDigest": {"type": "string"},
+                "status": {"type": "string"},
+                "subjectPrincipalPublicId": {"format": "uuid", "type": "string"},
+            },
+            "type": "object",
+        }
+        reconciled = EXPORTER["apply_design_time_overlay"](service, document)
+        self.assertEqual(
+            reconciled["components"]["schemas"]["CommandReceiptV1"],
+            EXPORTER["load_design_time_overlays"]()["people"]
+            ["components"]["schemas"]["CommandReceiptV1"],
         )
 
     def test_wave1_hris_reviewed_inventory_matches_controller_annotations(self) -> None:

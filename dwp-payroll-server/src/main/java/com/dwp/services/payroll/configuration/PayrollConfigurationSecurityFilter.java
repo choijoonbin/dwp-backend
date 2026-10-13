@@ -8,6 +8,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.Ordered;
@@ -46,7 +47,7 @@ class PayrollConfigurationSecurityFilter extends OncePerRequestFilter {
     static final String CONTEXT_SCOPE = "X-DWP-Context-Scope-Key";
     static final String FIELD_POLICY_REVISION = "X-DWP-Field-Policy-Revision";
     static final String POLICY_REVISION = "X-DWP-Rollout-Revision";
-    static final String AUTHORIZATION_REVISION = "X-DWP-Current-Decision-Revision";
+    static final String AUTHORIZATION_REVISION = "X-DWP-Authorization-Revision";
     static final String REVALIDATE_AT = "X-DWP-Current-Revalidate-At";
     static final String ACCESS_MODE = "X-DWP-Active-Access-Mode";
     static final String PURPOSE = "X-Purpose-Code";
@@ -60,6 +61,7 @@ class PayrollConfigurationSecurityFilter extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
+    @Autowired
     PayrollConfigurationSecurityFilter(
             @Value("${dwp.payroll.service-token:}") String serviceToken,
             ObjectMapper objectMapper) {
@@ -111,7 +113,7 @@ class PayrollConfigurationSecurityFilter extends OncePerRequestFilter {
         String purpose = singleHeader(request, PURPOSE);
         String accessMode = singleHeader(request, ACCESS_MODE);
         if (tenantId == null || actorId == null || subjectId == null
-                || !route.contractId().equals(singleHeader(request, ROUTE_CONTRACT))
+                || !route.authorityContractKey().equals(singleHeader(request, ROUTE_CONTRACT))
                 || !HcmEligibilityScopeKey.isCanonical(contextScopeKey)
                 || fieldPolicyRevision == null || policyRevision == null
                 || authorizationRevision == null
@@ -160,7 +162,7 @@ class PayrollConfigurationSecurityFilter extends OncePerRequestFilter {
                         tenantId, actorId, subjectId, route.action(), projected,
                         purpose, contextScopeKey, fieldPolicyRevision,
                         policyRevision, authorizationRevision, revalidateAt,
-                        route.contractId()));
+                        route.authorityContractKey()));
         try {
             filterChain.doFilter(request, response);
         } finally {

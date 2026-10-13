@@ -287,7 +287,7 @@ class TimeInterpretationMigrationIntegrationTest {
                 QUERY_TENANT,
                 72,
                 InterpretationTestFixtures.SUBJECT,
-                Set.of("hcm.operations.time.view", "hcm.operations.time.update"),
+                Set.of("DATA.HR_TIME:VIEW", "DATA.HR_TIME:UPDATE"),
                 Set.of(
                         InterpretationModels.InterpretationAction.VIEW,
                         InterpretationModels.InterpretationAction.RUN,

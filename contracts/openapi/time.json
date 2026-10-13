@@ -109,6 +109,87 @@
         },
         "type": "object"
       },
+      "ApiResponseInterpretationCommandReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/InterpretationCommandReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseInterpretationProjection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/InterpretationProjection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseInterpretationTrace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/InterpretationTrace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseReceiptView": {
         "properties": {
           "correlationId": {
@@ -552,6 +633,7 @@
         },
         "type": "object"
       },
+      "FieldDecisionAggregateValue": {},
       "FieldDecisionSummary": {
         "properties": {
           "maskedCount": {
@@ -569,6 +651,198 @@
         },
         "type": "object"
       },
+      "InterpretCommand": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "periodEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "workerIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "asOf",
+          "periodEnd",
+          "periodStart",
+          "workerIds"
+        ],
+        "type": "object"
+      },
+      "InterpretationCommandReceipt": {
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "authorizationRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "commandType": {
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "originatingAction": {
+            "type": "string"
+          },
+          "populationScopeDigest": {
+            "type": "string"
+          },
+          "purposeCode": {
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestDigest": {
+            "type": "string"
+          },
+          "resultRef": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "subjectPrincipalPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "InterpretationFieldGroups": {
+        "properties": {
+          "INTERPRETATION_RESULT": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MaskedField"
+              },
+              {
+                "$ref": "#/components/schemas/ViewedField"
+              }
+            ]
+          },
+          "RULE_VERSION": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MaskedField"
+              },
+              {
+                "$ref": "#/components/schemas/ViewedField"
+              }
+            ]
+          },
+          "TRACE_SUMMARY": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MaskedField"
+              },
+              {
+                "$ref": "#/components/schemas/ViewedField"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "InterpretationItem": {
+        "properties": {
+          "availableActions": {
+            "items": {
+              "$ref": "#/components/schemas/AvailableAction"
+            },
+            "type": "array"
+          },
+          "deepLink": {
+            "$ref": "#/components/schemas/DeepLink"
+          },
+          "fieldGroups": {
+            "$ref": "#/components/schemas/InterpretationFieldGroups"
+          },
+          "itemPublicId": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "InterpretationProjection": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InterpretationItem"
+            },
+            "type": "array"
+          },
+          "projectionVersion": {
+            "type": "string"
+          },
+          "queryState": {
+            "$ref": "#/components/schemas/QueryState"
+          },
+          "variantKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "InterpretationTrace": {
+        "properties": {
+          "inputDigest": {
+            "type": "string"
+          },
+          "ruleDigest": {
+            "type": "string"
+          },
+          "runId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/TraceStep"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "LifecycleRequest": {
         "properties": {
           "expectedVersion": {
@@ -577,6 +851,28 @@
           }
         },
         "type": "object"
+      },
+      "MaskedField": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FieldDecisionAggregateValue"
+          },
+          {
+            "properties": {
+              "decision": {
+                "type": "string"
+              },
+              "maskReason": {
+                "type": "string"
+              },
+              "maskedDisplayKey": {
+                "type": "string"
+              },
+              "value": {}
+            },
+            "type": "object"
+          }
+        ]
       },
       "PartialFailure": {
         "properties": {
@@ -1149,6 +1445,42 @@
           }
         },
         "type": "object"
+      },
+      "TraceStep": {
+        "properties": {
+          "inputMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "outputMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "ruleCode": {
+            "type": "string"
+          },
+          "sequence": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ViewedField": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FieldDecisionAggregateValue"
+          },
+          {
+            "properties": {
+              "decision": {
+                "type": "string"
+              },
+              "value": {}
+            },
+            "type": "object"
+          }
+        ]
       },
       "VoidClockCommand": {
         "properties": {
@@ -1908,6 +2240,240 @@
         "x-dwp-controller-method": "exceptions",
         "x-dwp-reviewed-springdoc-capture": true,
         "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/workbench/time-interpretation": {
+      "get": {
+        "operationId": "hrisTimeInterpretationWorkbench",
+        "parameters": [
+          {
+            "description": "Client-declared UUID that must exactly match the correlationId query parameter.",
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Must exactly match the X-Correlation-ID request header.",
+            "in": "query",
+            "name": "correlationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "effectiveOn",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "interpretationResultCodes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumInterpretationResultRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ruleVersionPolicyKeys",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumRuleVersionRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumTraceItemCount",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "maximumTraceItemCount",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseInterpretationProjection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "interpretation-owner-controller"
+        ]
+      }
+    },
+    "/v1/interpretation-runs": {
+      "post": {
+        "operationId": "hrisTimeInterpretationRun",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterpretCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseInterpretationCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "interpretation-owner-controller"
+        ]
+      }
+    },
+    "/v1/interpretation-runs/{runId}/trace": {
+      "get": {
+        "operationId": "hrisTimeInterpretationTrace",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "runId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseInterpretationTrace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "interpretation-owner-controller"
+        ]
       }
     }
   }

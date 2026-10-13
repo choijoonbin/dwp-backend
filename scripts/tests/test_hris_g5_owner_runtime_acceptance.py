@@ -199,6 +199,27 @@ class HrisG5OwnerRuntimeAcceptanceTest(unittest.TestCase):
             approved, live,
         )
 
+    def test_safe_refresh_admits_only_reviewed_time_correlation_header(self) -> None:
+        operation = "GET /v1/hris/workbench/time-interpretation"
+        approved = {"parameters": []}
+        live = {
+            "parameters": [{
+                "in": "header",
+                "name": "X-Correlation-ID",
+                "required": True,
+                "schema": {"format": "uuid", "type": "string"},
+            }]
+        }
+
+        MODULE["require_safe_parameter_refresh"]("time", operation, approved, live)
+
+        live["parameters"][0]["schema"].pop("format")
+        with self.assertRaisesRegex(
+                MODULE["GateFailure"], "changes parameter constraints"):
+            MODULE["require_safe_parameter_refresh"](
+                "time", operation, approved, live
+            )
+
     def test_safe_refresh_requires_stable_owner_openapi_info(self) -> None:
         service = next(
             service for service in MODULE["SERVICES"] if service.name == "time"

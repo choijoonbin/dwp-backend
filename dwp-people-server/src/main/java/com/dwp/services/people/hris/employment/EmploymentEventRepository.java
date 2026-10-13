@@ -20,7 +20,7 @@ import java.util.UUID;
 
 /** Tenant-bound persistence boundary for the canonical employment-event ledger. */
 @Repository
-final class EmploymentEventRepository {
+class EmploymentEventRepository {
 
     private static final String EVENT_SELECT = """
             SELECT event.assignment_event_id,event.public_id,event.tenant_id,

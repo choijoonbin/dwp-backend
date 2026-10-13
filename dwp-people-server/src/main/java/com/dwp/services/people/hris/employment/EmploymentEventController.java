@@ -4,6 +4,7 @@ import com.dwp.contracts.hris.xcon.v1.Xcon016WorkplaceAssignmentSnapshotV1;
 import com.dwp.platform.contracts.hris.command.v1.CommandReceiptV1;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmStepUpHeaders;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
@@ -139,7 +140,7 @@ final class EmploymentEventController {
         return ResponseEntity.ok().headers(headers(0, receipt.correlationId())).body(receipt);
     }
 
-    @Operation(operationId = "getWorkplaceAssignmentSnapshots")
+    @Hidden
     @GetMapping("/internal/hris-people/v1/workplace-assignment-snapshots")
     ResponseEntity<List<Xcon016WorkplaceAssignmentSnapshotV1>> workplaceSnapshots(
             @RequestHeader(EmploymentSnapshotAuthority.SERVICE_IDENTITY_HEADER)

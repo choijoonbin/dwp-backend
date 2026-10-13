@@ -51,7 +51,7 @@ import org.springframework.transaction.support.TransactionTemplate;
         name = "dwp.hris.time.interpretation.enabled",
         havingValue = "true",
         matchIfMissing = false)
-public final class JdbcInterpretationRepository implements InterpretationRepository {
+public class JdbcInterpretationRepository implements InterpretationRepository {
 
     private static final String SET_TENANT_SQL =
             "SELECT set_config('dwp.tenant_id', ?, true)";

@@ -27,6 +27,65 @@
         },
         "type": "object"
       },
+      "ActionDescriptor": {
+        "properties": {
+          "actionKey": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "hrefTemplate": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "idempotencyPolicy": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "method": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "stepUpPolicy": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionKey",
+          "hrefTemplate",
+          "idempotencyPolicy",
+          "method",
+          "stepUpPolicy"
+        ],
+        "type": "object"
+      },
+      "ApiResponseCommandReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CommandReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseConfigurationView": {
         "properties": {
           "correlationId": {
@@ -111,6 +170,33 @@
         },
         "type": "object"
       },
+      "ApiResponseWorkbenchView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkbenchView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseWorkspaceView": {
         "properties": {
           "correlationId": {
@@ -138,6 +224,29 @@
         },
         "type": "object"
       },
+      "CachePolicy": {
+        "properties": {
+          "authorizationDecisionRevision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "invalidationEvent": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxAgeSeconds": {
+            "format": "int32",
+            "maximum": 300,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "authorizationDecisionRevision",
+          "invalidationEvent"
+        ],
+        "type": "object"
+      },
       "CalendarPeriod": {
         "properties": {
           "code": {
@@ -162,6 +271,86 @@
           "endsOn",
           "paymentDate",
           "startsOn"
+        ],
+        "type": "object"
+      },
+      "CommandReceipt": {
+        "properties": {
+          "authorizationRevision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "commandType": {
+            "enum": [
+              "CREATE_ELEMENT_VERSION",
+              "CREATE_FORMULA_VERSION",
+              "VALIDATE_FORMULA",
+              "SIMULATE_FORMULA",
+              "PUBLISH_FORMULA"
+            ],
+            "type": "string"
+          },
+          "correlationId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fieldPolicyRevision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "originatingAction": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "populationScopeDigest": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "purposeCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestDigest": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACCEPTED",
+              "RUNNING",
+              "SUCCEEDED",
+              "REJECTED",
+              "FAILED",
+              "RESULT_UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "subjectPrincipalPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorizationRevision",
+          "commandType",
+          "correlationId",
+          "createdAt",
+          "fieldPolicyRevision",
+          "originatingAction",
+          "populationScopeDigest",
+          "purposeCode",
+          "receiptId",
+          "requestDigest",
+          "status",
+          "subjectPrincipalPublicId"
         ],
         "type": "object"
       },
@@ -284,6 +473,136 @@
         ],
         "type": "object"
       },
+      "CreateElementVersionRequest": {
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "displayName": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "elementCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "elementId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "legalEntityId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "payrollGroupId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "rounding": {
+            "$ref": "#/components/schemas/RoundingPolicy"
+          },
+          "valueType": {
+            "enum": [
+              "BOOLEAN",
+              "NUMBER",
+              "RATE",
+              "MONEY",
+              "QUANTITY_MINUTE",
+              "QUANTITY_HOUR",
+              "QUANTITY_DAY",
+              "UNIT_PRICE_PER_MINUTE",
+              "UNIT_PRICE_PER_HOUR",
+              "UNIT_PRICE_PER_DAY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "effectiveFrom",
+          "elementCode",
+          "legalEntityId",
+          "payrollGroupId",
+          "rounding",
+          "valueType"
+        ],
+        "type": "object"
+      },
+      "CreateFormulaVersionRequest": {
+        "properties": {
+          "ast": {
+            "$ref": "#/components/schemas/PayFormulaAst"
+          },
+          "displayName": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "formulaCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "formulaId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "goldenTestDigest": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "legalEntityId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "payrollGroupId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ast",
+          "displayName",
+          "effectiveFrom",
+          "formulaCode",
+          "goldenTestDigest",
+          "legalEntityId",
+          "payrollGroupId"
+        ],
+        "type": "object"
+      },
+      "DeepLink": {
+        "properties": {
+          "resourcePublicId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "route": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "resourcePublicId",
+          "route"
+        ],
+        "type": "object"
+      },
       "DependencyPin": {
         "properties": {
           "owner": {
@@ -318,6 +637,124 @@
         },
         "required": [
           "startsOn"
+        ],
+        "type": "object"
+      },
+      "FieldDecision": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maskReason": {
+            "type": "string"
+          },
+          "maskedDisplayKey": {
+            "type": "string"
+          },
+          "value": {}
+        },
+        "required": [
+          "decision"
+        ],
+        "type": "object"
+      },
+      "FieldDecisionSummary": {
+        "properties": {
+          "maskedCount": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "omittedCount": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "viewCount": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "FormulaNode": {
+        "properties": {
+          "arguments": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 0,
+            "type": "array"
+          },
+          "collectionInputKey": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "inputKey": {
+            "type": "string"
+          },
+          "lookupRef": {
+            "$ref": "#/components/schemas/OwnerRef"
+          },
+          "nodeId": {
+            "minLength": 1,
+            "pattern": "[A-Za-z][A-Za-z0-9_]{0,63}",
+            "type": "string"
+          },
+          "operator": {
+            "enum": [
+              "LITERAL",
+              "INPUT",
+              "ADD",
+              "SUBTRACT",
+              "MULTIPLY",
+              "DIVIDE",
+              "MIN",
+              "MAX",
+              "COMPARE_EQ",
+              "COMPARE_LT",
+              "AND",
+              "OR",
+              "IF",
+              "ROUND",
+              "CONVERT_MINUTE_HOUR",
+              "LOOKUP",
+              "SUM",
+              "DATE_DIFFERENCE"
+            ],
+            "type": "string"
+          },
+          "returnType": {
+            "enum": [
+              "BOOLEAN",
+              "NUMBER",
+              "RATE",
+              "MONEY",
+              "QUANTITY_MINUTE",
+              "QUANTITY_HOUR",
+              "QUANTITY_DAY",
+              "UNIT_PRICE_PER_MINUTE",
+              "UNIT_PRICE_PER_HOUR",
+              "UNIT_PRICE_PER_DAY"
+            ],
+            "type": "string"
+          },
+          "roundingRef": {
+            "$ref": "#/components/schemas/OwnerRef"
+          },
+          "value": {}
+        },
+        "required": [
+          "arguments",
+          "nodeId",
+          "operator",
+          "returnType"
         ],
         "type": "object"
       },
@@ -413,6 +850,47 @@
         },
         "type": "object"
       },
+      "OwnerRef": {
+        "properties": {
+          "contentHash": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "owner": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "publicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "schemaId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validToExclusive": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contentHash",
+          "owner",
+          "publicId",
+          "schemaId"
+        ],
+        "type": "object"
+      },
       "PartialFailure": {
         "properties": {
           "code": {
@@ -461,6 +939,77 @@
         ],
         "type": "object"
       },
+      "PayFormulaAst": {
+        "properties": {
+          "declaredReturnType": {
+            "enum": [
+              "BOOLEAN",
+              "NUMBER",
+              "RATE",
+              "MONEY",
+              "QUANTITY_MINUTE",
+              "QUANTITY_HOUR",
+              "QUANTITY_DAY",
+              "UNIT_PRICE_PER_MINUTE",
+              "UNIT_PRICE_PER_HOUR",
+              "UNIT_PRICE_PER_DAY"
+            ],
+            "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/FormulaNode"
+            },
+            "maxItems": 2048,
+            "minItems": 1,
+            "type": "array"
+          },
+          "registryId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "registryVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "rootNodeId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "declaredReturnType",
+          "nodes",
+          "registryId",
+          "rootNodeId"
+        ],
+        "type": "object"
+      },
+      "PayrollConfigurationPartialFailureV1": {
+        "properties": {
+          "componentKey": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "errorCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "componentKey",
+          "correlationId",
+          "errorCode"
+        ],
+        "type": "object"
+      },
       "PayrollGroup": {
         "properties": {
           "code": {
@@ -494,6 +1043,53 @@
           "id",
           "legalEntityId",
           "settlementCurrency"
+        ],
+        "type": "object"
+      },
+      "QueryState": {
+        "properties": {
+          "cachePolicy": {
+            "$ref": "#/components/schemas/CachePolicy"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fieldDecisionSummary": {
+            "$ref": "#/components/schemas/FieldDecisionSummary"
+          },
+          "freshness": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "partialFailures": {
+            "items": {
+              "$ref": "#/components/schemas/PayrollConfigurationPartialFailureV1"
+            },
+            "maxItems": 32,
+            "minItems": 0,
+            "type": "array"
+          },
+          "scopeDecisionRevision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "state": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "cachePolicy",
+          "correlationId",
+          "fieldDecisionSummary",
+          "freshness",
+          "partialFailures",
+          "scopeDecisionRevision",
+          "state"
         ],
         "type": "object"
       },
@@ -542,6 +1138,34 @@
         ],
         "type": "object"
       },
+      "SimulationCommand": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TypedValue"
+            },
+            "type": "object"
+          },
+          "rounding": {
+            "$ref": "#/components/schemas/RoundingPolicy"
+          },
+          "timeoutMillis": {
+            "format": "int64",
+            "maximum": 2000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "inputs",
+          "rounding"
+        ],
+        "type": "object"
+      },
       "SimulationReport": {
         "properties": {
           "configurationVersion": {
@@ -576,6 +1200,38 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "TypedValue": {
+        "properties": {
+          "booleanValue": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "BOOLEAN",
+              "NUMBER",
+              "RATE",
+              "MONEY",
+              "QUANTITY_MINUTE",
+              "QUANTITY_HOUR",
+              "QUANTITY_DAY",
+              "UNIT_PRICE_PER_MINUTE",
+              "UNIT_PRICE_PER_HOUR",
+              "UNIT_PRICE_PER_DAY"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
         "type": "object"
       },
       "UpdateConfigurationRequest": {
@@ -623,6 +1279,81 @@
         ],
         "type": "object"
       },
+      "WorkbenchItem": {
+        "properties": {
+          "availableActions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDescriptor"
+            },
+            "type": "array"
+          },
+          "deepLink": {
+            "$ref": "#/components/schemas/DeepLink"
+          },
+          "fieldGroups": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FieldDecision"
+            },
+            "type": "object"
+          },
+          "itemPublicId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "statusCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "availableActions",
+          "deepLink",
+          "fieldGroups",
+          "itemPublicId",
+          "statusCode",
+          "title"
+        ],
+        "type": "object"
+      },
+      "WorkbenchView": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkbenchItem"
+            },
+            "maxItems": 500,
+            "minItems": 0,
+            "type": "array"
+          },
+          "projectionVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "queryState": {
+            "$ref": "#/components/schemas/QueryState"
+          },
+          "variantKey": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "asOf",
+          "items",
+          "projectionVersion",
+          "queryState",
+          "variantKey"
+        ],
+        "type": "object"
+      },
       "WorkspaceView": {
         "properties": {
           "access": {
@@ -651,6 +1382,336 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/elements/versions": {
+      "post": {
+        "operationId": "payrollElementVersionCreate",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateElementVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-configuration-controller"
+        ]
+      }
+    },
+    "/v1/formulas/versions": {
+      "post": {
+        "operationId": "payrollFormulaVersionCreate",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFormulaVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-configuration-controller"
+        ]
+      }
+    },
+    "/v1/formulas/{formulaId}/publish": {
+      "post": {
+        "operationId": "payrollFormulaPublish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formulaId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-configuration-controller"
+        ]
+      }
+    },
+    "/v1/formulas/{formulaId}/simulations": {
+      "post": {
+        "operationId": "payrollFormulaSimulate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formulaId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-configuration-controller"
+        ]
+      }
+    },
+    "/v1/formulas/{formulaId}/validations": {
+      "post": {
+        "operationId": "payrollFormulaValidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formulaId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-configuration-controller"
+        ]
+      }
+    },
     "/v1/hris/payroll/foundation/configurations": {
       "get": {
         "operationId": "hrisPayrollConfigurations",
@@ -1106,6 +2167,159 @@
         ],
         "x-dwp-controller-method": "reconcile",
         "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/workbench/settings-payroll": {
+      "get": {
+        "operationId": "payrollSettingsWorkbench",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "correlationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.effectiveOn",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.effectiveStatus.codes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.effectiveStatus.minimumRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.payrollPolicy.policyKeys",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.payrollPolicy.minimumRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.policyVersion.policyKeys",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter.policyVersion.minimumRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkbenchView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-configuration-controller"
+        ]
       }
     }
   }

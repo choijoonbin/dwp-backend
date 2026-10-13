@@ -19,6 +19,10 @@ final class EmploymentEventAuthority {
     static final String OPERATIONS_READ_CAPABILITY = "hcm.operations.people.view";
     static final String MANAGE_CAPABILITY = "hcm.operations.assignment.manage";
     static final String PUBLISH_CAPABILITY = "hcm.operations.people-change.approve";
+    static final String RECEIPT_CAPABILITY = "hcm.command-receipt.view";
+
+    static final String RECEIPT_BINDING_ID = "PEP-HRM-014";
+    static final String EVENT_DETAIL_BINDING_ID = "PEP-HRM-015";
 
     static final String SELF_WORKBENCH_ROUTE =
             "route.hcm.personal.employment-documents.page";
@@ -46,8 +50,7 @@ final class EmploymentEventAuthority {
                     EVENT_DETAIL_ROUTE, Set.of(OPERATIONS_READ_CAPABILITY, MANAGE_CAPABILITY),
                     "GET", true),
             "RECEIPT", new Expected(
-                    RECEIPT_ROUTE, Set.of(OPERATIONS_READ_CAPABILITY, MANAGE_CAPABILITY,
-                    PUBLISH_CAPABILITY), "GET", true),
+                    RECEIPT_ROUTE, Set.of(RECEIPT_CAPABILITY), "GET", true),
             "CREATE", new Expected(CREATE_ROUTE, Set.of(MANAGE_CAPABILITY), "POST", false),
             "VALIDATE", new Expected(VALIDATE_ROUTE, Set.of(MANAGE_CAPABILITY), "POST", false),
             "SUBMIT", new Expected(SUBMIT_ROUTE, Set.of(MANAGE_CAPABILITY), "POST", false),

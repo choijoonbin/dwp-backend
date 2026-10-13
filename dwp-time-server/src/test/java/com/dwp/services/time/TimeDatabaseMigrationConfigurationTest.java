@@ -7,19 +7,22 @@ import org.junit.jupiter.api.Test;
 class TimeDatabaseMigrationConfigurationTest {
 
     @Test
-    void publisherPolicyAdmitsOnlyTheClockOutboxRelaySurface() {
+    void publisherPolicyAdmitsOnlyTheClockAndInterpretationOutboxRelaySurfaces() {
         var policy = TimeDatabaseMigrationConfiguration.publisherPolicy(
                 "dwp_time_projection_publisher", true);
 
         assertThat(policy.allowedAclPrivileges().stream()
                 .filter(privilege -> privilege.objectIdentity()
-                        .startsWith("public.tme_clock_outbox_events"))
+                        .contains("outbox_events"))
                 .map(privilege -> privilege.objectClass() + ":"
                         + privilege.objectIdentity() + ":" + privilege.privilege()))
                 .containsExactlyInAnyOrder(
                         "RELATION:public.tme_clock_outbox_events:SELECT",
                         "COLUMN:public.tme_clock_outbox_events.publish_attempts:UPDATE",
-                        "COLUMN:public.tme_clock_outbox_events.published_at:UPDATE");
+                        "COLUMN:public.tme_clock_outbox_events.published_at:UPDATE",
+                        "RELATION:public.tme_interpretation_outbox_events:SELECT",
+                        "COLUMN:public.tme_interpretation_outbox_events.publish_attempts:UPDATE",
+                        "COLUMN:public.tme_interpretation_outbox_events.published_at:UPDATE");
         assertThat(policy.requiredAclPrivileges())
                 .isEqualTo(policy.allowedAclPrivileges());
     }

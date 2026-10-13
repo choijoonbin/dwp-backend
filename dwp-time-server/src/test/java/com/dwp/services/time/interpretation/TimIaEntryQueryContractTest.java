@@ -265,7 +265,7 @@ class TimIaEntryQueryContractTest {
         var projection = service.project(
                 authority(
                         Set.of(), Set.of(), 17, "psr-" + "a".repeat(64),
-                        Set.of("hcm.operations.time.view", "hcm.operations.time.update"),
+                        Set.of("DATA.HR_TIME:VIEW", "DATA.HR_TIME:UPDATE"),
                         PopulationKind.TIME_GROUP,
                         Set.of(WORKER, OTHER_WORKER)),
                 request(25, null),
@@ -283,7 +283,7 @@ class TimIaEntryQueryContractTest {
     @Test
     void personalSubmitActionIsExposedOnlyForSelfPopulation() {
         Set<String> permissions = Set.of(
-                "hcm.operations.time.view", "hcm.personal.time.submit");
+                "DATA.HR_TIME:VIEW", "DATA.HR_TIME:CREATE");
         InterpretationSummary row = summary(1, WORKER, RunStatus.SUCCEEDED, 3, 1);
 
         var nonSelf = service.project(
@@ -417,7 +417,7 @@ class TimIaEntryQueryContractTest {
                 omitted,
                 authorizationRevision,
                 decisionRevision,
-                Set.of("hcm.operations.time.view", "hcm.operations.time.update"),
+                Set.of("DATA.HR_TIME:VIEW", "DATA.HR_TIME:UPDATE"),
                 PopulationKind.TIME_GROUP,
                 Set.of(WORKER));
     }

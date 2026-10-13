@@ -93,13 +93,15 @@ class ProductAuthorizationContractReleaseLineageTest
                 generatedDocument("product-surfaces-v1.bundle-v36.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionThirtySeven = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v37.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(37);
-        assertThat(index.latestChecksum()).isEqualTo(versionThirtySeven.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionThirtyEight = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v38.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(38);
+        assertThat(index.latestChecksum()).isEqualTo(versionThirtyEight.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
-                        26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L);
+                        26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -441,6 +443,28 @@ class ProductAuthorizationContractReleaseLineageTest
                 .containsExactlyElementsOf(versionThirtySix.routes().stream()
                         .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
                         .toList());
+        assertStrictCapabilitySuperset(versionThirtySeven, versionThirtyEight);
+        assertThat(versionThirtyEight.capabilities()).hasSize(242)
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .contains(
+                        "hcm.personal.profile.view",
+                        "hcm.operations.assignment.manage",
+                        "hcm.command-receipt.view",
+                        "hcm.personal.time.view",
+                        "hcm.operations.payroll-inputs.update");
+        assertThat(versionThirtyEight.routes()).hasSize(991)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionThirtySeven.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.hcm.operations.assignment-event-detail.data",
+                        "route.hcm.operations.assignment-command-receipt.data",
+                        "route.hcm.operations.time-interpretation.page",
+                        "route.hcm.operations.time-interpretation-run.action",
+                        "route.hcm.operations.time-interpretation-trace.data",
+                        "route.hcm.configuration.payroll.page",
+                        "route.hcm.configuration.payroll-formula-publish.action");
         String voidRoute = "route.hcm.operations.time-clock-event-void.action";
         assertThat(versionThirtySix.routes())
                 .filteredOn(route -> voidRoute.equals(route.routeContractKey()))

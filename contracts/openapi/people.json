@@ -1951,6 +1951,35 @@
         },
         "type": "object"
       },
+      "AssignmentEventEmptyCommandV1": {},
+      "AssignmentImpactV1": {
+        "properties": {
+          "blockingIssues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "eventPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "impactDigest": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "AssignmentProposal": {
         "properties": {
           "assignmentKey": {
@@ -2586,6 +2615,35 @@
         },
         "required": [
           "version"
+        ],
+        "type": "object"
+      },
+      "CommandContext": {
+        "properties": {
+          "effectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "maxLength": 128,
+            "minLength": 16,
+            "type": "string"
+          },
+          "purpose": {
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Z0-9_]{2,79}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effectiveAt",
+          "idempotencyKey",
+          "purpose"
         ],
         "type": "object"
       },
@@ -4019,6 +4077,251 @@
           "personId": {
             "format": "uuid",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EmploymentAssignmentV1": {
+        "properties": {
+          "assignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "assignmentStatus": {
+            "type": "string"
+          },
+          "assignmentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fte": {
+            "type": "string"
+          },
+          "jobRef": {
+            "$ref": "#/components/schemas/OwnerRef"
+          },
+          "legalEmployerRef": {
+            "$ref": "#/components/schemas/OwnerRef"
+          },
+          "organizationRef": {
+            "$ref": "#/components/schemas/OwnerRef"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionRef": {
+            "$ref": "#/components/schemas/OwnerRef"
+          },
+          "primary": {
+            "type": "boolean"
+          },
+          "relationshipEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "relationshipStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipType": {
+            "type": "string"
+          },
+          "relationshipVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "validFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "validToExclusive": {
+            "format": "date",
+            "type": "string"
+          },
+          "workLocationRef": {
+            "$ref": "#/components/schemas/OwnerRef"
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workerStatus": {
+            "type": "string"
+          },
+          "workerVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "EmploymentAssignmentWorkbenchV1": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/EmploymentAssignmentV1"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "EmploymentDocumentV1": {
+        "properties": {
+          "assignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "relationshipPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "relationshipType": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "validToExclusive": {
+            "format": "date",
+            "type": "string"
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EmploymentDocumentsV1": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/EmploymentDocumentV1"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "EmploymentEventCommand": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/CommandContext"
+          },
+          "eventType": {
+            "minLength": 1,
+            "pattern": "HIRE|CONCURRENT_EMPLOYMENT",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/JsonNode"
+          }
+        },
+        "required": [
+          "context",
+          "eventType",
+          "payload"
+        ],
+        "type": "object"
+      },
+      "EmploymentEventV1": {
+        "properties": {
+          "approvalDecisionRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "eventPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "impactDigest": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "publishedAssignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedRelationshipPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedWorkerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "targetOwnerVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validationFindings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -5989,6 +6292,49 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "OwnerRef": {
+        "properties": {
+          "contentHash": {
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "owner": {
+            "minLength": 1,
+            "pattern": "HRM",
+            "type": "string"
+          },
+          "publicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "schemaId": {
+            "maxLength": 160,
+            "minLength": 3,
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validToExclusive": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contentHash",
+          "owner",
+          "publicId",
+          "schemaId"
+        ],
         "type": "object"
       },
       "PartialFailure": {
@@ -9795,6 +10141,380 @@
         ]
       }
     },
+    "/v1/hris/assignment-events": {
+      "post": {
+        "operationId": "createAssignmentEvent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmploymentEventCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandReceiptV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "employment-event-controller"
+        ]
+      }
+    },
+    "/v1/hris/assignment-events/{eventPublicId}": {
+      "get": {
+        "operationId": "getAssignmentEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventPublicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmploymentEventV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "employment-event-controller"
+        ]
+      }
+    },
+    "/v1/hris/assignment-events/{eventPublicId}/publish": {
+      "post": {
+        "operationId": "publishAssignmentEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventPublicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentEventEmptyCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandReceiptV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "employment-event-controller"
+        ]
+      }
+    },
+    "/v1/hris/assignment-events/{eventPublicId}/submit": {
+      "post": {
+        "operationId": "submitAssignmentEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventPublicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentEventEmptyCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandReceiptV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "employment-event-controller"
+        ]
+      }
+    },
+    "/v1/hris/assignment-events/{eventPublicId}/validate": {
+      "post": {
+        "operationId": "validateAssignmentEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventPublicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentEventEmptyCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentImpactV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "employment-event-controller"
+        ]
+      }
+    },
+    "/v1/hris/command-receipts/{receiptId}": {
+      "get": {
+        "operationId": "getHrisCommandReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receiptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandReceiptV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "employment-event-controller"
+        ]
+      }
+    },
     "/v1/hris/employee-change-requests": {
       "post": {
         "operationId": "createEmployeeChangeRequest",
@@ -10264,12 +10984,12 @@
           "employee-change-request-controller"
         ],
         "x-dwp-controller-method": "create",
-        "x-dwp-product-authorization-v37": {
+        "x-dwp-product-authorization-v38": {
           "authentication": "HUMAN_SESSION",
           "bindingKey": "route.hcm.operations.employee-change-request-create.action.binding.01",
           "ownerServiceKey": "people",
           "productKey": "hcm",
-          "registryVersion": 37,
+          "registryVersion": 38,
           "routeContractKey": "route.hcm.operations.employee-change-request-create.action",
           "subjectType": "PRODUCT",
           "surfaceKey": "hcm.operations"
@@ -10786,12 +11506,12 @@
         ],
         "x-dwp-command-proof-required": true,
         "x-dwp-controller-method": "apply",
-        "x-dwp-product-authorization-v37": {
+        "x-dwp-product-authorization-v38": {
           "authentication": "HUMAN_SESSION",
           "bindingKey": "route.hcm.operations.employee-change-request-apply.action.binding.01",
           "ownerServiceKey": "people",
           "productKey": "hcm",
-          "registryVersion": 37,
+          "registryVersion": 38,
           "routeContractKey": "route.hcm.operations.employee-change-request-apply.action",
           "subjectType": "PRODUCT",
           "surfaceKey": "hcm.operations"
@@ -11278,12 +11998,12 @@
           "employee-change-request-controller"
         ],
         "x-dwp-controller-method": "submit",
-        "x-dwp-product-authorization-v37": {
+        "x-dwp-product-authorization-v38": {
           "authentication": "HUMAN_SESSION",
           "bindingKey": "route.hcm.operations.employee-change-request-submit.action.binding.01",
           "ownerServiceKey": "people",
           "productKey": "hcm",
-          "registryVersion": 37,
+          "registryVersion": 38,
           "routeContractKey": "route.hcm.operations.employee-change-request-submit.action",
           "subjectType": "PRODUCT",
           "surfaceKey": "hcm.operations"
@@ -12392,12 +13112,12 @@
           "employee-change-request-controller"
         ],
         "x-dwp-controller-method": "workbench",
-        "x-dwp-product-authorization-v37": {
+        "x-dwp-product-authorization-v38": {
           "authentication": "HUMAN_SESSION",
           "bindingKey": "route.hcm.operations.employee-change-requests.page.binding.01",
           "ownerServiceKey": "people",
           "productKey": "hcm",
-          "registryVersion": 37,
+          "registryVersion": 38,
           "routeContractKey": "route.hcm.operations.employee-change-requests.page",
           "subjectType": "PRODUCT",
           "surfaceKey": "hcm.operations"
@@ -12407,6 +13127,68 @@
         },
         "x-dwp-reviewed-design-time-contract": "HRM-010",
         "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/workbench/operations/employment/assignments": {
+      "get": {
+        "operationId": "getOperationsEmploymentAssignments",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmploymentAssignmentWorkbenchV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "employment-event-controller"
+        ]
+      }
+    },
+    "/v1/hris/workbench/self-service/employment-documents": {
+      "get": {
+        "operationId": "getSelfServiceEmploymentDocuments",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmploymentDocumentsV1"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "employment-event-controller"
+        ]
       }
     },
     "/v1/org-chart": {

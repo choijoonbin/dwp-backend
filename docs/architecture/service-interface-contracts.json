@@ -1946,6 +1946,33 @@
       ]
     }
   ],
+  "internalOwnerEndpoints": [
+    {
+      "id": "people-time-workplace-assignment-snapshot",
+      "classification": "hris-owner-snapshot-bootstrap",
+      "ownerService": "dwp-people-server",
+      "permittedCallerServices": [
+        "dwp-time-server"
+      ],
+      "path": "dwp-people-server/src/main/java/com/dwp/services/people/hris/employment/EmploymentEventController.java",
+      "supportPaths": [
+        "dwp-people-server/src/main/java/com/dwp/services/people/hris/employment/EmploymentSnapshotAuthority.java",
+        "dwp-people-server/src/main/java/com/dwp/services/people/security/PeopleSecurityFilter.java"
+      ],
+      "method": "GET",
+      "endpoint": "/internal/hris-people/v1/workplace-assignment-snapshots",
+      "purpose": "HRIS_WORKPLACE_ASSIGNMENT_SNAPSHOT_BOOTSTRAP",
+      "requiredTrustedHeaders": [
+        "X-DWP-Service-Token",
+        "X-DWP-Service-Identity",
+        "X-DWP-Tenant-ID",
+        "X-Purpose-Code"
+      ],
+      "publicGatewayExposure": false,
+      "productAuthorizationRegistration": false,
+      "failureMode": "fail-closed"
+    }
+  ],
   "crossDatabaseExceptions": [
     {
       "id": "provider-data-governance-metadata-sources",
