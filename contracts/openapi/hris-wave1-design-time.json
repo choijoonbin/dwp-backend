@@ -34,10 +34,118 @@
           "HcmAuditEvidencePageV1": {"additionalProperties": false, "properties": {"items": {"items": {"$ref": "#/components/schemas/HcmAuditEvidenceV1"}, "type": "array"}, "nextCursor": {"type": ["string", "null"]}, "size": {"maximum": 100, "minimum": 0, "type": "integer"}, "snapshotAt": {"format": "date-time", "type": "string"}}, "required": ["items", "size", "snapshotAt", "nextCursor"], "type": "object"},
           "HcmAuditEvidenceV1": {"additionalProperties": false, "properties": {"action": {"type": "string"}, "actorType": {"type": "string"}, "afterDigest": {"pattern": "^[0-9a-f]{64}$", "type": ["string", "null"]}, "aggregateRevision": {"minimum": 0, "type": "integer"}, "aggregateType": {"type": "string"}, "approvalReceiptId": {"format": "uuid", "type": ["string", "null"]}, "authorizationDecisionRef": {"type": "string"}, "beforeDigest": {"pattern": "^[0-9a-f]{64}$", "type": ["string", "null"]}, "category": {"type": "string"}, "causationId": {"format": "uuid", "type": "string"}, "classification": {"type": "string"}, "correlationId": {"format": "uuid", "type": "string"}, "effectiveCapability": {"type": "string"}, "eventId": {"format": "uuid", "type": "string"}, "evidenceDigest": {"pattern": "^[0-9a-f]{64}$", "type": "string"}, "fieldPolicyRevision": {"minimum": 1, "type": "integer"}, "occurredAt": {"format": "date-time", "type": "string"}, "outcome": {"type": "string"}, "purposeCode": {"const": "HRIS_AUDIT_EVIDENCE"}, "reasonCode": {"type": ["string", "null"]}, "recordHash": {"pattern": "^[0-9a-f]{64}$", "type": "string"}, "retentionClass": {"type": "string"}, "scopeRevision": {"minimum": 1, "type": "integer"}, "severity": {"type": "string"}, "sourceModule": {"type": "string"}, "sourceService": {"type": "string"}}, "required": ["eventId", "occurredAt", "category", "action", "outcome", "severity", "actorType", "sourceService", "sourceModule", "aggregateType", "aggregateRevision", "effectiveCapability", "purposeCode", "authorizationDecisionRef", "scopeRevision", "fieldPolicyRevision", "approvalReceiptId", "reasonCode", "beforeDigest", "afterDigest", "evidenceDigest", "classification", "retentionClass", "causationId", "correlationId", "recordHash"], "type": "object"},
           "ApiResponseHcmAuditEvidencePageV1": {"properties": {"correlationId": {"type": "string"}, "data": {"$ref": "#/components/schemas/HcmAuditEvidencePageV1"}, "errorCode": {"type": "string"}, "message": {"type": "string"}, "status": {"type": "string"}, "success": {"type": "boolean"}, "timestamp": {"format": "date-time", "type": "string"}}, "type": "object"},
-          "ApiResponseHcmAuditEvidenceV1": {"properties": {"correlationId": {"type": "string"}, "data": {"$ref": "#/components/schemas/HcmAuditEvidenceV1"}, "errorCode": {"type": "string"}, "message": {"type": "string"}, "status": {"type": "string"}, "success": {"type": "boolean"}, "timestamp": {"format": "date-time", "type": "string"}}, "type": "object"}
+          "ApiResponseHcmAuditEvidenceV1": {"properties": {"correlationId": {"type": "string"}, "data": {"$ref": "#/components/schemas/HcmAuditEvidenceV1"}, "errorCode": {"type": "string"}, "message": {"type": "string"}, "status": {"type": "string"}, "success": {"type": "boolean"}, "timestamp": {"format": "date-time", "type": "string"}}, "type": "object"},
+          "Instant": {"type":"string","format":"date-time"},
+          "Uuid": {"type":"string","format":"uuid"},
+          "PositiveRevision": {"type":"integer","minimum":1},
+          "Digest": {"type":"string","pattern":"^[0-9a-f]{64}$"},
+          "Cursor": {"type":"string","minLength":1,"maxLength":2048},
+          "HrisInternalTarget": {"type":"object","additionalProperties":false,"properties":{"kind":{"const":"HRIS_INTERNAL"},"path":{"type":"string","pattern":"^/hr(?:/|$)","maxLength":300}},"required":["kind","path"]},
+          "DwpControlTarget": {"type":"object","additionalProperties":false,"properties":{"kind":{"const":"DWP_CONTROL"},"path":{"type":"string","enum":["/admin/experience/branding?product=HCM","/admin/identity/app-governance?product=HCM","/admin/platform/catalog?product=HCM","/admin/integrations/productivity?product=HCM","/admin/governance/audit-overview?product=HCM","/admin/platform/registry?namespace=hris-extension"]}},"required":["kind","path"]},
+          "ExplorerTargetV2": {"oneOf":[{"$ref":"#/components/schemas/HrisInternalTarget"},{"$ref":"#/components/schemas/DwpControlTarget"}]},
+          "SingleCapabilityAuthorization": {"type":"object","additionalProperties":false,"properties":{"routeContractKey":{"type":"string","pattern":"^route\\.[a-z0-9.-]{3,154}$"},"capabilityMode":{"const":"SINGLE"},"capabilityKeys":{"type":"array","minItems":1,"maxItems":1,"uniqueItems":true,"items":{"type":"string","pattern":"^[a-z][a-z0-9.-]{2,159}$"}}},"required":["routeContractKey","capabilityMode","capabilityKeys"]},
+          "CapabilityExpressionAuthorization": {"type":"object","additionalProperties":false,"properties":{"routeContractKey":{"type":"string","pattern":"^route\\.[a-z0-9.-]{3,154}$"},"capabilityMode":{"type":"string","enum":["ANY","ALL"]},"capabilityKeys":{"type":"array","minItems":2,"maxItems":16,"uniqueItems":true,"items":{"type":"string","pattern":"^[a-z][a-z0-9.-]{2,159}$"}}},"required":["routeContractKey","capabilityMode","capabilityKeys"]},
+          "ExplorerAuthorizationV2": {"oneOf":[{"$ref":"#/components/schemas/SingleCapabilityAuthorization"},{"$ref":"#/components/schemas/CapabilityExpressionAuthorization"}]},
+          "ExplorerRouteIdentityV2": {"type":"object","properties":{"routeKey":{"type":"string","pattern":"^[a-z][a-z0-9.-]{2,95}$"},"target":{"$ref":"#/components/schemas/ExplorerTargetV2"},"labelKey":{"type":"string","pattern":"^hris\\.[a-z0-9.-]{3,120}$"},"module":{"type":"string","enum":["HRM","PER","TIM","PAY","SYS"]},"workbench":{"type":"string","enum":["MY_HR","TEAM","HR_OPERATIONS","TIME","PAYROLL","PERFORMANCE","SETTINGS"]},"authorization":{"$ref":"#/components/schemas/ExplorerAuthorizationV2"}},"required":["routeKey","target","labelKey","module","workbench","authorization"]},
+          "ExplorerRouteProjectionV2": {"allOf":[{"$ref":"#/components/schemas/ExplorerRouteIdentityV2"}],"unevaluatedProperties":false},
+          "ExplorerFavoriteProjectionV2": {"allOf":[{"$ref":"#/components/schemas/ExplorerRouteIdentityV2"},{"type":"object","properties":{"position":{"type":"integer","minimum":1,"maximum":20}},"required":["position"]}],"unevaluatedProperties":false},
+          "ExplorerRecentProjectionV2": {"allOf":[{"$ref":"#/components/schemas/ExplorerRouteIdentityV2"},{"type":"object","properties":{"lastVisitedAt":{"$ref":"#/components/schemas/Instant"},"expiresAt":{"$ref":"#/components/schemas/Instant"}},"required":["lastVisitedAt","expiresAt"]}],"unevaluatedProperties":false},
+          "ExplorerActivityProjectionV2": {"type":"object","additionalProperties":false,"properties":{"activityId":{"$ref":"#/components/schemas/Uuid"},"sourceKind":{"type":"string","enum":["COMMAND_RECEIPT","WORKFLOW_CASE","APPROVAL_CASE","SERVICE_REQUEST","OPERATION_EXCEPTION"]},"module":{"type":"string","enum":["HRM","PER","TIM","PAY","SYS"]},"state":{"type":"string","enum":["PENDING","IN_PROGRESS","WAITING_FOR_ME","RESULT_UNKNOWN","FAILED"]},"sourceRevision":{"$ref":"#/components/schemas/PositiveRevision"},"updatedAt":{"$ref":"#/components/schemas/Instant"},"target":{"$ref":"#/components/schemas/ExplorerTargetV2"}},"required":["activityId","sourceKind","module","state","sourceRevision","updatedAt","target"]},
+          "ExplorerDegradedSourceV1": {"type":"object","additionalProperties":false,"properties":{"module":{"type":"string","enum":["HRM","PER","TIM","PAY","SYS"]},"sourceKind":{"type":"string","enum":["CATALOG","COMMAND_RECEIPT","WORKFLOW_CASE","APPROVAL_CASE","SERVICE_REQUEST","OPERATION_EXCEPTION"]},"reason":{"type":"string","enum":["TIMEOUT","UNAVAILABLE","STALE"]},"retryable":{"type":"boolean"}},"required":["module","sourceKind","reason","retryable"]},
+          "ExplorerProjectionStatusV1": {"type":"object","additionalProperties":false,"properties":{"state":{"type":"string","enum":["FRESH","STALE","PARTIAL"]},"degradedSources":{"type":"array","maxItems":20,"items":{"$ref":"#/components/schemas/ExplorerDegradedSourceV1"}}},"required":["state","degradedSources"]},
+          "ExplorerPolicyV1": {"type":"object","additionalProperties":false,"properties":{"maxFavorites":{"const":20},"maxRecents":{"const":20},"recentTtlDays":{"const":30},"maxInProgress":{"const":20},"entitlementRefilter":{"const":true},"cleanupMode":{"const":"READ_AND_WRITE_THROUGH_PURGE"}},"required":["maxFavorites","maxRecents","recentTtlDays","maxInProgress","entitlementRefilter","cleanupMode"]},
+          "HrisExplorerResponseV2": {"type":"object","additionalProperties":false,"properties":{"asOf":{"$ref":"#/components/schemas/Instant"},"projectionRevision":{"$ref":"#/components/schemas/PositiveRevision"},"entitlementRevision":{"$ref":"#/components/schemas/PositiveRevision"},"favoritePreferenceRevision":{"$ref":"#/components/schemas/PositiveRevision"},"routes":{"type":"array","maxItems":100,"items":{"$ref":"#/components/schemas/ExplorerRouteProjectionV2"}},"favorites":{"type":"array","maxItems":20,"items":{"$ref":"#/components/schemas/ExplorerFavoriteProjectionV2"}},"recents":{"type":"array","maxItems":20,"items":{"$ref":"#/components/schemas/ExplorerRecentProjectionV2"}},"inProgress":{"type":"array","maxItems":20,"items":{"$ref":"#/components/schemas/ExplorerActivityProjectionV2"}},"nextCursor":{"oneOf":[{"$ref":"#/components/schemas/Cursor"},{"type":"null"}]},"projectionStatus":{"$ref":"#/components/schemas/ExplorerProjectionStatusV1"},"policy":{"$ref":"#/components/schemas/ExplorerPolicyV1"}},"required":["asOf","projectionRevision","entitlementRevision","favoritePreferenceRevision","routes","favorites","recents","inProgress","nextCursor","projectionStatus","policy"]},
+          "HrisCommandReceiptV1": {"type":"object","additionalProperties":false,"properties":{"receiptId":{"$ref":"#/components/schemas/Uuid"},"commandType":{"type":"string","minLength":1},"originatingAction":{"type":"string","minLength":1,"maxLength":128},"subjectPrincipalPublicId":{"$ref":"#/components/schemas/Uuid"},"populationScopeDigest":{"$ref":"#/components/schemas/Digest"},"fieldPolicyRevision":{"type":"integer","minimum":1},"purposeCode":{"type":"string","minLength":3,"maxLength":64},"authorizationRevision":{"type":"integer","minimum":1},"status":{"type":"string","enum":["ACCEPTED","RUNNING","SUCCEEDED","REJECTED","FAILED","RESULT_UNKNOWN"]},"correlationId":{"$ref":"#/components/schemas/Uuid"},"requestDigest":{"$ref":"#/components/schemas/Digest"},"createdAt":{"$ref":"#/components/schemas/Instant"},"aggregateVersion":{"type":"integer","minimum":0},"resultRef":{"type":"string","minLength":1}},"required":["receiptId","commandType","originatingAction","subjectPrincipalPublicId","populationScopeDigest","fieldPolicyRevision","purposeCode","authorizationRevision","status","correlationId","requestDigest","createdAt"]},
+          "HrisExplorerReceiptV1": {"type":"object","additionalProperties":false,"properties":{"receiptId":{"$ref":"#/components/schemas/Uuid"},"commandType":{"type":"string","enum":["EXPLORER_PREFERENCES_REPLACE","EXPLORER_RECENT_RECORD"]},"originatingAction":{"type":"string","enum":["EXPLORER_PREFERENCES_REPLACE","EXPLORER_RECENT_RECORD"]},"subjectPrincipalPublicId":{"$ref":"#/components/schemas/Uuid"},"populationScopeDigest":{"$ref":"#/components/schemas/Digest"},"fieldPolicyRevision":{"$ref":"#/components/schemas/PositiveRevision"},"purposeCode":{"const":"HRIS_APP_DISCOVERY"},"authorizationRevision":{"$ref":"#/components/schemas/PositiveRevision"},"status":{"type":"string","enum":["ACCEPTED","RUNNING","SUCCEEDED","REJECTED","FAILED","RESULT_UNKNOWN"]},"correlationId":{"$ref":"#/components/schemas/Uuid"},"requestDigest":{"$ref":"#/components/schemas/Digest"},"createdAt":{"$ref":"#/components/schemas/Instant"},"aggregateVersion":{"type":"integer","minimum":0},"resultRef":{"type":"string","minLength":1,"maxLength":500}},"required":["receiptId","commandType","originatingAction","subjectPrincipalPublicId","populationScopeDigest","fieldPolicyRevision","purposeCode","authorizationRevision","status","correlationId","requestDigest","createdAt"]},
+          "HrisExplorerQuery": {"type":"object","additionalProperties":false,"properties":{"cursor":{"$ref":"#/components/schemas/Cursor"},"asOf":{"$ref":"#/components/schemas/Instant"},"filter":{"type":"string","minLength":1,"maxLength":200},"freshness":{"type":"string","enum":["FRESH_ONLY","ALLOW_STALE"]},"limit":{"type":"integer","minimum":1,"maximum":100}},"required":["asOf","freshness"]},
+          "ExplorerPreferenceCommand": {"type":"object","additionalProperties":false,"x-writePolicy":"SERVER_OWNS_TENANT_AND_USER;CAS_REVISION;MAX_20;ORDER_IS_ARRAY_POSITION;REAUTHORIZE_EACH_ROUTE","properties":{"orderedFavoriteRouteKeys":{"type":"array","maxItems":20,"uniqueItems":true,"items":{"type":"string","pattern":"^[a-z][a-z0-9.-]{2,95}$"}}},"required":["orderedFavoriteRouteKeys"]},
+          "ExplorerRecentCommand": {"type":"object","additionalProperties":false,"x-writePolicy":"SERVER_OWNS_TENANT_USER_AND_VISITED_AT;UPSERT_ROUTE;MAX_20_LRU;TTL_30_DAYS;REAUTHORIZE_ROUTE","properties":{"routeKey":{"type":"string","pattern":"^[a-z][a-z0-9.-]{2,95}$"}},"required":["routeKey"]}
         }
       },
       "paths": {
+        "/v1/hris/explorer": {
+          "get": {
+            "operationId": "getHrisWorkExplorer",
+            "parameters": [
+              {"in":"query","name":"cursor","required":false,"schema":{"$ref":"#/components/schemas/Cursor"}},
+              {"in":"query","name":"asOf","required":true,"schema":{"format":"date-time","type":"string"}},
+              {"in":"query","name":"filter","required":false,"schema":{"maxLength":200,"minLength":1,"type":"string"}},
+              {"in":"query","name":"freshness","required":true,"schema":{"enum":["FRESH_ONLY","ALLOW_STALE"],"type":"string"}},
+              {"in":"query","name":"limit","required":false,"schema":{"maximum":100,"minimum":1,"type":"integer"}}
+            ],
+            "responses": {"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/HrisExplorerResponseV2"}}},"description":"Entitlement-filtered HRIS work explorer"}},
+            "tags": ["hris-work-explorer-controller"],
+            "x-dwp-access-profiles": [{"capabilityContractKey":"hcm.app.shell.view","predicatePolicyKeys":["predicate.hcm-explorer-authority.v1"],"profileKey":"explorer-reader","responseSchemaKey":"HrisExplorerResponseV2"}],
+            "x-dwp-contract-id": "SYS-API-027",
+            "x-dwp-controller-method": "explorer",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "HRIS_APP_DISCOVERY",
+            "x-dwp-query-schema": {"$ref":"#/components/schemas/HrisExplorerQuery"},
+            "x-dwp-reviewed-design-time-contract": "SYS-012-WORK-EXPLORER-CONTROL-R1",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/hris/explorer/preferences": {
+          "put": {
+            "operationId": "replaceHrisExplorerPreferences",
+            "parameters": [
+              {"in":"header","name":"Idempotency-Key","required":true,"schema":{"maxLength":128,"minLength":16,"type":"string"}},
+              {"in":"header","name":"If-Match","required":true,"schema":{"pattern":"^(W/)?\\\"[A-Za-z0-9._:-]+\\\"$","type":"string"}}
+            ],
+            "requestBody": {"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ExplorerPreferenceCommand"}}},"required":true},
+            "responses": {"202":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/HrisExplorerReceiptV1"}}},"description":"Explorer preference replacement accepted"}},
+            "tags": ["hris-work-explorer-controller"],
+            "x-dwp-access-profiles": [{"capabilityContractKey":"hcm.app.shell.view","predicatePolicyKeys":["predicate.hcm-explorer-authority.v1"],"profileKey":"explorer-preference-writer"}],
+            "x-dwp-contract-id": "SYS-API-039",
+            "x-dwp-controller-method": "replacePreferences",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "HRIS_APP_DISCOVERY",
+            "x-dwp-reviewed-design-time-contract": "SYS-012-WORK-EXPLORER-CONTROL-R1",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/hris/explorer/recents": {
+          "post": {
+            "operationId": "recordHrisExplorerRecent",
+            "parameters": [
+              {"in":"header","name":"Idempotency-Key","required":true,"schema":{"maxLength":128,"minLength":16,"type":"string"}}
+            ],
+            "requestBody": {"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ExplorerRecentCommand"}}},"required":true},
+            "responses": {"202":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/HrisExplorerReceiptV1"}}},"description":"Explorer recent route accepted"}},
+            "tags": ["hris-work-explorer-controller"],
+            "x-dwp-access-profiles": [{"capabilityContractKey":"hcm.app.shell.view","predicatePolicyKeys":["predicate.hcm-explorer-authority.v1"],"profileKey":"explorer-recent-writer"}],
+            "x-dwp-contract-id": "SYS-API-040",
+            "x-dwp-controller-method": "recordRecent",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "HRIS_APP_DISCOVERY",
+            "x-dwp-reviewed-design-time-contract": "SYS-012-WORK-EXPLORER-CONTROL-R1",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/command-receipts/{receiptId}": {
+          "get": {
+            "operationId": "getHrisCommandReceipt",
+            "parameters": [
+              {"in":"path","name":"receiptId","required":true,"schema":{"format":"uuid","type":"string"}}
+            ],
+            "responses": {
+              "200":{"content":{"application/json":{"schema":{"oneOf":[{"$ref":"#/components/schemas/HrisExplorerReceiptV1"},{"$ref":"#/components/schemas/HrisCommandReceiptV1"}]}}},"description":"Originating-context command receipt"},
+              "404":{"description":"Receipt absent or outside the sealed originating-command context"}
+            },
+            "tags": ["hris-command-receipt-controller"],
+            "x-dwp-access-profiles": [
+              {"capabilityContractKey":"hcm.app.shell.view","predicatePolicyKeys":["predicate.hcm-explorer-authority.v1"],"profileKey":"explorer-originating-receipt-reader","responseSchemaKey":"HrisExplorerReceiptV1"},
+              {"capabilityContractKey":"hcm.command-receipt.view","predicatePolicyKeys":["predicate.hcm-platform-command-receipt-authority.v1"],"profileKey":"platform-originating-command-receipt-reader","responseSchemaKey":"HrisCommandReceiptV1"}
+            ],
+            "x-dwp-contract-id": "SYS-API-038",
+            "x-dwp-controller-method": "receipt",
+            "x-dwp-opaque-not-found": true,
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "HRIS_APP_DISCOVERY",
+            "x-dwp-reviewed-design-time-contract": "SYS-012-WORK-EXPLORER-CONTROL-R1",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
         "/v1/hris/configuration/projection": {
           "get": {
             "operationId": "hrisConfigurationProjection",

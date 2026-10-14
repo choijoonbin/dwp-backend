@@ -89990,6 +89990,38 @@
         ],
         "type": "object"
       },
+      "platform_CapabilityExpressionAuthorization": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilityKeys": {
+            "items": {
+              "pattern": "^[a-z][a-z0-9.-]{2,159}$",
+              "type": "string"
+            },
+            "maxItems": 16,
+            "minItems": 2,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "capabilityMode": {
+            "enum": [
+              "ANY",
+              "ALL"
+            ],
+            "type": "string"
+          },
+          "routeContractKey": {
+            "pattern": "^route\\.[a-z0-9.-]{3,154}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "routeContractKey",
+          "capabilityMode",
+          "capabilityKeys"
+        ],
+        "type": "object"
+      },
       "platform_CapacityBucket": {
         "properties": {
           "availableQuantity": {
@@ -94386,6 +94418,11 @@
         },
         "type": "object"
       },
+      "platform_Cursor": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
       "platform_CustodyCandidate": {
         "properties": {
           "displayName": {
@@ -95912,6 +95949,10 @@
         },
         "type": "object"
       },
+      "platform_Digest": {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
       "platform_DispatchSummary": {
         "properties": {
           "attemptCount": {
@@ -96167,6 +96208,30 @@
           "subject",
           "toEmail",
           "version"
+        ],
+        "type": "object"
+      },
+      "platform_DwpControlTarget": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "DWP_CONTROL"
+          },
+          "path": {
+            "enum": [
+              "/admin/experience/branding?product=HCM",
+              "/admin/identity/app-governance?product=HCM",
+              "/admin/platform/catalog?product=HCM",
+              "/admin/integrations/productivity?product=HCM",
+              "/admin/governance/audit-overview?product=HCM",
+              "/admin/platform/registry?namespace=hris-extension"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "path"
         ],
         "type": "object"
       },
@@ -97792,6 +97857,318 @@
           }
         },
         "type": "object"
+      },
+      "platform_ExplorerActivityProjectionV2": {
+        "additionalProperties": false,
+        "properties": {
+          "activityId": {
+            "$ref": "#/components/schemas/platform_Uuid"
+          },
+          "module": {
+            "enum": [
+              "HRM",
+              "PER",
+              "TIM",
+              "PAY",
+              "SYS"
+            ],
+            "type": "string"
+          },
+          "sourceKind": {
+            "enum": [
+              "COMMAND_RECEIPT",
+              "WORKFLOW_CASE",
+              "APPROVAL_CASE",
+              "SERVICE_REQUEST",
+              "OPERATION_EXCEPTION"
+            ],
+            "type": "string"
+          },
+          "sourceRevision": {
+            "$ref": "#/components/schemas/platform_PositiveRevision"
+          },
+          "state": {
+            "enum": [
+              "PENDING",
+              "IN_PROGRESS",
+              "WAITING_FOR_ME",
+              "RESULT_UNKNOWN",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/platform_ExplorerTargetV2"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/platform_Instant"
+          }
+        },
+        "required": [
+          "activityId",
+          "sourceKind",
+          "module",
+          "state",
+          "sourceRevision",
+          "updatedAt",
+          "target"
+        ],
+        "type": "object"
+      },
+      "platform_ExplorerAuthorizationV2": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/platform_SingleCapabilityAuthorization"
+          },
+          {
+            "$ref": "#/components/schemas/platform_CapabilityExpressionAuthorization"
+          }
+        ]
+      },
+      "platform_ExplorerDegradedSourceV1": {
+        "additionalProperties": false,
+        "properties": {
+          "module": {
+            "enum": [
+              "HRM",
+              "PER",
+              "TIM",
+              "PAY",
+              "SYS"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "TIMEOUT",
+              "UNAVAILABLE",
+              "STALE"
+            ],
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "sourceKind": {
+            "enum": [
+              "CATALOG",
+              "COMMAND_RECEIPT",
+              "WORKFLOW_CASE",
+              "APPROVAL_CASE",
+              "SERVICE_REQUEST",
+              "OPERATION_EXCEPTION"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "module",
+          "sourceKind",
+          "reason",
+          "retryable"
+        ],
+        "type": "object"
+      },
+      "platform_ExplorerFavoriteProjectionV2": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/platform_ExplorerRouteIdentityV2"
+          },
+          {
+            "properties": {
+              "position": {
+                "maximum": 20,
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "position"
+            ],
+            "type": "object"
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "platform_ExplorerPolicyV1": {
+        "additionalProperties": false,
+        "properties": {
+          "cleanupMode": {
+            "const": "READ_AND_WRITE_THROUGH_PURGE"
+          },
+          "entitlementRefilter": {
+            "const": true
+          },
+          "maxFavorites": {
+            "const": 20
+          },
+          "maxInProgress": {
+            "const": 20
+          },
+          "maxRecents": {
+            "const": 20
+          },
+          "recentTtlDays": {
+            "const": 30
+          }
+        },
+        "required": [
+          "maxFavorites",
+          "maxRecents",
+          "recentTtlDays",
+          "maxInProgress",
+          "entitlementRefilter",
+          "cleanupMode"
+        ],
+        "type": "object"
+      },
+      "platform_ExplorerPreferenceCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "orderedFavoriteRouteKeys": {
+            "items": {
+              "pattern": "^[a-z][a-z0-9.-]{2,95}$",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "orderedFavoriteRouteKeys"
+        ],
+        "type": "object",
+        "x-writePolicy": "SERVER_OWNS_TENANT_AND_USER;CAS_REVISION;MAX_20;ORDER_IS_ARRAY_POSITION;REAUTHORIZE_EACH_ROUTE"
+      },
+      "platform_ExplorerProjectionStatusV1": {
+        "additionalProperties": false,
+        "properties": {
+          "degradedSources": {
+            "items": {
+              "$ref": "#/components/schemas/platform_ExplorerDegradedSourceV1"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "FRESH",
+              "STALE",
+              "PARTIAL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "degradedSources"
+        ],
+        "type": "object"
+      },
+      "platform_ExplorerRecentCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "routeKey": {
+            "pattern": "^[a-z][a-z0-9.-]{2,95}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "routeKey"
+        ],
+        "type": "object",
+        "x-writePolicy": "SERVER_OWNS_TENANT_USER_AND_VISITED_AT;UPSERT_ROUTE;MAX_20_LRU;TTL_30_DAYS;REAUTHORIZE_ROUTE"
+      },
+      "platform_ExplorerRecentProjectionV2": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/platform_ExplorerRouteIdentityV2"
+          },
+          {
+            "properties": {
+              "expiresAt": {
+                "$ref": "#/components/schemas/platform_Instant"
+              },
+              "lastVisitedAt": {
+                "$ref": "#/components/schemas/platform_Instant"
+              }
+            },
+            "required": [
+              "lastVisitedAt",
+              "expiresAt"
+            ],
+            "type": "object"
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "platform_ExplorerRouteIdentityV2": {
+        "properties": {
+          "authorization": {
+            "$ref": "#/components/schemas/platform_ExplorerAuthorizationV2"
+          },
+          "labelKey": {
+            "pattern": "^hris\\.[a-z0-9.-]{3,120}$",
+            "type": "string"
+          },
+          "module": {
+            "enum": [
+              "HRM",
+              "PER",
+              "TIM",
+              "PAY",
+              "SYS"
+            ],
+            "type": "string"
+          },
+          "routeKey": {
+            "pattern": "^[a-z][a-z0-9.-]{2,95}$",
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/platform_ExplorerTargetV2"
+          },
+          "workbench": {
+            "enum": [
+              "MY_HR",
+              "TEAM",
+              "HR_OPERATIONS",
+              "TIME",
+              "PAYROLL",
+              "PERFORMANCE",
+              "SETTINGS"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "routeKey",
+          "target",
+          "labelKey",
+          "module",
+          "workbench",
+          "authorization"
+        ],
+        "type": "object"
+      },
+      "platform_ExplorerRouteProjectionV2": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/platform_ExplorerRouteIdentityV2"
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "platform_ExplorerTargetV2": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/platform_HrisInternalTarget"
+          },
+          {
+            "$ref": "#/components/schemas/platform_DwpControlTarget"
+          }
+        ]
       },
       "platform_ExportCommandResult": {
         "properties": {
@@ -101218,6 +101595,292 @@
         },
         "type": "object"
       },
+      "platform_HrisCommandReceiptV1": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "authorizationRevision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "commandType": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "correlationId": {
+            "$ref": "#/components/schemas/platform_Uuid"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/platform_Instant"
+          },
+          "fieldPolicyRevision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "originatingAction": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "populationScopeDigest": {
+            "$ref": "#/components/schemas/platform_Digest"
+          },
+          "purposeCode": {
+            "maxLength": 64,
+            "minLength": 3,
+            "type": "string"
+          },
+          "receiptId": {
+            "$ref": "#/components/schemas/platform_Uuid"
+          },
+          "requestDigest": {
+            "$ref": "#/components/schemas/platform_Digest"
+          },
+          "resultRef": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACCEPTED",
+              "RUNNING",
+              "SUCCEEDED",
+              "REJECTED",
+              "FAILED",
+              "RESULT_UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "subjectPrincipalPublicId": {
+            "$ref": "#/components/schemas/platform_Uuid"
+          }
+        },
+        "required": [
+          "receiptId",
+          "commandType",
+          "originatingAction",
+          "subjectPrincipalPublicId",
+          "populationScopeDigest",
+          "fieldPolicyRevision",
+          "purposeCode",
+          "authorizationRevision",
+          "status",
+          "correlationId",
+          "requestDigest",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "platform_HrisExplorerQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/platform_Instant"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/platform_Cursor"
+          },
+          "filter": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH_ONLY",
+              "ALLOW_STALE"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asOf",
+          "freshness"
+        ],
+        "type": "object"
+      },
+      "platform_HrisExplorerReceiptV1": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "authorizationRevision": {
+            "$ref": "#/components/schemas/platform_PositiveRevision"
+          },
+          "commandType": {
+            "enum": [
+              "EXPLORER_PREFERENCES_REPLACE",
+              "EXPLORER_RECENT_RECORD"
+            ],
+            "type": "string"
+          },
+          "correlationId": {
+            "$ref": "#/components/schemas/platform_Uuid"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/platform_Instant"
+          },
+          "fieldPolicyRevision": {
+            "$ref": "#/components/schemas/platform_PositiveRevision"
+          },
+          "originatingAction": {
+            "enum": [
+              "EXPLORER_PREFERENCES_REPLACE",
+              "EXPLORER_RECENT_RECORD"
+            ],
+            "type": "string"
+          },
+          "populationScopeDigest": {
+            "$ref": "#/components/schemas/platform_Digest"
+          },
+          "purposeCode": {
+            "const": "HRIS_APP_DISCOVERY"
+          },
+          "receiptId": {
+            "$ref": "#/components/schemas/platform_Uuid"
+          },
+          "requestDigest": {
+            "$ref": "#/components/schemas/platform_Digest"
+          },
+          "resultRef": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACCEPTED",
+              "RUNNING",
+              "SUCCEEDED",
+              "REJECTED",
+              "FAILED",
+              "RESULT_UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "subjectPrincipalPublicId": {
+            "$ref": "#/components/schemas/platform_Uuid"
+          }
+        },
+        "required": [
+          "receiptId",
+          "commandType",
+          "originatingAction",
+          "subjectPrincipalPublicId",
+          "populationScopeDigest",
+          "fieldPolicyRevision",
+          "purposeCode",
+          "authorizationRevision",
+          "status",
+          "correlationId",
+          "requestDigest",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "platform_HrisExplorerResponseV2": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/platform_Instant"
+          },
+          "entitlementRevision": {
+            "$ref": "#/components/schemas/platform_PositiveRevision"
+          },
+          "favoritePreferenceRevision": {
+            "$ref": "#/components/schemas/platform_PositiveRevision"
+          },
+          "favorites": {
+            "items": {
+              "$ref": "#/components/schemas/platform_ExplorerFavoriteProjectionV2"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "inProgress": {
+            "items": {
+              "$ref": "#/components/schemas/platform_ExplorerActivityProjectionV2"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/platform_Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "policy": {
+            "$ref": "#/components/schemas/platform_ExplorerPolicyV1"
+          },
+          "projectionRevision": {
+            "$ref": "#/components/schemas/platform_PositiveRevision"
+          },
+          "projectionStatus": {
+            "$ref": "#/components/schemas/platform_ExplorerProjectionStatusV1"
+          },
+          "recents": {
+            "items": {
+              "$ref": "#/components/schemas/platform_ExplorerRecentProjectionV2"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/platform_ExplorerRouteProjectionV2"
+            },
+            "maxItems": 100,
+            "type": "array"
+          }
+        },
+        "required": [
+          "asOf",
+          "projectionRevision",
+          "entitlementRevision",
+          "favoritePreferenceRevision",
+          "routes",
+          "favorites",
+          "recents",
+          "inProgress",
+          "nextCursor",
+          "projectionStatus",
+          "policy"
+        ],
+        "type": "object"
+      },
+      "platform_HrisInternalTarget": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "HRIS_INTERNAL"
+          },
+          "path": {
+            "maxLength": 300,
+            "pattern": "^/hr(?:/|$)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "path"
+        ],
+        "type": "object"
+      },
       "platform_ImpactAnalysis": {
         "properties": {
           "blocked": {
@@ -101779,6 +102442,10 @@
           }
         },
         "type": "object"
+      },
+      "platform_Instant": {
+        "format": "date-time",
+        "type": "string"
       },
       "platform_IntegrityCheckpoint": {
         "properties": {
@@ -105819,6 +106486,10 @@
           }
         },
         "type": "object"
+      },
+      "platform_PositiveRevision": {
+        "minimum": 1,
+        "type": "integer"
       },
       "platform_PostIncidentReport": {
         "properties": {
@@ -113418,6 +114089,34 @@
         ],
         "type": "object"
       },
+      "platform_SingleCapabilityAuthorization": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilityKeys": {
+            "items": {
+              "pattern": "^[a-z][a-z0-9.-]{2,159}$",
+              "type": "string"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "capabilityMode": {
+            "const": "SINGLE"
+          },
+          "routeContractKey": {
+            "pattern": "^route\\.[a-z0-9.-]{3,154}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "routeContractKey",
+          "capabilityMode",
+          "capabilityKeys"
+        ],
+        "type": "object"
+      },
       "platform_SiteAccessDecision": {
         "properties": {
           "allowed": {
@@ -115800,6 +116499,10 @@
           "version"
         ],
         "type": "object"
+      },
+      "platform_Uuid": {
+        "format": "uuid",
+        "type": "string"
       },
       "platform_ValidateRequest": {
         "properties": {
@@ -201351,6 +202054,83 @@
         ]
       }
     },
+    "/api/platform/v1/admin/hris/command-receipts/{receiptId}": {
+      "get": {
+        "operationId": "platform_getHrisCommandReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receiptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/platform_HrisExplorerReceiptV1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/platform_HrisCommandReceiptV1"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Originating-context command receipt"
+          },
+          "404": {
+            "description": "Receipt absent or outside the sealed originating-command context"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-access-profiles": [
+          {
+            "capabilityContractKey": "hcm.app.shell.view",
+            "predicatePolicyKeys": [
+              "predicate.hcm-explorer-authority.v1"
+            ],
+            "profileKey": "explorer-originating-receipt-reader",
+            "responseSchemaKey": "HrisExplorerReceiptV1"
+          },
+          {
+            "capabilityContractKey": "hcm.command-receipt.view",
+            "predicatePolicyKeys": [
+              "predicate.hcm-platform-command-receipt-authority.v1"
+            ],
+            "profileKey": "platform-originating-command-receipt-reader",
+            "responseSchemaKey": "HrisCommandReceiptV1"
+          }
+        ],
+        "x-dwp-contract-id": "SYS-API-038",
+        "x-dwp-controller-method": "receipt",
+        "x-dwp-opaque-not-found": true,
+        "x-dwp-purpose-code": "HRIS_APP_DISCOVERY",
+        "x-dwp-reviewed-design-time-contract": "SYS-012-WORK-EXPLORER-CONTROL-R1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
     "/api/platform/v1/admin/hris/configurations": {
       "get": {
         "operationId": "platform_hrisReferenceConfigurations",
@@ -231059,6 +231839,288 @@
           "platform"
         ],
         "x-dwp-controller-method": "projection",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/hris/explorer": {
+      "get": {
+        "operationId": "platform_getHrisWorkExplorer",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/platform_Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "freshness",
+            "required": true,
+            "schema": {
+              "enum": [
+                "FRESH_ONLY",
+                "ALLOW_STALE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_HrisExplorerResponseV2"
+                }
+              }
+            },
+            "description": "Entitlement-filtered HRIS work explorer"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-access-profiles": [
+          {
+            "capabilityContractKey": "hcm.app.shell.view",
+            "predicatePolicyKeys": [
+              "predicate.hcm-explorer-authority.v1"
+            ],
+            "profileKey": "explorer-reader",
+            "responseSchemaKey": "HrisExplorerResponseV2"
+          }
+        ],
+        "x-dwp-contract-id": "SYS-API-027",
+        "x-dwp-controller-method": "explorer",
+        "x-dwp-purpose-code": "HRIS_APP_DISCOVERY",
+        "x-dwp-query-schema": {
+          "$ref": "#/components/schemas/platform_HrisExplorerQuery"
+        },
+        "x-dwp-reviewed-design-time-contract": "SYS-012-WORK-EXPLORER-CONTROL-R1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/hris/explorer/preferences": {
+      "put": {
+        "operationId": "platform_replaceHrisExplorerPreferences",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "pattern": "^(W/)?\\\"[A-Za-z0-9._:-]+\\\"$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ExplorerPreferenceCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_HrisExplorerReceiptV1"
+                }
+              }
+            },
+            "description": "Explorer preference replacement accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-access-profiles": [
+          {
+            "capabilityContractKey": "hcm.app.shell.view",
+            "predicatePolicyKeys": [
+              "predicate.hcm-explorer-authority.v1"
+            ],
+            "profileKey": "explorer-preference-writer"
+          }
+        ],
+        "x-dwp-contract-id": "SYS-API-039",
+        "x-dwp-controller-method": "replacePreferences",
+        "x-dwp-purpose-code": "HRIS_APP_DISCOVERY",
+        "x-dwp-reviewed-design-time-contract": "SYS-012-WORK-EXPLORER-CONTROL-R1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/hris/explorer/recents": {
+      "post": {
+        "operationId": "platform_recordHrisExplorerRecent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ExplorerRecentCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_HrisExplorerReceiptV1"
+                }
+              }
+            },
+            "description": "Explorer recent route accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-access-profiles": [
+          {
+            "capabilityContractKey": "hcm.app.shell.view",
+            "predicatePolicyKeys": [
+              "predicate.hcm-explorer-authority.v1"
+            ],
+            "profileKey": "explorer-recent-writer"
+          }
+        ],
+        "x-dwp-contract-id": "SYS-API-040",
+        "x-dwp-controller-method": "recordRecent",
+        "x-dwp-purpose-code": "HRIS_APP_DISCOVERY",
+        "x-dwp-reviewed-design-time-contract": "SYS-012-WORK-EXPLORER-CONTROL-R1",
         "x-dwp-runtime-default": "OFF"
       }
     },

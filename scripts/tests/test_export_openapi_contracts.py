@@ -447,7 +447,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_latest_v42_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_latest_v43_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -456,8 +456,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 42)
-        self.assertEqual(registry["version"], 42)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 43)
+        self.assertEqual(registry["version"], 43)
         self.assertEqual(EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_VERSION"], 38)
         self.assertTrue(str(
             EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY"]
@@ -767,6 +767,84 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 platform, people, time, wrong_iaq_action
             )
 
+    def test_sys012_v43_exports_exact_work_explorer_carrier(self) -> None:
+        platform = json.loads(
+            (ROOT / "contracts/openapi/platform.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        EXPORTER["validate_sys012_work_explorer_contract"](platform, gateway)
+
+        operations = {
+            ("get", "/api/platform/v1/hris/explorer"),
+            ("put", "/api/platform/v1/hris/explorer/preferences"),
+            ("post", "/api/platform/v1/hris/explorer/recents"),
+            ("get", "/api/platform/v1/admin/hris/command-receipts/{receiptId}"),
+        }
+        self.assertEqual(
+            operations,
+            {
+                (method, path)
+                for method, path in operations
+                if method in gateway["paths"][path]
+            },
+        )
+        self.assertNotIn("/api/platform/v1/admin/hris", gateway["paths"])
+        for method, path in operations:
+            operation = gateway["paths"][path][method]
+            parameters = {
+                (str(value.get("in", "")).lower(), str(value.get("name", "")).lower()): value
+                for value in operation.get("parameters", [])
+            }
+            self.assertEqual(
+                parameters[("query", "contextscopekey")],
+                EXPORTER["SCOPE_SELECTION_PARAMETER"],
+            )
+            if method in {"put", "post"}:
+                self.assertEqual(
+                    parameters[("header", "x-dwp-expected-decision-revision")],
+                    EXPORTER["EXPECTED_DECISION_REVISION_PARAMETER"],
+                )
+                self.assertTrue(parameters[("header", "idempotency-key")]["required"])
+            if method == "put":
+                self.assertTrue(parameters[("header", "if-match")]["required"])
+
+        wrong_profile = copy.deepcopy(platform)
+        wrong_profile["paths"]["/v1/hris/explorer"]["get"][
+            "x-dwp-access-profiles"
+        ][0]["predicatePolicyKeys"] = ["predicate.unsealed"]
+        with self.assertRaisesRegex(RuntimeError, "metadata/profile drift"):
+            EXPORTER["validate_sys012_work_explorer_contract"](
+                wrong_profile, gateway
+            )
+
+        missing_if_match = copy.deepcopy(gateway)
+        missing_if_match["paths"][
+            "/api/platform/v1/hris/explorer/preferences"
+        ]["put"]["parameters"] = [
+            parameter
+            for parameter in missing_if_match["paths"][
+                "/api/platform/v1/hris/explorer/preferences"
+            ]["put"]["parameters"]
+            if parameter.get("name") != "If-Match"
+        ]
+        with self.assertRaisesRegex(RuntimeError, "preference CAS header drift"):
+            EXPORTER["validate_sys012_work_explorer_contract"](
+                platform, missing_if_match
+            )
+
+        open_schema = copy.deepcopy(platform)
+        open_schema["components"]["schemas"]["HrisExplorerResponseV2"][
+            "additionalProperties"
+        ] = True
+        with self.assertRaisesRegex(RuntimeError, "transport schema projection drift"):
+            EXPORTER["validate_sys012_work_explorer_contract"](
+                open_schema, gateway
+            )
+
     def test_compensation_planning_validator_rejects_payload_graph_drift(self) -> None:
         people = json.loads(
             (ROOT / "contracts/openapi/people.json").read_text(encoding="utf-8")
@@ -954,6 +1032,14 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 ("get", "/auth/hris/product-access/snapshot", "snapshot"),
             },
             "platform": {
+                ("get", "/v1/hris/explorer", "explorer"),
+                ("put", "/v1/hris/explorer/preferences", "replacePreferences"),
+                ("post", "/v1/hris/explorer/recents", "recordRecent"),
+                (
+                    "get",
+                    "/v1/admin/hris/command-receipts/{receiptId}",
+                    "receipt",
+                ),
                 ("get", "/v1/hris/configuration/projection", "projection"),
                 ("get", "/v1/hris/workbench/settings-reference", "workbench"),
                 ("get", "/v1/admin/audit-control/events", "page"),

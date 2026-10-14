@@ -20,8 +20,8 @@ class HcmPlatformPepSecurityContractTest {
             registry);
 
     @Test
-    void loadsOnlyTheTwentyThreeExactSysHandoffBindings() {
-        assertThat(registry.bindingContracts()).hasSize(23)
+    void loadsOnlyTheTwentySevenExactSysCarrierBindings() {
+        assertThat(registry.bindingContracts()).hasSize(27)
                 .extracting(HcmPlatformPepRegistry.BindingContract::routeContractKey)
                 .contains(
                         "route.hcm.configuration.settings-reference.page",
@@ -31,7 +31,11 @@ class HcmPlatformPepSecurityContractTest {
                         "route.hcm.configuration.navigation-policy-revision-publish.action",
                         "route.hcm.operations.navigation-projection.data",
                         "route.hcm.audit.evidence.page",
-                        "route.hcm.audit.evidence-detail.data");
+                        "route.hcm.audit.evidence-detail.data",
+                        "route.hcm.utility.explorer.page",
+                        "route.hcm.utility.explorer-preferences-update.action",
+                        "route.hcm.utility.explorer-recent-create.action",
+                        "route.hcm.utility.explorer-command-receipt.data");
         assertThat(registry.governsPathFamily(
                 "/v1/admin/hris/configurations/c1/versions/2/publish")).isTrue();
         assertThat(registry.governsPathFamily("/v1/admin/users")).isFalse();
@@ -53,6 +57,51 @@ class HcmPlatformPepSecurityContractTest {
                 .isTrue();
         assertThat(registry.governsPathFamily(
                 "/v1/admin/audit-control/cases")).isFalse();
+        assertThat(registry.governsPathFamily("/v1/hris/explorer")).isTrue();
+        assertThat(registry.governsPathFamily("/v1/hris/explorer/preferences")).isTrue();
+        assertThat(registry.governsPathFamily("/v1/hris/explorer/other")).isFalse();
+        assertThat(registry.governsPathFamily(
+                "/v1/admin/hris/command-receipts/10000000-0000-4000-8000-000000000043"))
+                .isTrue();
+    }
+
+    @Test
+    void explorerCarrierMatchesOnlyTheSealedCapabilityAndRouteIdentity() {
+        HcmPlatformPepRegistry.Decision allowed = registry.authorize(
+                new HcmPlatformPepRegistry.RequestEvidence(
+                        "GET", "/v1/hris/explorer",
+                        java.util.Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                        java.util.Set.of("HRIS_EMPLOYEE"),
+                        java.util.Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                        "route.hcm.utility.explorer.page"));
+        assertThat(allowed.allowed()).isTrue();
+        assertThat(allowed.authority().capabilityContractKey())
+                .isEqualTo("hcm.app.shell.view");
+        assertThat(allowed.authority().highRisk()).isFalse();
+
+        assertThat(registry.authorize(new HcmPlatformPepRegistry.RequestEvidence(
+                "GET", "/v1/hris/explorer",
+                java.util.Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                java.util.Set.of("HRIS_EMPLOYEE"),
+                java.util.Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer-recent-create.action")).allowed()).isFalse();
+        assertThat(registry.authorize(new HcmPlatformPepRegistry.RequestEvidence(
+                "GET", "/v1/hris/explorer",
+                java.util.Set.of("DATA.HRIS_APP_SHELL:VIEW"),
+                java.util.Set.of("HRIS_EMPLOYEE"),
+                java.util.Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer.page")).allowed()).isFalse();
+        assertThat(registry.authorize(new HcmPlatformPepRegistry.RequestEvidence(
+                "GET", "/v1/hris/explorer",
+                java.util.Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                java.util.Set.of("HRIS_EMPLOYEE"), java.util.Set.of(),
+                "route.hcm.utility.explorer.page")).allowed()).isFalse();
+        assertThat(registry.authorize(new HcmPlatformPepRegistry.RequestEvidence(
+                "GET", "/v1/hris/explorer",
+                java.util.Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                java.util.Set.of("TENANT_ADMIN"),
+                java.util.Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer.page")).allowed()).isFalse();
     }
 
     @Test

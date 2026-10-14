@@ -226,8 +226,7 @@ public class ProductAuthorizationContractValidator {
                         .contains(value.responsibilityRequirement()),
                 value.contractKey() + ": invalid responsibility requirement.");
         if ("REQUIRED".equals(value.responsibilityRequirement())) {
-            require("APP_CONFIG_ADMIN".equals(value.requiredResponsibilityCode())
-                            || HcmAuditAuthorityPolicy.exactCapability(value),
+            require(exactRequiredResponsibility(value),
                     value.contractKey() + ": exact required responsibility code is required.");
         } else {
             require(value.requiredResponsibilityCode() == null,
@@ -236,6 +235,17 @@ public class ProductAuthorizationContractValidator {
         require(text(value.scopeResolver()), value.contractKey() + ": scope resolver is required.");
         require(Set.of("LOW", "MEDIUM", "HIGH", "CRITICAL").contains(value.riskTier()),
                 value.contractKey() + ": invalid risk tier.");
+    }
+
+    private boolean exactRequiredResponsibility(
+            ProductAuthorizationContractDtos.CapabilityContract value) {
+        if (HcmAuditAuthorityPolicy.exactCapability(value)) return true;
+        if ("hcm.app.shell.view".equals(value.contractKey())) {
+            return "HRIS_DUTY_APP_SHELL_READER".equals(
+                    value.requiredResponsibilityCode())
+                    && "SELF".equals(value.scopeResolver());
+        }
+        return "APP_CONFIG_ADMIN".equals(value.requiredResponsibilityCode());
     }
 
     private void validatePolicy(

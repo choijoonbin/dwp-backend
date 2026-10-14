@@ -3403,6 +3403,34 @@
     },
     {
       "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.app.shell.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiredResponsibilityCode": "HRIS_DUTY_APP_SHELL_READER",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "DATA.HRIS_APP_SHELL:VIEW",
+      "resourceKey": "DATA.HRIS_APP_SHELL",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.hcm.utility.explorer-command-receipt.data",
+        "route.hcm.utility.explorer-preferences-update.action",
+        "route.hcm.utility.explorer-recent-create.action",
+        "route.hcm.utility.explorer.page"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.utility"
+    },
+    {
+      "action": "VIEW",
       "activationPolicy": "STEPUP-MGMT-HIGH-V1",
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
       "contractKey": "hcm.audit.evidence.view",
@@ -3446,7 +3474,8 @@
       "routeContractKeys": [
         "route.hcm.operations.assignment-command-receipt.data",
         "route.hcm.operations.payroll-command-receipt.data",
-        "route.hcm.time.command-receipt.data"
+        "route.hcm.time.command-receipt.data",
+        "route.hcm.utility.explorer-command-receipt.data"
       ],
       "scopeResolver": "ORIGINATING_COMMAND_SCOPE",
       "sodPolicyId": null,
@@ -7694,7 +7723,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "f73f9a64816ac8f5567a2a7c292821f4a40e6d675915ebc3c3ac8aad7d1fd983",
+  "checksum": "2222319502c362caf247a7a47fdacfc63c774dbf156f6272cafae797627e2400",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -8931,6 +8960,30 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "HcmExplorerAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + HCM + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-explorer-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-explorer-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.utility.explorer-command-receipt.data",
+        "route.hcm.utility.explorer-preferences-update.action",
+        "route.hcm.utility.explorer-recent-create.action",
+        "route.hcm.utility.explorer.page"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "HcmExportPopulationEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "People + HCM + Security",
@@ -9287,6 +9340,27 @@
       ],
       "targetBindingKinds": [
         "SELF",
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmPlatformCommandReceiptAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + HCM + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-platform-command-receipt-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-platform-command-receipt-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.utility.explorer-command-receipt.data"
+      ],
+      "targetBindingKinds": [
         "OBJECT",
         "TARGET_POPULATION"
       ]
@@ -49804,6 +49878,264 @@
             "NORMAL",
             "ELEVATED"
           ],
+          "precedence": 350,
+          "predicatePolicyKeys": [
+            "predicate.hcm-explorer-authority.v1"
+          ],
+          "profileKey": "explorer-originating-receipt-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.app.shell.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.utility.explorer-command-receipt.data.binding.01",
+              "projectionPolicyKey": "route.hcm.utility.explorer-command-receipt.data.explorer-originating-context.projection.v1",
+              "responseSchemaKey": "HrisExplorerReceiptV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-platform-command-receipt-authority.v1"
+          ],
+          "profileKey": "platform-originating-command-receipt-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.command-receipt.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.utility.explorer-command-receipt.data.binding.01",
+              "projectionPolicyKey": "route.hcm.utility.explorer-command-receipt.data.platform-originating-context.projection.v1",
+              "responseSchemaKey": "HrisCommandReceiptV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.utility.explorer-command-receipt.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/hris/command-receipts/{receiptId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.utility",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.utility.explorer-command-receipt.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.utility.explorer-command-receipt.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/hris/command-receipts/{receiptId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.utility",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-explorer-authority.v1"
+          ],
+          "profileKey": "explorer-preference-writer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.app.shell.view",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.utility.explorer-preferences-update.action.binding.01",
+          "method": "PUT",
+          "path": "/api/platform/v1/hris/explorer/preferences",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.utility",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.utility.explorer-preferences-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.utility.explorer-preferences-update.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/hris/explorer/preferences",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.utility",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-explorer-authority.v1"
+          ],
+          "profileKey": "explorer-recent-writer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.app.shell.view",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.utility.explorer-recent-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/hris/explorer/recents",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.utility",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.utility.explorer-recent-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.utility.explorer-recent-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/hris/explorer/recents",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.utility",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-explorer-authority.v1"
+          ],
+          "profileKey": "explorer-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.app.shell.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.utility.explorer.page.binding.01",
+              "projectionPolicyKey": "route.hcm.utility.explorer.page.authorized-catalog.projection.v1",
+              "responseSchemaKey": "HrisExplorerResponseV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.utility.explorer.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/hris/explorer",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.utility",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.utility.explorer.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.utility.explorer.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/explorer",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.utility",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.utility.explorer",
+      "uiRoutePattern": "/hr/explore"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
           "precedence": 300,
           "predicatePolicyKeys": [
             "predicate.mail-self.v1"
@@ -72680,5 +73012,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 42
+  "version": 43
 }

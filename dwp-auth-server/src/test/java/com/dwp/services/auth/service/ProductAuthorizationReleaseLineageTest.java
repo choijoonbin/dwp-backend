@@ -14,7 +14,7 @@ class ProductAuthorizationReleaseLineageTest {
             new ProductAuthorizationContractValidator(mapper);
 
     @Test
-    void preservesV33ThroughV41AndAcceptsOnlyThePinnedCombinedControlV42() throws Exception {
+    void preservesV33ThroughV42AndAcceptsOnlyThePinnedWorkExplorerV43() throws Exception {
         try (var v33Input = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v33.generated.json")
                 .getInputStream();
@@ -44,6 +44,9 @@ class ProductAuthorizationReleaseLineageTest {
                      .getInputStream();
              var v42Input = new ClassPathResource(
                      "product-authorization/product-surfaces-v1.bundle-v42.generated.json")
+                     .getInputStream();
+             var v43Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v43.generated.json")
                      .getInputStream()) {
             var v33 = validator.validateDocument(v33Input);
             var v34 = validator.validateDocument(v34Input);
@@ -55,6 +58,7 @@ class ProductAuthorizationReleaseLineageTest {
             var v40 = validator.validateDocument(v40Input);
             var v41 = validator.validateDocument(v41Input);
             var v42 = validator.validateDocument(v42Input);
+            var v43 = validator.validateDocument(v43Input);
 
             assertThat(v33.checksum()).isEqualTo(
                     "9c9a18b44eb83de0e98f4ec16e44c1df0ce216e00bc7075462f4e35f7fb87639");
@@ -89,6 +93,10 @@ class ProductAuthorizationReleaseLineageTest {
                     "f73f9a64816ac8f5567a2a7c292821f4a40e6d675915ebc3c3ac8aad7d1fd983");
             assertThat(v42.capabilities()).hasSize(255);
             assertThat(v42.routes()).hasSize(1028);
+            assertThat(v43.checksum()).isEqualTo(
+                    "2222319502c362caf247a7a47fdacfc63c774dbf156f6272cafae797627e2400");
+            assertThat(v43.capabilities()).hasSize(256);
+            assertThat(v43.routes()).hasSize(1032);
         }
     }
 
@@ -146,6 +154,27 @@ class ProductAuthorizationReleaseLineageTest {
             assertThatThrownBy(() -> validator.validateSeedIndexDocument(document))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("immutable release checksum drift");
+        }
+    }
+
+    @Test
+    void rejectsAnArbitraryResponsibilityForTheV43ShellCapability() throws Exception {
+        try (var input = new ClassPathResource(
+                "product-authorization/product-surfaces-v1.bundle-v43.generated.json")
+                .getInputStream()) {
+            ObjectNode document = (ObjectNode) mapper.readTree(input);
+            for (var capability : document.path("capabilities")) {
+                if ("hcm.app.shell.view".equals(
+                        capability.path("contractKey").asText())) {
+                    ((ObjectNode) capability).put(
+                            "requiredResponsibilityCode", "APP_CONFIG_ADMIN");
+                }
+            }
+            document.put("checksum", validator.checksum(document));
+            assertThatThrownBy(() -> validator.validateDocument(document))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining(
+                            "hcm.app.shell.view: exact required responsibility code");
         }
     }
 }

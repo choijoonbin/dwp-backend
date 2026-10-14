@@ -392,6 +392,8 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
                     new HcmPlatformPepRegistry.RequestEvidence(
                             request.getMethod(), path,
                             parseValues(request.getHeader(PERMISSIONS_HEADER)),
+                            parseValues(request.getHeader(ROLES_HEADER)),
+                            parseValues(request.getHeader(RESOURCE_ROLES_HEADER)),
                             trustedAuthority.routeContractKey()));
             if (!decision.allowed()) {
                 writeError(response, ErrorCode.FORBIDDEN,

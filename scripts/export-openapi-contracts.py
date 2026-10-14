@@ -23,9 +23,9 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v42.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v43.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 42
+PRODUCT_AUTHORIZATION_VERSION = 43
 HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY = (
     ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v38.json"
 )
@@ -381,6 +381,45 @@ WAVE5_STRICT_MUTATION_OPERATIONS = frozenset({
     ("/api/time/v1/timecards/{timecardId}/submit", "post"),
     ("/api/time/v1/timecards/{timecardId}/decisions", "post"),
 })
+SYS012_WORK_EXPLORER_OPERATIONS = {
+    "route.hcm.utility.explorer.page": (
+        "get", "/v1/hris/explorer", "getHrisWorkExplorer", "SYS-API-027",
+        None, "HrisExplorerResponseV2", ("explorer-reader",),
+    ),
+    "route.hcm.utility.explorer-command-receipt.data": (
+        "get", "/v1/admin/hris/command-receipts/{receiptId}",
+        "getHrisCommandReceipt", "SYS-API-038", None, None,
+        (
+            "explorer-originating-receipt-reader",
+            "platform-originating-command-receipt-reader",
+        ),
+    ),
+    "route.hcm.utility.explorer-preferences-update.action": (
+        "put", "/v1/hris/explorer/preferences", "replaceHrisExplorerPreferences",
+        "SYS-API-039", "ExplorerPreferenceCommand", "HrisExplorerReceiptV1",
+        ("explorer-preference-writer",),
+    ),
+    "route.hcm.utility.explorer-recent-create.action": (
+        "post", "/v1/hris/explorer/recents", "recordHrisExplorerRecent",
+        "SYS-API-040", "ExplorerRecentCommand", "HrisExplorerReceiptV1",
+        ("explorer-recent-writer",),
+    ),
+}
+SYS012_WORK_EXPLORER_ROUTE_KEYS = frozenset(SYS012_WORK_EXPLORER_OPERATIONS)
+SYS012_WORK_EXPLORER_SCHEMA_NAMES = (
+    "Instant", "Uuid", "PositiveRevision", "Digest", "Cursor",
+    "HrisInternalTarget", "DwpControlTarget", "ExplorerTargetV2",
+    "SingleCapabilityAuthorization", "CapabilityExpressionAuthorization",
+    "ExplorerAuthorizationV2", "ExplorerRouteIdentityV2",
+    "ExplorerRouteProjectionV2", "ExplorerFavoriteProjectionV2",
+    "ExplorerRecentProjectionV2", "ExplorerActivityProjectionV2",
+    "ExplorerDegradedSourceV1", "ExplorerProjectionStatusV1", "ExplorerPolicyV1",
+    "HrisExplorerResponseV2", "HrisCommandReceiptV1", "HrisExplorerReceiptV1",
+    "HrisExplorerQuery", "ExplorerPreferenceCommand", "ExplorerRecentCommand",
+)
+SYS012_WORK_EXPLORER_SCHEMA_SHA256 = (
+    "c7ae98dd1bf72b7ce5fa9f0f5c82127514e827a4ce59f2da083e757c4eb1e07b"
+)
 HRM_EMPLOYEE_CHANGE_INTERNAL_OPERATION = (
     "post",
     "/internal/hris-people/v1/employee-change-requests/{requestPublicId}/approval-decisions",
@@ -2354,6 +2393,246 @@ def validate_wave5_hris_control_contract(
         raise RuntimeError("IAQ-022 review identity/action separation drift")
 
 
+def validate_sys012_work_explorer_contract(
+        platform_document: dict[str, Any],
+        gateway_document: dict[str, Any]) -> None:
+    """Seal SYS-012's exact default-off owner and browser transport carrier."""
+    registry = load_product_authorization_registry()
+    if (
+        registry.get("version") != 43
+        or len(registry.get("capabilities", [])) != 256
+        or len(registry.get("accessPolicies", [])) != 24
+        or len(registry.get("entitlementExpressions", [])) != 17
+        or len(registry.get("predicatePolicies", [])) != 71
+        or len(registry.get("routes", [])) != 1032
+    ):
+        raise RuntimeError("SYS-012 product authorization v43 totals drift")
+    routes = {
+        route.get("routeContractKey"): route
+        for route in registry["routes"]
+        if route.get("routeContractKey") in SYS012_WORK_EXPLORER_ROUTE_KEYS
+    }
+    if set(routes) != SYS012_WORK_EXPLORER_ROUTE_KEYS:
+        raise RuntimeError("SYS-012 authorization route set is not exact")
+
+    overlay = load_design_time_overlays()["platform"]
+    overlay_paths = overlay["paths"]
+    expected_source_operations = {
+        (contract[0], contract[1])
+        for contract in SYS012_WORK_EXPLORER_OPERATIONS.values()
+    }
+    actual_source_operations = {
+        (method, path)
+        for path, path_item in overlay_paths.items()
+        if path.startswith("/v1/hris/explorer")
+        or path == "/v1/admin/hris/command-receipts/{receiptId}"
+        for method in path_item
+        if method in HTTP_METHODS
+    }
+    if actual_source_operations != expected_source_operations:
+        raise RuntimeError("SYS-012 design-time operation set is not exact")
+
+    def parameters(operation: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+        return {
+            parameter_identity(parameter): parameter
+            for parameter in operation.get("parameters", [])
+            if isinstance(parameter, dict) and all(parameter_identity(parameter))
+        }
+
+    def normalized_profiles(route: dict[str, Any]) -> list[dict[str, Any]]:
+        profiles = []
+        for profile in route.get("accessProfiles", []):
+            value = {
+                "capabilityContractKey": profile["requiredAccess"][
+                    "capabilityContractKey"
+                ],
+                "predicatePolicyKeys": profile["predicatePolicyKeys"],
+                "profileKey": profile["profileKey"],
+            }
+            projections = profile.get("responseProjectionBindings", [])
+            if projections:
+                if len(projections) != 1:
+                    raise RuntimeError("SYS-012 response profile projection is ambiguous")
+                value["responseSchemaKey"] = projections[0]["responseSchemaKey"]
+            profiles.append(value)
+        return profiles
+
+    for route_key, contract in SYS012_WORK_EXPLORER_OPERATIONS.items():
+        method, owner_path, operation_id, contract_id, request_schema, response_schema, profile_keys = contract
+        browser_path = platform_path(owner_path)
+        route = routes[route_key]
+        owner_bindings = route.get("servicePepBindings")
+        browser_bindings = route.get("gatewayApiBindings")
+        if (
+            route.get("lifecycleState") != "ACTIVE"
+            or route.get("navigationContextId") != "hcm.utility"
+            or route.get("subject") != {
+                "productKey": "hcm", "surfaceKey": "hcm.utility", "type": "PRODUCT",
+            }
+            or route.get("stepUpCommandBindings") not in (None, [])
+            or not isinstance(owner_bindings, list)
+            or len(owner_bindings) != 1
+            or not isinstance(browser_bindings, list)
+            or len(browser_bindings) != 1
+            or owner_bindings[0] != {
+                "bindingKey": browser_bindings[0].get("bindingKey"),
+                "method": method.upper(),
+                "path": owner_path,
+                "pathParameterConstraints": {},
+                "serviceKey": "platform",
+            }
+            or browser_bindings[0].get("method") != method.upper()
+            or browser_bindings[0].get("path") != browser_path
+            or tuple(profile["profileKey"] for profile in route["accessProfiles"])
+            != profile_keys
+        ):
+            raise RuntimeError(f"SYS-012 route topology drift: {route_key}")
+
+        source = overlay_paths.get(owner_path, {}).get(method)
+        owner = platform_document.get("paths", {}).get(owner_path, {}).get(method)
+        browser = gateway_document.get("paths", {}).get(browser_path, {}).get(method)
+        if not all(isinstance(value, dict) for value in (source, owner, browser)):
+            raise RuntimeError(f"SYS-012 operation missing: {route_key}")
+        assert isinstance(source, dict)
+        assert isinstance(owner, dict)
+        assert isinstance(browser, dict)
+        expected_profiles = normalized_profiles(route)
+        for label, operation, expected_id in (
+            ("source", source, operation_id),
+            ("owner", owner, operation_id),
+            ("Gateway", browser, f"platform_{operation_id}"),
+        ):
+            if (
+                operation.get("operationId") != expected_id
+                or operation.get("x-dwp-runtime-default") != "OFF"
+                or operation.get("x-dwp-contract-id") != contract_id
+                or operation.get("x-dwp-purpose-code") != "HRIS_APP_DISCOVERY"
+                or operation.get("x-dwp-access-profiles") != expected_profiles
+                or operation.get("security", object()) == []
+            ):
+                raise RuntimeError(
+                    f"SYS-012 operation metadata/profile drift: {label} {route_key}"
+                )
+
+        source_parameters = parameters(source)
+        owner_parameters = parameters(owner)
+        browser_parameters = parameters(browser)
+        if browser_parameters.get(("query", "contextscopekey")) != SCOPE_SELECTION_PARAMETER:
+            raise RuntimeError(f"SYS-012 Gateway scope governance drift: {route_key}")
+        if ("query", "contextscopekey") in source_parameters or (
+                "query", "contextscopekey") in owner_parameters:
+            raise RuntimeError(f"SYS-012 trusted scope boundary drift: {route_key}")
+
+        is_action = route.get("routeKind") == "ACTION"
+        revision_key = ("header", "x-dwp-expected-decision-revision")
+        if is_action:
+            idempotency_key = ("header", "idempotency-key")
+            if any(
+                values.get(idempotency_key, {}).get("required") is not True
+                for values in (source_parameters, owner_parameters, browser_parameters)
+            ):
+                raise RuntimeError(f"SYS-012 idempotency header drift: {route_key}")
+            if browser_parameters.get(revision_key) != EXPECTED_DECISION_REVISION_PARAMETER:
+                raise RuntimeError(f"SYS-012 decision revision governance drift: {route_key}")
+            if revision_key in source_parameters or revision_key in owner_parameters:
+                raise RuntimeError(f"SYS-012 owner decision evidence boundary drift: {route_key}")
+        elif revision_key in browser_parameters:
+            raise RuntimeError(f"SYS-012 query has command revision proof: {route_key}")
+
+        if route_key == "route.hcm.utility.explorer-preferences-update.action":
+            if any(
+                values.get(("header", "if-match"), {}).get("required") is not True
+                for values in (source_parameters, owner_parameters, browser_parameters)
+            ):
+                raise RuntimeError("SYS-012 preference CAS header drift")
+        elif any(("header", "if-match") in values for values in (
+                source_parameters, owner_parameters, browser_parameters)):
+            raise RuntimeError(f"SYS-012 unexpected CAS header: {route_key}")
+
+        if request_schema is not None:
+            for label, operation, prefix in (
+                ("source", source, ""), ("owner", owner, ""),
+                ("Gateway", browser, "platform_"),
+            ):
+                actual = operation.get("requestBody", {}).get("content", {}).get(
+                    "application/json", {}).get("schema")
+                if actual != {"$ref": f"#/components/schemas/{prefix}{request_schema}"}:
+                    raise RuntimeError(
+                        f"SYS-012 request schema drift: {label} {route_key}"
+                    )
+
+        if response_schema is not None:
+            status = "202" if is_action else "200"
+            for label, operation, prefix in (
+                ("source", source, ""), ("owner", owner, ""),
+                ("Gateway", browser, "platform_"),
+            ):
+                actual = operation.get("responses", {}).get(status, {}).get(
+                    "content", {}).get("application/json", {}).get("schema")
+                if actual != {"$ref": f"#/components/schemas/{prefix}{response_schema}"}:
+                    raise RuntimeError(
+                        f"SYS-012 response schema drift: {label} {route_key}"
+                    )
+
+        if route_key == "route.hcm.utility.explorer-command-receipt.data":
+            for label, operation, prefix in (
+                ("source", source, ""), ("owner", owner, ""),
+                ("Gateway", browser, "platform_"),
+            ):
+                one_of = operation.get("responses", {}).get("200", {}).get(
+                    "content", {}).get("application/json", {}).get("schema", {}).get(
+                    "oneOf"
+                )
+                expected_one_of = [
+                    {"$ref": f"#/components/schemas/{prefix}HrisExplorerReceiptV1"},
+                    {"$ref": f"#/components/schemas/{prefix}HrisCommandReceiptV1"},
+                ]
+                if (
+                    one_of != expected_one_of
+                    or operation.get("x-dwp-opaque-not-found") is not True
+                    or "404" not in operation.get("responses", {})
+                ):
+                    raise RuntimeError(
+                        f"SYS-012 receipt profile projection drift: {label}"
+                    )
+
+    source_schemas = overlay["components"]["schemas"]
+    source_graph = {
+        name: source_schemas.get(name)
+        for name in SYS012_WORK_EXPLORER_SCHEMA_NAMES
+    }
+    owner_schemas = platform_document.get("components", {}).get("schemas", {})
+    owner_graph = {
+        name: owner_schemas.get(name)
+        for name in SYS012_WORK_EXPLORER_SCHEMA_NAMES
+    }
+
+    def normalize_gateway_refs(value: Any) -> Any:
+        if isinstance(value, list):
+            return [normalize_gateway_refs(item) for item in value]
+        if isinstance(value, str) and value.startswith(
+                "#/components/schemas/platform_"):
+            return value.replace(
+                "#/components/schemas/platform_", "#/components/schemas/", 1
+            )
+        if isinstance(value, dict):
+            return {key: normalize_gateway_refs(item) for key, item in value.items()}
+        return value
+
+    gateway_graph = {
+        name: normalize_gateway_refs(
+            gateway_document.get("components", {}).get("schemas", {}).get(
+                f"platform_{name}"
+            )
+        )
+        for name in SYS012_WORK_EXPLORER_SCHEMA_NAMES
+    }
+    if canonical_contract_hash(source_graph) != SYS012_WORK_EXPLORER_SCHEMA_SHA256:
+        raise RuntimeError("SYS-012 sealed transport schema drift")
+    if owner_graph != source_graph or gateway_graph != source_graph:
+        raise RuntimeError("SYS-012 generated transport schema projection drift")
+
+
 def canonical_contract_hash(value: Any) -> str:
     payload = json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -3576,6 +3855,9 @@ def main() -> int:
     validate_wave5_hris_control_contract(
         outputs["platform.json"], outputs["people.json"], outputs["time.json"],
         outputs["gateway-public.json"],
+    )
+    validate_sys012_work_explorer_contract(
+        outputs["platform.json"], outputs["gateway-public.json"]
     )
     validate_platform_device_identity(outputs["platform.json"])
     validate_platform_device_identity(outputs["gateway-public.json"], gateway=True)

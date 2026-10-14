@@ -183,8 +183,11 @@ LEGACY_HCM_PLATFORM_PEP_V38_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_nam
 LEGACY_HCM_PLATFORM_PEP_V40_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v40.generated.json"
 )
-HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+LEGACY_HCM_PLATFORM_PEP_V42_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v42.generated.json"
+)
+HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v43.generated.json"
 )
 LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT = (
     ROOT
@@ -199,7 +202,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 43))
+BUNDLE_VERSIONS = tuple(range(1, 44))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -317,6 +320,13 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 64, "routes": 1017, "PAGE": 130, "DATA": 304, "ACTION": 583},
     42: {"capabilities": 255, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 69, "routes": 1028, "PAGE": 132, "DATA": 308, "ACTION": 588},
+    43: {"capabilities": 256, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 71, "routes": 1032, "PAGE": 133, "DATA": 309, "ACTION": 590},
+}
+
+REQUIRED_RESPONSIBILITY_BY_CAPABILITY = {
+    "hcm.app.shell.view": "HRIS_DUTY_APP_SHELL_READER",
+    "hcm.audit.evidence.view": "HRIS_DUTY_AUDITOR",
 }
 
 V42_HCM_AUDIT_ELEVATED_READ_PROJECTIONS = {
@@ -434,6 +444,7 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     40: "4dca145cbc9169c2d1fde71771b83a1a0635679a7190a39d0a21b4e76bbb9329",
     41: "026157acf598ebabf156b40e3c084c40d52346ebfd2019e2476f30ecdd2b8d93",
     42: "f73f9a64816ac8f5567a2a7c292821f4a40e6d675915ebc3c3ac8aad7d1fd983",
+    43: "2222319502c362caf247a7a47fdacfc63c774dbf156f6272cafae797627e2400",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -2210,10 +2221,8 @@ def _validate_capability(capability: dict[str, Any], bundle_version: int) -> Non
     )
     required_responsibility = capability.get("requiredResponsibilityCode")
     if capability["responsibilityRequirement"] == "REQUIRED":
-        expected_responsibility = (
-            "HRIS_DUTY_AUDITOR"
-            if key == "hcm.audit.evidence.view"
-            else "APP_CONFIG_ADMIN"
+        expected_responsibility = REQUIRED_RESPONSIBILITY_BY_CAPABILITY.get(
+            key, "APP_CONFIG_ADMIN"
         )
         require(
             isinstance(required_responsibility, str)
@@ -3376,6 +3385,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PLATFORM_PEP_V37_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V38_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V40_OUTPUT,
+        LEGACY_HCM_PLATFORM_PEP_V42_OUTPUT,
         HCM_PLATFORM_PEP_OUTPUT,
         LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT,
         HCM_PAYROLL_PEP_OUTPUT,
@@ -3926,19 +3936,19 @@ def main() -> int:
             product_key="hcm",
         )
         hcm_platform_pep = build_approvals_pep(
-            snapshots[41],
+            snapshots[42],
             "platform",
-            "hcm-platform-pep-v42",
+            "hcm-platform-pep-v43",
             {
-                "routes": 30,
-                "bindings": 31,
-                "routeKinds": {"ACTION": 17, "DATA": 8, "PAGE": 5},
-                "capabilities": 16,
+                "routes": 34,
+                "bindings": 35,
+                "routeKinds": {"ACTION": 19, "DATA": 9, "PAGE": 6},
+                "capabilities": 18,
                 "accessPolicies": 4,
                 "entitlementExpressions": 3,
-                "predicatePolicies": 5,
+                "predicatePolicies": 7,
             },
-            version=42,
+            version=43,
             product_key="hcm",
         )
         legacy_hcm_payroll_pep_v38 = build_approvals_pep(
