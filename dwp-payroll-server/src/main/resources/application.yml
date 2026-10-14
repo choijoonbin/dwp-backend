@@ -102,6 +102,19 @@ dwp:
       batch-size: ${DWP_API_HISTORY_BATCH_SIZE:100}
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   hris:
+    payroll:
+      calculation:
+        # BASE-TFR-PAY-011 is delivered dark. Activation requires a separate
+        # control decision after V50 and the owner-runtime evidence are accepted.
+        enabled: ${DWP_HRIS_PAYROLL_CALCULATION_ENABLED:false}
+        worker:
+          tenant-ids: ${DWP_HRIS_PAYROLL_CALCULATION_TENANT_IDS:}
+          poll-delay: ${DWP_HRIS_PAYROLL_CALCULATION_POLL_DELAY:PT2S}
+          initial-delay: ${DWP_HRIS_PAYROLL_CALCULATION_INITIAL_DELAY:PT5S}
+          max-claims-per-poll: ${DWP_HRIS_PAYROLL_CALCULATION_MAX_CLAIMS_PER_POLL:8}
+          lease-duration: ${DWP_HRIS_PAYROLL_CALCULATION_LEASE_DURATION:PT30S}
+          checkpoint-size: ${DWP_HRIS_PAYROLL_CALCULATION_CHECKPOINT_SIZE:100}
+          max-inputs-per-claim: ${DWP_HRIS_PAYROLL_CALCULATION_MAX_INPUTS_PER_CLAIM:1000}
     payroll-compensation-plan-input:
       # PAY-016 stays dark until V49, Kafka ACLs, and the exact People workload
       # identity are installed together. Enabling with incomplete trust material
