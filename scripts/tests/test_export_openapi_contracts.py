@@ -793,6 +793,26 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             },
         )
         self.assertNotIn("/api/platform/v1/admin/hris", gateway["paths"])
+        owner_receipt_schema = platform["paths"][
+            "/v1/admin/hris/command-receipts/{receiptId}"
+        ]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+        gateway_receipt_schema = gateway["paths"][
+            "/api/platform/v1/admin/hris/command-receipts/{receiptId}"
+        ]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+        self.assertEqual(
+            {"anyOf": [
+                {"$ref": "#/components/schemas/HrisExplorerReceiptV1"},
+                {"$ref": "#/components/schemas/HrisCommandReceiptV1"},
+            ]},
+            owner_receipt_schema,
+        )
+        self.assertEqual(
+            {"anyOf": [
+                {"$ref": "#/components/schemas/platform_HrisExplorerReceiptV1"},
+                {"$ref": "#/components/schemas/platform_HrisCommandReceiptV1"},
+            ]},
+            gateway_receipt_schema,
+        )
         for method, path in operations:
             operation = gateway["paths"][path][method]
             parameters = {
@@ -843,6 +863,16 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "transport schema projection drift"):
             EXPORTER["validate_sys012_work_explorer_contract"](
                 open_schema, gateway
+            )
+
+        overlapping_receipt = copy.deepcopy(platform)
+        receipt_schema = overlapping_receipt["paths"][
+            "/v1/admin/hris/command-receipts/{receiptId}"
+        ]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+        receipt_schema["oneOf"] = receipt_schema.pop("anyOf")
+        with self.assertRaisesRegex(RuntimeError, "receipt profile projection drift"):
+            EXPORTER["validate_sys012_work_explorer_contract"](
+                overlapping_receipt, gateway
             )
 
     def test_compensation_planning_validator_rejects_payload_graph_drift(self) -> None:

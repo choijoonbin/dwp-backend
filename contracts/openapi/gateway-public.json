@@ -202085,7 +202085,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
+                  "anyOf": [
                     {
                       "$ref": "#/components/schemas/platform_HrisExplorerReceiptV1"
                     },

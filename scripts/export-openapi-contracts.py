@@ -2579,16 +2579,16 @@ def validate_sys012_work_explorer_contract(
                 ("source", source, ""), ("owner", owner, ""),
                 ("Gateway", browser, "platform_"),
             ):
-                one_of = operation.get("responses", {}).get("200", {}).get(
-                    "content", {}).get("application/json", {}).get("schema", {}).get(
-                    "oneOf"
-                )
-                expected_one_of = [
-                    {"$ref": f"#/components/schemas/{prefix}HrisExplorerReceiptV1"},
-                    {"$ref": f"#/components/schemas/{prefix}HrisCommandReceiptV1"},
-                ]
+                response = operation.get("responses", {}).get("200", {}).get(
+                    "content", {}).get("application/json", {}).get("schema")
+                expected_response = {
+                    "anyOf": [
+                        {"$ref": f"#/components/schemas/{prefix}HrisExplorerReceiptV1"},
+                        {"$ref": f"#/components/schemas/{prefix}HrisCommandReceiptV1"},
+                    ]
+                }
                 if (
-                    one_of != expected_one_of
+                    response != expected_response
                     or operation.get("x-dwp-opaque-not-found") is not True
                     or "404" not in operation.get("responses", {})
                 ):

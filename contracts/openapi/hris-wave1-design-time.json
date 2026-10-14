@@ -129,7 +129,7 @@
               {"in":"path","name":"receiptId","required":true,"schema":{"format":"uuid","type":"string"}}
             ],
             "responses": {
-              "200":{"content":{"application/json":{"schema":{"oneOf":[{"$ref":"#/components/schemas/HrisExplorerReceiptV1"},{"$ref":"#/components/schemas/HrisCommandReceiptV1"}]}}},"description":"Originating-context command receipt"},
+              "200":{"content":{"application/json":{"schema":{"anyOf":[{"$ref":"#/components/schemas/HrisExplorerReceiptV1"},{"$ref":"#/components/schemas/HrisCommandReceiptV1"}]}}},"description":"Originating-context command receipt"},
               "404":{"description":"Receipt absent or outside the sealed originating-command context"}
             },
             "tags": ["hris-command-receipt-controller"],

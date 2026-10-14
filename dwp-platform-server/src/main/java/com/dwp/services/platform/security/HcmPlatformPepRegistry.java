@@ -62,6 +62,17 @@ public final class HcmPlatformPepRegistry {
             "HRIS_INTEGRATION_EXECUTOR");
     private static final String EXPLORER_DUTY =
             "HRIS_DUTY_APP_SHELL_READER@SELF";
+    private static final String EXPLORER_CONTEXT = "hcm.utility";
+    private static final String EXPLORER_PURPOSE = "HRIS_APP_DISCOVERY";
+    private static final Set<String> EXPLORER_RECEIPT_ACTIONS = Set.of(
+            "EXPLORER_PREFERENCES_REPLACE",
+            "EXPLORER_RECENT_RECORD");
+    /**
+     * Stable handoff used only by an earlier in-process Explorer owner PEP. Network
+     * headers are deliberately not accepted as owner evidence.
+     */
+    public static final String EXPLORER_OWNER_EVIDENCE_ATTRIBUTE =
+            HcmPlatformPepRegistry.class.getName() + ".explorerOwnerEvidence";
 
     private final ObjectMapper objectMapper;
     private final Map<String, JsonNode> capabilities;
@@ -147,18 +158,52 @@ public final class HcmPlatformPepRegistry {
     }
 
     private boolean allowsExplorerProfile(Profile profile, RequestEvidence evidence) {
-        if ("explorer-originating-receipt-reader".equals(profile.profileKey())
-                || profile.profileKey().startsWith("explorer-")) {
-            return evidence.permissions().contains("APP.HCM:VIEW")
-                    && evidence.roles().stream().anyMatch(EXPLORER_PACKAGES::contains)
-                    && evidence.resourceRoles().contains(EXPLORER_DUTY);
-        }
         if ("platform-originating-command-receipt-reader".equals(
                 profile.profileKey())) {
             return evidence.roles().stream().anyMatch(
                     PLATFORM_RECEIPT_PACKAGES::contains);
         }
-        return false;
+        if (!profile.profileKey().startsWith("explorer-")) return false;
+        if (!evidence.permissions().contains("APP.HCM:VIEW")
+                || evidence.roles().stream().noneMatch(EXPLORER_PACKAGES::contains)
+                || !evidence.resourceRoles().contains(EXPLORER_DUTY)) {
+            return false;
+        }
+        ExplorerOwnerEvidence owner = evidence.explorerOwnerEvidence();
+        if (owner == null
+                || evidence.currentDecisionRevision() == null
+                || !evidence.currentDecisionRevision().equals(
+                owner.currentDecisionRevision())
+                || !EXPLORER_CONTEXT.equals(evidence.contextKey())
+                || !evidence.contextKey().equals(owner.contextKey())
+                || evidence.contextScopeKey() == null
+                || !evidence.contextScopeKey().equals(owner.contextScopeKey())
+                || !EXPLORER_PURPOSE.equals(owner.purposeCode())
+                || owner.fieldPolicyRevision() < 1
+                || owner.authorizationRevision() < 1
+                || owner.allowedDescendantPageRouteKeys().stream()
+                .noneMatch(HcmPlatformPepRegistry::isDescendantPageRoute)) {
+            return false;
+        }
+        if (!"explorer-originating-receipt-reader".equals(profile.profileKey())) {
+            return true;
+        }
+        ExplorerReceiptEvidence receipt = owner.receiptEvidence();
+        return receipt != null
+                && owner.subjectPrincipalPublicId() != null
+                && owner.subjectPrincipalPublicId().equals(
+                receipt.subjectPrincipalPublicId())
+                && EXPLORER_RECEIPT_ACTIONS.contains(receipt.originatingAction())
+                && evidence.contextKey().equals(receipt.contextKey())
+                && evidence.contextScopeKey().equals(receipt.contextScopeKey());
+    }
+
+    private static boolean isDescendantPageRoute(String routeKey) {
+        return routeKey != null
+                && routeKey.length() <= 200
+                && routeKey.startsWith("route.hcm.")
+                && routeKey.endsWith(".page")
+                && !routeKey.startsWith(EXPLORER_ROUTE_PREFIX);
     }
 
     public List<BindingContract> bindingContracts() {
@@ -497,6 +542,10 @@ public final class HcmPlatformPepRegistry {
             Set<String> permissions,
             Set<String> roles,
             Set<String> resourceRoles,
+            String currentDecisionRevision,
+            String contextKey,
+            String contextScopeKey,
+            ExplorerOwnerEvidence explorerOwnerEvidence,
             String trustedRouteContractKey) {
         public RequestEvidence {
             method = method == null ? "" : method.toUpperCase(Locale.ROOT);
@@ -507,6 +556,10 @@ public final class HcmPlatformPepRegistry {
                     .collect(Collectors.toUnmodifiableSet());
             roles = normalized(roles);
             resourceRoles = normalized(resourceRoles);
+            currentDecisionRevision = normalizedText(currentDecisionRevision);
+            contextKey = normalizedText(contextKey);
+            contextScopeKey = normalizedText(contextScopeKey);
+            trustedRouteContractKey = normalizedText(trustedRouteContractKey);
         }
 
         public RequestEvidence(
@@ -515,7 +568,7 @@ public final class HcmPlatformPepRegistry {
                 Set<String> permissions,
                 String trustedRouteContractKey) {
             this(method, path, permissions, Set.of(), Set.of(),
-                    trustedRouteContractKey);
+                    null, null, null, null, trustedRouteContractKey);
         }
 
         private static Set<String> normalized(Set<String> values) {
@@ -523,6 +576,55 @@ public final class HcmPlatformPepRegistry {
                     .filter(value -> value != null && !value.isBlank())
                     .map(value -> value.trim().toUpperCase(Locale.ROOT))
                     .collect(Collectors.toUnmodifiableSet());
+        }
+
+        private static String normalizedText(String value) {
+            return value == null || value.isBlank() ? null : value.trim();
+        }
+    }
+
+    /** Trusted, typed evidence populated by the future Explorer owner PEP. */
+    public record ExplorerOwnerEvidence(
+            String currentDecisionRevision,
+            String contextKey,
+            String contextScopeKey,
+            String purposeCode,
+            String subjectPrincipalPublicId,
+            long fieldPolicyRevision,
+            long authorizationRevision,
+            Set<String> allowedDescendantPageRouteKeys,
+            ExplorerReceiptEvidence receiptEvidence) {
+        public ExplorerOwnerEvidence {
+            currentDecisionRevision = clean(currentDecisionRevision);
+            contextKey = clean(contextKey);
+            contextScopeKey = clean(contextScopeKey);
+            purposeCode = clean(purposeCode);
+            subjectPrincipalPublicId = clean(subjectPrincipalPublicId);
+            allowedDescendantPageRouteKeys = allowedDescendantPageRouteKeys == null
+                    ? Set.of()
+                    : allowedDescendantPageRouteKeys.stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(String::trim)
+                    .collect(Collectors.toUnmodifiableSet());
+        }
+
+        private static String clean(String value) {
+            return value == null || value.isBlank() ? null : value.trim();
+        }
+    }
+
+    /** Resource-bound fields loaded from the stored receipt by the owner PEP. */
+    public record ExplorerReceiptEvidence(
+            String subjectPrincipalPublicId,
+            String originatingAction,
+            String contextKey,
+            String contextScopeKey) {
+        public ExplorerReceiptEvidence {
+            subjectPrincipalPublicId = ExplorerOwnerEvidence.clean(
+                    subjectPrincipalPublicId);
+            originatingAction = ExplorerOwnerEvidence.clean(originatingAction);
+            contextKey = ExplorerOwnerEvidence.clean(contextKey);
+            contextScopeKey = ExplorerOwnerEvidence.clean(contextScopeKey);
         }
     }
 

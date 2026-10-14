@@ -6,9 +6,20 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.util.Set;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HcmPlatformPepSecurityContractTest {
+
+    private static final String DECISION_REVISION =
+            "psr-" + "0123456789abcdef".repeat(4);
+    private static final String OTHER_DECISION_REVISION =
+            "psr-" + "fedcba9876543210".repeat(4);
+    private static final String SUBJECT =
+            "10000000-0000-4000-8000-000000000012";
+    private static final String OTHER_SUBJECT =
+            "10000000-0000-4000-8000-000000000013";
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final HcmPlatformPepRegistry registry =
@@ -68,40 +79,186 @@ class HcmPlatformPepSecurityContractTest {
     @Test
     void explorerCarrierMatchesOnlyTheSealedCapabilityAndRouteIdentity() {
         HcmPlatformPepRegistry.Decision allowed = registry.authorize(
-                new HcmPlatformPepRegistry.RequestEvidence(
+                explorerRequest(
                         "GET", "/v1/hris/explorer",
-                        java.util.Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
-                        java.util.Set.of("HRIS_EMPLOYEE"),
-                        java.util.Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
-                        "route.hcm.utility.explorer.page"));
+                        Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                        Set.of("HRIS_EMPLOYEE"),
+                        Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                        "route.hcm.utility.explorer.page", ownerEvidence()));
         assertThat(allowed.allowed()).isTrue();
         assertThat(allowed.authority().capabilityContractKey())
                 .isEqualTo("hcm.app.shell.view");
         assertThat(allowed.authority().highRisk()).isFalse();
 
-        assertThat(registry.authorize(new HcmPlatformPepRegistry.RequestEvidence(
+        assertThat(registry.authorize(explorerRequest(
                 "GET", "/v1/hris/explorer",
-                java.util.Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
-                java.util.Set.of("HRIS_EMPLOYEE"),
-                java.util.Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
-                "route.hcm.utility.explorer-recent-create.action")).allowed()).isFalse();
-        assertThat(registry.authorize(new HcmPlatformPepRegistry.RequestEvidence(
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("HRIS_EMPLOYEE"),
+                Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer-recent-create.action",
+                ownerEvidence())).allowed()).isFalse();
+        assertThat(registry.authorize(explorerRequest(
                 "GET", "/v1/hris/explorer",
-                java.util.Set.of("DATA.HRIS_APP_SHELL:VIEW"),
-                java.util.Set.of("HRIS_EMPLOYEE"),
-                java.util.Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
-                "route.hcm.utility.explorer.page")).allowed()).isFalse();
-        assertThat(registry.authorize(new HcmPlatformPepRegistry.RequestEvidence(
+                Set.of("DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("HRIS_EMPLOYEE"),
+                Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer.page", ownerEvidence())).allowed()).isFalse();
+        assertThat(registry.authorize(explorerRequest(
                 "GET", "/v1/hris/explorer",
-                java.util.Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
-                java.util.Set.of("HRIS_EMPLOYEE"), java.util.Set.of(),
-                "route.hcm.utility.explorer.page")).allowed()).isFalse();
-        assertThat(registry.authorize(new HcmPlatformPepRegistry.RequestEvidence(
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("HRIS_EMPLOYEE"), Set.of(),
+                "route.hcm.utility.explorer.page", ownerEvidence())).allowed()).isFalse();
+        assertThat(registry.authorize(explorerRequest(
                 "GET", "/v1/hris/explorer",
-                java.util.Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
-                java.util.Set.of("TENANT_ADMIN"),
-                java.util.Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
-                "route.hcm.utility.explorer.page")).allowed()).isFalse();
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("TENANT_ADMIN"),
+                Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer.page", ownerEvidence())).allowed()).isFalse();
+    }
+
+    @Test
+    void explorerCarrierRequiresCurrentRevisionsAndAnAllowedDescendantPage() {
+        assertThat(registry.authorize(explorerRequest(
+                "GET", "/v1/hris/explorer",
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("HRIS_EMPLOYEE"),
+                Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer.page",
+                ownerEvidence(OTHER_DECISION_REVISION, 17, 29,
+                        Set.of("route.hcm.personal.me.page"), null))).allowed())
+                .isFalse();
+        assertThat(registry.authorize(explorerRequest(
+                "GET", "/v1/hris/explorer",
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("HRIS_EMPLOYEE"),
+                Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer.page",
+                ownerEvidence(DECISION_REVISION, 0, 29,
+                        Set.of("route.hcm.personal.me.page"), null))).allowed())
+                .isFalse();
+        assertThat(registry.authorize(explorerRequest(
+                "GET", "/v1/hris/explorer",
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("HRIS_EMPLOYEE"),
+                Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer.page",
+                ownerEvidence(DECISION_REVISION, 17, 0,
+                        Set.of("route.hcm.personal.me.page"), null))).allowed())
+                .isFalse();
+        assertThat(registry.authorize(explorerRequest(
+                "GET", "/v1/hris/explorer",
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("HRIS_EMPLOYEE"),
+                Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer.page",
+                ownerEvidence(DECISION_REVISION, 17, 29, Set.of(), null)))
+                .allowed()).isFalse();
+        assertThat(registry.authorize(explorerRequest(
+                "GET", "/v1/hris/explorer",
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("HRIS_EMPLOYEE"),
+                Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer.page",
+                ownerEvidence(DECISION_REVISION, 17, 29,
+                        Set.of("route.hcm.utility.explorer.page"), null))).allowed())
+                .isFalse();
+    }
+
+    @Test
+    void explorerReceiptRejectsSubjectOriginAndRequestContextMismatch() {
+        String path = "/v1/admin/hris/command-receipts/"
+                + "10000000-0000-4000-8000-000000000043";
+        String route = "route.hcm.utility.explorer-command-receipt.data";
+        HcmPlatformPepRegistry.ExplorerReceiptEvidence subjectMismatch =
+                new HcmPlatformPepRegistry.ExplorerReceiptEvidence(
+                        OTHER_SUBJECT, "EXPLORER_RECENT_RECORD",
+                        "hcm.utility", "tenant-7");
+        HcmPlatformPepRegistry.ExplorerReceiptEvidence invalidOrigin =
+                new HcmPlatformPepRegistry.ExplorerReceiptEvidence(
+                        SUBJECT, "CONFIGURATION_PUBLISH",
+                        "hcm.utility", "tenant-7");
+        HcmPlatformPepRegistry.ExplorerReceiptEvidence contextMismatch =
+                new HcmPlatformPepRegistry.ExplorerReceiptEvidence(
+                        SUBJECT, "EXPLORER_PREFERENCES_REPLACE",
+                        "hcm.configuration", "tenant-7");
+        HcmPlatformPepRegistry.ExplorerReceiptEvidence validReceipt =
+                new HcmPlatformPepRegistry.ExplorerReceiptEvidence(
+                        SUBJECT, "EXPLORER_RECENT_RECORD",
+                        "hcm.utility", "tenant-7");
+
+        HcmPlatformPepRegistry.Decision valid = registry.authorize(explorerRequest(
+                "GET", path,
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("HRIS_EMPLOYEE"),
+                Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"), route,
+                ownerEvidence(DECISION_REVISION, 17, 29,
+                        Set.of("route.hcm.personal.me.page"), validReceipt)));
+        assertThat(valid.allowed()).isTrue();
+        assertThat(valid.authority().profileKey())
+                .isEqualTo("explorer-originating-receipt-reader");
+
+        for (HcmPlatformPepRegistry.ExplorerReceiptEvidence receipt : Set.of(
+                subjectMismatch, invalidOrigin, contextMismatch)) {
+            assertThat(registry.authorize(explorerRequest(
+                    "GET", path,
+                    Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                    Set.of("HRIS_EMPLOYEE"),
+                    Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"), route,
+                    ownerEvidence(DECISION_REVISION, 17, 29,
+                            Set.of("route.hcm.personal.me.page"), receipt)))
+                    .allowed()).isFalse();
+        }
+
+        assertThat(registry.authorize(explorerRequest(
+                "GET", path,
+                Set.of("DATA.HRIS_COMMAND_RECEIPT:VIEW"),
+                Set.of("HRIS_CONFIG_AUTHOR"), Set.of(), route, null)).allowed())
+                .isTrue();
+    }
+
+    @Test
+    void explorerFilterAcceptsOnlyTypedCurrentOwnerEvidence() throws Exception {
+        MockHttpServletRequest allowed = explorerHttpRequest();
+        allowed.setAttribute(HcmPlatformPepRegistry.EXPLORER_OWNER_EVIDENCE_ATTRIBUTE,
+                ownerEvidence());
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest absent = explorerHttpRequest();
+        MockHttpServletResponse absentResponse = new MockHttpServletResponse();
+        filter.doFilter(absent, absentResponse, new MockFilterChain());
+        assertThat(absentResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest invalidType = explorerHttpRequest();
+        invalidType.setAttribute(
+                HcmPlatformPepRegistry.EXPLORER_OWNER_EVIDENCE_ATTRIBUTE,
+                "client-asserted-owner-evidence");
+        MockHttpServletResponse invalidTypeResponse = new MockHttpServletResponse();
+        filter.doFilter(invalidType, invalidTypeResponse, new MockFilterChain());
+        assertThat(invalidTypeResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest staleDecision = explorerHttpRequest();
+        staleDecision.setAttribute(
+                HcmPlatformPepRegistry.EXPLORER_OWNER_EVIDENCE_ATTRIBUTE,
+                ownerEvidence(OTHER_DECISION_REVISION, 17, 29,
+                        Set.of("route.hcm.personal.me.page"), null));
+        MockHttpServletResponse staleDecisionResponse = new MockHttpServletResponse();
+        filter.doFilter(staleDecision, staleDecisionResponse, new MockFilterChain());
+        assertThat(staleDecisionResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest staleAuthority = explorerHttpRequest();
+        staleAuthority.removeHeader(
+                PlatformSecurityFilter.CURRENT_REVALIDATE_AT_HEADER);
+        staleAuthority.addHeader(
+                PlatformSecurityFilter.CURRENT_REVALIDATE_AT_HEADER,
+                "2000-01-01T00:00:00Z");
+        staleAuthority.setAttribute(
+                HcmPlatformPepRegistry.EXPLORER_OWNER_EVIDENCE_ATTRIBUTE,
+                ownerEvidence());
+        MockHttpServletResponse staleAuthorityResponse = new MockHttpServletResponse();
+        filter.doFilter(staleAuthority, staleAuthorityResponse, new MockFilterChain());
+        assertThat(staleAuthorityResponse.getStatus()).isEqualTo(503);
     }
 
     @Test
@@ -301,6 +458,52 @@ class HcmPlatformPepSecurityContractTest {
                 false).getStatus()).isEqualTo(403);
     }
 
+    private HcmPlatformPepRegistry.RequestEvidence explorerRequest(
+            String method,
+            String path,
+            Set<String> permissions,
+            Set<String> roles,
+            Set<String> resourceRoles,
+            String route,
+            HcmPlatformPepRegistry.ExplorerOwnerEvidence ownerEvidence) {
+        return new HcmPlatformPepRegistry.RequestEvidence(
+                method, path, permissions, roles, resourceRoles,
+                DECISION_REVISION, "hcm.utility", "tenant-7",
+                ownerEvidence, route);
+    }
+
+    private HcmPlatformPepRegistry.ExplorerOwnerEvidence ownerEvidence() {
+        return ownerEvidence(
+                DECISION_REVISION, 17, 29,
+                Set.of("route.hcm.personal.me.page"), null);
+    }
+
+    private HcmPlatformPepRegistry.ExplorerOwnerEvidence ownerEvidence(
+            String decisionRevision,
+            long fieldPolicyRevision,
+            long authorizationRevision,
+            Set<String> allowedDescendantPageRouteKeys,
+            HcmPlatformPepRegistry.ExplorerReceiptEvidence receiptEvidence) {
+        return new HcmPlatformPepRegistry.ExplorerOwnerEvidence(
+                decisionRevision, "hcm.utility", "tenant-7",
+                "HRIS_APP_DISCOVERY", SUBJECT,
+                fieldPolicyRevision, authorizationRevision,
+                allowedDescendantPageRouteKeys, receiptEvidence);
+    }
+
+    private MockHttpServletRequest explorerHttpRequest() {
+        MockHttpServletRequest request = base("GET", "/v1/hris/explorer");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "HRIS_EMPLOYEE");
+        request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "APP.HCM:VIEW,DATA.HRIS_APP_SHELL:VIEW");
+        request.addHeader(PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "HRIS_DUTY_APP_SHELL_READER@SELF");
+        trustedEvidence(request, "route.hcm.utility.explorer.page", false);
+        request.removeHeader(PlatformSecurityFilter.CONTEXT_HEADER);
+        request.addHeader(PlatformSecurityFilter.CONTEXT_HEADER, "hcm.utility");
+        return request;
+    }
+
     private MockHttpServletResponse invoke(
             String method,
             String path,
@@ -356,10 +559,9 @@ class HcmPlatformPepSecurityContractTest {
         request.addHeader(PlatformSecurityFilter.ROLLOUT_REVISION_HEADER,
                 "rollout-" + "0123456789abcdef".repeat(4));
         request.addHeader(PlatformSecurityFilter.ROLLOUT_COHORT_HEADER, "baseline");
-        String revision = "psr-" + "0123456789abcdef".repeat(4);
         request.addHeader(PlatformSecurityFilter.ROUTE_CONTRACT_HEADER, route);
         request.addHeader(PlatformSecurityFilter.CURRENT_DECISION_REVISION_HEADER,
-                revision);
+                DECISION_REVISION);
         request.addHeader(PlatformSecurityFilter.CURRENT_REVALIDATE_AT_HEADER,
                 "2030-01-01T00:00:00Z");
         request.addHeader(PlatformSecurityFilter.CONTEXT_HEADER, "hcm.configuration");
@@ -367,7 +569,7 @@ class HcmPlatformPepSecurityContractTest {
         if (stateChanging) {
             request.addHeader(
                     PlatformSecurityFilter.EXPECTED_DECISION_REVISION_HEADER,
-                    revision);
+                    DECISION_REVISION);
         }
     }
 }

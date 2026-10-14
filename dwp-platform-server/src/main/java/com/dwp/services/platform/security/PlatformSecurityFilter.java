@@ -394,6 +394,10 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
                             parseValues(request.getHeader(PERMISSIONS_HEADER)),
                             parseValues(request.getHeader(ROLES_HEADER)),
                             parseValues(request.getHeader(RESOURCE_ROLES_HEADER)),
+                            trustedAuthority.currentRevision(),
+                            trustedAuthority.contextKey(),
+                            trustedAuthority.scopeKey(),
+                            explorerOwnerEvidence(request),
                             trustedAuthority.routeContractKey()));
             if (!decision.allowed()) {
                 writeError(response, ErrorCode.FORBIDDEN,
@@ -594,6 +598,14 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
         response.setStatus(errorCode.getHttpStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(errorCode, message));
+    }
+
+    private HcmPlatformPepRegistry.ExplorerOwnerEvidence explorerOwnerEvidence(
+            HttpServletRequest request) {
+        Object evidence = request.getAttribute(
+                HcmPlatformPepRegistry.EXPLORER_OWNER_EVIDENCE_ATTRIBUTE);
+        return evidence instanceof HcmPlatformPepRegistry.ExplorerOwnerEvidence typed
+                ? typed : null;
     }
 
 }
