@@ -97,14 +97,16 @@ class ProductAuthorizationContractReleaseLineageTest
                 generatedDocument("product-surfaces-v1.bundle-v38.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionThirtyNine = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v39.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(39);
-        assertThat(index.latestChecksum()).isEqualTo(versionThirtyNine.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionForty = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v40.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(40);
+        assertThat(index.latestChecksum()).isEqualTo(versionForty.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
                         26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L,
-                        39L);
+                        39L, 40L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -487,6 +489,23 @@ class ProductAuthorizationContractReleaseLineageTest
                         "route.hcm.operations.compensation-proposal-detail.data",
                         "route.hcm.operations.compensation-plan-approve.action",
                         "route.hcm.operations.compensation-snapshot-publish.action");
+        assertStrictCapabilitySuperset(versionThirtyNine, versionForty);
+        assertThat(versionForty.capabilities()).hasSize(248)
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .contains(
+                        "hcm.configuration.navigation-policy.view",
+                        "hcm.configuration.navigation-policy.update",
+                        "hcm.configuration.navigation-policy.publish");
+        assertThat(versionForty.routes()).hasSize(1012)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionThirtyNine.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.hcm.configuration.navigation-policy-workspace.page",
+                        "route.hcm.configuration.navigation-policy-draft-create.action",
+                        "route.hcm.configuration.navigation-policy-revision-publish.action",
+                        "route.hcm.operations.navigation-projection.data");
         String voidRoute = "route.hcm.operations.time-clock-event-void.action";
         assertThat(versionThirtySix.routes())
                 .filteredOn(route -> voidRoute.equals(route.routeContractKey()))

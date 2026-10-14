@@ -49,6 +49,13 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  hris:
+    navigation-policy:
+      enabled: ${DWP_HRIS_NAVIGATION_POLICY_ENABLED:false}
+      legal-entity-owner:
+        enabled: ${DWP_HRIS_NAVIGATION_LEGAL_ENTITY_OWNER_ENABLED:false}
+        people-base-url: ${DWP_HRIS_NAVIGATION_PEOPLE_BASE_URL:}
+        service-token: ${DWP_HRIS_NAVIGATION_PEOPLE_SERVICE_TOKEN:}
   workplace:
     provider-integration:
       http:
@@ -159,6 +166,14 @@ dwp:
   platform:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
     runtime-service-token: ${DWP_PLATFORM_RUNTIME_SERVICE_TOKEN:}
+    step-up:
+      public-key-pem: ${DWP_PLATFORM_STEP_UP_PUBLIC_KEY_PEM:}
+      issuer: ${DWP_PLATFORM_STEP_UP_ISSUER:}
+      audience: ${DWP_PLATFORM_STEP_UP_AUDIENCE:dwp-platform-server}
+      key-id: ${DWP_PLATFORM_STEP_UP_KEY_ID:}
+      required-acr: ${DWP_PLATFORM_STEP_UP_REQUIRED_ACR:urn:dwp:acr:mfa}
+      maximum-authentication-age-seconds: ${DWP_PLATFORM_STEP_UP_MAX_AUTH_AGE_SECONDS:600}
+      maximum-challenge-ttl-seconds: ${DWP_PLATFORM_STEP_UP_MAX_TTL_SECONDS:900}
     widget-registry-provider-token: ${DWP_WIDGET_REGISTRY_PROVIDER_TOKEN:}
     dwaion-handoff:
       enabled: ${DWP_PLATFORM_DWAION_HANDOFF_ENABLED:true}

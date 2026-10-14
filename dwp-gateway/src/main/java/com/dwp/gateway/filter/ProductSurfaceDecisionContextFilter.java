@@ -53,6 +53,10 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "X-DWP-Authorization-Revision";
     public static final String POPULATION_KIND_HEADER = "X-DWP-Population-Kind";
     public static final String PURPOSE_HEADER = "X-Purpose-Code";
+    public static final String VERIFIED_LEGAL_ENTITY_HEADER =
+            "X-DWP-Verified-Legal-Entity-Public-ID";
+    public static final String LEGAL_ENTITY_OWNER_EVIDENCE_HEADER =
+            "X-DWP-Legal-Entity-Owner-Evidence";
     public static final String MASKED_FIELD_GROUPS_HEADER =
             "X-DWP-Masked-Field-Groups";
     public static final String OMITTED_FIELD_GROUPS_HEADER =
@@ -113,12 +117,30 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             Map.entry("route.hcm.operations.compensation-snapshot-publish.action",
                     "COMPENSATION_PLANNING"),
             Map.entry("route.hcm.operations.compensation-cycle-cancel.action",
-                    "COMPENSATION_PLANNING"));
+                    "COMPENSATION_PLANNING"),
+            Map.entry("route.hcm.configuration.navigation-policy-workspace.page",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-draft-create.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-draft-update.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-draft-validate.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-draft-submit.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-revision-approve.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-revision-publish.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-revision-restore.action",
+                    "HRIS_SYSTEM_ADMIN"));
     private static final List<String> INTERNAL_HEADERS = List.of(
             ROUTE_HEADER, CURRENT_REVISION_HEADER, CURRENT_REVALIDATE_AT_HEADER,
             RESPONSE_REVISION_HEADER, CONTEXT_HEADER, SCOPE_HEADER, ACTIVE_ACCESS_MODE_HEADER,
             SUBJECT_PRINCIPAL_HEADER, FIELD_POLICY_REVISION_HEADER,
             AUTHORIZATION_REVISION_HEADER, POPULATION_KIND_HEADER,
+            PURPOSE_HEADER, VERIFIED_LEGAL_ENTITY_HEADER,
+            LEGAL_ENTITY_OWNER_EVIDENCE_HEADER,
             MASKED_FIELD_GROUPS_HEADER, OMITTED_FIELD_GROUPS_HEADER,
             "X-DWP-Current-Decision-Valid-Until");
 

@@ -43,15 +43,15 @@ class ProductAuthorizationSeedLoaderTest {
                 loader.read(resources.getResource(
                         "classpath:product-authorization/product-surfaces-v1.generated.json"));
 
-        assertThat(index.latestVersion()).isEqualTo(39);
+        assertThat(index.latestVersion()).isEqualTo(40);
         assertThat(index.versions()).extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L,
                         23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L,
-                        34L, 35L, 36L, 37L, 38L, 39L);
+                        34L, 35L, 36L, 37L, 38L, 39L, 40L);
         assertThat(contract.bundleStatus()).isEqualTo("DRAFT");
-        assertThat(contract.version()).isEqualTo(39);
-        assertThat(contract.routes()).hasSize(1003);
+        assertThat(contract.version()).isEqualTo(40);
+        assertThat(contract.routes()).hasSize(1012);
     }
 
     @Test
@@ -76,13 +76,13 @@ class ProductAuthorizationSeedLoaderTest {
         @SuppressWarnings("unchecked")
         org.mockito.ArgumentCaptor<ProductAuthorizationContractDtos.BundleContract> captor =
                 org.mockito.ArgumentCaptor.forClass(ProductAuthorizationContractDtos.BundleContract.class);
-        verify(service, org.mockito.Mockito.times(39)).importDraft(captor.capture());
+        verify(service, org.mockito.Mockito.times(40)).importDraft(captor.capture());
         List<ProductAuthorizationContractDtos.BundleContract> imported = captor.getAllValues();
         assertThat(imported).extracting(ProductAuthorizationContractDtos.BundleContract::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L,
                         23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L,
-                        34L, 35L, 36L, 37L, 38L, 39L);
+                        34L, 35L, 36L, 37L, 38L, 39L, 40L);
         assertThat(imported).extracting(ProductAuthorizationContractDtos.BundleContract::bundleStatus)
                 .containsOnly("DRAFT");
         verify(service, never()).approve(any(), anyLong(), any());

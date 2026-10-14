@@ -44,6 +44,9 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     private static final String GATEWAY_SERVICE_IDENTITY = "dwp-gateway";
     private static final String PRODUCT_SURFACE_ELIGIBILITY_PATH =
             "/internal/people/v1/product-surface-eligibility/evaluate";
+    private static final String HRIS_NAVIGATION_LEGAL_ENTITY_VERIFY_PATH =
+            "/internal/people/v1/hris/navigation/legal-entity-context/verify";
+    private static final String PLATFORM_SERVICE_IDENTITY = "dwp-platform-server";
     private static final Set<String> ADMIN_ROLES =
             Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
     private static final Set<String> WORKFORCE_ROLES =
@@ -123,6 +126,15 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                         request.getHeader(SERVICE_IDENTITY_HEADER))) {
             writeError(response, ErrorCode.UNAUTHORIZED,
                     "Trusted gateway service identity is required.");
+            return;
+        }
+        if (HRIS_NAVIGATION_LEGAL_ENTITY_VERIFY_PATH.equals(request.getRequestURI())
+                && (!constantTimeEquals(serviceToken,
+                        exactHeader(request, SERVICE_TOKEN_HEADER))
+                    || !PLATFORM_SERVICE_IDENTITY.equals(
+                        exactHeader(request, SERVICE_IDENTITY_HEADER)))) {
+            writeError(response, ErrorCode.UNAUTHORIZED,
+                    "One exact trusted Platform service identity is required.");
             return;
         }
 

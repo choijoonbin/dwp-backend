@@ -253,6 +253,154 @@
             "x-dwp-overlay-mode": "ADD",
             "x-dwp-runtime-default": "OFF"
           }
+        },
+        "/v1/admin/hris/navigation-policies/workspace": {
+          "get": {
+            "operationId": "hrisNavigationPolicyWorkspace",
+            "parameters": [
+              {"in": "query", "name": "workbenchId", "required": true, "schema": {"minLength": 1, "type": "string"}},
+              {"in": "query", "name": "scopeKind", "required": true, "schema": {"enum": ["TENANT", "LEGAL_ENTITY"], "type": "string"}},
+              {"in": "query", "name": "scopePublicId", "required": false, "schema": {"format": "uuid", "type": "string"}}
+            ],
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["hris-navigation-policy-controller"],
+            "x-dwp-controller-method": "workspace",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/navigation-policies/drafts": {
+          "post": {
+            "operationId": "hrisNavigationPolicyCreateDraft",
+            "parameters": [
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": true, "schema": {"format": "uuid", "type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-navigation-policy-controller"],
+            "x-dwp-controller-method": "createDraft",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/navigation-policies/drafts/{revisionId}": {
+          "put": {
+            "operationId": "hrisNavigationPolicyUpdateDraft",
+            "parameters": [
+              {"in": "path", "name": "revisionId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": true, "schema": {"format": "uuid", "type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-navigation-policy-controller"],
+            "x-dwp-controller-method": "updateDraft",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/navigation-policies/drafts/{revisionId}/validate": {
+          "post": {
+            "operationId": "hrisNavigationPolicyValidateDraft",
+            "parameters": [
+              {"in": "path", "name": "revisionId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": true, "schema": {"format": "uuid", "type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-navigation-policy-controller"],
+            "x-dwp-controller-method": "validate",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/navigation-policies/drafts/{revisionId}/submit": {
+          "post": {
+            "operationId": "hrisNavigationPolicySubmitDraft",
+            "parameters": [
+              {"in": "path", "name": "revisionId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": true, "schema": {"format": "uuid", "type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-navigation-policy-controller"],
+            "x-dwp-controller-method": "submit",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/navigation-policies/revisions/{revisionId}/approve": {
+          "post": {
+            "operationId": "hrisNavigationPolicyApproveRevision",
+            "parameters": [
+              {"in": "path", "name": "revisionId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"minLength": 1, "type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-navigation-policy-controller"],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-controller-method": "approve",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/navigation-policies/revisions/{revisionId}/publish": {
+          "post": {
+            "operationId": "hrisNavigationPolicyPublishRevision",
+            "parameters": [
+              {"in": "path", "name": "revisionId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"minLength": 1, "type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-navigation-policy-controller"],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-controller-method": "publish",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/navigation-policies/revisions/{revisionId}/restore": {
+          "post": {
+            "operationId": "hrisNavigationPolicyRestoreRevision",
+            "parameters": [
+              {"in": "path", "name": "revisionId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"minLength": 1, "type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-navigation-policy-controller"],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-controller-method": "restore",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/hris/navigation/projection": {
+          "get": {
+            "operationId": "hrisNavigationProjection",
+            "parameters": [
+              {"in": "query", "name": "workbenchId", "required": true, "schema": {"minLength": 1, "type": "string"}}
+            ],
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["hris-navigation-policy-controller"],
+            "x-dwp-controller-method": "projection",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
         }
       }
     },

@@ -370,6 +370,97 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void navigationPolicyAdminPurposeIsGatewayOwnedAndLegalEntityEvidenceFailsClosed() {
+        ProductSurfaceDecisionContextFilter filter = filter(authority(
+                allowedWave2("LEGAL_ENTITY")));
+        String revision = "10000000-0000-4000-8000-000000000140";
+        record Case(String method, String path, boolean command) {}
+        List<Case> cases = List.of(
+                new Case("GET",
+                        "/api/platform/v1/admin/hris/navigation-policies/workspace"
+                                + "?workbenchId=hr-operations&scopeKind=TENANT",
+                        false),
+                new Case("POST", "/api/platform/v1/admin/hris/navigation-policies/drafts",
+                        true),
+                new Case("PUT", "/api/platform/v1/admin/hris/navigation-policies/drafts/"
+                        + revision, true),
+                new Case("POST", "/api/platform/v1/admin/hris/navigation-policies/drafts/"
+                        + revision + "/validate", true),
+                new Case("POST", "/api/platform/v1/admin/hris/navigation-policies/drafts/"
+                        + revision + "/submit", true),
+                new Case("POST", "/api/platform/v1/admin/hris/navigation-policies/revisions/"
+                        + revision + "/approve", true),
+                new Case("POST", "/api/platform/v1/admin/hris/navigation-policies/revisions/"
+                        + revision + "/publish", true),
+                new Case("POST", "/api/platform/v1/admin/hris/navigation-policies/revisions/"
+                        + revision + "/restore", true));
+
+        for (Case requestCase : cases) {
+            MockServerHttpRequest.BaseBuilder<?> builder = MockServerHttpRequest.method(
+                            HttpMethod.valueOf(requestCase.method()), requestCase.path())
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000041")
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER,
+                            "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.VERIFIED_LEGAL_ENTITY_HEADER,
+                            "10000000-0000-4000-8000-000000000999")
+                    .header(ProductSurfaceDecisionContextFilter.LEGAL_ENTITY_OWNER_EVIDENCE_HEADER,
+                            "CLIENT_FORGED");
+            if (requestCase.command()) {
+                builder.header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                        REVISION);
+            }
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange(builder), filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(requestCase.path()).isNotNull();
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                    .containsExactly("HRIS_SYSTEM_ADMIN");
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.VERIFIED_LEGAL_ENTITY_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.LEGAL_ENTITY_OWNER_EVIDENCE_HEADER))
+                    .isFalse();
+        }
+    }
+
+    @Test
+    void navigationProjectionNeverReceivesAClientForgedAdminPurpose() {
+        ProductSurfaceDecisionContextFilter filter = filter(authority(
+                allowedWave2("LEGAL_ENTITY")));
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/platform/v1/hris/navigation/projection"
+                                + "?workbenchId=hr-operations&contextScopeKey=scope-team-a")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041")
+                .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER,
+                        "HRIS_SYSTEM_ADMIN"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceDecisionContextFilter.PURPOSE_HEADER)).isFalse();
+    }
+
+    @Test
     void selectedScopeIsLiveEvaluatedAndConsumedBeforeOwnerForwarding() {
         ProductSurfaceContextAggregationService authority = authority(allowed());
         ProductSurfaceDecisionContextFilter filter = filter(authority);
@@ -501,7 +592,12 @@ class ProductSurfaceDecisionContextFilterTest {
                     .header(ProductSurfaceDecisionContextFilter.CONTEXT_HEADER, "spoofed")
                     .header(ProductSurfaceDecisionContextFilter.SCOPE_HEADER, "spoofed")
                     .header(ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER,
-                            "ELEVATED"));
+                            "ELEVATED")
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.VERIFIED_LEGAL_ENTITY_HEADER,
+                            "10000000-0000-4000-8000-000000000999")
+                    .header(ProductSurfaceDecisionContextFilter.LEGAL_ENTITY_OWNER_EVIDENCE_HEADER,
+                            "CLIENT_FORGED"));
             AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                     new AtomicReference<>();
 
@@ -516,6 +612,13 @@ class ProductSurfaceDecisionContextFilterTest {
                     ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER)).isFalse();
             assertThat(forwarded.get().getHeaders().containsKey(
                     ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.VERIFIED_LEGAL_ENTITY_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.LEGAL_ENTITY_OWNER_EVIDENCE_HEADER))
+                    .isFalse();
         }
         verify(authority, never()).evaluateProductTrusted(any(), any());
     }

@@ -63,7 +63,11 @@ class ApprovedCompensationSnapshotIngressFilterTest {
                 ISSUER,
                 Map.of(TENANT,
                         new ApprovedCompensationSnapshotTrustProfile.OwnerGrant(3L, 9L)));
-        filter = new ApprovedCompensationSnapshotIngressFilter(trust, mapper);
+        filter = new ApprovedCompensationSnapshotIngressFilter(
+                trust,
+                new ApprovedCompensationSnapshotAdmissionControl(
+                        Clock.fixed(NOW, ZoneOffset.UTC), 2, 60),
+                mapper);
         genericPeopleFilter = new PeopleSecurityFilter("ordinary-people-token", mapper, false);
         certificate = mock(X509Certificate.class);
         when(certificate.getSubjectAlternativeNames()).thenReturn(
@@ -193,6 +197,72 @@ class ApprovedCompensationSnapshotIngressFilterTest {
         MockHttpServletRequest method = validRequest(claims());
         method.setMethod("POST");
         assertRejected(method, 405, "SVC_PEP_PER_001_METHOD_NOT_ALLOWED");
+    }
+
+    @Test
+    void rateLimitsOnlyAfterExactWorkloadAuthenticationAndReturnsRetryAfter()
+            throws Exception {
+        filter = new ApprovedCompensationSnapshotIngressFilter(
+                new ApprovedCompensationSnapshotTrustProfile(
+                        mapper,
+                        Clock.fixed(NOW, ZoneOffset.UTC),
+                        key.toRSAPublicKey(),
+                        key.getKeyID(),
+                        ISSUER,
+                        Map.of(TENANT,
+                                new ApprovedCompensationSnapshotTrustProfile.OwnerGrant(3L, 9L))),
+                new ApprovedCompensationSnapshotAdmissionControl(
+                        Clock.fixed(NOW, ZoneOffset.UTC), 1, 1),
+                mapper);
+
+        MockHttpServletResponse first = new MockHttpServletResponse();
+        filter.doFilter(validRequest(claims()), first, (request, response) -> { });
+        assertThat(first.getStatus()).isEqualTo(200);
+
+        MockHttpServletResponse second = new MockHttpServletResponse();
+        filter.doFilter(validRequest(claims()), second, (request, response) -> {
+            throw new AssertionError("Rate-limited request reached the controller.");
+        });
+        assertThat(second.getStatus()).isEqualTo(429);
+        assertThat(second.getHeader("Retry-After")).isEqualTo("60");
+        assertThat(second.getContentAsString()).contains("SVC_PEP_PER_001_RATE_LIMITED");
+    }
+
+    @Test
+    void holdsTheConcurrencyLeaseUntilAnAsyncStreamingResponseCompletes()
+            throws Exception {
+        filter = new ApprovedCompensationSnapshotIngressFilter(
+                new ApprovedCompensationSnapshotTrustProfile(
+                        mapper,
+                        Clock.fixed(NOW, ZoneOffset.UTC),
+                        key.toRSAPublicKey(),
+                        key.getKeyID(),
+                        ISSUER,
+                        Map.of(TENANT,
+                                new ApprovedCompensationSnapshotTrustProfile.OwnerGrant(3L, 9L))),
+                new ApprovedCompensationSnapshotAdmissionControl(
+                        Clock.fixed(NOW, ZoneOffset.UTC), 1, 10),
+                mapper);
+
+        MockHttpServletRequest streaming = validRequest(claims());
+        streaming.setAsyncSupported(true);
+        MockHttpServletResponse streamingResponse = new MockHttpServletResponse();
+        filter.doFilter(streaming, streamingResponse,
+                (request, response) -> request.startAsync(request, response));
+
+        MockHttpServletResponse concurrent = new MockHttpServletResponse();
+        filter.doFilter(validRequest(claims()), concurrent, (request, response) -> {
+            throw new AssertionError("Concurrent request reached the controller.");
+        });
+        assertThat(concurrent.getStatus()).isEqualTo(429);
+        assertThat(concurrent.getContentAsString())
+                .contains("SVC_PEP_PER_001_CONCURRENCY_LIMITED");
+
+        streaming.getAsyncContext().complete();
+
+        MockHttpServletResponse afterCompletion = new MockHttpServletResponse();
+        filter.doFilter(validRequest(claims()), afterCompletion, (request, response) -> { });
+        assertThat(afterCompletion.getStatus()).isEqualTo(200);
     }
 
     private void assertRejected(

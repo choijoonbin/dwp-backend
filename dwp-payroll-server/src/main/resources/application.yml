@@ -102,6 +102,27 @@ dwp:
       batch-size: ${DWP_API_HISTORY_BATCH_SIZE:100}
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   hris:
+    payroll-compensation-plan-input:
+      # PAY-016 stays dark until V49, Kafka ACLs, and the exact People workload
+      # identity are installed together. Enabling with incomplete trust material
+      # fails startup instead of falling back to a browser or shared service token.
+      enabled: ${DWP_HRIS_PAYROLL_COMPENSATION_PLAN_INPUT_ENABLED:false}
+      consumer-group: ${DWP_HRIS_PAYROLL_COMPENSATION_PLAN_INPUT_CONSUMER_GROUP:dwp-payroll-compensation-plan-input-v1}
+      broker:
+        retry-delay: ${DWP_HRIS_PAYROLL_COMPENSATION_PLAN_INPUT_RETRY_DELAY:PT2S}
+        retry-attempts: ${DWP_HRIS_PAYROLL_COMPENSATION_PLAN_INPUT_RETRY_ATTEMPTS:5}
+      owner-refetch:
+        base-url: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_BASE_URL:}
+        issuer: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_JWT_ISSUER:}
+        private-jwk: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_PRIVATE_JWK:}
+        tenant-grants: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_TENANT_GRANTS:}
+        key-store: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_KEY_STORE:}
+        key-store-password: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_KEY_STORE_PASSWORD:}
+        key-password: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_KEY_PASSWORD:}
+        trust-store: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_TRUST_STORE:}
+        trust-store-password: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_TRUST_STORE_PASSWORD:}
+        connect-timeout: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_CONNECT_TIMEOUT:PT2S}
+        read-timeout: ${DWP_HRIS_PAYROLL_COMPENSATION_OWNER_READ_TIMEOUT:PT30S}
     payroll-foundation:
       wave1:
         enabled: ${DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED:false}

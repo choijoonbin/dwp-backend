@@ -68,6 +68,9 @@ spring:
 
 dwp:
   hris:
+    navigation-legal-entity-owner:
+      # Platform-to-People native owner verification is an explicit two-sided opt-in.
+      enabled: ${DWP_HRIS_NAVIGATION_LEGAL_ENTITY_OWNER_ENABLED:false}
     performance:
       compensation:
         snapshot-service:
@@ -78,6 +81,9 @@ dwp:
           jwt-public-jwk: ${DWP_HRIS_PER_COMPENSATION_SNAPSHOT_JWT_PUBLIC_JWK:}
           jwt-issuer: ${DWP_HRIS_PER_COMPENSATION_SNAPSHOT_JWT_ISSUER:}
           payroll-tenant-grants: ${DWP_HRIS_PER_COMPENSATION_SNAPSHOT_TENANT_GRANTS:}
+          max-concurrent-per-tenant: ${DWP_HRIS_PER_COMPENSATION_SNAPSHOT_MAX_CONCURRENT_PER_TENANT:2}
+          requests-per-minute: ${DWP_HRIS_PER_COMPENSATION_SNAPSHOT_REQUESTS_PER_MINUTE:60}
+          max-response-bytes: ${DWP_HRIS_PER_COMPENSATION_SNAPSHOT_MAX_RESPONSE_BYTES:67108864}
     employee-change:
       # Control-owned bridge remains dark until registered workload keys and
       # explicit tenant grants are installed on both services.

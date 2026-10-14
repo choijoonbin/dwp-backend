@@ -23,9 +23,9 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v39.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v40.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 39
+PRODUCT_AUTHORIZATION_VERSION = 40
 HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY = (
     ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v38.json"
 )

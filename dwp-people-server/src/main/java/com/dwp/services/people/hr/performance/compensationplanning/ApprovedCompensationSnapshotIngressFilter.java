@@ -4,6 +4,8 @@ import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.services.people.hr.performance.compensationplanning.ApprovedCompensationSnapshotTrustProfile.Failure;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.AsyncEvent;
+import jakarta.servlet.AsyncListener;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,12 +44,15 @@ final class ApprovedCompensationSnapshotIngressFilter extends OncePerRequestFilt
             "x-forwarded-user", "x-forwarded-email", "x-forwarded-client-cert");
 
     private final ApprovedCompensationSnapshotTrustProfile trust;
+    private final ApprovedCompensationSnapshotAdmissionControl admission;
     private final ObjectMapper mapper;
 
     ApprovedCompensationSnapshotIngressFilter(
             ApprovedCompensationSnapshotTrustProfile trust,
+            ApprovedCompensationSnapshotAdmissionControl admission,
             ObjectMapper mapper) {
         this.trust = trust;
+        this.admission = admission;
         this.mapper = mapper;
     }
 
@@ -93,11 +98,24 @@ final class ApprovedCompensationSnapshotIngressFilter extends OncePerRequestFilt
             var verified = trust.authenticate(
                     request, route.snapshotId(), route.snapshotRevision(),
                     route.payloadDigest());
-            ApprovedCompensationSnapshotRequestContext.set(request, verified);
+            var decision = admission.admit(verified.tenantId());
+            if (!decision.allowed()) {
+                response.setHeader("Retry-After",
+                        Integer.toString(decision.retryAfterSeconds()));
+                write(response, ErrorCode.SERVICE_RATE_LIMITED, decision.reason());
+                return;
+            }
+            var lease = decision.lease();
+            boolean releaseDeferred = false;
             try {
+                ApprovedCompensationSnapshotRequestContext.set(request, verified);
                 chain.doFilter(request, response);
             } finally {
                 ApprovedCompensationSnapshotRequestContext.clear(request);
+                if (request.isAsyncStarted()) {
+                    releaseDeferred = releaseOnAsyncCompletion(request, lease);
+                }
+                if (!releaseDeferred) lease.close();
             }
         } catch (Failure failure) {
             ErrorCode code = switch (failure.kind()) {
@@ -192,6 +210,46 @@ final class ApprovedCompensationSnapshotIngressFilter extends OncePerRequestFilt
                     "Bearer realm=\"dwp-people-approved-compensation-snapshot\"");
         }
         mapper.writeValue(response.getOutputStream(), ApiResponse.error(code, reason));
+    }
+
+    private static boolean releaseOnAsyncCompletion(
+            HttpServletRequest request,
+            ApprovedCompensationSnapshotAdmissionControl.Lease lease) {
+        try {
+            request.getAsyncContext().addListener(new AsyncLeaseReleaseListener(lease));
+            return true;
+        } catch (IllegalStateException exception) {
+            return false;
+        }
+    }
+
+    private static final class AsyncLeaseReleaseListener implements AsyncListener {
+        private final ApprovedCompensationSnapshotAdmissionControl.Lease lease;
+
+        private AsyncLeaseReleaseListener(
+                ApprovedCompensationSnapshotAdmissionControl.Lease lease) {
+            this.lease = lease;
+        }
+
+        @Override
+        public void onComplete(AsyncEvent event) {
+            lease.close();
+        }
+
+        @Override
+        public void onTimeout(AsyncEvent event) {
+            lease.close();
+        }
+
+        @Override
+        public void onError(AsyncEvent event) {
+            lease.close();
+        }
+
+        @Override
+        public void onStartAsync(AsyncEvent event) {
+            event.getAsyncContext().addListener(this);
+        }
     }
 
     private record Route(UUID snapshotId, long snapshotRevision, String payloadDigest) {

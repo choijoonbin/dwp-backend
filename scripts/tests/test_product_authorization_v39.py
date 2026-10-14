@@ -151,7 +151,7 @@ class ProductAuthorizationV39Test(unittest.TestCase):
             )
         )
 
-    def test_v39_alias_index_auth_seed_and_people_projection_are_pinned(self) -> None:
+    def test_v39_auth_seed_and_people_projection_remain_immutably_pinned(self) -> None:
         alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
         auth_seed = json.loads(
@@ -159,10 +159,11 @@ class ProductAuthorizationV39Test(unittest.TestCase):
         )
         projection = json.loads(PEOPLE_PROJECTION.read_text())
 
-        self.assertEqual(self.v39, alias)
+        self.assertEqual(40, alias["version"])
         self.assertEqual(self.v39, auth_seed)
-        self.assertEqual(39, index["latestVersion"])
-        self.assertEqual(V39_SHA256, index["latestChecksum"])
+        self.assertEqual(40, index["latestVersion"])
+        v39_index = next(value for value in index["versions"] if value["version"] == 39)
+        self.assertEqual(V39_SHA256, v39_index["checksum"])
         self.assertEqual(39, projection["registryRef"]["version"])
         self.assertEqual(V39_SHA256, projection["registryRef"]["sha256"])
         self.assertEqual("people", projection["ownerServiceKey"])

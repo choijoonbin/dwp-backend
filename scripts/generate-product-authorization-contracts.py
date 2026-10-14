@@ -171,8 +171,11 @@ LEGACY_HCM_PLATFORM_PEP_V36_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_nam
 LEGACY_HCM_PLATFORM_PEP_V37_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v37.generated.json"
 )
-HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+LEGACY_HCM_PLATFORM_PEP_V38_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v38.generated.json"
+)
+HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v40.generated.json"
 )
 HCM_PAYROLL_PEP_OUTPUT = (
     ROOT
@@ -184,7 +187,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 40))
+BUNDLE_VERSIONS = tuple(range(1, 41))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -296,6 +299,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 59, "routes": 991, "PAGE": 128, "DATA": 298, "ACTION": 565},
     39: {"capabilities": 245, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 60, "routes": 1003, "PAGE": 129, "DATA": 301, "ACTION": 573},
+    40: {"capabilities": 248, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 61, "routes": 1012, "PAGE": 130, "DATA": 302, "ACTION": 580},
 }
 
 V37_TIME_VOID_ROUTE = "route.hcm.operations.time-clock-event-void.action"
@@ -3278,6 +3283,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V36_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V37_OUTPUT,
+        LEGACY_HCM_PLATFORM_PEP_V38_OUTPUT,
         HCM_PLATFORM_PEP_OUTPUT,
         HCM_PAYROLL_PEP_OUTPUT,
     }
@@ -3762,7 +3768,7 @@ def main() -> int:
             version=37,
             product_key="hcm",
         )
-        hcm_platform_pep = build_approvals_pep(
+        legacy_hcm_platform_pep_v38 = build_approvals_pep(
             snapshots[37],
             "platform",
             "hcm-platform-pep-v38",
@@ -3776,6 +3782,22 @@ def main() -> int:
                 "predicatePolicies": 3,
             },
             version=38,
+            product_key="hcm",
+        )
+        hcm_platform_pep = build_approvals_pep(
+            snapshots[39],
+            "platform",
+            "hcm-platform-pep-v40",
+            {
+                "routes": 28,
+                "bindings": 29,
+                "routeKinds": {"ACTION": 17, "DATA": 7, "PAGE": 4},
+                "capabilities": 15,
+                "accessPolicies": 4,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 4,
+            },
+            version=40,
             product_key="hcm",
         )
         hcm_payroll_pep = build_approvals_pep(
@@ -3966,6 +3988,11 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_PLATFORM_PEP_V38_OUTPUT,
+                render(legacy_hcm_platform_pep_v38),
+                args.check,
+            ),
+            write_or_check(
                 HCM_PLATFORM_PEP_OUTPUT,
                 render(hcm_platform_pep),
                 args.check,
@@ -4063,6 +4090,9 @@ def main() -> int:
         )
         verify_approvals_pep(
             LEGACY_HCM_PLATFORM_PEP_V37_OUTPUT, legacy_hcm_platform_pep_v37
+        )
+        verify_approvals_pep(
+            LEGACY_HCM_PLATFORM_PEP_V38_OUTPUT, legacy_hcm_platform_pep_v38
         )
         verify_approvals_pep(HCM_PLATFORM_PEP_OUTPUT, hcm_platform_pep)
         verify_approvals_pep(HCM_PAYROLL_PEP_OUTPUT, hcm_payroll_pep)

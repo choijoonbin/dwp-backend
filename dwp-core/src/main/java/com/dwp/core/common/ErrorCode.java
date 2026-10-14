@@ -61,6 +61,10 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "OBJECT_VERSION_CONFLICT",
             "The governed object version changed."),
+    SERVICE_RATE_LIMITED(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "SERVICE_RATE_LIMITED",
+            "The service request rate or concurrency limit was exceeded."),
     SOD_CONFLICT(
             HttpStatus.FORBIDDEN,
             "SOD_CONFLICT",

@@ -20,13 +20,16 @@ class HcmPlatformPepSecurityContractTest {
             registry);
 
     @Test
-    void loadsOnlyTheTwelveExactSysHandoffBindings() {
-        assertThat(registry.bindingContracts()).hasSize(12)
+    void loadsOnlyTheTwentyOneExactSysHandoffBindings() {
+        assertThat(registry.bindingContracts()).hasSize(21)
                 .extracting(HcmPlatformPepRegistry.BindingContract::routeContractKey)
                 .contains(
                         "route.hcm.configuration.settings-reference.page",
                         "route.hcm.configuration.configurations.data",
-                        "route.hcm.configuration.configuration-version-publish.action");
+                        "route.hcm.configuration.configuration-version-publish.action",
+                        "route.hcm.configuration.navigation-policy-workspace.page",
+                        "route.hcm.configuration.navigation-policy-revision-publish.action",
+                        "route.hcm.operations.navigation-projection.data");
         assertThat(registry.governsPathFamily(
                 "/v1/admin/hris/configurations/c1/versions/2/publish")).isTrue();
         assertThat(registry.governsPathFamily("/v1/admin/users")).isFalse();
@@ -37,6 +40,10 @@ class HcmPlatformPepSecurityContractTest {
                 "/v1/admin/hris/configurations-admin")).isFalse();
         assertThat(registry.governsPathFamily(
                 "/v1/admin/hris/configurations%2fc1")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v1/admin/hris/navigation-policies/workspace")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v1/hris/navigation/projection")).isTrue();
     }
 
     @Test
@@ -110,6 +117,58 @@ class HcmPlatformPepSecurityContractTest {
         assertThat(invoke(
                 "POST", path, route,
                 "ACTION.HRIS_POLICY_PUBLISH:PUBLISH", true, true).getStatus())
+                .isEqualTo(200);
+    }
+
+    @Test
+    void navigationProjectionUsesHrOperationsAuthorityNotConfigurationAdmin() throws Exception {
+        String path = "/v1/hris/navigation/projection";
+        String route = "route.hcm.operations.navigation-projection.data";
+        assertThat(invoke(
+                "GET", path, route,
+                "DATA.WORKFORCE:VIEW", false, false).getStatus()).isEqualTo(200);
+        assertThat(invoke(
+                "GET", path, route,
+                "CONFIG.HRIS_NAVIGATION_POLICY:VIEW", false, false).getStatus())
+                .isEqualTo(403);
+    }
+
+    @Test
+    void navigationPublishExposesExactStepUpOwnerContract() throws Exception {
+        String revisionId = "10000000-0000-4000-8000-000000000040";
+        String path = "/v1/admin/hris/navigation-policies/revisions/"
+                + revisionId + "/publish";
+        String route =
+                "route.hcm.configuration.navigation-policy-revision-publish.action";
+
+        HcmPlatformPepRegistry.Decision decision = registry.authorize(
+                new HcmPlatformPepRegistry.RequestEvidence(
+                        "POST", path, java.util.Set.of(
+                        "ACTION.HRIS_NAVIGATION_POLICY_PUBLISH:PUBLISH"), route));
+
+        assertThat(decision.allowed()).isTrue();
+        assertThat(decision.authority().highRisk()).isTrue();
+        assertThat(decision.authority().capabilityContractKey())
+                .isEqualTo("hcm.configuration.navigation-policy.publish");
+        assertThat(decision.authority().activationPolicy())
+                .isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertThat(decision.authority().stepUpCommandBinding())
+                .satisfies(binding -> {
+                    assertThat(binding.targetType())
+                            .isEqualTo("HRIS_NAVIGATION_POLICY_REVISION");
+                    assertThat(binding.targetIdPathParameter()).isEqualTo("revisionId");
+                    assertThat(binding.expectedObjectVersionSource()).isEqualTo("COMMAND_BODY");
+                    assertThat(binding.expectedObjectVersionName()).isEqualTo("expectedVersion");
+                    assertThat(binding.ownerServiceKey()).isEqualTo("platform");
+                    assertThat(binding.audience()).isEqualTo("dwp-platform-server");
+                });
+        assertThat(invoke(
+                "POST", path, route,
+                "ACTION.HRIS_NAVIGATION_POLICY_PUBLISH:PUBLISH", true, false).getStatus())
+                .isEqualTo(403);
+        assertThat(invoke(
+                "POST", path, route,
+                "ACTION.HRIS_NAVIGATION_POLICY_PUBLISH:PUBLISH", true, true).getStatus())
                 .isEqualTo(200);
     }
 

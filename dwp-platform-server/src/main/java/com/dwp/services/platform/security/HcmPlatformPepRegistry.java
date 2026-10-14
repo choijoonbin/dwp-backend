@@ -23,16 +23,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/** Closed Platform-owned HCM PEP projection for the v38 SYS configuration handoff. */
+/** Closed Platform-owned HCM PEP projection for the v40 SYS navigation-policy handoff. */
 @Component
 public final class HcmPlatformPepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-platform-pep-v38.generated.json";
-    static final String REGISTRY_V38_CHECKSUM =
-            "a41145d6a2faefd2e6030a2ca9a070769019d4db5513ea214bf542dda31c374a";
+            "product-authorization/hcm-platform-pep-v40.generated.json";
+    static final String REGISTRY_V40_CHECKSUM =
+            "4dca145cbc9169c2d1fde71771b83a1a0635679a7190a39d0a21b4e76bbb9329";
     private static final String CONFIGURATION_ROOT = "/v1/admin/hris/configurations";
     private static final String WORKBENCH_PATH = "/v1/hris/workbench/settings-reference";
+    private static final String NAVIGATION_POLICY_ROOT =
+            "/v1/admin/hris/navigation-policies";
+    private static final String NAVIGATION_PROJECTION_PATH =
+            "/v1/hris/navigation/projection";
 
     private final ObjectMapper objectMapper;
     private final Map<String, JsonNode> capabilities;
@@ -57,10 +61,16 @@ public final class HcmPlatformPepRegistry {
     private boolean claimed(String path) {
         return path.equals(WORKBENCH_PATH)
                 || path.startsWith(WORKBENCH_PATH + ";")
+                || path.equals(NAVIGATION_PROJECTION_PATH)
+                || path.startsWith(NAVIGATION_PROJECTION_PATH + ";")
                 || path.equals(CONFIGURATION_ROOT)
                 || path.startsWith(CONFIGURATION_ROOT + "/")
                 || path.startsWith(CONFIGURATION_ROOT + ";")
-                || path.startsWith(CONFIGURATION_ROOT + "%");
+                || path.startsWith(CONFIGURATION_ROOT + "%")
+                || path.equals(NAVIGATION_POLICY_ROOT)
+                || path.startsWith(NAVIGATION_POLICY_ROOT + "/")
+                || path.startsWith(NAVIGATION_POLICY_ROOT + ";")
+                || path.startsWith(NAVIGATION_POLICY_ROOT + "%");
     }
 
     public Decision authorize(RequestEvidence evidence) {
@@ -87,9 +97,15 @@ public final class HcmPlatformPepRegistry {
                 .filter(value -> value.allows(evidence.permissions(), capabilities))
                 .findFirst().orElse(null);
         if (profile == null) return Decision.denied("EXACT_ROUTE_AUTHORITY_REQUIRED");
+        String capabilityKey = profile.requiredAccess().path(
+                "capabilityContractKey").asText(null);
+        JsonNode capability = capabilityKey == null ? null : capabilities.get(capabilityKey);
         return Decision.allowed(new RouteAuthority(
                 binding.routeContractKey(), binding.routeKind(), binding.method(),
-                binding.path().template(), profile.profileKey(), binding.highRisk()));
+                binding.path().template(), profile.profileKey(), binding.highRisk(),
+                capabilityKey,
+                capability == null ? null : capability.path("activationPolicy").asText(null),
+                binding.stepUpCommandBinding()));
     }
 
     public List<BindingContract> bindingContracts() {
@@ -109,42 +125,63 @@ public final class HcmPlatformPepRegistry {
                         profile.path("precedence").asInt(),
                         profile.path("requiredAccess").deepCopy()));
             }
-            boolean highRisk = route.has("stepUpCommandBindings");
             for (JsonNode service : requiredArray(route, "servicePepBindings")) {
                 require("platform".equals(service.path("serviceKey").asText()),
                         routeKey + ": foreign service binding escaped HCM Platform PEP");
                 String path = service.path("path").asText();
                 if (!claimed(path)) continue;
+                StepUpCommandBinding stepUp = stepUpBinding(
+                        route, service.path("bindingKey").asText());
                 result.add(new Binding(
                         routeKey,
                         route.path("routeKind").asText(),
                         service.path("method").asText(),
                         PathTemplate.compile(path),
                         List.copyOf(profiles),
-                        highRisk));
+                        stepUp != null,
+                        stepUp));
             }
         }
-        require(result.size() == 12, "HCM Platform SYS binding count changed");
+        require(result.size() == 21, "HCM Platform SYS binding count changed");
         return List.copyOf(result);
+    }
+
+    private StepUpCommandBinding stepUpBinding(JsonNode route, String bindingKey) {
+        JsonNode values = route.path("stepUpCommandBindings");
+        if (!values.isArray()) return null;
+        List<JsonNode> matches = new ArrayList<>();
+        values.forEach(value -> {
+            if (bindingKey.equals(value.path("bindingKey").asText())) matches.add(value);
+        });
+        require(matches.size() <= 1, bindingKey + ": ambiguous step-up binding");
+        if (matches.isEmpty()) return null;
+        JsonNode value = matches.getFirst();
+        return new StepUpCommandBinding(
+                value.path("targetType").asText(),
+                value.path("targetIdPathParameter").asText(null),
+                value.path("expectedObjectVersionSource").asText(),
+                value.path("expectedObjectVersionName").asText(),
+                value.path("ownerServiceKey").asText(),
+                value.path("audience").asText());
     }
 
     private void validateEnvelope(ObjectNode projection) {
         JsonNode registry = projection.path("registryRef");
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-platform-pep-v38".equals(
+                        && "hcm-platform-pep-v40".equals(
                         projection.path("projectionKey").asText())
                         && "platform".equals(projection.path("ownerServiceKey").asText())
                         && "product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 38
-                        && REGISTRY_V38_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 40
+                        && REGISTRY_V40_CHECKSUM.equals(registry.path("sha256").asText()),
                 "Unexpected HCM Platform PEP envelope");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 991
-                        && projection.path("projectedRouteContractCount").asInt() == 19
-                        && projection.path("bindingPairCount").asInt() == 20
-                        && requiredArray(projection, "capabilities").size() == 5
+        require(projection.path("sourceRegistryRouteCount").asInt() == 1012
+                        && projection.path("projectedRouteContractCount").asInt() == 28
+                        && projection.path("bindingPairCount").asInt() == 29
+                        && requiredArray(projection, "capabilities").size() == 15
                         && requiredArray(projection, "accessPolicies").size() == 4
                         && requiredArray(projection, "entitlementExpressions").size() == 3
-                        && requiredArray(projection, "predicatePolicies").size() == 3,
+                        && requiredArray(projection, "predicatePolicies").size() == 4,
                 "HCM Platform projection closure count changed");
         ObjectNode payload = projection.deepCopy();
         JsonNode checksum = payload.remove("projectionChecksum");
@@ -154,7 +191,9 @@ public final class HcmPlatformPepRegistry {
 
     private void validateClosure(ObjectNode projection) {
         for (Binding binding : bindings) {
-            require(binding.routeContractKey().startsWith("route.hcm.configuration."),
+            require(binding.routeContractKey().startsWith("route.hcm.configuration.")
+                            || binding.routeContractKey().equals(
+                            "route.hcm.operations.navigation-projection.data"),
                     "Non-configuration route entered the SYS handoff");
             for (Profile profile : binding.profiles()) {
                 JsonNode access = profile.requiredAccess();
@@ -166,8 +205,11 @@ public final class HcmPlatformPepRegistry {
                 } else if ("CAPABILITY_EXPRESSION".equals(type)) {
                     require("ANY".equals(access.path("mode").asText())
                                     && access.path("capabilityContractKeys").isArray()
-                                    && access.path("capabilityContractKeys").size() == 2,
+                                    && !access.path("capabilityContractKeys").isEmpty(),
                             "Invalid HCM Platform capability expression");
+                    access.path("capabilityContractKeys").forEach(value -> require(
+                            capabilities.containsKey(value.asText()),
+                            "Unknown HCM Platform expression capability"));
                 } else {
                     throw new IllegalStateException(
                             "Policy access is forbidden in the SYS exact handoff");
@@ -176,10 +218,14 @@ public final class HcmPlatformPepRegistry {
         }
         Set<String> routeKeys = bindings.stream()
                 .map(Binding::routeContractKey).collect(Collectors.toUnmodifiableSet());
-        require(routeKeys.size() == 12
+        require(routeKeys.size() == 21
                         && routeKeys.contains("route.hcm.configuration.settings-reference.page")
                         && routeKeys.contains(
-                        "route.hcm.configuration.configuration-version-publish.action"),
+                        "route.hcm.configuration.configuration-version-publish.action")
+                        && routeKeys.contains(
+                        "route.hcm.configuration.navigation-policy-revision-publish.action")
+                        && routeKeys.contains(
+                        "route.hcm.operations.navigation-projection.data"),
                 "HCM Platform SYS route closure changed");
     }
 
@@ -306,7 +352,19 @@ public final class HcmPlatformPepRegistry {
             String method,
             String servicePath,
             String profileKey,
-            boolean highRisk) {
+            boolean highRisk,
+            String capabilityContractKey,
+            String activationPolicy,
+            StepUpCommandBinding stepUpCommandBinding) {
+    }
+
+    public record StepUpCommandBinding(
+            String targetType,
+            String targetIdPathParameter,
+            String expectedObjectVersionSource,
+            String expectedObjectVersionName,
+            String ownerServiceKey,
+            String audience) {
     }
 
     public record BindingContract(
@@ -323,7 +381,8 @@ public final class HcmPlatformPepRegistry {
             String method,
             PathTemplate path,
             List<Profile> profiles,
-            boolean highRisk) {
+            boolean highRisk,
+            StepUpCommandBinding stepUpCommandBinding) {
     }
 
     private record Profile(
