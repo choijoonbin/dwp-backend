@@ -12,6 +12,7 @@ import com.dwp.services.time.timecard.TimecardModels.TimecardV1;
 import com.dwp.services.time.timecard.TimecardModels.VerifiedTimecardRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -160,12 +161,27 @@ public final class TimecardOwnerController {
 
     private static <T> T strictCommand(String json, Class<T> type) {
         try {
+            JsonNode command = STRICT_COMMAND_MAPPER.readTree(json);
+            if (command == null || !command.isObject()) {
+                throw new IllegalArgumentException("Timecard command must be a JSON object");
+            }
+            if (type == TimecardSubmitCommandV1.class) {
+                requireOptionalString(command, "reasonCode");
+            } else if (type == TimecardDecisionCommandV1.class) {
+                requireOptionalString(command, "comment");
+            }
             return STRICT_COMMAND_MAPPER.readValue(json, type);
         } catch (JsonProcessingException | IllegalArgumentException invalid) {
             throw new BaseException(
                     ErrorCode.VALIDATION_ERROR,
                     "The Timecard command does not match its sealed schema.",
                     invalid);
+        }
+    }
+
+    private static void requireOptionalString(JsonNode command, String field) {
+        if (command.has(field) && !command.get(field).isTextual()) {
+            throw new IllegalArgumentException(field + " must be a string when present");
         }
     }
 

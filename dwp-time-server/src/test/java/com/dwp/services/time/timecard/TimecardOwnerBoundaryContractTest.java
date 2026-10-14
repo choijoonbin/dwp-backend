@@ -187,6 +187,88 @@ class TimecardOwnerBoundaryContractTest {
         org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).execute(any());
     }
 
+    @Test
+    void submitRejectsExplicitNullOptionalReasonCodeBeforeRepositoryMutation()
+            throws Exception {
+        mockMvc.perform(post("/v1/timecards/{timecardId}/submit", CARD)
+                        .requestAttr(TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
+                                authority(TimecardAction.SUBMIT, PopulationKind.SELF,
+                                        "TIME_TIMECARD", Set.of("DATA.HR_TIME:CREATE")))
+                        .header("Idempotency-Key", "timecard-null-0001")
+                        .header("If-Match", "7")
+                        .header("X-DWP-Expected-Decision-Revision", DECISION_REVISION)
+                        .contentType("application/json")
+                        .content("{\"reasonCode\":null}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("E4000"));
+
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).execute(any());
+    }
+
+    @Test
+    void decisionRejectsExplicitNullOptionalCommentBeforeRepositoryMutation()
+            throws Exception {
+        mockMvc.perform(post("/v1/timecards/{timecardId}/decisions", CARD)
+                        .requestAttr(TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
+                                authority(TimecardAction.DECIDE,
+                                        PopulationKind.TARGET_POPULATION,
+                                        "TIME_TIMECARD", Set.of("DATA.HR_TIME:APPROVE")))
+                        .header("Idempotency-Key", "timecard-null-0002")
+                        .header("If-Match", "7")
+                        .header("X-DWP-Expected-Decision-Revision", DECISION_REVISION)
+                        .contentType("application/json")
+                        .content("""
+                                {"decision":"APPROVE","reasonCode":"R","comment":null}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("E4000"));
+
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).execute(any());
+    }
+
+    @Test
+    void topLevelNullFailsClosedForEveryCommandBeforeRepositoryMutation()
+            throws Exception {
+        mockMvc.perform(post("/v1/timecards/{timecardId}/corrections", CARD)
+                        .requestAttr(TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
+                                authority(TimecardAction.CORRECT, PopulationKind.SELF,
+                                        "TIME_TIMECARD", Set.of("DATA.HR_TIME:CREATE")))
+                        .header("Idempotency-Key", "timecard-null-0003")
+                        .header("If-Match", "7")
+                        .header("X-DWP-Expected-Decision-Revision", DECISION_REVISION)
+                        .contentType("application/json")
+                        .content("null"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("E4000"));
+
+        mockMvc.perform(post("/v1/timecards/{timecardId}/submit", CARD)
+                        .requestAttr(TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
+                                authority(TimecardAction.SUBMIT, PopulationKind.SELF,
+                                        "TIME_TIMECARD", Set.of("DATA.HR_TIME:CREATE")))
+                        .header("Idempotency-Key", "timecard-null-0004")
+                        .header("If-Match", "7")
+                        .header("X-DWP-Expected-Decision-Revision", DECISION_REVISION)
+                        .contentType("application/json")
+                        .content("null"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("E4000"));
+
+        mockMvc.perform(post("/v1/timecards/{timecardId}/decisions", CARD)
+                        .requestAttr(TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
+                                authority(TimecardAction.DECIDE,
+                                        PopulationKind.TARGET_POPULATION,
+                                        "TIME_TIMECARD", Set.of("DATA.HR_TIME:APPROVE")))
+                        .header("Idempotency-Key", "timecard-null-0005")
+                        .header("If-Match", "7")
+                        .header("X-DWP-Expected-Decision-Revision", DECISION_REVISION)
+                        .contentType("application/json")
+                        .content("null"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("E4000"));
+
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).execute(any());
+    }
+
     private TimecardRecord record() {
         return new TimecardRecord(new TimecardV1(
                 CARD, WORKER, LocalDate.parse("2026-10-13"),
