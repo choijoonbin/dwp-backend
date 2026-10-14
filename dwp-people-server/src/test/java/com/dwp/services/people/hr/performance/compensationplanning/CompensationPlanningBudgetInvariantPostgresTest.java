@@ -1,11 +1,13 @@
 package com.dwp.services.people.hr.performance.compensationplanning;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -40,12 +42,16 @@ class CompensationPlanningBudgetInvariantPostgresTest {
                     "DWP_TEST_POSTGRES_IMAGE", "postgres:16-alpine"));
 
     private JdbcTemplate jdbc;
+    private CompensationPlanningRepository repository;
     private long cycleInternalId;
 
     @BeforeEach
     void migrateAndSeedCycle() {
         DataSource dataSource = dataSource();
         jdbc = new JdbcTemplate(dataSource);
+        repository = new CompensationPlanningRepository(
+                new NamedParameterJdbcTemplate(dataSource),
+                new ObjectMapper().findAndRegisterModules());
         jdbc.execute("DROP SCHEMA IF EXISTS hris_performance CASCADE");
         jdbc.execute("CREATE SCHEMA hris_performance");
         Flyway.configure(getClass().getClassLoader())
@@ -243,6 +249,19 @@ class CompensationPlanningBudgetInvariantPostgresTest {
                 .isEqualByComparingTo("100");
     }
 
+    @Test
+    void projectionWatermarkAdvancesWithBudgetAndDraftProposalChanges() {
+        Instant budgetAt = Instant.parse("2026-10-14T00:00:00Z");
+        Instant proposalAt = Instant.parse("2026-10-15T00:00:00Z");
+        insertEntry(
+                UUID.randomUUID(), 1L, "100", "USD", "ALLOCATE", null,
+                cycleInternalId, budgetAt);
+        seedDraftProposal(proposalAt);
+
+        assertThat(repository.projectionWatermark(TENANT, cycleInternalId))
+                .isEqualTo(proposalAt);
+    }
+
     private long seedCycle(UUID cycleId, String status) {
         UUID guideline = UUID.randomUUID();
         UUID population = UUID.randomUUID();
@@ -276,6 +295,10 @@ class CompensationPlanningBudgetInvariantPostgresTest {
     }
 
     private long seedDraftProposal() {
+        return seedDraftProposal(Instant.parse("2026-10-13T00:00:00Z"));
+    }
+
+    private long seedDraftProposal(Instant changedAt) {
         UUID proposalId = UUID.randomUUID();
         UUID revisionId = UUID.randomUUID();
         UUID artifactId = UUID.randomUUID();
@@ -290,7 +313,7 @@ class CompensationPlanningBudgetInvariantPostgresTest {
                     'COMPENSATION_PROPOSAL_REVISION', ?, ?, ?, ?, ?, NULL, ?, ?)
                 """, TENANT, artifactId, revisionId, "b".repeat(64), new byte[29],
                 UUID.randomUUID(), Date.valueOf(LocalDate.parse("2027-01-01")),
-                timestamp(), SUBJECT);
+                timestamp(changedAt), SUBJECT);
         return jdbc.queryForObject("""
                 WITH proposal AS (
                     INSERT INTO hris_performance.prf_cmp_proposals (
@@ -314,10 +337,12 @@ class CompensationPlanningBudgetInvariantPostgresTest {
                 )
                 SELECT prf_cmp_proposals_internal_id FROM proposal
                 """, Long.class,
-                TENANT, proposalId, timestamp(), SUBJECT, timestamp(), CORRELATION,
+                TENANT, proposalId, timestamp(changedAt), SUBJECT,
+                timestamp(changedAt), CORRELATION,
                 cycleInternalId, UUID.randomUUID(), UUID.randomUUID(),
                 Date.valueOf(LocalDate.parse("2027-01-01")),
-                TENANT, revisionId, timestamp(), SUBJECT, timestamp(), CORRELATION,
+                TENANT, revisionId, timestamp(changedAt), SUBJECT,
+                timestamp(changedAt), CORRELATION,
                 artifactId, "b".repeat(64));
     }
 
@@ -329,6 +354,20 @@ class CompensationPlanningBudgetInvariantPostgresTest {
             String entryType,
             UUID source,
             long targetCycle) {
+        insertEntry(
+                entryId, sequence, amount, currency, entryType, source, targetCycle,
+                Instant.parse("2026-10-13T00:00:00Z"));
+    }
+
+    private void insertEntry(
+            UUID entryId,
+            long sequence,
+            String amount,
+            String currency,
+            String entryType,
+            UUID source,
+            long targetCycle,
+            Instant changedAt) {
         jdbc.update("""
                 INSERT INTO hris_performance.prf_cmp_budget_ledger (
                     tenant_id, public_id, aggregate_version, created_at, created_by,
@@ -336,7 +375,8 @@ class CompensationPlanningBudgetInvariantPostgresTest {
                     org_public_id, currency_code, amount, entry_sequence,
                     entry_type, source_entry_public_id)
                 VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, CAST(? AS NUMERIC), ?, ?, ?)
-                """, TENANT, entryId, timestamp(), SUBJECT, timestamp(), CORRELATION,
+                """, TENANT, entryId, timestamp(changedAt), SUBJECT,
+                timestamp(changedAt), CORRELATION,
                 targetCycle, ORGANIZATION, currency, amount, sequence, entryType, source);
     }
 
@@ -345,7 +385,11 @@ class CompensationPlanningBudgetInvariantPostgresTest {
     }
 
     private static Timestamp timestamp() {
-        return Timestamp.from(Instant.parse("2026-10-13T00:00:00Z"));
+        return timestamp(Instant.parse("2026-10-13T00:00:00Z"));
+    }
+
+    private static Timestamp timestamp(Instant instant) {
+        return Timestamp.from(instant);
     }
 
     private static DataSource dataSource() {

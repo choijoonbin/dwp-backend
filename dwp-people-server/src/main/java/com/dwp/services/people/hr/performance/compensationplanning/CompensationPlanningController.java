@@ -5,8 +5,11 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.HcmStepUpHeaders;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.MediaType;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,7 +29,9 @@ import java.util.stream.Collectors;
 
 /** Owner API for the sealed twelve-operation compensation-planning contract. */
 @RestController
-@RequestMapping("/v1/hris/performance/compensation-planning")
+@RequestMapping(
+        value = "/v1/hris/performance/compensation-planning",
+        produces = MediaType.APPLICATION_JSON_VALUE)
 @ConditionalOnProperty(
         name = "dwp.hris.performance.compensation-planning.enabled",
         havingValue = "true",
@@ -36,6 +41,8 @@ public final class CompensationPlanningController {
     static final String CORRELATION = "X-Correlation-ID";
     static final String IDEMPOTENCY = "Idempotency-Key";
     static final String IF_MATCH = "If-Match";
+    static final String PROJECTION_VERSION = "X-HRIS-Compplan-Projection-Version";
+    static final String AUTHORITATIVE_BUDGET_PROJECTION_VERSION = "5";
 
     private final CompensationPlanningService service;
 
@@ -50,6 +57,7 @@ public final class CompensationPlanningController {
             @RequestParam(required = false) Instant asOf,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query) {
         requireClosedQuery(query, "asOf", "cursor", "limit");
         CompensationPlanningDtos.canonicalCorrelationId(correlationId);
@@ -61,11 +69,19 @@ public final class CompensationPlanningController {
     public ApiResponse<CompensationPlanningDtos.CycleDetail> cycle(
             @PathVariable UUID cycleId,
             @RequestHeader(CORRELATION) String correlationId,
+            @RequestHeader(value = PROJECTION_VERSION, required = false)
+            String projectionVersion,
             @RequestParam(required = false) Instant referenceEffectiveAt,
-            @RequestParam MultiValueMap<String, String> query) {
+            @Parameter(hidden = true)
+            @RequestParam MultiValueMap<String, String> query,
+            HttpServletResponse response) {
         requireClosedQuery(query, "referenceEffectiveAt");
         CompensationPlanningDtos.canonicalCorrelationId(correlationId);
-        return ApiResponse.success(service.cycle(cycleId, referenceEffectiveAt));
+        response.addHeader("Vary", PROJECTION_VERSION);
+        return ApiResponse.success(service.cycle(
+                cycleId,
+                referenceEffectiveAt,
+                requestsAuthoritativeBudgetProjection(projectionVersion)));
     }
 
     @Operation(operationId = CompensationPlanningService.CREATE)
@@ -73,6 +89,7 @@ public final class CompensationPlanningController {
     public ApiResponse<CompensationPlanningDtos.CommandReceipt> createCycle(
             @RequestHeader(CORRELATION) String correlationId,
             @RequestHeader(IDEMPOTENCY) String idempotencyKey,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query,
             @Valid @RequestBody CompensationPlanningDtos.CreateCycleRequest request) {
         requireClosedQuery(query);
@@ -87,6 +104,7 @@ public final class CompensationPlanningController {
             @RequestHeader(CORRELATION) String correlationId,
             @RequestHeader(IDEMPOTENCY) String idempotencyKey,
             @RequestHeader(IF_MATCH) long expectedVersion,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query,
             @Valid @RequestBody CompensationPlanningDtos.ReviseCycleRequest request) {
         requireClosedQuery(query);
@@ -102,6 +120,7 @@ public final class CompensationPlanningController {
             @RequestHeader(CORRELATION) String correlationId,
             @RequestHeader(IDEMPOTENCY) String idempotencyKey,
             @RequestHeader(IF_MATCH) long expectedVersion,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query,
             @Valid @RequestBody CompensationPlanningDtos.BudgetEntryRequest request) {
         requireClosedQuery(query);
@@ -118,6 +137,7 @@ public final class CompensationPlanningController {
             @RequestHeader(CORRELATION) String correlationId,
             @RequestHeader(IDEMPOTENCY) String idempotencyKey,
             @RequestHeader(IF_MATCH) long expectedVersion,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query,
             @Valid @RequestBody CompensationPlanningDtos.UpsertProposalRequest request) {
         requireClosedQuery(query);
@@ -135,6 +155,7 @@ public final class CompensationPlanningController {
             @RequestHeader(CORRELATION) String correlationId,
             @RequestHeader(IDEMPOTENCY) String idempotencyKey,
             @RequestHeader(IF_MATCH) long expectedVersion,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query,
             @Valid @RequestBody CompensationPlanningDtos.SubmitProposalRequest request) {
         requireClosedQuery(query);
@@ -152,6 +173,7 @@ public final class CompensationPlanningController {
             @RequestParam(required = false) Instant referenceEffectiveAt,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query) {
         requireClosedQuery(query, "referenceEffectiveAt", "cursor", "limit");
         CompensationPlanningDtos.canonicalCorrelationId(correlationId);
@@ -165,6 +187,7 @@ public final class CompensationPlanningController {
             @PathVariable UUID proposalId,
             @RequestHeader(CORRELATION) String correlationId,
             @RequestParam(required = false) Instant referenceEffectiveAt,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query) {
         requireClosedQuery(query, "referenceEffectiveAt");
         CompensationPlanningDtos.canonicalCorrelationId(correlationId);
@@ -182,6 +205,7 @@ public final class CompensationPlanningController {
             @RequestHeader(HcmStepUpHeaders.DECISION_REVISION) String decisionRevision,
             @RequestHeader(HcmStepUpHeaders.EXPECTED_OBJECT_VERSION)
             Long expectedObjectVersion,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query,
             @Valid @RequestBody CompensationPlanningDtos.ApprovePlanRequest request) {
         requireClosedQuery(query);
@@ -203,6 +227,7 @@ public final class CompensationPlanningController {
             @RequestHeader(HcmStepUpHeaders.DECISION_REVISION) String decisionRevision,
             @RequestHeader(HcmStepUpHeaders.EXPECTED_OBJECT_VERSION)
             Long expectedObjectVersion,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query,
             @Valid @RequestBody CompensationPlanningDtos.PublishSnapshotRequest request) {
         requireClosedQuery(query);
@@ -220,7 +245,9 @@ public final class CompensationPlanningController {
             @RequestHeader(CORRELATION) String correlationId,
             @RequestHeader(IDEMPOTENCY) String idempotencyKey,
             @RequestHeader(IF_MATCH) long expectedVersion,
+            @Parameter(hidden = true)
             @RequestParam MultiValueMap<String, String> query,
+            @Parameter(hidden = true)
             @RequestBody(required = false) Map<String, Object> body) {
         requireClosedQuery(query);
         requireCommandHeaders(correlationId, idempotencyKey, expectedVersion);
@@ -238,6 +265,12 @@ public final class CompensationPlanningController {
                 || values.size() != 1)) {
             throw invalidInput();
         }
+    }
+
+    static boolean requestsAuthoritativeBudgetProjection(String version) {
+        if (version == null) return false;
+        if (AUTHORITATIVE_BUDGET_PROJECTION_VERSION.equals(version)) return true;
+        throw invalidInput();
     }
 
     private static void requireCommandHeaders(

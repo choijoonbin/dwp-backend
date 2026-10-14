@@ -2,6 +2,7 @@ package com.dwp.services.people.hr.performance.compensationplanning;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.hr.performance.compensationplanning.CompensationPlanningAuthorityPort.FieldDecision;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
 import com.dwp.services.people.security.PeopleRequestContext;
@@ -66,7 +67,53 @@ class HcmCompensationPlanningAuthorityAdapterTest {
                 .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
     }
 
+    @Test
+    void readProjectionFieldsFollowTheExactOperationAndPlanningDuty() {
+        Operation cycles = operation(CompensationPlanningService.QUERY_CYCLES);
+        Operation cycle = operation(CompensationPlanningService.QUERY_CYCLE);
+        Operation proposals = operation(CompensationPlanningService.QUERY_PROPOSALS);
+        Operation proposal = operation(CompensationPlanningService.QUERY_PROPOSAL);
+
+        assertSensitiveFields(adapter(cycles).authorize(request(cycles)),
+                FieldDecision.MASK, FieldDecision.MASK, FieldDecision.MASK);
+        assertSensitiveFields(adapter(proposals).authorize(request(proposals)),
+                FieldDecision.MASK, FieldDecision.MASK, FieldDecision.MASK);
+        assertSensitiveFields(adapter(cycle).authorize(request(cycle)),
+                FieldDecision.VIEW, FieldDecision.VIEW, FieldDecision.VIEW);
+        assertSensitiveFields(adapter(proposal).authorize(request(proposal)),
+                FieldDecision.MASK, FieldDecision.VIEW, FieldDecision.VIEW);
+
+        Set<String> viewOnly = Set.of("DATA.HRIS_COMPENSATION_PLAN:VIEW");
+        assertSensitiveFields(adapter(cycle, viewOnly).authorize(request(cycle)),
+                FieldDecision.MASK, FieldDecision.MASK, FieldDecision.MASK);
+        assertSensitiveFields(adapter(proposal, viewOnly).authorize(request(proposal)),
+                FieldDecision.MASK, FieldDecision.MASK, FieldDecision.MASK);
+    }
+
+    private void assertSensitiveFields(
+            CompensationPlanningAuthorityPort.AuthorityEvidence evidence,
+            CompensationPlanningAuthorityPort.FieldDecision budget,
+            CompensationPlanningAuthorityPort.FieldDecision proposal,
+            CompensationPlanningAuthorityPort.FieldDecision typedContent) {
+        assertThat(evidence.fieldDecisions()).containsEntry("BUDGET_AMOUNT", budget)
+                .containsEntry("PROPOSAL_AMOUNT", proposal)
+                .containsEntry("TYPED_CONTENT", typedContent);
+    }
+
+    private Operation operation(String operationId) {
+        return operations().stream()
+                .filter(value -> value.operation().equals(operationId))
+                .findFirst()
+                .orElseThrow();
+    }
+
     private HcmCompensationPlanningAuthorityAdapter adapter(Operation value) {
+        return adapter(value, PERMISSIONS);
+    }
+
+    private HcmCompensationPlanningAuthorityAdapter adapter(
+            Operation value,
+            Set<String> permissions) {
         HcmV3PepRegistry.StepUpBinding stepUp = value.highRisk()
                 ? new HcmV3PepRegistry.StepUpBinding(
                 "COMPENSATION_CYCLE", "cycleId", List.of(),
@@ -87,7 +134,7 @@ class HcmCompensationPlanningAuthorityAdapterTest {
                 OffsetDateTime.ofInstant(NOW.plusSeconds(60), ZoneOffset.UTC),
                 "psc-" + "a".repeat(64), "hcm-scope-" + "b".repeat(40), "111");
         PeopleRequestContext.Actor actor = new PeopleRequestContext.Actor(
-                19L, 71L, SUBJECT, Set.of("HR_ADMIN"), PERMISSIONS);
+                19L, 71L, SUBJECT, Set.of("HR_ADMIN"), permissions);
         return new HcmCompensationPlanningAuthorityAdapter(
                 () -> evidence, () -> actor,
                 ignored -> new CompensationPlanningAuthorityPort.TargetPopulation(

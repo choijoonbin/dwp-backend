@@ -1218,6 +1218,168 @@
         },
         "type": "object"
       },
+      "ApiResponseModernCompplanCycleQueryResponseV5": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ModernCompplanCycleQueryResponseV5"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseModernCompplanCyclesQueryResponseV5": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ModernCompplanCyclesQueryResponseV5"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseModernCompplanProposalQueryResponseV4": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ModernCompplanProposalQueryResponseV4"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseModernCompplanProposalsQueryResponseV4": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ModernCompplanProposalsQueryResponseV4"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseModernCompplanRichCommandResultV3": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ModernCompplanRichCommandResultV3"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseModernCompplanSnapshotPublishResponseV2": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ModernCompplanSnapshotPublishResponseV2"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseOrganizationChart": {
         "properties": {
           "correlationId": {
@@ -1306,6 +1468,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/People360SnapshotV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePerformanceCommandReceiptV1": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PerformanceCommandReceiptV1"
           },
           "errorCode": {
             "type": "string"
@@ -1461,60 +1650,6 @@
         },
         "type": "object"
       },
-      "ApiResponseProposalCollection": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/ProposalCollection"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseProposalDetail": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/ProposalDetail"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseReconciliationRun": {
         "properties": {
           "correlationId": {
@@ -1596,33 +1731,6 @@
         },
         "type": "object"
       },
-      "ApiResponseRichCommandResult": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/RichCommandResult"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseScenario": {
         "properties": {
           "correlationId": {
@@ -1630,33 +1738,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/Scenario"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseSnapshotPublished": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/SnapshotPublished"
           },
           "errorCode": {
             "type": "string"
@@ -2057,24 +2138,6 @@
             "type": "integer"
           }
         },
-        "type": "object"
-      },
-      "ApprovePlanRequest": {
-        "properties": {
-          "decision": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "reasonCode": {
-            "minLength": 1,
-            "pattern": "^[A-Z0-9][A-Z0-9._-]{0,79}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "decision",
-          "reasonCode"
-        ],
         "type": "object"
       },
       "AssignmentEventEmptyCommandV1": {},
@@ -2607,41 +2670,6 @@
         },
         "type": "object"
       },
-      "BudgetEntryRequest": {
-        "properties": {
-          "amount": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "currency": {
-            "minLength": 1,
-            "pattern": "^[A-Z]{3}$",
-            "type": "string"
-          },
-          "ledgerEntryType": {
-            "enum": [
-              "ALLOCATE",
-              "REVERSE"
-            ],
-            "type": "string"
-          },
-          "organizationPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "reversesEntryPublicId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "amount",
-          "currency",
-          "ledgerEntryType",
-          "organizationPublicId"
-        ],
-        "type": "object"
-      },
       "CachePolicy": {
         "properties": {
           "authorizationDecisionRevision": {
@@ -3009,6 +3037,210 @@
             "type": "number"
           }
         },
+        "type": "object"
+      },
+      "CompensationGuidelineV1": {
+        "additionalProperties": false,
+        "properties": {
+          "componentCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "exceptionPolicyCode": {
+            "type": "string"
+          },
+          "maximumAmount": {
+            "type": "string"
+          },
+          "minimumAmount": {
+            "type": "string"
+          },
+          "roundingPolicyVersionPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "componentCode",
+          "currency",
+          "exceptionPolicyCode",
+          "maximumAmount",
+          "minimumAmount",
+          "roundingPolicyVersionPublicId"
+        ],
+        "type": "object"
+      },
+      "CompensationGuidelinesContentV1": {
+        "additionalProperties": false,
+        "properties": {
+          "budgetMode": {
+            "type": "string"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/CompensationGuidelineV1"
+            },
+            "type": "array"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "budgetMode",
+          "components",
+          "effectiveFrom",
+          "effectiveTo"
+        ],
+        "type": "object"
+      },
+      "CompensationPopulationContentV1": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hrmOwnerRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CompensationPopulationLineV1"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "asOf",
+          "hrmOwnerRevision",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "CompensationPopulationLineV1": {
+        "additionalProperties": false,
+        "properties": {
+          "assignmentOwnerRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "assignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eligibleComponentCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "gradePublicId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jobProfilePublicId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organizationPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignmentOwnerRevision",
+          "assignmentPublicId",
+          "eligibleComponentCodes",
+          "gradePublicId",
+          "jobProfilePublicId",
+          "organizationPublicId",
+          "workerPublicId"
+        ],
+        "type": "object"
+      },
+      "CompensationProposalContentV1": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "assignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "componentCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "cyclePublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exceptionReasonCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supersedesProposalPublicId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "assignmentPublicId",
+          "componentCode",
+          "currency",
+          "cyclePublicId",
+          "effectiveFrom",
+          "effectiveTo",
+          "exceptionReasonCode",
+          "supersedesProposalPublicId",
+          "workerPublicId"
+        ],
         "type": "object"
       },
       "ConfigurationCheck": {
@@ -4642,55 +4874,6 @@
         },
         "type": "object"
       },
-      "Guideline": {
-        "properties": {
-          "componentCode": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "exceptionPolicyCode": {
-            "type": "string"
-          },
-          "maximumAmount": {
-            "type": "string"
-          },
-          "minimumAmount": {
-            "type": "string"
-          },
-          "roundingPolicyVersionPublicId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "Guidelines": {
-        "properties": {
-          "budgetMode": {
-            "type": "string"
-          },
-          "components": {
-            "items": {
-              "$ref": "#/components/schemas/Guideline"
-            },
-            "type": "array"
-          },
-          "effectiveFrom": {
-            "format": "date",
-            "type": "string"
-          },
-          "effectiveTo": {
-            "format": "date",
-            "type": "string"
-          }
-        },
-        "required": [
-          "effectiveTo"
-        ],
-        "type": "object"
-      },
       "HealthSummary": {
         "properties": {
           "attentionOrganizations": {
@@ -4954,43 +5137,6 @@
         "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
         "type": "string",
         "x-dwp-canonical-source": "dwp.hris.hrm.transport-supplement.v1"
-      },
-      "HrmSourceSnapshotRef": {
-        "properties": {
-          "asOf": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "ownerRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "projectionSchemaId": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "purposeCode": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "sha256": {
-            "minLength": 1,
-            "pattern": "^[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "snapshotPublicId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "asOf",
-          "projectionSchemaId",
-          "purposeCode",
-          "sha256",
-          "snapshotPublicId"
-        ],
-        "type": "object"
       },
       "Iaq009EmployeeChangeRequestFilterV1": {
         "additionalProperties": false,
@@ -6245,25 +6391,724 @@
         },
         "type": "object"
       },
-      "MultiValueMapStringString": {
-        "additionalProperties": {
-          "items": {
+      "ModernCompplanBudgetAggregateV1": {
+        "additionalProperties": false,
+        "properties": {
+          "allocatedAmount": {
             "type": "string"
           },
-          "type": "array"
-        },
-        "properties": {
-          "all": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "writeOnly": true
+          "committedAmount": {
+            "type": "string"
           },
-          "empty": {
-            "type": "boolean"
+          "currency": {
+            "type": "string"
+          },
+          "organizationPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "remainingAmount": {
+            "type": "string"
           }
         },
+        "required": [
+          "allocatedAmount",
+          "committedAmount",
+          "currency",
+          "organizationPublicId",
+          "remainingAmount"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanBudgetAllocateRequestV2": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "currency": {
+            "minLength": 1,
+            "pattern": "^[A-Z]{3}$",
+            "type": "string"
+          },
+          "ledgerEntryType": {
+            "enum": [
+              "ALLOCATE",
+              "REVERSE"
+            ],
+            "type": "string"
+          },
+          "organizationPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reversesEntryPublicId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "amount",
+          "currency",
+          "ledgerEntryType",
+          "organizationPublicId"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanBudgetEntryProjectionV1": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "entryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "entrySequence": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entryType": {
+            "enum": [
+              "ALLOCATE",
+              "REVERSE"
+            ],
+            "type": "string"
+          },
+          "organizationPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sourceEntryPublicId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "amount",
+          "createdAt",
+          "currency",
+          "entryId",
+          "entrySequence",
+          "entryType",
+          "organizationPublicId",
+          "sourceEntryPublicId"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanCycleCreateRequestV2": {
+        "additionalProperties": false,
+        "properties": {
+          "cycleCode": {
+            "minLength": 1,
+            "pattern": "^[A-Z0-9][A-Z0-9._-]{0,39}$",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guidelines": {
+            "$ref": "#/components/schemas/CompensationGuidelinesContentV1"
+          },
+          "population": {
+            "$ref": "#/components/schemas/CompensationPopulationContentV1"
+          },
+          "populationSourceRef": {
+            "$ref": "#/components/schemas/ModernCompplanHrmSourceSnapshotRefV1"
+          }
+        },
+        "required": [
+          "cycleCode",
+          "effectiveFrom",
+          "effectiveTo",
+          "guidelines",
+          "population",
+          "populationSourceRef"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanCycleProjectionV5": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "budgetAggregates": {
+            "items": {
+              "$ref": "#/components/schemas/ModernCompplanBudgetAggregateV1"
+            },
+            "type": "array"
+          },
+          "budgetEntries": {
+            "items": {
+              "$ref": "#/components/schemas/ModernCompplanBudgetEntryProjectionV1"
+            },
+            "type": "array"
+          },
+          "budgetMasked": {
+            "type": "boolean"
+          },
+          "cycleCode": {
+            "type": "string"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guidelines": {
+            "$ref": "#/components/schemas/CompensationGuidelinesContentV1"
+          },
+          "population": {
+            "$ref": "#/components/schemas/CompensationPopulationContentV1"
+          },
+          "status": {
+            "enum": [
+              "DRAFT",
+              "OPEN",
+              "PROPOSAL_REVIEW",
+              "APPROVED",
+              "PUBLISHED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "aggregateVersion",
+          "budgetMasked",
+          "cycleCode",
+          "cycleId",
+          "effectiveFrom",
+          "effectiveTo",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanCycleQueryResponseV5": {
+        "additionalProperties": false,
+        "properties": {
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "freshnessWatermark": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "item": {
+            "$ref": "#/components/schemas/ModernCompplanCycleProjectionV5"
+          },
+          "referenceEffectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldPolicyRevision",
+          "freshnessWatermark",
+          "item",
+          "referenceEffectiveAt"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanCycleReviseRequestV4": {
+        "additionalProperties": false,
+        "properties": {
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guidelines": {
+            "$ref": "#/components/schemas/CompensationGuidelinesContentV1"
+          },
+          "population": {
+            "$ref": "#/components/schemas/CompensationPopulationContentV1"
+          },
+          "populationSourceRef": {
+            "$ref": "#/components/schemas/ModernCompplanHrmSourceSnapshotRefV1"
+          }
+        },
+        "required": [
+          "effectiveFrom",
+          "effectiveTo",
+          "guidelines",
+          "population",
+          "populationSourceRef"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanCyclesQueryResponseV5": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModernCompplanCycleProjectionV5"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scopeRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asOf",
+          "fieldPolicyRevision",
+          "hasMore",
+          "items",
+          "nextCursor",
+          "scopeRevision"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanHrmSourceSnapshotRefV1": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ownerRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "projectionSchemaId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "purposeCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "snapshotPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asOf",
+          "ownerRevision",
+          "projectionSchemaId",
+          "purposeCode",
+          "sha256",
+          "snapshotPublicId"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanPlanApproveRequestV2": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reasonCode": {
+            "minLength": 1,
+            "pattern": "^[A-Z0-9][A-Z0-9._-]{0,79}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reasonCode"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanProposalProjectionV4": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "amountMasked": {
+            "type": "boolean"
+          },
+          "assignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "componentCode": {
+            "type": "string"
+          },
+          "content": {
+            "$ref": "#/components/schemas/CompensationProposalContentV1"
+          },
+          "contentDigest": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "currentRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "proposalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "FROZEN",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "workerId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "aggregateVersion",
+          "amountMasked",
+          "assignmentId",
+          "componentCode",
+          "contentDigest",
+          "currency",
+          "currentRevision",
+          "cycleId",
+          "effectiveFrom",
+          "effectiveTo",
+          "proposalId",
+          "status",
+          "workerId"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanProposalQueryResponseV4": {
+        "additionalProperties": false,
+        "properties": {
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "freshnessWatermark": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "item": {
+            "$ref": "#/components/schemas/ModernCompplanProposalProjectionV4"
+          },
+          "referenceEffectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldPolicyRevision",
+          "freshnessWatermark",
+          "item",
+          "referenceEffectiveAt"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanProposalSubmitRequestV1": {
+        "additionalProperties": false,
+        "properties": {
+          "effectiveDate": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submissionDigest": {
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "submissionDigest"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanProposalUpsertRequestV4": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/CompensationProposalContentV1"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanProposalsQueryResponseV4": {
+        "additionalProperties": false,
+        "properties": {
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "freshnessWatermark": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModernCompplanProposalProjectionV4"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referenceEffectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldPolicyRevision",
+          "freshnessWatermark",
+          "hasMore",
+          "items",
+          "nextCursor",
+          "referenceEffectiveAt"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanRichCommandResultV3": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregatePublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "childResults": {
+            "items": {
+              "$ref": "#/components/schemas/ModernCompplanTypedChildResultV3"
+            },
+            "type": "array"
+          },
+          "commandReceiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultDigest": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "aggregatePublicId",
+          "aggregateVersion",
+          "childResults",
+          "commandReceiptId",
+          "completedAt",
+          "correlationId",
+          "resultDigest",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanSnapshotPublishRequestV2": {
+        "additionalProperties": false,
+        "properties": {
+          "approvalReceiptId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approvalReceiptId"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanSnapshotPublishResponseV2": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "approvalReceiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lineCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "payloadDigest": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "snapshotId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "snapshotRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sourceVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "aggregateVersion",
+          "approvalReceiptId",
+          "correlationId",
+          "cycleId",
+          "lineCount",
+          "payloadDigest",
+          "publishedAt",
+          "snapshotId",
+          "snapshotRevision",
+          "sourceVersion"
+        ],
+        "type": "object"
+      },
+      "ModernCompplanTypedChildResultV3": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "ordinal": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "publicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultDigest": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "aggregateVersion",
+          "entityType",
+          "ordinal",
+          "publicId",
+          "resultDigest"
+        ],
         "type": "object"
       },
       "OpenPosition": {
@@ -6896,6 +7741,45 @@
         },
         "type": "object"
       },
+      "PerformanceCommandReceiptV1": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "payloadDigest": {
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "correlationId",
+          "occurredAt",
+          "payloadDigest",
+          "receiptId",
+          "status"
+        ],
+        "type": "object"
+      },
       "Person": {
         "properties": {
           "assignmentKey": {
@@ -7146,25 +8030,6 @@
         },
         "type": "object"
       },
-      "Population": {
-        "properties": {
-          "asOf": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "hrmOwnerRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "lines": {
-            "items": {
-              "$ref": "#/components/schemas/PopulationLine"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
       "PopulationFreeze": {
         "properties": {
           "aggregateVersion": {
@@ -7222,45 +8087,6 @@
             "type": "integer"
           }
         },
-        "type": "object"
-      },
-      "PopulationLine": {
-        "properties": {
-          "assignmentOwnerRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "assignmentPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "eligibleComponentCodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "gradePublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "jobProfilePublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "organizationPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "workerPublicId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "gradePublicId",
-          "jobProfilePublicId"
-        ],
         "type": "object"
       },
       "PopulationPreview": {
@@ -7712,165 +8538,6 @@
         },
         "type": "object"
       },
-      "Proposal": {
-        "properties": {
-          "amount": {
-            "type": "string"
-          },
-          "assignmentPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "componentCode": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "cyclePublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "effectiveFrom": {
-            "format": "date",
-            "type": "string"
-          },
-          "effectiveTo": {
-            "format": "date",
-            "type": "string"
-          },
-          "exceptionReasonCode": {
-            "type": "string"
-          },
-          "supersedesProposalPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "workerPublicId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "effectiveTo",
-          "exceptionReasonCode",
-          "supersedesProposalPublicId"
-        ],
-        "type": "object"
-      },
-      "ProposalCollection": {
-        "properties": {
-          "fieldPolicyRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "freshnessWatermark": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "hasMore": {
-            "type": "boolean"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ProposalView"
-            },
-            "type": "array"
-          },
-          "nextCursor": {
-            "type": "string"
-          },
-          "referenceEffectiveAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ProposalDetail": {
-        "properties": {
-          "fieldPolicyRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "freshnessWatermark": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "item": {
-            "$ref": "#/components/schemas/ProposalView"
-          },
-          "referenceEffectiveAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ProposalView": {
-        "properties": {
-          "aggregateVersion": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "amount": {
-            "type": "string"
-          },
-          "amountMasked": {
-            "type": "boolean"
-          },
-          "assignmentId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "componentCode": {
-            "type": "string"
-          },
-          "content": {
-            "$ref": "#/components/schemas/Proposal"
-          },
-          "contentDigest": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "currentRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "cycleId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "effectiveFrom": {
-            "format": "date",
-            "type": "string"
-          },
-          "effectiveTo": {
-            "format": "date",
-            "type": "string"
-          },
-          "proposalId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "FROZEN",
-              "CANCELLED"
-            ],
-            "type": "string"
-          },
-          "workerId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ProvisionTenantRequest": {
         "properties": {
           "dataRegion": {
@@ -7981,18 +8648,6 @@
         },
         "required": [
           "version"
-        ],
-        "type": "object"
-      },
-      "PublishSnapshotRequest": {
-        "properties": {
-          "approvalReceiptId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "approvalReceiptId"
         ],
         "type": "object"
       },
@@ -8390,35 +9045,6 @@
         ],
         "type": "object"
       },
-      "ReviseCycleRequest": {
-        "properties": {
-          "effectiveFrom": {
-            "format": "date",
-            "type": "string"
-          },
-          "effectiveTo": {
-            "format": "date",
-            "type": "string"
-          },
-          "guidelines": {
-            "$ref": "#/components/schemas/Guidelines"
-          },
-          "population": {
-            "$ref": "#/components/schemas/Population"
-          },
-          "populationSourceRef": {
-            "$ref": "#/components/schemas/HrmSourceSnapshotRef"
-          }
-        },
-        "required": [
-          "effectiveFrom",
-          "effectiveTo",
-          "guidelines",
-          "population",
-          "populationSourceRef"
-        ],
-        "type": "object"
-      },
       "RevokePolicyRequest": {
         "properties": {
           "reason": {
@@ -8435,43 +9061,6 @@
           "reason",
           "version"
         ],
-        "type": "object"
-      },
-      "RichCommandResult": {
-        "properties": {
-          "aggregatePublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "aggregateVersion": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "childResults": {
-            "items": {
-              "$ref": "#/components/schemas/TypedChildResult"
-            },
-            "type": "array"
-          },
-          "commandReceiptId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "completedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "correlationId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "resultDigest": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
         "type": "object"
       },
       "Scenario": {
@@ -8570,50 +9159,6 @@
         },
         "type": "object"
       },
-      "SnapshotPublished": {
-        "properties": {
-          "aggregateVersion": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "approvalReceiptId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "correlationId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "cycleId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "lineCount": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "payloadDigest": {
-            "type": "string"
-          },
-          "publishedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "snapshotId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "snapshotRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "sourceVersion": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
       "SourceSystem": {
         "properties": {
           "lifecycleState": {
@@ -8678,23 +9223,6 @@
           "stageConfig",
           "stageKey",
           "stageType"
-        ],
-        "type": "object"
-      },
-      "SubmitProposalRequest": {
-        "properties": {
-          "effectiveDate": {
-            "format": "date",
-            "type": "string"
-          },
-          "submissionDigest": {
-            "minLength": 1,
-            "pattern": "^[0-9a-f]{64}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "submissionDigest"
         ],
         "type": "object"
       },
@@ -9084,29 +9612,6 @@
         },
         "type": "object"
       },
-      "TypedChildResult": {
-        "properties": {
-          "aggregateVersion": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "entityType": {
-            "type": "string"
-          },
-          "ordinal": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "publicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "resultDigest": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "UpdateConnectorRequest": {
         "properties": {
           "credentialReference": {
@@ -9271,17 +9776,6 @@
           "displayName",
           "labels",
           "lifecycleState"
-        ],
-        "type": "object"
-      },
-      "UpsertProposalRequest": {
-        "properties": {
-          "content": {
-            "$ref": "#/components/schemas/Proposal"
-          }
-        },
-        "required": [
-          "content"
         ],
         "type": "object"
       },
@@ -12741,22 +13235,14 @@
               "format": "int32",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCycleCollection"
+                  "$ref": "#/components/schemas/ApiResponseModernCompplanCyclesQueryResponseV5"
                 }
               }
             },
@@ -12785,21 +13271,13 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateCycleRequest"
+                "$ref": "#/components/schemas/ModernCompplanCycleCreateRequestV2"
               }
             }
           },
@@ -12808,9 +13286,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                  "$ref": "#/components/schemas/ApiResponsePerformanceCommandReceiptV1"
                 }
               }
             },
@@ -12844,6 +13322,14 @@
             }
           },
           {
+            "in": "header",
+            "name": "X-HRIS-Compplan-Projection-Version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "referenceEffectiveAt",
             "required": false,
@@ -12851,22 +13337,14 @@
               "format": "date-time",
               "type": "string"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCycleDetail"
+                  "$ref": "#/components/schemas/ApiResponseModernCompplanCycleQueryResponseV5"
                 }
               }
             },
@@ -12940,21 +13418,13 @@
               "format": "int64",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ApprovePlanRequest"
+                "$ref": "#/components/schemas/ModernCompplanPlanApproveRequestV2"
               }
             }
           },
@@ -12963,9 +13433,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                  "$ref": "#/components/schemas/ApiResponsePerformanceCommandReceiptV1"
                 }
               }
             },
@@ -13039,21 +13509,13 @@
               "format": "int64",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PublishSnapshotRequest"
+                "$ref": "#/components/schemas/ModernCompplanSnapshotPublishRequestV2"
               }
             }
           },
@@ -13062,9 +13524,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseSnapshotPublished"
+                  "$ref": "#/components/schemas/ApiResponseModernCompplanSnapshotPublishResponseV2"
                 }
               }
             },
@@ -13113,21 +13575,13 @@
               "format": "int64",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BudgetEntryRequest"
+                "$ref": "#/components/schemas/ModernCompplanBudgetAllocateRequestV2"
               }
             }
           },
@@ -13136,9 +13590,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                  "$ref": "#/components/schemas/ApiResponsePerformanceCommandReceiptV1"
                 }
               }
             },
@@ -13187,32 +13641,14 @@
               "format": "int64",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": {},
-                "type": "object"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseRichCommandResult"
+                  "$ref": "#/components/schemas/ApiResponseModernCompplanRichCommandResultV3"
                 }
               }
             },
@@ -13271,22 +13707,14 @@
               "format": "int32",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseProposalCollection"
+                  "$ref": "#/components/schemas/ApiResponseModernCompplanProposalsQueryResponseV4"
                 }
               }
             },
@@ -13344,21 +13772,13 @@
               "format": "int64",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpsertProposalRequest"
+                "$ref": "#/components/schemas/ModernCompplanProposalUpsertRequestV4"
               }
             }
           },
@@ -13367,9 +13787,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseRichCommandResult"
+                  "$ref": "#/components/schemas/ApiResponseModernCompplanRichCommandResultV3"
                 }
               }
             },
@@ -13427,21 +13847,13 @@
               "format": "int64",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SubmitProposalRequest"
+                "$ref": "#/components/schemas/ModernCompplanProposalSubmitRequestV1"
               }
             }
           },
@@ -13450,9 +13862,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                  "$ref": "#/components/schemas/ApiResponsePerformanceCommandReceiptV1"
                 }
               }
             },
@@ -13501,21 +13913,13 @@
               "format": "int64",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReviseCycleRequest"
+                "$ref": "#/components/schemas/ModernCompplanCycleReviseRequestV4"
               }
             }
           },
@@ -13524,9 +13928,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseRichCommandResult"
+                  "$ref": "#/components/schemas/ApiResponseModernCompplanRichCommandResultV3"
                 }
               }
             },
@@ -13567,22 +13971,14 @@
               "format": "date-time",
               "type": "string"
             }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
           }
         ],
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseProposalDetail"
+                  "$ref": "#/components/schemas/ApiResponseModernCompplanProposalQueryResponseV4"
                 }
               }
             },

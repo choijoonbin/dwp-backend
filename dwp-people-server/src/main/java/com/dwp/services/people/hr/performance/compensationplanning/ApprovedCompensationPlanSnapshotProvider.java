@@ -15,15 +15,16 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Owner-side implementation of SVC-PEP-PER-001. Transport authentication and
- * JWT verification remain Central-owned; this port still validates every
- * derived claim before disclosing the atomic XCON-020 snapshot.
+ * Owner-side implementation of SVC-PEP-PER-001. The dedicated transport
+ * derives this evidence from mTLS and an audience-pinned JWT; this port still
+ * validates every derived claim before disclosing the atomic XCON-020 snapshot.
  */
 @Component
 public class ApprovedCompensationPlanSnapshotProvider {
 
     public static final String CALLER_WORKLOAD = "dwp-payroll-server";
-    public static final String AUDIENCE = "dwp-people-server";
+    public static final String AUDIENCE =
+            "dwp-people:approved-compensation-snapshot-refetch";
     public static final String PURPOSE =
             "HRIS_APPROVED_COMPENSATION_PLAN_SNAPSHOT_REFETCH";
     public static final String OPERATION = "getApprovedCompensationPlanSnapshot";
@@ -46,6 +47,29 @@ public class ApprovedCompensationPlanSnapshotProvider {
     public Xcon020ApprovedCompensationPlanSnapshotV1 get(
             UUID snapshotId,
             ServicePepEvidence evidence) {
+        return getVerified(snapshotId, null, null, evidence);
+    }
+
+    @Transactional
+    public Xcon020ApprovedCompensationPlanSnapshotV1 getExact(
+            UUID snapshotId,
+            long expectedSnapshotRevision,
+            String expectedPayloadDigest,
+            ServicePepEvidence evidence) {
+        if (expectedSnapshotRevision <= 0
+                || expectedPayloadDigest == null
+                || !expectedPayloadDigest.matches("[0-9a-f]{64}")) {
+            throw notAvailable();
+        }
+        return getVerified(
+                snapshotId, expectedSnapshotRevision, expectedPayloadDigest, evidence);
+    }
+
+    private Xcon020ApprovedCompensationPlanSnapshotV1 getVerified(
+            UUID snapshotId,
+            Long expectedSnapshotRevision,
+            String expectedPayloadDigest,
+            ServicePepEvidence evidence) {
         Objects.requireNonNull(snapshotId, "snapshotId must not be null");
         requireTrusted(evidence);
         repository.bindTenant(evidence.tenantId());
@@ -58,6 +82,12 @@ public class ApprovedCompensationPlanSnapshotProvider {
             throw new BaseException(
                     ErrorCode.RESOURCE_NOT_AVAILABLE,
                     "The approved compensation snapshot is not available.", exception);
+        }
+        if ((expectedSnapshotRevision != null
+                && snapshot.snapshotRevision() != expectedSnapshotRevision)
+                || (expectedPayloadDigest != null
+                && !expectedPayloadDigest.equals(snapshot.payloadDigest()))) {
+            throw notAvailable();
         }
         Xcon020ApprovedCompensationPlanSnapshotV1 payload = toContract(snapshot);
         audit.record(AuditEvent.builder()

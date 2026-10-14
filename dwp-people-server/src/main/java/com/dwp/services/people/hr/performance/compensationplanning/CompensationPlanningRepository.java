@@ -477,6 +477,34 @@ class CompensationPlanningRepository {
         });
     }
 
+    Instant projectionWatermark(long tenantId, long cycleInternalId) {
+        return jdbc.queryForObject("""
+                SELECT GREATEST(
+                           cycle.updated_at,
+                           COALESCE((
+                               SELECT MAX(ledger.created_at)
+                                 FROM hris_performance.prf_cmp_budget_ledger ledger
+                                WHERE ledger.tenant_id = cycle.tenant_id
+                                  AND ledger.compensation_cycle_id =
+                                      cycle.prf_cmp_cycles_internal_id
+                           ), cycle.updated_at),
+                           COALESCE((
+                               SELECT MAX(proposal.updated_at)
+                                 FROM hris_performance.prf_cmp_proposals proposal
+                                WHERE proposal.tenant_id = cycle.tenant_id
+                                  AND proposal.compensation_cycle_id =
+                                      cycle.prf_cmp_cycles_internal_id
+                           ), cycle.updated_at)
+                       ) AS projection_watermark
+                  FROM hris_performance.prf_cmp_cycles cycle
+                 WHERE cycle.tenant_id = :tenantId
+                   AND cycle.prf_cmp_cycles_internal_id = :cycleInternalId
+                """, new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("cycleInternalId", cycleInternalId),
+                (rs, rowNum) -> instant(rs, "projection_watermark"));
+    }
+
     Optional<ProposalRow> proposal(
             long tenantId,
             UUID cycleId,

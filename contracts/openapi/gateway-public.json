@@ -64121,6 +64121,168 @@
         },
         "type": "object"
       },
+      "people_ApiResponseModernCompplanCycleQueryResponseV5": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_ModernCompplanCycleQueryResponseV5"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseModernCompplanCyclesQueryResponseV5": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_ModernCompplanCyclesQueryResponseV5"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseModernCompplanProposalQueryResponseV4": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_ModernCompplanProposalQueryResponseV4"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseModernCompplanProposalsQueryResponseV4": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_ModernCompplanProposalsQueryResponseV4"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseModernCompplanRichCommandResultV3": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_ModernCompplanRichCommandResultV3"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseModernCompplanSnapshotPublishResponseV2": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_ModernCompplanSnapshotPublishResponseV2"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "people_ApiResponseOrganizationChart": {
         "properties": {
           "correlationId": {
@@ -64209,6 +64371,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/people_People360SnapshotV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponsePerformanceCommandReceiptV1": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_PerformanceCommandReceiptV1"
           },
           "errorCode": {
             "type": "string"
@@ -64364,60 +64553,6 @@
         },
         "type": "object"
       },
-      "people_ApiResponseProposalCollection": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/people_ProposalCollection"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "people_ApiResponseProposalDetail": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/people_ProposalDetail"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "people_ApiResponseReconciliationRun": {
         "properties": {
           "correlationId": {
@@ -64499,33 +64634,6 @@
         },
         "type": "object"
       },
-      "people_ApiResponseRichCommandResult": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/people_RichCommandResult"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "people_ApiResponseScenario": {
         "properties": {
           "correlationId": {
@@ -64533,33 +64641,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/people_Scenario"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "people_ApiResponseSnapshotPublished": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/people_SnapshotPublished"
           },
           "errorCode": {
             "type": "string"
@@ -64910,24 +64991,6 @@
             "type": "integer"
           }
         },
-        "type": "object"
-      },
-      "people_ApprovePlanRequest": {
-        "properties": {
-          "decision": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "reasonCode": {
-            "minLength": 1,
-            "pattern": "^[A-Z0-9][A-Z0-9._-]{0,79}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "decision",
-          "reasonCode"
-        ],
         "type": "object"
       },
       "people_AssignmentEventEmptyCommandV1": {},
@@ -65460,41 +65523,6 @@
         },
         "type": "object"
       },
-      "people_BudgetEntryRequest": {
-        "properties": {
-          "amount": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "currency": {
-            "minLength": 1,
-            "pattern": "^[A-Z]{3}$",
-            "type": "string"
-          },
-          "ledgerEntryType": {
-            "enum": [
-              "ALLOCATE",
-              "REVERSE"
-            ],
-            "type": "string"
-          },
-          "organizationPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "reversesEntryPublicId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "amount",
-          "currency",
-          "ledgerEntryType",
-          "organizationPublicId"
-        ],
-        "type": "object"
-      },
       "people_CachePolicy": {
         "properties": {
           "authorizationDecisionRevision": {
@@ -65862,6 +65890,210 @@
             "type": "number"
           }
         },
+        "type": "object"
+      },
+      "people_CompensationGuidelineV1": {
+        "additionalProperties": false,
+        "properties": {
+          "componentCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "exceptionPolicyCode": {
+            "type": "string"
+          },
+          "maximumAmount": {
+            "type": "string"
+          },
+          "minimumAmount": {
+            "type": "string"
+          },
+          "roundingPolicyVersionPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "componentCode",
+          "currency",
+          "exceptionPolicyCode",
+          "maximumAmount",
+          "minimumAmount",
+          "roundingPolicyVersionPublicId"
+        ],
+        "type": "object"
+      },
+      "people_CompensationGuidelinesContentV1": {
+        "additionalProperties": false,
+        "properties": {
+          "budgetMode": {
+            "type": "string"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/people_CompensationGuidelineV1"
+            },
+            "type": "array"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "budgetMode",
+          "components",
+          "effectiveFrom",
+          "effectiveTo"
+        ],
+        "type": "object"
+      },
+      "people_CompensationPopulationContentV1": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hrmOwnerRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/people_CompensationPopulationLineV1"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "asOf",
+          "hrmOwnerRevision",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "people_CompensationPopulationLineV1": {
+        "additionalProperties": false,
+        "properties": {
+          "assignmentOwnerRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "assignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eligibleComponentCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "gradePublicId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jobProfilePublicId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organizationPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignmentOwnerRevision",
+          "assignmentPublicId",
+          "eligibleComponentCodes",
+          "gradePublicId",
+          "jobProfilePublicId",
+          "organizationPublicId",
+          "workerPublicId"
+        ],
+        "type": "object"
+      },
+      "people_CompensationProposalContentV1": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "assignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "componentCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "cyclePublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exceptionReasonCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supersedesProposalPublicId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "assignmentPublicId",
+          "componentCode",
+          "currency",
+          "cyclePublicId",
+          "effectiveFrom",
+          "effectiveTo",
+          "exceptionReasonCode",
+          "supersedesProposalPublicId",
+          "workerPublicId"
+        ],
         "type": "object"
       },
       "people_ConfigurationCheck": {
@@ -67495,55 +67727,6 @@
         },
         "type": "object"
       },
-      "people_Guideline": {
-        "properties": {
-          "componentCode": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "exceptionPolicyCode": {
-            "type": "string"
-          },
-          "maximumAmount": {
-            "type": "string"
-          },
-          "minimumAmount": {
-            "type": "string"
-          },
-          "roundingPolicyVersionPublicId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "people_Guidelines": {
-        "properties": {
-          "budgetMode": {
-            "type": "string"
-          },
-          "components": {
-            "items": {
-              "$ref": "#/components/schemas/people_Guideline"
-            },
-            "type": "array"
-          },
-          "effectiveFrom": {
-            "format": "date",
-            "type": "string"
-          },
-          "effectiveTo": {
-            "format": "date",
-            "type": "string"
-          }
-        },
-        "required": [
-          "effectiveTo"
-        ],
-        "type": "object"
-      },
       "people_HealthSummary": {
         "properties": {
           "attentionOrganizations": {
@@ -67807,43 +67990,6 @@
         "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
         "type": "string",
         "x-dwp-canonical-source": "dwp.hris.hrm.transport-supplement.v1"
-      },
-      "people_HrmSourceSnapshotRef": {
-        "properties": {
-          "asOf": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "ownerRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "projectionSchemaId": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "purposeCode": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "sha256": {
-            "minLength": 1,
-            "pattern": "^[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "snapshotPublicId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "asOf",
-          "projectionSchemaId",
-          "purposeCode",
-          "sha256",
-          "snapshotPublicId"
-        ],
-        "type": "object"
       },
       "people_Iaq009EmployeeChangeRequestFilterV1": {
         "additionalProperties": false,
@@ -69098,25 +69244,724 @@
         },
         "type": "object"
       },
-      "people_MultiValueMapStringString": {
-        "additionalProperties": {
-          "items": {
+      "people_ModernCompplanBudgetAggregateV1": {
+        "additionalProperties": false,
+        "properties": {
+          "allocatedAmount": {
             "type": "string"
           },
-          "type": "array"
-        },
-        "properties": {
-          "all": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "writeOnly": true
+          "committedAmount": {
+            "type": "string"
           },
-          "empty": {
-            "type": "boolean"
+          "currency": {
+            "type": "string"
+          },
+          "organizationPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "remainingAmount": {
+            "type": "string"
           }
         },
+        "required": [
+          "allocatedAmount",
+          "committedAmount",
+          "currency",
+          "organizationPublicId",
+          "remainingAmount"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanBudgetAllocateRequestV2": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "currency": {
+            "minLength": 1,
+            "pattern": "^[A-Z]{3}$",
+            "type": "string"
+          },
+          "ledgerEntryType": {
+            "enum": [
+              "ALLOCATE",
+              "REVERSE"
+            ],
+            "type": "string"
+          },
+          "organizationPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reversesEntryPublicId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "amount",
+          "currency",
+          "ledgerEntryType",
+          "organizationPublicId"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanBudgetEntryProjectionV1": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "entryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "entrySequence": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entryType": {
+            "enum": [
+              "ALLOCATE",
+              "REVERSE"
+            ],
+            "type": "string"
+          },
+          "organizationPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sourceEntryPublicId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "amount",
+          "createdAt",
+          "currency",
+          "entryId",
+          "entrySequence",
+          "entryType",
+          "organizationPublicId",
+          "sourceEntryPublicId"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanCycleCreateRequestV2": {
+        "additionalProperties": false,
+        "properties": {
+          "cycleCode": {
+            "minLength": 1,
+            "pattern": "^[A-Z0-9][A-Z0-9._-]{0,39}$",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guidelines": {
+            "$ref": "#/components/schemas/people_CompensationGuidelinesContentV1"
+          },
+          "population": {
+            "$ref": "#/components/schemas/people_CompensationPopulationContentV1"
+          },
+          "populationSourceRef": {
+            "$ref": "#/components/schemas/people_ModernCompplanHrmSourceSnapshotRefV1"
+          }
+        },
+        "required": [
+          "cycleCode",
+          "effectiveFrom",
+          "effectiveTo",
+          "guidelines",
+          "population",
+          "populationSourceRef"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanCycleProjectionV5": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "budgetAggregates": {
+            "items": {
+              "$ref": "#/components/schemas/people_ModernCompplanBudgetAggregateV1"
+            },
+            "type": "array"
+          },
+          "budgetEntries": {
+            "items": {
+              "$ref": "#/components/schemas/people_ModernCompplanBudgetEntryProjectionV1"
+            },
+            "type": "array"
+          },
+          "budgetMasked": {
+            "type": "boolean"
+          },
+          "cycleCode": {
+            "type": "string"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guidelines": {
+            "$ref": "#/components/schemas/people_CompensationGuidelinesContentV1"
+          },
+          "population": {
+            "$ref": "#/components/schemas/people_CompensationPopulationContentV1"
+          },
+          "status": {
+            "enum": [
+              "DRAFT",
+              "OPEN",
+              "PROPOSAL_REVIEW",
+              "APPROVED",
+              "PUBLISHED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "aggregateVersion",
+          "budgetMasked",
+          "cycleCode",
+          "cycleId",
+          "effectiveFrom",
+          "effectiveTo",
+          "status"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanCycleQueryResponseV5": {
+        "additionalProperties": false,
+        "properties": {
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "freshnessWatermark": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "item": {
+            "$ref": "#/components/schemas/people_ModernCompplanCycleProjectionV5"
+          },
+          "referenceEffectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldPolicyRevision",
+          "freshnessWatermark",
+          "item",
+          "referenceEffectiveAt"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanCycleReviseRequestV4": {
+        "additionalProperties": false,
+        "properties": {
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guidelines": {
+            "$ref": "#/components/schemas/people_CompensationGuidelinesContentV1"
+          },
+          "population": {
+            "$ref": "#/components/schemas/people_CompensationPopulationContentV1"
+          },
+          "populationSourceRef": {
+            "$ref": "#/components/schemas/people_ModernCompplanHrmSourceSnapshotRefV1"
+          }
+        },
+        "required": [
+          "effectiveFrom",
+          "effectiveTo",
+          "guidelines",
+          "population",
+          "populationSourceRef"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanCyclesQueryResponseV5": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/people_ModernCompplanCycleProjectionV5"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scopeRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asOf",
+          "fieldPolicyRevision",
+          "hasMore",
+          "items",
+          "nextCursor",
+          "scopeRevision"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanHrmSourceSnapshotRefV1": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ownerRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "projectionSchemaId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "purposeCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "snapshotPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asOf",
+          "ownerRevision",
+          "projectionSchemaId",
+          "purposeCode",
+          "sha256",
+          "snapshotPublicId"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanPlanApproveRequestV2": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reasonCode": {
+            "minLength": 1,
+            "pattern": "^[A-Z0-9][A-Z0-9._-]{0,79}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reasonCode"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanProposalProjectionV4": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "amountMasked": {
+            "type": "boolean"
+          },
+          "assignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "componentCode": {
+            "type": "string"
+          },
+          "content": {
+            "$ref": "#/components/schemas/people_CompensationProposalContentV1"
+          },
+          "contentDigest": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "currentRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "proposalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "FROZEN",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "workerId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "aggregateVersion",
+          "amountMasked",
+          "assignmentId",
+          "componentCode",
+          "contentDigest",
+          "currency",
+          "currentRevision",
+          "cycleId",
+          "effectiveFrom",
+          "effectiveTo",
+          "proposalId",
+          "status",
+          "workerId"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanProposalQueryResponseV4": {
+        "additionalProperties": false,
+        "properties": {
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "freshnessWatermark": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "item": {
+            "$ref": "#/components/schemas/people_ModernCompplanProposalProjectionV4"
+          },
+          "referenceEffectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldPolicyRevision",
+          "freshnessWatermark",
+          "item",
+          "referenceEffectiveAt"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanProposalSubmitRequestV1": {
+        "additionalProperties": false,
+        "properties": {
+          "effectiveDate": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submissionDigest": {
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "submissionDigest"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanProposalUpsertRequestV4": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/people_CompensationProposalContentV1"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanProposalsQueryResponseV4": {
+        "additionalProperties": false,
+        "properties": {
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "freshnessWatermark": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/people_ModernCompplanProposalProjectionV4"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referenceEffectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldPolicyRevision",
+          "freshnessWatermark",
+          "hasMore",
+          "items",
+          "nextCursor",
+          "referenceEffectiveAt"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanRichCommandResultV3": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregatePublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "childResults": {
+            "items": {
+              "$ref": "#/components/schemas/people_ModernCompplanTypedChildResultV3"
+            },
+            "type": "array"
+          },
+          "commandReceiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultDigest": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "aggregatePublicId",
+          "aggregateVersion",
+          "childResults",
+          "commandReceiptId",
+          "completedAt",
+          "correlationId",
+          "resultDigest",
+          "status"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanSnapshotPublishRequestV2": {
+        "additionalProperties": false,
+        "properties": {
+          "approvalReceiptId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approvalReceiptId"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanSnapshotPublishResponseV2": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "approvalReceiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lineCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "payloadDigest": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "snapshotId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "snapshotRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sourceVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "aggregateVersion",
+          "approvalReceiptId",
+          "correlationId",
+          "cycleId",
+          "lineCount",
+          "payloadDigest",
+          "publishedAt",
+          "snapshotId",
+          "snapshotRevision",
+          "sourceVersion"
+        ],
+        "type": "object"
+      },
+      "people_ModernCompplanTypedChildResultV3": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "ordinal": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "publicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultDigest": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "aggregateVersion",
+          "entityType",
+          "ordinal",
+          "publicId",
+          "resultDigest"
+        ],
         "type": "object"
       },
       "people_OpenPosition": {
@@ -69749,6 +70594,45 @@
         },
         "type": "object"
       },
+      "people_PerformanceCommandReceiptV1": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "payloadDigest": {
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "correlationId",
+          "occurredAt",
+          "payloadDigest",
+          "receiptId",
+          "status"
+        ],
+        "type": "object"
+      },
       "people_Person": {
         "properties": {
           "assignmentKey": {
@@ -69999,25 +70883,6 @@
         },
         "type": "object"
       },
-      "people_Population": {
-        "properties": {
-          "asOf": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "hrmOwnerRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "lines": {
-            "items": {
-              "$ref": "#/components/schemas/people_PopulationLine"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
       "people_PopulationFreeze": {
         "properties": {
           "aggregateVersion": {
@@ -70075,45 +70940,6 @@
             "type": "integer"
           }
         },
-        "type": "object"
-      },
-      "people_PopulationLine": {
-        "properties": {
-          "assignmentOwnerRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "assignmentPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "eligibleComponentCodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "gradePublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "jobProfilePublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "organizationPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "workerPublicId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "gradePublicId",
-          "jobProfilePublicId"
-        ],
         "type": "object"
       },
       "people_PopulationPreview": {
@@ -70421,165 +71247,6 @@
         },
         "type": "object"
       },
-      "people_Proposal": {
-        "properties": {
-          "amount": {
-            "type": "string"
-          },
-          "assignmentPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "componentCode": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "cyclePublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "effectiveFrom": {
-            "format": "date",
-            "type": "string"
-          },
-          "effectiveTo": {
-            "format": "date",
-            "type": "string"
-          },
-          "exceptionReasonCode": {
-            "type": "string"
-          },
-          "supersedesProposalPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "workerPublicId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "effectiveTo",
-          "exceptionReasonCode",
-          "supersedesProposalPublicId"
-        ],
-        "type": "object"
-      },
-      "people_ProposalCollection": {
-        "properties": {
-          "fieldPolicyRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "freshnessWatermark": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "hasMore": {
-            "type": "boolean"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/people_ProposalView"
-            },
-            "type": "array"
-          },
-          "nextCursor": {
-            "type": "string"
-          },
-          "referenceEffectiveAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "people_ProposalDetail": {
-        "properties": {
-          "fieldPolicyRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "freshnessWatermark": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "item": {
-            "$ref": "#/components/schemas/people_ProposalView"
-          },
-          "referenceEffectiveAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "people_ProposalView": {
-        "properties": {
-          "aggregateVersion": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "amount": {
-            "type": "string"
-          },
-          "amountMasked": {
-            "type": "boolean"
-          },
-          "assignmentId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "componentCode": {
-            "type": "string"
-          },
-          "content": {
-            "$ref": "#/components/schemas/people_Proposal"
-          },
-          "contentDigest": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "currentRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "cycleId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "effectiveFrom": {
-            "format": "date",
-            "type": "string"
-          },
-          "effectiveTo": {
-            "format": "date",
-            "type": "string"
-          },
-          "proposalId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "FROZEN",
-              "CANCELLED"
-            ],
-            "type": "string"
-          },
-          "workerId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "people_PublishCycleRequest": {
         "properties": {
           "commandId": {
@@ -70626,18 +71293,6 @@
         },
         "required": [
           "version"
-        ],
-        "type": "object"
-      },
-      "people_PublishSnapshotRequest": {
-        "properties": {
-          "approvalReceiptId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "approvalReceiptId"
         ],
         "type": "object"
       },
@@ -70972,35 +71627,6 @@
         ],
         "type": "object"
       },
-      "people_ReviseCycleRequest": {
-        "properties": {
-          "effectiveFrom": {
-            "format": "date",
-            "type": "string"
-          },
-          "effectiveTo": {
-            "format": "date",
-            "type": "string"
-          },
-          "guidelines": {
-            "$ref": "#/components/schemas/people_Guidelines"
-          },
-          "population": {
-            "$ref": "#/components/schemas/people_Population"
-          },
-          "populationSourceRef": {
-            "$ref": "#/components/schemas/people_HrmSourceSnapshotRef"
-          }
-        },
-        "required": [
-          "effectiveFrom",
-          "effectiveTo",
-          "guidelines",
-          "population",
-          "populationSourceRef"
-        ],
-        "type": "object"
-      },
       "people_RevokePolicyRequest": {
         "properties": {
           "reason": {
@@ -71017,43 +71643,6 @@
           "reason",
           "version"
         ],
-        "type": "object"
-      },
-      "people_RichCommandResult": {
-        "properties": {
-          "aggregatePublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "aggregateVersion": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "childResults": {
-            "items": {
-              "$ref": "#/components/schemas/people_TypedChildResult"
-            },
-            "type": "array"
-          },
-          "commandReceiptId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "completedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "correlationId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "resultDigest": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
         "type": "object"
       },
       "people_Scenario": {
@@ -71152,50 +71741,6 @@
         },
         "type": "object"
       },
-      "people_SnapshotPublished": {
-        "properties": {
-          "aggregateVersion": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "approvalReceiptId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "correlationId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "cycleId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "lineCount": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "payloadDigest": {
-            "type": "string"
-          },
-          "publishedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "snapshotId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "snapshotRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "sourceVersion": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
       "people_SourceSystem": {
         "properties": {
           "lifecycleState": {
@@ -71260,23 +71805,6 @@
           "stageConfig",
           "stageKey",
           "stageType"
-        ],
-        "type": "object"
-      },
-      "people_SubmitProposalRequest": {
-        "properties": {
-          "effectiveDate": {
-            "format": "date",
-            "type": "string"
-          },
-          "submissionDigest": {
-            "minLength": 1,
-            "pattern": "^[0-9a-f]{64}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "submissionDigest"
         ],
         "type": "object"
       },
@@ -71666,29 +72194,6 @@
         },
         "type": "object"
       },
-      "people_TypedChildResult": {
-        "properties": {
-          "aggregateVersion": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "entityType": {
-            "type": "string"
-          },
-          "ordinal": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "publicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "resultDigest": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "people_UpdateConnectorRequest": {
         "properties": {
           "credentialReference": {
@@ -71840,17 +72345,6 @@
           "displayName",
           "labels",
           "lifecycleState"
-        ],
-        "type": "object"
-      },
-      "people_UpsertProposalRequest": {
-        "properties": {
-          "content": {
-            "$ref": "#/components/schemas/people_Proposal"
-          }
-        },
-        "required": [
-          "content"
         ],
         "type": "object"
       },
@@ -188675,14 +189169,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -188698,9 +189184,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseCycleCollection"
+                  "$ref": "#/components/schemas/people_ApiResponseModernCompplanCyclesQueryResponseV5"
                 }
               }
             },
@@ -188728,14 +189214,6 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
             }
           },
           {
@@ -188773,7 +189251,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/people_CreateCycleRequest"
+                "$ref": "#/components/schemas/people_ModernCompplanCycleCreateRequestV2"
               }
             }
           },
@@ -188782,9 +189260,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseCommandReceipt"
+                  "$ref": "#/components/schemas/people_ApiResponsePerformanceCommandReceiptV1"
                 }
               }
             },
@@ -188818,20 +189296,20 @@
             }
           },
           {
+            "in": "header",
+            "name": "X-HRIS-Compplan-Projection-Version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "referenceEffectiveAt",
             "required": false,
             "schema": {
               "format": "date-time",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
             }
           },
           {
@@ -188850,9 +189328,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseCycleDetail"
+                  "$ref": "#/components/schemas/people_ApiResponseModernCompplanCycleQueryResponseV5"
                 }
               }
             },
@@ -188938,14 +189416,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -188962,7 +189432,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/people_ApprovePlanRequest"
+                "$ref": "#/components/schemas/people_ModernCompplanPlanApproveRequestV2"
               }
             }
           },
@@ -188971,9 +189441,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseCommandReceipt"
+                  "$ref": "#/components/schemas/people_ApiResponsePerformanceCommandReceiptV1"
                 }
               }
             },
@@ -189059,14 +189529,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -189083,7 +189545,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/people_PublishSnapshotRequest"
+                "$ref": "#/components/schemas/people_ModernCompplanSnapshotPublishRequestV2"
               }
             }
           },
@@ -189092,9 +189554,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseSnapshotPublished"
+                  "$ref": "#/components/schemas/people_ApiResponseModernCompplanSnapshotPublishResponseV2"
                 }
               }
             },
@@ -189145,14 +189607,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -189187,7 +189641,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/people_BudgetEntryRequest"
+                "$ref": "#/components/schemas/people_ModernCompplanBudgetAllocateRequestV2"
               }
             }
           },
@@ -189196,9 +189650,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseCommandReceipt"
+                  "$ref": "#/components/schemas/people_ApiResponsePerformanceCommandReceiptV1"
                 }
               }
             },
@@ -189249,14 +189703,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -189287,22 +189733,12 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": {},
-                "type": "object"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseRichCommandResult"
+                  "$ref": "#/components/schemas/people_ApiResponseModernCompplanRichCommandResultV3"
                 }
               }
             },
@@ -189363,14 +189799,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -189386,9 +189814,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseProposalCollection"
+                  "$ref": "#/components/schemas/people_ApiResponseModernCompplanProposalsQueryResponseV4"
                 }
               }
             },
@@ -189448,14 +189876,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -189490,7 +189910,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/people_UpsertProposalRequest"
+                "$ref": "#/components/schemas/people_ModernCompplanProposalUpsertRequestV4"
               }
             }
           },
@@ -189499,9 +189919,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseRichCommandResult"
+                  "$ref": "#/components/schemas/people_ApiResponseModernCompplanRichCommandResultV3"
                 }
               }
             },
@@ -189561,14 +189981,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -189603,7 +190015,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/people_SubmitProposalRequest"
+                "$ref": "#/components/schemas/people_ModernCompplanProposalSubmitRequestV1"
               }
             }
           },
@@ -189612,9 +190024,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseCommandReceipt"
+                  "$ref": "#/components/schemas/people_ApiResponsePerformanceCommandReceiptV1"
                 }
               }
             },
@@ -189665,14 +190077,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -189707,7 +190111,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/people_ReviseCycleRequest"
+                "$ref": "#/components/schemas/people_ModernCompplanCycleReviseRequestV4"
               }
             }
           },
@@ -189716,9 +190120,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseRichCommandResult"
+                  "$ref": "#/components/schemas/people_ApiResponseModernCompplanRichCommandResultV3"
                 }
               }
             },
@@ -189761,14 +190165,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/people_MultiValueMapStringString"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -189784,9 +190180,9 @@
         "responses": {
           "200": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseProposalDetail"
+                  "$ref": "#/components/schemas/people_ApiResponseModernCompplanProposalQueryResponseV4"
                 }
               }
             },

@@ -2,6 +2,7 @@ package com.dwp.services.people.hr.performance.typedartifact;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -38,12 +39,16 @@ public final class CompensationArtifactContents {
             permits Guidelines, Population, Proposal {
     }
 
+    @Schema(name = "CompensationGuidelineV1",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     public record Guideline(
-            String componentCode,
-            String currency,
-            String minimumAmount,
-            String maximumAmount,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String componentCode,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String currency,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String minimumAmount,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String maximumAmount,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             String exceptionPolicyCode,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             UUID roundingPolicyVersionPublicId) implements ClosedContent {
         public Guideline {
             componentCode = code(componentCode, "componentCode");
@@ -62,11 +67,17 @@ public final class CompensationArtifactContents {
         }
     }
 
+    @Schema(name = "CompensationGuidelinesContentV1",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     public record Guidelines(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<Guideline> components,
-            String budgetMode,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String budgetMode,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             LocalDate effectiveFrom,
-            @JsonProperty(required = true) LocalDate effectiveTo) implements Content {
+            @JsonProperty(required = true)
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+            LocalDate effectiveTo) implements Content {
         public Guidelines {
             components = List.copyOf(Objects.requireNonNull(components,
                     "components must not be null"));
@@ -91,13 +102,23 @@ public final class CompensationArtifactContents {
         }
     }
 
+    @Schema(name = "CompensationPopulationLineV1",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     public record PopulationLine(
-            UUID workerPublicId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID workerPublicId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             UUID assignmentPublicId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             UUID organizationPublicId,
-            @JsonProperty(required = true) UUID gradePublicId,
-            @JsonProperty(required = true) UUID jobProfilePublicId,
+            @JsonProperty(required = true)
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+            UUID gradePublicId,
+            @JsonProperty(required = true)
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+            UUID jobProfilePublicId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             long assignmentOwnerRevision,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<String> eligibleComponentCodes) implements ClosedContent {
         public PopulationLine {
             Objects.requireNonNull(workerPublicId, "workerPublicId must not be null");
@@ -125,9 +146,12 @@ public final class CompensationArtifactContents {
         }
     }
 
+    @Schema(name = "CompensationPopulationContentV1",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     public record Population(
-            Instant asOf,
-            long hrmOwnerRevision,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant asOf,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long hrmOwnerRevision,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<PopulationLine> lines) implements Content {
         public Population {
             Objects.requireNonNull(asOf, "asOf must not be null");
@@ -161,17 +185,27 @@ public final class CompensationArtifactContents {
         }
     }
 
+    @Schema(name = "CompensationProposalContentV1",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     public record Proposal(
-            UUID cyclePublicId,
-            UUID workerPublicId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID cyclePublicId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID workerPublicId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             UUID assignmentPublicId,
-            String componentCode,
-            String currency,
-            String amount,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String componentCode,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String currency,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String amount,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             LocalDate effectiveFrom,
-            @JsonProperty(required = true) LocalDate effectiveTo,
-            @JsonProperty(required = true) String exceptionReasonCode,
-            @JsonProperty(required = true) UUID supersedesProposalPublicId) implements Content {
+            @JsonProperty(required = true)
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+            LocalDate effectiveTo,
+            @JsonProperty(required = true)
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+            String exceptionReasonCode,
+            @JsonProperty(required = true)
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true)
+            UUID supersedesProposalPublicId) implements Content {
         public Proposal {
             Objects.requireNonNull(cyclePublicId, "cyclePublicId must not be null");
             Objects.requireNonNull(workerPublicId, "workerPublicId must not be null");

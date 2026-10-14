@@ -22,6 +22,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -41,6 +42,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 @Service
@@ -607,10 +609,25 @@ public class CompensationPlanningService {
                 context.correlationId(), context.now(), children);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public CompensationPlanningDtos.CycleDetail cycle(
             UUID cycleId,
             Instant referenceEffectiveAt) {
+        return cycleProjection(cycleId, referenceEffectiveAt, true);
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public CompensationPlanningDtos.CycleDetail cycle(
+            UUID cycleId,
+            Instant referenceEffectiveAt,
+            boolean includeBudgetAggregates) {
+        return cycleProjection(cycleId, referenceEffectiveAt, includeBudgetAggregates);
+    }
+
+    private CompensationPlanningDtos.CycleDetail cycleProjection(
+            UUID cycleId,
+            Instant referenceEffectiveAt,
+            boolean includeBudgetAggregates) {
         QueryContext context = queryContext(QUERY_CYCLE, cycleId);
         CompensationPlanningRepository.CycleRow cycle = repository
                 .cycle(context.actor().tenantId(), cycleId, false)
@@ -619,9 +636,13 @@ public class CompensationPlanningService {
                 PerTypedArtifactQueryPort.PLANNING_PURPOSE);
         if (!cycleVisible(context, population)) throw new BaseException(ErrorCode.NOT_FOUND);
         Instant reference = referenceEffectiveAt == null ? clock.instant() : referenceEffectiveAt;
+        CompensationPlanningDtos.CycleView projection =
+                projectCycle(context, cycle, population, true, includeBudgetAggregates);
+        Instant projectionWatermark = repository.projectionWatermark(
+                context.actor().tenantId(), cycle.internalId());
         return new CompensationPlanningDtos.CycleDetail(
-                projectCycle(context, cycle, population, true), reference,
-                cycle.updatedAt(), context.authority().fieldPolicyRevision());
+                projection, reference, projectionWatermark,
+                context.authority().fieldPolicyRevision());
     }
 
     @Transactional(readOnly = true)
@@ -647,7 +668,7 @@ public class CompensationPlanningService {
         List<CompensationPlanningRepository.CycleRow> page = hasMore
                 ? authorized.subList(0, limit) : authorized;
         List<CompensationPlanningDtos.CycleView> values = page.stream()
-                .map(value -> projectCycle(context, value, null, false)).toList();
+                .map(value -> projectCycle(context, value, null, false, false)).toList();
         String next = hasMore
                 ? encodeCursor(context, "CYCLES", null, anchor, page.getLast().publicId())
                 : null;
@@ -674,7 +695,9 @@ public class CompensationPlanningService {
             throw new BaseException(ErrorCode.NOT_FOUND);
         }
         boolean detail = CompensationPlanningAuthorization.permitsDetailField(
-                context.actor(), context.authority(), "PROPOSAL_AMOUNT");
+                context.actor(), context.authority(), "PROPOSAL_AMOUNT")
+                && CompensationPlanningAuthorization.permitsDetailField(
+                context.actor(), context.authority(), "TYPED_CONTENT");
         Instant reference = referenceEffectiveAt == null ? clock.instant() : referenceEffectiveAt;
         return new CompensationPlanningDtos.ProposalDetail(
                 proposalView(context.actor().tenantId(), selected.cycleId(),
@@ -724,14 +747,19 @@ public class CompensationPlanningService {
             QueryContext context,
             CompensationPlanningRepository.CycleRow cycle,
             Population verifiedPopulation,
-            boolean includeDetail) {
+            boolean includeDetail,
+            boolean includeBudgetAggregates) {
         boolean typedDetail = includeDetail
                 && CompensationPlanningAuthorization.permitsDetailField(
                 context.actor(), context.authority(), "TYPED_CONTENT")
                 && context.authority().targetPopulation().tenantWide();
         boolean budgetDetail = includeDetail
                 && CompensationPlanningAuthorization.permitsDetailField(
-                context.actor(), context.authority(), "BUDGET_AMOUNT");
+                context.actor(), context.authority(), "BUDGET_AMOUNT")
+                && CompensationPlanningAuthorization.permitsDetailField(
+                context.actor(), context.authority(), "PROPOSAL_AMOUNT")
+                && CompensationPlanningAuthorization.permitsDetailField(
+                context.actor(), context.authority(), "TYPED_CONTENT");
         Guidelines guidelines = null;
         Population population = null;
         if (typedDetail) {
@@ -751,11 +779,64 @@ public class CompensationPlanningService {
                         .permitsOrganization(value.organizationPublicId()))
                 .toList()
                 : null;
+        List<CompensationPlanningDtos.BudgetAggregate> budgetAggregates =
+                budgetDetail && includeBudgetAggregates
+                ? projectBudgetAggregates(context, cycle,
+                verifiedPopulation == null
+                        ? population(context.actor().tenantId(), cycle,
+                        PerTypedArtifactQueryPort.PLANNING_PURPOSE)
+                        : verifiedPopulation)
+                : null;
         return new CompensationPlanningDtos.CycleView(
                 cycle.publicId(), cycle.aggregateVersion(), cycle.cycleCode(),
                 cycle.effectiveFrom(), cycle.effectiveTo(),
                 CompensationPlanningDtos.CycleStatus.valueOf(cycle.status()),
-                guidelines, population, !budgetDetail, budgets);
+                guidelines, population, !budgetDetail, budgets, budgetAggregates);
+    }
+
+    private List<CompensationPlanningDtos.BudgetAggregate> projectBudgetAggregates(
+            QueryContext context,
+            CompensationPlanningRepository.CycleRow cycle,
+            Population population) {
+        Map<CompensationPlanningRepository.BudgetBucket, BigDecimal> allocated =
+                boundedBudgetTotals(context.actor().tenantId(), cycle.internalId());
+        Map<CompensationPlanningRepository.BudgetBucket, BigDecimal> committed =
+                committedByBucket(
+                        context.actor().tenantId(), cycle, population,
+                        null, null, false, false,
+                        context.authority().targetPopulation()::permitsOrganization);
+        Set<CompensationPlanningRepository.BudgetBucket> visibleBuckets = new HashSet<>();
+        visibleBuckets.addAll(allocated.keySet());
+        visibleBuckets.addAll(committed.keySet());
+        return visibleBuckets.stream()
+                .filter(bucket -> context.authority().targetPopulation()
+                        .permitsOrganization(bucket.organizationId()))
+                .sorted(Comparator
+                        .comparing((CompensationPlanningRepository.BudgetBucket bucket) ->
+                                bucket.organizationId().toString())
+                        .thenComparing(CompensationPlanningRepository.BudgetBucket::currency))
+                .map(bucket -> {
+                    BigDecimal allocatedAmount = allocated.getOrDefault(
+                            bucket, BigDecimal.ZERO);
+                    BigDecimal committedAmount = committed.getOrDefault(
+                            bucket, BigDecimal.ZERO);
+                    BigDecimal remainingAmount;
+                    try {
+                        remainingAmount = PostedMoney.requireAggregate(
+                                allocatedAmount.subtract(committedAmount));
+                    } catch (IllegalArgumentException exception) {
+                        throw invalid("Budget projection exceeds DECIMAL(19,4).");
+                    }
+                    if (remainingAmount.signum() < 0) {
+                        throw invalid("Committed compensation exceeds its budget bucket.");
+                    }
+                    return new CompensationPlanningDtos.BudgetAggregate(
+                            bucket.organizationId(), bucket.currency(),
+                            postedAggregate(allocatedAmount),
+                            postedAggregate(committedAmount),
+                            postedAggregate(remainingAmount));
+                })
+                .toList();
     }
 
     private CompensationPlanningDtos.ProposalView proposalView(
@@ -1331,23 +1412,53 @@ public class CompensationPlanningService {
             Proposal replacement,
             CompensationPlanningRepository.ProposalRow replaced,
             boolean frozenOnly) {
+        return committedByBucket(
+                tenantId, cycle, population, replacement, replaced,
+                frozenOnly, true, ignored -> true);
+    }
+
+    private Map<CompensationPlanningRepository.BudgetBucket, BigDecimal> committedByBucket(
+            long tenantId,
+            CompensationPlanningRepository.CycleRow cycle,
+            Population population,
+            Proposal replacement,
+            CompensationPlanningRepository.ProposalRow replaced,
+            boolean frozenOnly,
+            boolean lock,
+            Predicate<UUID> organizationAllowed) {
         Map<UUID, UUID> organizationByAssignment = new HashMap<>();
         for (PopulationLine line : population.lines()) {
             organizationByAssignment.put(
                     line.assignmentPublicId(), line.organizationPublicId());
         }
-        List<Proposal> contents = new ArrayList<>();
+        List<CompensationPlanningRepository.ProposalRow> visibleProposals =
+                new ArrayList<>();
         for (CompensationPlanningRepository.ProposalRow proposal
-                : repository.proposals(tenantId, cycle.internalId(), true)) {
+                : repository.proposals(tenantId, cycle.internalId(), lock)) {
             if (!"CANCELLED".equals(proposal.status())
                     && (!frozenOnly || "FROZEN".equals(proposal.status()))
                     && (replaced == null || proposal.internalId() != replaced.internalId())) {
-                contents.add(sealedProposal(
-                        tenantId, cycle.publicId(), proposal,
-                        PerTypedArtifactQueryPort.PLANNING_PURPOSE));
+                UUID organization = organizationByAssignment.get(
+                        proposal.content().assignmentPublicId());
+                if (organization == null) {
+                    throw invalid("Proposal assignment has no population organization.");
+                }
+                if (organizationAllowed.test(organization)) {
+                    visibleProposals.add(proposal);
+                }
             }
         }
-        if (replacement != null && !frozenOnly) contents.add(replacement);
+        List<Proposal> contents = new ArrayList<>(sealedProposals(
+                tenantId, cycle.publicId(), visibleProposals,
+                PerTypedArtifactQueryPort.PLANNING_PURPOSE));
+        if (replacement != null && !frozenOnly) {
+            UUID organization = organizationByAssignment.get(
+                    replacement.assignmentPublicId());
+            if (organization == null) {
+                throw invalid("Proposal assignment has no population organization.");
+            }
+            if (organizationAllowed.test(organization)) contents.add(replacement);
+        }
         Map<CompensationPlanningRepository.BudgetBucket, BigDecimal> committed =
                 new HashMap<>();
         for (Proposal proposal : contents) {
@@ -1365,6 +1476,15 @@ public class CompensationPlanningService {
             }
         }
         return committed;
+    }
+
+    private static String postedAggregate(BigDecimal value) {
+        BigDecimal bounded = PostedMoney.requireAggregate(value);
+        if (bounded.signum() < 0) {
+            throw invalid("Budget projection contains a negative amount.");
+        }
+        return bounded.signum() == 0
+                ? "0" : bounded.stripTrailingZeros().toPlainString();
     }
 
     private Map<CompensationPlanningRepository.BudgetBucket, BigDecimal> boundedBudgetTotals(
@@ -1400,6 +1520,36 @@ public class CompensationPlanningService {
         PerTypedArtifactQueryPort.TypedArtifact artifact = artifactQuery.query(
                 tenantId, row.artifactId(), PerArtifactType.COMPENSATION_PROPOSAL,
                 "COMPENSATION_PROPOSAL_REVISION", row.revisionPublicId(), purpose);
+        return exactProposal(cycleId, row, artifact);
+    }
+
+    private List<Proposal> sealedProposals(
+            long tenantId,
+            UUID cycleId,
+            List<CompensationPlanningRepository.ProposalRow> rows,
+            String purpose) {
+        if (rows.isEmpty()) return List.of();
+        List<PerTypedArtifactQueryPort.QuerySpec> requests = rows.stream()
+                .map(row -> new PerTypedArtifactQueryPort.QuerySpec(
+                        row.artifactId(), PerArtifactType.COMPENSATION_PROPOSAL,
+                        "COMPENSATION_PROPOSAL_REVISION", row.revisionPublicId()))
+                .toList();
+        Map<UUID, PerTypedArtifactQueryPort.TypedArtifact> artifacts =
+                artifactQuery.queryAll(tenantId, requests, purpose);
+        return rows.stream()
+                .map(row -> exactProposal(cycleId, row, artifacts.get(row.artifactId())))
+                .toList();
+    }
+
+    private Proposal exactProposal(
+            UUID cycleId,
+            CompensationPlanningRepository.ProposalRow row,
+            PerTypedArtifactQueryPort.TypedArtifact artifact) {
+        if (artifact == null) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_NOT_AVAILABLE,
+                    "The immutable proposal revision is unavailable.");
+        }
         if (!(artifact.content() instanceof Proposal content)
                 || !artifact.sha256().equals(row.contentDigest())
                 || !content.equals(row.contentForCycle(cycleId))) {

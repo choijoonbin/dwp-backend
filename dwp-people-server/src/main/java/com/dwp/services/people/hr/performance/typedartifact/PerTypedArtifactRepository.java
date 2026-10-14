@@ -116,6 +116,46 @@ class PerTypedArtifactRepository {
         return rows.stream().findFirst();
     }
 
+    List<StoredArtifact> findAll(long tenantId, List<UUID> publicIds) {
+        if (publicIds.isEmpty()) return List.of();
+        return jdbc.query("""
+                SELECT public_id, artifact_type, schema_version, artifact_revision,
+                       owner_aggregate_type, owner_aggregate_public_id,
+                       canonical_content_digest, encrypted_content,
+                       encryption_key_version_public_id, effective_from,
+                       effective_to, created_at, created_by
+                  FROM hris_performance.prf_per_artifact_versions
+                 WHERE tenant_id = :tenantId
+                   AND public_id = ANY(
+                       CAST(string_to_array(:publicIds, ',') AS UUID[]))
+                 ORDER BY public_id
+                """, new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("publicIds", publicIds.stream()
+                        .map(UUID::toString)
+                        .collect(java.util.stream.Collectors.joining(","))),
+                this::storedArtifact);
+    }
+
+    private StoredArtifact storedArtifact(
+            java.sql.ResultSet rs,
+            int rowNum) throws java.sql.SQLException {
+        return new StoredArtifact(
+                rs.getObject("public_id", UUID.class),
+                rs.getString("artifact_type"),
+                rs.getInt("schema_version"),
+                rs.getLong("artifact_revision"),
+                rs.getString("owner_aggregate_type"),
+                rs.getObject("owner_aggregate_public_id", UUID.class),
+                rs.getString("canonical_content_digest"),
+                rs.getBytes("encrypted_content"),
+                rs.getObject("encryption_key_version_public_id", UUID.class),
+                rs.getObject("effective_from", LocalDate.class),
+                rs.getObject("effective_to", LocalDate.class),
+                instant(rs, "created_at"),
+                rs.getObject("created_by", UUID.class));
+    }
+
     private static Instant instant(
             java.sql.ResultSet rs,
             String column) throws java.sql.SQLException {

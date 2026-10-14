@@ -424,6 +424,14 @@ class CompensationPlanningAuthorizationTest {
                 () -> CompensationPlanningController.requireClosedQuery(
                         duplicate, "limit"),
                 ErrorCode.INVALID_INPUT_VALUE);
+        assertThat(CompensationPlanningController
+                .requestsAuthoritativeBudgetProjection(null)).isFalse();
+        assertThat(CompensationPlanningController
+                .requestsAuthoritativeBudgetProjection("5")).isTrue();
+        assertCode(
+                () -> CompensationPlanningController
+                        .requestsAuthoritativeBudgetProjection("4"),
+                ErrorCode.INVALID_INPUT_VALUE);
     }
 
     private static CompensationPlanningAuthorityPort.AuthorityRequest request() {
@@ -569,6 +577,17 @@ class CompensationPlanningAuthorizationTest {
         }
         when(artifactQuery.query(anyLong(), any(), any(), any(), any(), any()))
                 .thenAnswer(invocation -> artifacts.get(invocation.getArgument(1)));
+        when(artifactQuery.queryAll(anyLong(), any(), any()))
+                .thenAnswer(invocation -> {
+                    List<PerTypedArtifactQueryPort.QuerySpec> requests =
+                            invocation.getArgument(1);
+                    Map<UUID, PerTypedArtifactQueryPort.TypedArtifact> selected =
+                            new HashMap<>();
+                    requests.forEach(request -> selected.put(
+                            request.artifactPublicId(),
+                            artifacts.get(request.artifactPublicId())));
+                    return Map.copyOf(selected);
+                });
         CompensationPlanningService service = new CompensationPlanningService(
                 repository, mock(PerTypedArtifactService.class), artifactQuery,
                 mock(CompensationPopulationMaterializer.class),

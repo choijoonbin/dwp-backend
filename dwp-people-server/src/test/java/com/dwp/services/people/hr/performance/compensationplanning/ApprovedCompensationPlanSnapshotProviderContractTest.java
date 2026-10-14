@@ -88,31 +88,39 @@ class ApprovedCompensationPlanSnapshotProviderContractTest {
     @Test
     void rejectsUntrustedEvidenceBeforeTouchingTheRepository() {
         List<ApprovedCompensationPlanSnapshotProvider.ServicePepEvidence> invalid = List.of(
-                copy(false, "dwp-payroll-server", "dwp-people-server", TENANT, TENANT,
+                copy(false, "dwp-payroll-server",
+                        ApprovedCompensationPlanSnapshotProvider.AUDIENCE, TENANT, TENANT,
                         1L, 1L, ApprovedCompensationPlanSnapshotProvider.PURPOSE,
                         ApprovedCompensationPlanSnapshotProvider.PROJECTION, CORRELATION),
-                copy(true, "other-workload", "dwp-people-server", TENANT, TENANT,
+                copy(true, "other-workload",
+                        ApprovedCompensationPlanSnapshotProvider.AUDIENCE, TENANT, TENANT,
                         1L, 1L, ApprovedCompensationPlanSnapshotProvider.PURPOSE,
                         ApprovedCompensationPlanSnapshotProvider.PROJECTION, CORRELATION),
                 copy(true, "dwp-payroll-server", "other-audience", TENANT, TENANT,
                         1L, 1L, ApprovedCompensationPlanSnapshotProvider.PURPOSE,
                         ApprovedCompensationPlanSnapshotProvider.PROJECTION, CORRELATION),
-                copy(true, "dwp-payroll-server", "dwp-people-server", TENANT, TENANT + 1,
+                copy(true, "dwp-payroll-server",
+                        ApprovedCompensationPlanSnapshotProvider.AUDIENCE, TENANT, TENANT + 1,
                         1L, 1L, ApprovedCompensationPlanSnapshotProvider.PURPOSE,
                         ApprovedCompensationPlanSnapshotProvider.PROJECTION, CORRELATION),
-                copy(true, "dwp-payroll-server", "dwp-people-server", TENANT, TENANT,
+                copy(true, "dwp-payroll-server",
+                        ApprovedCompensationPlanSnapshotProvider.AUDIENCE, TENANT, TENANT,
                         0L, 1L, ApprovedCompensationPlanSnapshotProvider.PURPOSE,
                         ApprovedCompensationPlanSnapshotProvider.PROJECTION, CORRELATION),
-                copy(true, "dwp-payroll-server", "dwp-people-server", TENANT, TENANT,
+                copy(true, "dwp-payroll-server",
+                        ApprovedCompensationPlanSnapshotProvider.AUDIENCE, TENANT, TENANT,
                         1L, 0L, ApprovedCompensationPlanSnapshotProvider.PURPOSE,
                         ApprovedCompensationPlanSnapshotProvider.PROJECTION, CORRELATION),
-                copy(true, "dwp-payroll-server", "dwp-people-server", TENANT, TENANT,
+                copy(true, "dwp-payroll-server",
+                        ApprovedCompensationPlanSnapshotProvider.AUDIENCE, TENANT, TENANT,
                         1L, 1L, "OTHER_PURPOSE",
                         ApprovedCompensationPlanSnapshotProvider.PROJECTION, CORRELATION),
-                copy(true, "dwp-payroll-server", "dwp-people-server", TENANT, TENANT,
+                copy(true, "dwp-payroll-server",
+                        ApprovedCompensationPlanSnapshotProvider.AUDIENCE, TENANT, TENANT,
                         1L, 1L, ApprovedCompensationPlanSnapshotProvider.PURPOSE,
                         "XCON-999", CORRELATION),
-                copy(true, "dwp-payroll-server", "dwp-people-server", TENANT, TENANT,
+                copy(true, "dwp-payroll-server",
+                        ApprovedCompensationPlanSnapshotProvider.AUDIENCE, TENANT, TENANT,
                         1L, 1L, ApprovedCompensationPlanSnapshotProvider.PURPOSE,
                         ApprovedCompensationPlanSnapshotProvider.PROJECTION, null));
 
@@ -139,6 +147,27 @@ class ApprovedCompensationPlanSnapshotProviderContractTest {
         when(repository.snapshot(TENANT, SNAPSHOT)).thenReturn(Optional.of(tampered));
         assertCode(() -> provider.get(SNAPSHOT, evidence()),
                 ErrorCode.RESOURCE_NOT_AVAILABLE);
+        verify(audit, never()).record(any());
+    }
+
+    @Test
+    void exactRefetchRejectsRevisionOrDigestDriftBeforeAuditingDisclosure() {
+        CompensationPlanningDtos.ApprovedSnapshot snapshot = snapshot();
+        when(repository.snapshot(TENANT, SNAPSHOT)).thenReturn(Optional.of(snapshot));
+
+        assertCode(() -> provider.getExact(
+                        SNAPSHOT,
+                        snapshot.snapshotRevision() + 1,
+                        snapshot.payloadDigest(),
+                        evidence()),
+                ErrorCode.RESOURCE_NOT_AVAILABLE);
+        assertCode(() -> provider.getExact(
+                        SNAPSHOT,
+                        snapshot.snapshotRevision(),
+                        "f".repeat(64),
+                        evidence()),
+                ErrorCode.RESOURCE_NOT_AVAILABLE);
+
         verify(audit, never()).record(any());
     }
 

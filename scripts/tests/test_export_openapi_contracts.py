@@ -554,6 +554,102 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         ]["post"]["x-dwp-product-authorization-v38"]
         self.assertEqual(38, employee["registryVersion"])
 
+    def test_compensation_planning_validator_rejects_payload_graph_drift(self) -> None:
+        people = json.loads(
+            (ROOT / "contracts/openapi/people.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+        EXPORTER["validate_compensation_planning_contract"](people, gateway)
+
+        wrong_request = copy.deepcopy(people)
+        wrong_request["paths"][
+            "/v1/hris/performance/compensation-planning/cycles"
+        ]["post"]["requestBody"]["content"]["application/json"]["schema"] = {
+            "$ref": "#/components/schemas/PerformanceCycleCreateRequest"
+        }
+        with self.assertRaisesRegex(RuntimeError, "payload schema drift"):
+            EXPORTER["validate_compensation_planning_contract"](
+                wrong_request, gateway
+            )
+
+        fake_query = copy.deepcopy(people)
+        fake_query["paths"][
+            "/v1/hris/performance/compensation-planning/cycles"
+        ]["get"].setdefault("parameters", []).append({
+            "in": "query", "name": "query", "schema": {"type": "object"}
+        })
+        with self.assertRaisesRegex(RuntimeError, "capture-only query parameter"):
+            EXPORTER["validate_compensation_planning_contract"](fake_query, gateway)
+
+        fake_cancel_body = copy.deepcopy(people)
+        fake_cancel_body["paths"][
+            "/v1/hris/performance/compensation-planning/cycles/{cycleId}/cancel"
+        ]["post"]["requestBody"] = {
+            "content": {"application/json": {"schema": {"type": "object"}}}
+        }
+        with self.assertRaisesRegex(RuntimeError, "bodyless operation"):
+            EXPORTER["validate_compensation_planning_contract"](
+                fake_cancel_body, gateway
+            )
+
+        incompatible_rollout = copy.deepcopy(people)
+        incompatible_rollout["components"]["schemas"][
+            "ModernCompplanCycleProjectionV5"
+        ].setdefault("required", []).append("budgetAggregates")
+        with self.assertRaisesRegex(RuntimeError, "rolling compatibility drift"):
+            EXPORTER["validate_compensation_planning_contract"](
+                incompatible_rollout, gateway
+            )
+
+        missing_required_nullable = copy.deepcopy(people)
+        missing_required_nullable["components"]["schemas"][
+            "ModernCompplanCycleProjectionV5"
+        ]["required"].remove("effectiveTo")
+        with self.assertRaisesRegex(RuntimeError, "required field drift"):
+            EXPORTER["validate_compensation_planning_contract"](
+                missing_required_nullable, gateway
+            )
+
+        non_nullable_date = copy.deepcopy(people)
+        non_nullable_date["components"]["schemas"][
+            "ModernCompplanCycleProjectionV5"
+        ]["properties"]["effectiveTo"]["type"] = "string"
+        with self.assertRaisesRegex(RuntimeError, "nullable field drift"):
+            EXPORTER["validate_compensation_planning_contract"](
+                non_nullable_date, gateway
+            )
+
+        unexpected_property = copy.deepcopy(people)
+        unexpected_property["components"]["schemas"][
+            "ModernCompplanCycleProjectionV5"
+        ]["properties"]["unexpected"] = {"type": "string"}
+        with self.assertRaisesRegex(RuntimeError, "property set drift"):
+            EXPORTER["validate_compensation_planning_contract"](
+                unexpected_property, gateway
+            )
+
+        wrong_nested_projection = copy.deepcopy(people)
+        wrong_nested_projection["components"]["schemas"][
+            "ModernCompplanCyclesQueryResponseV5"
+        ]["properties"]["items"]["items"] = {
+            "$ref": "#/components/schemas/PerformanceCycle"
+        }
+        with self.assertRaisesRegex(RuntimeError, "payload schema drift"):
+            EXPORTER["validate_compensation_planning_contract"](
+                wrong_nested_projection, gateway
+            )
+
+        leaked_internal_refetch = copy.deepcopy(people)
+        leaked_internal_refetch["paths"][
+            "/internal/hris-performance/v1/approved-compensation-plan-snapshots/{snapshotId}"
+        ] = {"get": {"operationId": "leakedWorkloadOnlySnapshotRefetch"}}
+        with self.assertRaisesRegex(RuntimeError, "workload-only refetch leaked"):
+            EXPORTER["validate_compensation_planning_contract"](
+                leaked_internal_refetch, gateway
+            )
+
     def test_gateway_projects_full_agent_contract_and_v33_governance(self) -> None:
         registry = json.loads(
             EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"].read_text(encoding="utf-8")

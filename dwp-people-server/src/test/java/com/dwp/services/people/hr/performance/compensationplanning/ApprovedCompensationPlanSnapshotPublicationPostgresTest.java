@@ -1,6 +1,9 @@
 package com.dwp.services.people.hr.performance.compensationplanning;
 
+import com.dwp.contracts.hris.xcon.v1.Xcon020ApprovedCompensationPlanSnapshotV1;
 import com.dwp.contracts.hris.xcon.v1.Xcon021ApprovedCompensationPlanSnapshotPublishedV2;
+import com.dwp.core.audit.AuditOutboxRecorder;
+import com.dwp.core.exception.BaseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
@@ -27,6 +30,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 @Testcontainers(disabledWithoutDocker = true)
 class ApprovedCompensationPlanSnapshotPublicationPostgresTest {
@@ -92,7 +96,7 @@ class ApprovedCompensationPlanSnapshotPublicationPostgresTest {
     }
 
     @Test
-    void commitsCycleSnapshotLinesReceiptAndExactV2OutboxAtomically() throws Exception {
+    void commitsExactV2OutboxAndRefetchesTheImmutableSnapshotTuple() throws Exception {
         CompensationPlanningDtos.SnapshotLine line = validLine(LINE, 1);
         String payloadDigest = canonicalizer.payloadDigest(
                 APPROVAL_RECEIPT, CYCLE, EFFECTIVE, null, List.of(line),
@@ -165,6 +169,69 @@ class ApprovedCompensationPlanSnapshotPublicationPostgresTest {
                        'CompensationPlanApproved.v1',
                        'ApprovedCompensationPlanSnapshotPublished.v1')
                 """, Integer.class, TENANT)).isZero();
+
+        Xcon021ApprovedCompensationPlanSnapshotPublishedV2 published =
+                mapper.treeToValue(
+                        payload,
+                        Xcon021ApprovedCompensationPlanSnapshotPublishedV2.class);
+        ApprovedCompensationPlanSnapshotProvider provider =
+                new ApprovedCompensationPlanSnapshotProvider(
+                        repository, canonicalizer, mock(AuditOutboxRecorder.class));
+        ApprovedCompensationPlanSnapshotProvider.ServicePepEvidence evidence =
+                new ApprovedCompensationPlanSnapshotProvider.ServicePepEvidence(
+                        true,
+                        ApprovedCompensationPlanSnapshotProvider.CALLER_WORKLOAD,
+                        ApprovedCompensationPlanSnapshotProvider.AUDIENCE,
+                        TENANT,
+                        TENANT,
+                        3L,
+                        9L,
+                        ApprovedCompensationPlanSnapshotProvider.PURPOSE,
+                        ApprovedCompensationPlanSnapshotProvider.PROJECTION,
+                        CORRELATION);
+        Xcon020ApprovedCompensationPlanSnapshotV1 refetched = transaction.execute(
+                status -> provider.getExact(
+                        published.snapshotId(),
+                        published.snapshotRevision(),
+                        published.payloadDigest(),
+                        evidence));
+
+        assertThat(refetched).isNotNull();
+        assertThat(refetched.snapshotId()).isEqualTo(published.snapshotId());
+        assertThat(refetched.snapshotRevision()).isEqualTo(published.snapshotRevision());
+        assertThat(refetched.payloadDigest()).isEqualTo(published.payloadDigest());
+        assertThat(refetched.lineCount()).isEqualTo(published.lineCount());
+        assertThat(refetched.sourceVersion()).isEqualTo(published.sourceVersion());
+        assertThat(refetched.sourceVersion()).isEqualTo(published.approvalRevision());
+        assertThat(refetched.planId()).isEqualTo(published.planId());
+        assertThat(refetched.cycleId()).isEqualTo(published.cycleId());
+        assertThat(refetched.approvalReceiptId())
+                .isEqualTo(published.approvalReceiptId());
+        assertThat(refetched.effectiveFrom()).isEqualTo(published.effectiveDate());
+        assertThat(refetched.lines()).singleElement().satisfies(refetchedLine -> {
+            assertThat(refetchedLine.lineId()).isEqualTo(LINE);
+            assertThat(refetchedLine.lineSequence()).isOne();
+            assertThat(refetchedLine.workerId()).isEqualTo(WORKER);
+            assertThat(refetchedLine.assignmentId()).isEqualTo(ASSIGNMENT);
+            assertThat(refetchedLine.lineDigest()).isEqualTo(line.lineDigest());
+        });
+
+        assertThatThrownBy(() -> transaction.execute(status -> provider.getExact(
+                published.snapshotId(), published.snapshotRevision() + 1,
+                published.payloadDigest(), evidence)))
+                .isInstanceOf(BaseException.class);
+        assertThatThrownBy(() -> transaction.execute(status -> provider.getExact(
+                published.snapshotId(), published.snapshotRevision(),
+                "0".repeat(64), evidence)))
+                .isInstanceOf(BaseException.class);
+
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE hris_performance.prf_cmp_approved_snapshots
+                   SET snapshot_revision = snapshot_revision + 1
+                 WHERE tenant_id = ? AND public_id = ?
+                """, TENANT, SNAPSHOT))
+                .isInstanceOf(DataAccessException.class)
+                .hasStackTraceContaining("PER_COMPENSATION_APPEND_ONLY");
     }
 
     @Test

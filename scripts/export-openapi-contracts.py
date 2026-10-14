@@ -141,20 +141,76 @@ HRM_EMPLOYEE_CHANGE_OPERATION_CONTRACTS = {
 HRM_EMPLOYEE_CHANGE_ROUTE_KEYS = frozenset(
     HRM_EMPLOYEE_CHANGE_OPERATION_CONTRACTS
 )
-COMPENSATION_PLANNING_ROUTE_KEYS = frozenset({
-    "route.hcm.operations.compensation-planning.page",
-    "route.hcm.operations.compensation-cycle-detail.data",
-    "route.hcm.operations.compensation-proposals.data",
-    "route.hcm.operations.compensation-proposal-detail.data",
-    "route.hcm.operations.compensation-cycle-create.action",
-    "route.hcm.operations.compensation-cycle-revise.action",
-    "route.hcm.operations.compensation-budget-allocate.action",
-    "route.hcm.operations.compensation-proposal-upsert.action",
-    "route.hcm.operations.compensation-proposal-submit.action",
-    "route.hcm.operations.compensation-plan-approve.action",
-    "route.hcm.operations.compensation-snapshot-publish.action",
-    "route.hcm.operations.compensation-cycle-cancel.action",
-})
+COMPENSATION_PLANNING_OPERATION_CONTRACTS = {
+    "route.hcm.operations.compensation-planning.page": (
+        "get", "/v1/hris/performance/compensation-planning/cycles",
+        "modern.compplan.cycles.query", None,
+        "ModernCompplanCyclesQueryResponseV5",
+    ),
+    "route.hcm.operations.compensation-cycle-detail.data": (
+        "get", "/v1/hris/performance/compensation-planning/cycles/{cycleId}",
+        "modern.compplan.cycle.query", None,
+        "ModernCompplanCycleQueryResponseV5",
+    ),
+    "route.hcm.operations.compensation-proposals.data": (
+        "get",
+        "/v1/hris/performance/compensation-planning/cycles/{cycleId}/proposals",
+        "modern.compplan.proposals.query", None,
+        "ModernCompplanProposalsQueryResponseV4",
+    ),
+    "route.hcm.operations.compensation-proposal-detail.data": (
+        "get", "/v1/hris/performance/compensation-planning/proposals/{proposalId}",
+        "modern.compplan.proposal.query", None,
+        "ModernCompplanProposalQueryResponseV4",
+    ),
+    "route.hcm.operations.compensation-cycle-create.action": (
+        "post", "/v1/hris/performance/compensation-planning/cycles",
+        "modern.compplan.cycle.create", "ModernCompplanCycleCreateRequestV2",
+        "PerformanceCommandReceiptV1",
+    ),
+    "route.hcm.operations.compensation-cycle-revise.action": (
+        "post",
+        "/v1/hris/performance/compensation-planning/cycles/{cycleId}/revisions",
+        "modern.compplan.cycle.revise", "ModernCompplanCycleReviseRequestV4",
+        "ModernCompplanRichCommandResultV3",
+    ),
+    "route.hcm.operations.compensation-budget-allocate.action": (
+        "post",
+        "/v1/hris/performance/compensation-planning/cycles/{cycleId}/budget-allocations",
+        "modern.compplan.budget.allocate", "ModernCompplanBudgetAllocateRequestV2",
+        "PerformanceCommandReceiptV1",
+    ),
+    "route.hcm.operations.compensation-proposal-upsert.action": (
+        "post",
+        "/v1/hris/performance/compensation-planning/cycles/{cycleId}/proposals/{proposalId}",
+        "modern.compplan.proposal.upsert", "ModernCompplanProposalUpsertRequestV4",
+        "ModernCompplanRichCommandResultV3",
+    ),
+    "route.hcm.operations.compensation-proposal-submit.action": (
+        "post",
+        "/v1/hris/performance/compensation-planning/cycles/{cycleId}/proposals/{proposalId}/submit",
+        "modern.compplan.proposal.submit", "ModernCompplanProposalSubmitRequestV1",
+        "PerformanceCommandReceiptV1",
+    ),
+    "route.hcm.operations.compensation-plan-approve.action": (
+        "post", "/v1/hris/performance/compensation-planning/cycles/{cycleId}/approve",
+        "modern.compplan.plan.approve", "ModernCompplanPlanApproveRequestV2",
+        "PerformanceCommandReceiptV1",
+    ),
+    "route.hcm.operations.compensation-snapshot-publish.action": (
+        "post",
+        "/v1/hris/performance/compensation-planning/cycles/{cycleId}/approved-snapshots",
+        "modern.compplan.snapshot.publish", "ModernCompplanSnapshotPublishRequestV2",
+        "ModernCompplanSnapshotPublishResponseV2",
+    ),
+    "route.hcm.operations.compensation-cycle-cancel.action": (
+        "post", "/v1/hris/performance/compensation-planning/cycles/{cycleId}/cancel",
+        "modern.compplan.cycle.cancel", None, "ModernCompplanRichCommandResultV3",
+    ),
+}
+COMPENSATION_PLANNING_ROUTE_KEYS = frozenset(
+    COMPENSATION_PLANNING_OPERATION_CONTRACTS
+)
 HRM_EMPLOYEE_CHANGE_INTERNAL_OPERATION = (
     "post",
     "/internal/hris-people/v1/employee-change-requests/{requestPublicId}/approval-decisions",
@@ -1538,7 +1594,7 @@ def normalize_gateway_people_schema(value: Any) -> Any:
 def validate_compensation_planning_contract(
     people_document: dict[str, Any], gateway_document: dict[str, Any]
 ) -> None:
-    """Require the complete controller/owner/browser v39 compensation slice."""
+    """Require the complete v39 route and closed payload graph for compensation."""
     registry = load_product_authorization_registry()
     routes = {
         route.get("routeContractKey"): route
@@ -1571,8 +1627,13 @@ def validate_compensation_planning_contract(
         method = str(owner.get("method", "")).lower()
         owner_path = owner.get("path")
         browser_path = browser.get("path")
+        expected_method, expected_owner_path, _, _, _ = (
+            COMPENSATION_PLANNING_OPERATION_CONTRACTS[route_key]
+        )
         if (
             method not in HTTP_METHODS
+            or method != expected_method
+            or owner_path != expected_owner_path
             or str(browser.get("method", "")).lower() != method
             or owner.get("serviceKey") != "people"
             or owner.get("bindingKey") != browser.get("bindingKey")
@@ -1607,6 +1668,340 @@ def validate_compensation_planning_contract(
             f"browserMissing={sorted(browser_operations - actual_browser)}, "
             f"browserUnexpected={sorted(actual_browser - browser_operations)}"
         )
+
+    def schema_ref(
+        schema: Any, expected_name: str, prefix: str, label: str
+    ) -> None:
+        expected = f"#/components/schemas/{prefix}{expected_name}"
+        if not isinstance(schema, dict) or schema.get("$ref") != expected:
+            raise RuntimeError(
+                f"Compensation-planning payload schema drift: {label} "
+                f"expected={expected}, actual={schema}"
+            )
+
+    def operation_payload(
+        document: dict[str, Any],
+        method: str,
+        path: str,
+        operation_id: str,
+        request_schema: str | None,
+        response_schema: str,
+        prefix: str,
+        label: str,
+    ) -> None:
+        operation = document.get("paths", {}).get(path, {}).get(method)
+        expected_operation_id = f"{prefix}{operation_id}"
+        if (
+            not isinstance(operation, dict)
+            or operation.get("operationId") != expected_operation_id
+        ):
+            raise RuntimeError(
+                "Compensation-planning operationId drift: "
+                f"{label} {method.upper()} {path}"
+            )
+        if any(
+            isinstance(parameter, dict) and parameter.get("name") == "query"
+            for parameter in operation.get("parameters", [])
+        ):
+            raise RuntimeError(
+                "Compensation-planning capture-only query parameter leaked: "
+                f"{label} {method.upper()} {path}"
+            )
+        request_body = operation.get("requestBody")
+        if request_schema is None:
+            if request_body is not None:
+                raise RuntimeError(
+                    "Compensation-planning bodyless operation published a request body: "
+                    f"{label} {method.upper()} {path}"
+                )
+        else:
+            if not isinstance(request_body, dict) or request_body.get("required") is not True:
+                raise RuntimeError(
+                    "Compensation-planning command request body is not required: "
+                    f"{label} {method.upper()} {path}"
+                )
+            schema_ref(
+                request_body.get("content", {}).get("application/json", {}).get("schema"),
+                request_schema,
+                prefix,
+                f"{label} {method.upper()} {path} request",
+            )
+        response_wrapper = (
+            operation.get("responses", {}).get("200", {})
+            .get("content", {}).get("application/json", {}).get("schema")
+        )
+        if not isinstance(response_wrapper, dict):
+            raise RuntimeError(
+                "Compensation-planning JSON response is missing: "
+                f"{label} {method.upper()} {path}"
+            )
+        wrapper_ref = response_wrapper.get("$ref")
+        component_prefix = "#/components/schemas/"
+        if not isinstance(wrapper_ref, str) or not wrapper_ref.startswith(component_prefix):
+            raise RuntimeError(
+                "Compensation-planning response wrapper is not a component: "
+                f"{label} {method.upper()} {path}"
+            )
+        wrapper_name = wrapper_ref.removeprefix(component_prefix)
+        schemas = document.get("components", {}).get("schemas", {})
+        wrapper = schemas.get(wrapper_name)
+        if not isinstance(wrapper, dict):
+            raise RuntimeError(
+                f"Compensation-planning response wrapper is unresolved: {wrapper_name}"
+            )
+        schema_ref(
+            wrapper.get("properties", {}).get("data"),
+            response_schema,
+            prefix,
+            f"{label} {method.upper()} {path} response",
+        )
+
+    for route_key, contract in COMPENSATION_PLANNING_OPERATION_CONTRACTS.items():
+        method, owner_path, operation_id, request_schema, response_schema = contract
+        operation_payload(
+            people_document, method, owner_path, operation_id,
+            request_schema, response_schema, "", "People owner",
+        )
+        operation_payload(
+            gateway_document, method, prefixed("/api/people")(owner_path),
+            operation_id, request_schema, response_schema, "people_", "Gateway",
+        )
+
+    exact_schema_shapes = {
+        "ModernCompplanHrmSourceSnapshotRefV1": (
+            {"snapshotPublicId", "ownerRevision", "projectionSchemaId", "asOf",
+             "sha256", "purposeCode"},
+            {"snapshotPublicId", "ownerRevision", "projectionSchemaId", "asOf",
+             "sha256", "purposeCode"}, set()),
+        "ModernCompplanCycleCreateRequestV2": (
+            {"cycleCode", "guidelines", "population", "effectiveFrom", "effectiveTo",
+             "populationSourceRef"},
+            {"cycleCode", "guidelines", "population", "effectiveFrom", "effectiveTo",
+             "populationSourceRef"}, {"effectiveTo"}),
+        "ModernCompplanCycleReviseRequestV4": (
+            {"guidelines", "population", "populationSourceRef", "effectiveFrom",
+             "effectiveTo"},
+            {"guidelines", "population", "populationSourceRef", "effectiveFrom",
+             "effectiveTo"}, {"effectiveTo"}),
+        "ModernCompplanBudgetAllocateRequestV2": (
+            {"organizationPublicId", "amount", "currency", "ledgerEntryType",
+             "reversesEntryPublicId"},
+            {"organizationPublicId", "amount", "currency", "ledgerEntryType"},
+            {"reversesEntryPublicId"}),
+        "ModernCompplanProposalUpsertRequestV4": (
+            {"content"}, {"content"}, set()),
+        "ModernCompplanProposalSubmitRequestV1": (
+            {"submissionDigest", "effectiveDate"}, {"submissionDigest"},
+            {"effectiveDate"}),
+        "ModernCompplanPlanApproveRequestV2": (
+            {"decision", "reasonCode"}, {"decision", "reasonCode"}, set()),
+        "ModernCompplanSnapshotPublishRequestV2": (
+            {"approvalReceiptId"}, {"approvalReceiptId"}, set()),
+        "PerformanceCommandReceiptV1": (
+            {"receiptId", "status", "aggregateId", "aggregateVersion",
+             "correlationId", "occurredAt", "payloadDigest"},
+            {"receiptId", "status", "correlationId", "occurredAt", "payloadDigest"},
+            set()),
+        "ModernCompplanBudgetEntryProjectionV1": (
+            {"entryId", "entrySequence", "organizationPublicId", "currency", "amount",
+             "entryType", "sourceEntryPublicId", "createdAt"},
+            {"entryId", "entrySequence", "organizationPublicId", "currency", "amount",
+             "entryType", "sourceEntryPublicId", "createdAt"},
+            {"sourceEntryPublicId"}),
+        "ModernCompplanBudgetAggregateV1": (
+            {"organizationPublicId", "currency", "allocatedAmount", "committedAmount",
+             "remainingAmount"},
+            {"organizationPublicId", "currency", "allocatedAmount", "committedAmount",
+             "remainingAmount"}, set()),
+        "ModernCompplanProposalProjectionV4": (
+            {"proposalId", "aggregateVersion", "cycleId", "workerId", "assignmentId",
+             "componentCode", "currency", "effectiveFrom", "effectiveTo",
+             "currentRevision", "status", "contentDigest", "amountMasked", "amount",
+             "content"},
+            {"proposalId", "aggregateVersion", "cycleId", "workerId", "assignmentId",
+             "componentCode", "currency", "effectiveFrom", "effectiveTo",
+             "currentRevision", "status", "contentDigest", "amountMasked"},
+            {"effectiveTo"}),
+        "ModernCompplanCycleProjectionV5": (
+            {"cycleId", "aggregateVersion", "cycleCode", "effectiveFrom", "effectiveTo",
+             "status", "guidelines", "population", "budgetMasked", "budgetEntries",
+             "budgetAggregates"},
+            {"cycleId", "aggregateVersion", "cycleCode", "effectiveFrom", "effectiveTo",
+             "status", "budgetMasked"}, {"effectiveTo"}),
+        "ModernCompplanCyclesQueryResponseV5": (
+            {"items", "nextCursor", "hasMore", "asOf", "scopeRevision",
+             "fieldPolicyRevision"},
+            {"items", "nextCursor", "hasMore", "asOf", "scopeRevision",
+             "fieldPolicyRevision"}, {"nextCursor"}),
+        "ModernCompplanCycleQueryResponseV5": (
+            {"item", "referenceEffectiveAt", "freshnessWatermark",
+             "fieldPolicyRevision"},
+            {"item", "referenceEffectiveAt", "freshnessWatermark",
+             "fieldPolicyRevision"}, set()),
+        "ModernCompplanProposalsQueryResponseV4": (
+            {"items", "nextCursor", "hasMore", "referenceEffectiveAt",
+             "freshnessWatermark", "fieldPolicyRevision"},
+            {"items", "nextCursor", "hasMore", "referenceEffectiveAt",
+             "freshnessWatermark", "fieldPolicyRevision"}, {"nextCursor"}),
+        "ModernCompplanProposalQueryResponseV4": (
+            {"item", "referenceEffectiveAt", "freshnessWatermark",
+             "fieldPolicyRevision"},
+            {"item", "referenceEffectiveAt", "freshnessWatermark",
+             "fieldPolicyRevision"}, set()),
+        "ModernCompplanTypedChildResultV3": (
+            {"entityType", "publicId", "aggregateVersion", "ordinal", "resultDigest"},
+            {"entityType", "publicId", "aggregateVersion", "ordinal", "resultDigest"},
+            set()),
+        "ModernCompplanRichCommandResultV3": (
+            {"commandReceiptId", "status", "aggregatePublicId", "aggregateVersion",
+             "correlationId", "completedAt", "resultDigest", "childResults"},
+            {"commandReceiptId", "status", "aggregatePublicId", "aggregateVersion",
+             "correlationId", "completedAt", "resultDigest", "childResults"}, set()),
+        "ModernCompplanSnapshotPublishResponseV2": (
+            {"approvalReceiptId", "cycleId", "snapshotId", "snapshotRevision",
+             "sourceVersion", "aggregateVersion", "lineCount", "payloadDigest",
+             "correlationId", "publishedAt"},
+            {"approvalReceiptId", "cycleId", "snapshotId", "snapshotRevision",
+             "sourceVersion", "aggregateVersion", "lineCount", "payloadDigest",
+             "correlationId", "publishedAt"}, set()),
+        "CompensationGuidelineV1": (
+            {"componentCode", "currency", "minimumAmount", "maximumAmount",
+             "exceptionPolicyCode", "roundingPolicyVersionPublicId"},
+            {"componentCode", "currency", "minimumAmount", "maximumAmount",
+             "exceptionPolicyCode", "roundingPolicyVersionPublicId"}, set()),
+        "CompensationGuidelinesContentV1": (
+            {"components", "budgetMode", "effectiveFrom", "effectiveTo"},
+            {"components", "budgetMode", "effectiveFrom", "effectiveTo"},
+            {"effectiveTo"}),
+        "CompensationPopulationLineV1": (
+            {"workerPublicId", "assignmentPublicId", "organizationPublicId",
+             "gradePublicId", "jobProfilePublicId", "assignmentOwnerRevision",
+             "eligibleComponentCodes"},
+            {"workerPublicId", "assignmentPublicId", "organizationPublicId",
+             "gradePublicId", "jobProfilePublicId", "assignmentOwnerRevision",
+             "eligibleComponentCodes"}, {"gradePublicId", "jobProfilePublicId"}),
+        "CompensationPopulationContentV1": (
+            {"asOf", "hrmOwnerRevision", "lines"},
+            {"asOf", "hrmOwnerRevision", "lines"}, set()),
+        "CompensationProposalContentV1": (
+            {"cyclePublicId", "workerPublicId", "assignmentPublicId", "componentCode",
+             "currency", "amount", "effectiveFrom", "effectiveTo",
+             "exceptionReasonCode", "supersedesProposalPublicId"},
+            {"cyclePublicId", "workerPublicId", "assignmentPublicId", "componentCode",
+             "currency", "amount", "effectiveFrom", "effectiveTo",
+             "exceptionReasonCode", "supersedesProposalPublicId"},
+            {"effectiveTo", "exceptionReasonCode", "supersedesProposalPublicId"}),
+    }
+    payload_edges = {
+        ("ModernCompplanCycleCreateRequestV2", ("properties", "guidelines")):
+            "CompensationGuidelinesContentV1",
+        ("ModernCompplanCycleCreateRequestV2", ("properties", "population")):
+            "CompensationPopulationContentV1",
+        ("ModernCompplanCycleCreateRequestV2", ("properties", "populationSourceRef")):
+            "ModernCompplanHrmSourceSnapshotRefV1",
+        ("ModernCompplanCycleReviseRequestV4", ("properties", "guidelines")):
+            "CompensationGuidelinesContentV1",
+        ("ModernCompplanCycleReviseRequestV4", ("properties", "population")):
+            "CompensationPopulationContentV1",
+        ("ModernCompplanCycleReviseRequestV4", ("properties", "populationSourceRef")):
+            "ModernCompplanHrmSourceSnapshotRefV1",
+        ("ModernCompplanProposalUpsertRequestV4", ("properties", "content")):
+            "CompensationProposalContentV1",
+        ("ModernCompplanProposalProjectionV4", ("properties", "content")):
+            "CompensationProposalContentV1",
+        ("ModernCompplanCycleProjectionV5", ("properties", "guidelines")):
+            "CompensationGuidelinesContentV1",
+        ("ModernCompplanCycleProjectionV5", ("properties", "population")):
+            "CompensationPopulationContentV1",
+        ("ModernCompplanCycleProjectionV5", ("properties", "budgetEntries", "items")):
+            "ModernCompplanBudgetEntryProjectionV1",
+        ("ModernCompplanCycleProjectionV5", ("properties", "budgetAggregates", "items")):
+            "ModernCompplanBudgetAggregateV1",
+        ("ModernCompplanCyclesQueryResponseV5", ("properties", "items", "items")):
+            "ModernCompplanCycleProjectionV5",
+        ("ModernCompplanCycleQueryResponseV5", ("properties", "item")):
+            "ModernCompplanCycleProjectionV5",
+        ("ModernCompplanProposalsQueryResponseV4", ("properties", "items", "items")):
+            "ModernCompplanProposalProjectionV4",
+        ("ModernCompplanProposalQueryResponseV4", ("properties", "item")):
+            "ModernCompplanProposalProjectionV4",
+        ("ModernCompplanRichCommandResultV3", ("properties", "childResults", "items")):
+            "ModernCompplanTypedChildResultV3",
+        ("CompensationGuidelinesContentV1", ("properties", "components", "items")):
+            "CompensationGuidelineV1",
+        ("CompensationPopulationContentV1", ("properties", "lines", "items")):
+            "CompensationPopulationLineV1",
+    }
+    for label, document, prefix in (
+        ("People owner", people_document, ""),
+        ("Gateway", gateway_document, "people_"),
+    ):
+        schemas = document.get("components", {}).get("schemas", {})
+        for name, (expected_properties, expected_required, expected_nullable) in (
+                exact_schema_shapes.items()):
+            published_name = f"{prefix}{name}"
+            schema = schemas.get(published_name)
+            if not isinstance(schema, dict) or schema.get("additionalProperties") is not False:
+                raise RuntimeError(
+                    "Compensation-planning closed schema drift: "
+                    f"{label} {published_name}"
+                )
+            properties = schema.get("properties", {})
+            if not isinstance(properties, dict) or set(properties) != expected_properties:
+                raise RuntimeError(
+                    "Compensation-planning property set drift: "
+                    f"{label} {published_name}"
+                )
+            if (name == "ModernCompplanCycleProjectionV5"
+                    and "budgetAggregates" in schema.get("required", [])):
+                raise RuntimeError(
+                    "Compensation-planning rolling compatibility drift: "
+                    f"{label} budgetAggregates must remain optional during staged rollout"
+                )
+            if set(schema.get("required", [])) != expected_required:
+                raise RuntimeError(
+                    "Compensation-planning required field drift: "
+                    f"{label} {published_name}"
+                )
+            actual_nullable = {
+                property_name
+                for property_name, property_schema in properties.items()
+                if isinstance(property_schema, dict)
+                and (
+                    (isinstance(property_schema.get("type"), list)
+                     and "null" in property_schema["type"])
+                    or any(
+                        isinstance(option, dict) and option.get("type") == "null"
+                        for keyword in ("oneOf", "anyOf")
+                        for option in property_schema.get(keyword, [])
+                    )
+                )
+            }
+            if actual_nullable != expected_nullable:
+                raise RuntimeError(
+                    "Compensation-planning nullable field drift: "
+                    f"{label} {published_name}"
+                )
+        for (source_name, path), target_name in payload_edges.items():
+            value: Any = schemas[f"{prefix}{source_name}"]
+            for segment in path:
+                value = value.get(segment) if isinstance(value, dict) else None
+            schema_ref(
+                value, target_name, prefix,
+                f"{label} {source_name}.{'.'.join(path)}",
+            )
+        cycle_schema = schemas[f"{prefix}ModernCompplanCycleProjectionV5"]
+        if "budgetAggregates" in cycle_schema.get("required", []):
+            raise RuntimeError(
+                "Compensation-planning rolling compatibility drift: "
+                f"{label} budgetAggregates must remain optional during staged rollout"
+            )
+        for path in document.get("paths", {}):
+            if "approved-compensation-plan-snapshots" in path:
+                raise RuntimeError(
+                    "Compensation-planning workload-only refetch leaked to public OpenAPI: "
+                    f"{label} {path}"
+                )
 
 
 def validate_hrm_employee_change_contract(

@@ -198,7 +198,8 @@ final class HcmCompensationPlanningAuthorityAdapter
                 && population.organizationPublicIds().isEmpty())) {
             throw unavailable("Current compensation population is incomplete.");
         }
-        Map<String, FieldDecision> fields = fieldDecisions(contract.readOnly());
+        Map<String, FieldDecision> fields = fieldDecisions(
+                request.operationId(), contract.readOnly(), actor);
         String populationDigest = digest(
                 "compensation-planning", request.tenantId(), request.actorId(),
                 evidence.contextKey(), evidence.scopeKey(), route.routeContractKey(),
@@ -236,18 +237,35 @@ final class HcmCompensationPlanningAuthorityAdapter
                 Set.of(), Set.of());
     }
 
-    private Map<String, FieldDecision> fieldDecisions(boolean readOnly) {
-        FieldDecision privileged = readOnly ? FieldDecision.MASK : FieldDecision.VIEW;
+    private Map<String, FieldDecision> fieldDecisions(
+            String operationId,
+            boolean readOnly,
+            PeopleRequestContext.Actor actor) {
+        boolean planningDuty = actor.hasPermission(
+                CompensationPlanningAuthorization.DATA_RESOURCE, "UPDATE")
+                || actor.hasPermission(
+                CompensationPlanningAuthorization.APPROVAL_RESOURCE, "APPROVE");
+        boolean mutationDetail = !readOnly && planningDuty;
+        boolean cycleDetail = CompensationPlanningService.QUERY_CYCLE.equals(operationId)
+                && planningDuty;
+        boolean proposalDetail = CompensationPlanningService.QUERY_PROPOSAL.equals(operationId)
+                && planningDuty;
         Map<String, FieldDecision> fields = new LinkedHashMap<>();
         fields.put("GUIDELINES", FieldDecision.VIEW);
         fields.put("POPULATION", FieldDecision.VIEW);
         fields.put("ORGANIZATION", FieldDecision.VIEW);
         fields.put("WORKER", FieldDecision.VIEW);
         fields.put("ASSIGNMENT", FieldDecision.VIEW);
-        fields.put("BUDGET_AMOUNT", privileged);
-        fields.put("PROPOSAL_AMOUNT", privileged);
-        fields.put("TYPED_CONTENT", privileged);
+        fields.put("BUDGET_AMOUNT", decision(mutationDetail || cycleDetail));
+        fields.put("PROPOSAL_AMOUNT",
+                decision(mutationDetail || cycleDetail || proposalDetail));
+        fields.put("TYPED_CONTENT",
+                decision(mutationDetail || cycleDetail || proposalDetail));
         return Map.copyOf(fields);
+    }
+
+    private static FieldDecision decision(boolean permitted) {
+        return permitted ? FieldDecision.VIEW : FieldDecision.MASK;
     }
 
     private boolean aggregateMatches(AggregateMode mode, UUID aggregate) {

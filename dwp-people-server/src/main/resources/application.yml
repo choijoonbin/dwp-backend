@@ -68,6 +68,16 @@ spring:
 
 dwp:
   hris:
+    performance:
+      compensation:
+        snapshot-service:
+          # SVC-PEP-PER-001 stays dark until PAY workload trust and explicit,
+          # versioned tenant grants are installed. Grant syntax is
+          # tenantId:tenantGrantRevision:policyRevision[,..].
+          enabled: ${DWP_HRIS_PER_COMPENSATION_SNAPSHOT_SERVICE_ENABLED:false}
+          jwt-public-jwk: ${DWP_HRIS_PER_COMPENSATION_SNAPSHOT_JWT_PUBLIC_JWK:}
+          jwt-issuer: ${DWP_HRIS_PER_COMPENSATION_SNAPSHOT_JWT_ISSUER:}
+          payroll-tenant-grants: ${DWP_HRIS_PER_COMPENSATION_SNAPSHOT_TENANT_GRANTS:}
     employee-change:
       # Control-owned bridge remains dark until registered workload keys and
       # explicit tenant grants are installed on both services.
