@@ -50,7 +50,7 @@ public final class HrisAuditOutboxEventAdapter {
                 .reason(source.errorCode() != null ? source.errorCode() : source.reasonCode())
                 .correlationId(source.correlationId().toString())
                 .policyId(source.authorizationDecisionRef())
-                .policyDecision(source.outcome())
+                .policyDecision(policyDecision(source.outcome()))
                 .approvalId(source.approvalReceiptId() == null
                         ? null
                         : source.approvalReceiptId().toString())
@@ -65,5 +65,9 @@ public final class HrisAuditOutboxEventAdapter {
         if (value != null) {
             target.put(key, value);
         }
+    }
+
+    private static String policyDecision(String outcome) {
+        return "DENIED".equals(outcome) ? "DENY" : "ALLOW";
     }
 }

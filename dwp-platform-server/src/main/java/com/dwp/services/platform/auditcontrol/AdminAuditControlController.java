@@ -50,7 +50,7 @@ public class AdminAuditControlController {
                 tenantId, window, "ALL", "ALL", "ALL", null, null, null)));
     }
 
-    @GetMapping("/events")
+    @GetMapping(value = "/events", params = "!product")
     public ApiResponse<AuditControlDtos.EventPage> events(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(PERMISSIONS) String permissions,
@@ -68,7 +68,7 @@ public class AdminAuditControlController {
                 tenantId, window, category, severity, outcome, sourceService, actor, query), page, size));
     }
 
-    @GetMapping("/events/{eventId}")
+    @GetMapping(value = "/events/{eventId}", params = "!product")
     public ApiResponse<AuditControlDtos.Event> event(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(PERMISSIONS) String permissions,

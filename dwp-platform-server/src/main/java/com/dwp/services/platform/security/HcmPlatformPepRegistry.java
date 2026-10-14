@@ -23,20 +23,24 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/** Closed Platform-owned HCM PEP projection for the v40 SYS navigation-policy handoff. */
+/** Closed Platform-owned HCM PEP projection for the combined SYS/PER/TIM v42 handoff. */
 @Component
 public final class HcmPlatformPepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-platform-pep-v40.generated.json";
-    static final String REGISTRY_V40_CHECKSUM =
-            "4dca145cbc9169c2d1fde71771b83a1a0635679a7190a39d0a21b4e76bbb9329";
+            "product-authorization/hcm-platform-pep-v42.generated.json";
+    static final String REGISTRY_V42_CHECKSUM =
+            "f73f9a64816ac8f5567a2a7c292821f4a40e6d675915ebc3c3ac8aad7d1fd983";
+    static final String PROJECTION_V42_CHECKSUM =
+            "1467b3c665a9c0dd2934c10046f80a5d1a15e624780b5f3a4551525b94799c2a";
     private static final String CONFIGURATION_ROOT = "/v1/admin/hris/configurations";
     private static final String WORKBENCH_PATH = "/v1/hris/workbench/settings-reference";
     private static final String NAVIGATION_POLICY_ROOT =
             "/v1/admin/hris/navigation-policies";
     private static final String NAVIGATION_PROJECTION_PATH =
             "/v1/hris/navigation/projection";
+    private static final String HCM_AUDIT_EVENTS_ROOT =
+            "/v1/admin/audit-control/events";
 
     private final ObjectMapper objectMapper;
     private final Map<String, JsonNode> capabilities;
@@ -63,6 +67,10 @@ public final class HcmPlatformPepRegistry {
                 || path.startsWith(WORKBENCH_PATH + ";")
                 || path.equals(NAVIGATION_PROJECTION_PATH)
                 || path.startsWith(NAVIGATION_PROJECTION_PATH + ";")
+                || path.equals(HCM_AUDIT_EVENTS_ROOT)
+                || path.startsWith(HCM_AUDIT_EVENTS_ROOT + "/")
+                || path.startsWith(HCM_AUDIT_EVENTS_ROOT + ";")
+                || path.startsWith(HCM_AUDIT_EVENTS_ROOT + "%")
                 || path.equals(CONFIGURATION_ROOT)
                 || path.startsWith(CONFIGURATION_ROOT + "/")
                 || path.startsWith(CONFIGURATION_ROOT + ";")
@@ -132,18 +140,28 @@ public final class HcmPlatformPepRegistry {
                 if (!claimed(path)) continue;
                 StepUpCommandBinding stepUp = stepUpBinding(
                         route, service.path("bindingKey").asText());
+                boolean highRisk = stepUp != null || profiles.stream()
+                        .anyMatch(this::requiresElevatedActivation);
                 result.add(new Binding(
                         routeKey,
                         route.path("routeKind").asText(),
                         service.path("method").asText(),
                         PathTemplate.compile(path),
-                        List.copyOf(profiles),
-                        stepUp != null,
+                        List.copyOf(profiles), highRisk,
                         stepUp));
             }
         }
-        require(result.size() == 21, "HCM Platform SYS binding count changed");
+        require(result.size() == 23, "HCM Platform SYS binding count changed");
         return List.copyOf(result);
+    }
+
+    private boolean requiresElevatedActivation(Profile profile) {
+        JsonNode access = profile.requiredAccess();
+        if (!"CAPABILITY".equals(access.path("type").asText())) return false;
+        JsonNode capability = capabilities.get(
+                access.path("capabilityContractKey").asText());
+        return capability != null
+                && capability.path("activationPolicy").asText("").startsWith("STEPUP-");
     }
 
     private StepUpCommandBinding stepUpBinding(JsonNode route, String bindingKey) {
@@ -168,24 +186,26 @@ public final class HcmPlatformPepRegistry {
     private void validateEnvelope(ObjectNode projection) {
         JsonNode registry = projection.path("registryRef");
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-platform-pep-v40".equals(
+                        && "hcm-platform-pep-v42".equals(
                         projection.path("projectionKey").asText())
                         && "platform".equals(projection.path("ownerServiceKey").asText())
                         && "product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 40
-                        && REGISTRY_V40_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 42
+                        && REGISTRY_V42_CHECKSUM.equals(registry.path("sha256").asText()),
                 "Unexpected HCM Platform PEP envelope");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 1012
-                        && projection.path("projectedRouteContractCount").asInt() == 28
-                        && projection.path("bindingPairCount").asInt() == 29
-                        && requiredArray(projection, "capabilities").size() == 15
+        require(projection.path("sourceRegistryRouteCount").asInt() == 1028
+                        && projection.path("projectedRouteContractCount").asInt() == 30
+                        && projection.path("bindingPairCount").asInt() == 31
+                        && requiredArray(projection, "capabilities").size() == 16
                         && requiredArray(projection, "accessPolicies").size() == 4
                         && requiredArray(projection, "entitlementExpressions").size() == 3
-                        && requiredArray(projection, "predicatePolicies").size() == 4,
+                        && requiredArray(projection, "predicatePolicies").size() == 5,
                 "HCM Platform projection closure count changed");
         ObjectNode payload = projection.deepCopy();
         JsonNode checksum = payload.remove("projectionChecksum");
-        require(checksum != null && checksum.asText().equals(sha256(payload)),
+        require(checksum != null
+                        && PROJECTION_V42_CHECKSUM.equals(checksum.asText())
+                        && checksum.asText().equals(sha256(payload)),
                 "HCM Platform projection checksum mismatch");
     }
 
@@ -193,7 +213,11 @@ public final class HcmPlatformPepRegistry {
         for (Binding binding : bindings) {
             require(binding.routeContractKey().startsWith("route.hcm.configuration.")
                             || binding.routeContractKey().equals(
-                            "route.hcm.operations.navigation-projection.data"),
+                            "route.hcm.operations.navigation-projection.data")
+                            || binding.routeContractKey().equals(
+                            HcmAuditEvidenceSecurityPolicy.PAGE_ROUTE)
+                            || binding.routeContractKey().equals(
+                            HcmAuditEvidenceSecurityPolicy.DETAIL_ROUTE),
                     "Non-configuration route entered the SYS handoff");
             for (Profile profile : binding.profiles()) {
                 JsonNode access = profile.requiredAccess();
@@ -218,15 +242,110 @@ public final class HcmPlatformPepRegistry {
         }
         Set<String> routeKeys = bindings.stream()
                 .map(Binding::routeContractKey).collect(Collectors.toUnmodifiableSet());
-        require(routeKeys.size() == 21
+        require(routeKeys.size() == 23
                         && routeKeys.contains("route.hcm.configuration.settings-reference.page")
                         && routeKeys.contains(
                         "route.hcm.configuration.configuration-version-publish.action")
                         && routeKeys.contains(
                         "route.hcm.configuration.navigation-policy-revision-publish.action")
                         && routeKeys.contains(
-                        "route.hcm.operations.navigation-projection.data"),
+                        "route.hcm.operations.navigation-projection.data")
+                        && routeKeys.contains(HcmAuditEvidenceSecurityPolicy.PAGE_ROUTE)
+                        && routeKeys.contains(HcmAuditEvidenceSecurityPolicy.DETAIL_ROUTE),
                 "HCM Platform SYS route closure changed");
+        validateAuditClosure(projection);
+    }
+
+    private void validateAuditClosure(ObjectNode projection) {
+        JsonNode auditCapability = capabilities.get("hcm.audit.evidence.view");
+        require(auditCapability != null
+                        && "hcm".equals(auditCapability.path("productKey").asText())
+                        && "hcm.management".equals(
+                        auditCapability.path("surfaceKey").asText())
+                        && "ADMIN.AUDIT_VIEW:VIEW".equals(
+                        auditCapability.path("resolvedCapabilityCode").asText())
+                        && "PERMISSION_AND_RELATIONSHIP".equals(
+                        auditCapability.path("authorityMode").asText())
+                        && auditCapability.path("requiresProductEntitlement").asBoolean(false)
+                        && "REQUIRED".equals(
+                        auditCapability.path("responsibilityRequirement").asText())
+                        && "HRIS_DUTY_AUDITOR".equals(
+                        auditCapability.path("requiredResponsibilityCode").asText())
+                        && "APP_RESOURCE_SET:RS_HCM_CONFIG".equals(
+                        auditCapability.path("scopeResolver").asText())
+                        && "SOD_HRIS_AUDIT_INDEPENDENCE".equals(
+                        auditCapability.path("sodPolicyId").asText())
+                        && "STEPUP-MGMT-HIGH-V1".equals(
+                        auditCapability.path("activationPolicy").asText())
+                        && "HIGH".equals(auditCapability.path("riskTier").asText()),
+                "HCM audit capability authority drifted");
+        List<JsonNode> auditRoutes = new ArrayList<>();
+        requiredArray(projection, "routes").forEach(route -> {
+            String key = route.path("routeContractKey").asText();
+            if (HcmAuditEvidenceSecurityPolicy.PAGE_ROUTE.equals(key)
+                    || HcmAuditEvidenceSecurityPolicy.DETAIL_ROUTE.equals(key)) {
+                auditRoutes.add(route);
+            }
+        });
+        require(auditRoutes.size() == 2, "Exact HCM audit route pair is required");
+        for (JsonNode route : auditRoutes) {
+            String key = route.path("routeContractKey").asText();
+            boolean page = HcmAuditEvidenceSecurityPolicy.PAGE_ROUTE.equals(key);
+            require(route.path("sideEffectFree").asBoolean(false)
+                            && (page
+                            ? "PAGE".equals(route.path("routeKind").asText())
+                            : "DATA".equals(route.path("routeKind").asText()))
+                            && "hcm.management".equals(
+                            route.path("navigationContextId").asText())
+                            && (!page || ("hcm.audit.hris".equals(
+                            route.path("uiRouteId").asText())
+                            && "/admin/governance/audit-overview".equals(
+                            route.path("uiRoutePattern").asText())))
+                            && !route.path("stepUpCommandBindings").isArray(),
+                    key + ": invalid read-only audit route envelope");
+            ArrayNode profiles = requiredArray(route, "accessProfiles");
+            require(profiles.size() == 1, key + ": one closed audit profile required");
+            JsonNode profile = profiles.get(0);
+            require("hcm-audit-evidence-reader".equals(
+                            profile.path("profileKey").asText())
+                            && profile.path("readOnly").asBoolean(false)
+                            && profile.path("activeAccessModes").size() == 1
+                            && "ELEVATED".equals(
+                            profile.path("activeAccessModes").get(0).asText())
+                            && "CAPABILITY".equals(
+                            profile.path("requiredAccess").path("type").asText())
+                            && "hcm.audit.evidence.view".equals(
+                            profile.path("requiredAccess")
+                                    .path("capabilityContractKey").asText())
+                            && profile.path("targetBindingKinds").size() == 1
+                            && "CONFIG_SCOPE".equals(
+                            profile.path("targetBindingKinds").get(0).asText())
+                            && profile.path("predicatePolicyKeys").size() == 1
+                            && "predicate.hcm-audit-evidence-authority.v1".equals(
+                            profile.path("predicatePolicyKeys").get(0).asText())
+                            && profile.path("responseProjectionBindings").size() == 1
+                            && (page ? "HcmAuditEvidencePageV1" : "HcmAuditEvidenceV1")
+                            .equals(profile.path("responseProjectionBindings").get(0)
+                                    .path("responseSchemaKey").asText()),
+                    key + ": HCM audit profile drifted");
+            ArrayNode services = requiredArray(route, "servicePepBindings");
+            require(services.size() == 1
+                            && "GET".equals(services.get(0).path("method").asText())
+                            && "platform".equals(services.get(0).path("serviceKey").asText())
+                            && (page
+                            ? "/v1/admin/audit-control/events".equals(
+                            services.get(0).path("path").asText())
+                            : "/v1/admin/audit-control/events/{eventId}".equals(
+                            services.get(0).path("path").asText()))
+                            && services.get(0).path("queryParameterConstraints").size() == 1
+                            && "FIXED".equals(services.get(0)
+                            .path("queryParameterConstraints").path("product")
+                            .path("kind").asText())
+                            && "HCM".equals(services.get(0)
+                            .path("queryParameterConstraints").path("product")
+                            .path("value").asText()),
+                    key + ": fixed product=HCM service binding is required");
+        }
     }
 
     private ObjectNode readProjection() {
