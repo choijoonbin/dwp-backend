@@ -13,6 +13,8 @@ final class HcmScopeSelectionValidator {
                             "PeopleDirectoryService:tenant+directory-policy"),
                     java.util.Map.entry("predicate.hcm-configuration-scope.v1",
                             "HcmPopulationScopeService:configuration-scope"),
+                    java.util.Map.entry("predicate.hcm-compensation-planning-authority.v1",
+                            "HcmCompensationPlanningAuthorityAdapter:locked-plan-authority"),
                     java.util.Map.entry("predicate.hcm-domain-target-population.v1",
                             "HcmPopulationRepository:domain-population"),
                     java.util.Map.entry("predicate.hcm-employee-change-authority.v1",

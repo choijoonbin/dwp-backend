@@ -306,6 +306,70 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void compensationPlanningPurposeIsGatewayOwnedForEveryPublicBinding() {
+        ProductSurfaceDecisionContextFilter filter = filter(authority(
+                allowedWave2("LEGAL_ENTITY")));
+        String cycle = "10000000-0000-4000-8000-000000000101";
+        String proposal = "10000000-0000-4000-8000-000000000102";
+        record Case(String method, String path, boolean command) {}
+        List<Case> cases = List.of(
+                new Case("GET", "/api/people/v1/hris/performance/compensation-planning/cycles",
+                        false),
+                new Case("GET", "/api/people/v1/hris/performance/compensation-planning/cycles/"
+                        + cycle, false),
+                new Case("GET", "/api/people/v1/hris/performance/compensation-planning/cycles/"
+                        + cycle + "/proposals", false),
+                new Case("GET", "/api/people/v1/hris/performance/compensation-planning/proposals/"
+                        + proposal, false),
+                new Case("POST", "/api/people/v1/hris/performance/compensation-planning/cycles",
+                        true),
+                new Case("POST", "/api/people/v1/hris/performance/compensation-planning/cycles/"
+                        + cycle + "/revisions", true),
+                new Case("POST", "/api/people/v1/hris/performance/compensation-planning/cycles/"
+                        + cycle + "/budget-allocations", true),
+                new Case("POST", "/api/people/v1/hris/performance/compensation-planning/cycles/"
+                        + cycle + "/proposals/" + proposal, true),
+                new Case("POST", "/api/people/v1/hris/performance/compensation-planning/cycles/"
+                        + cycle + "/proposals/" + proposal + "/submit", true),
+                new Case("POST", "/api/people/v1/hris/performance/compensation-planning/cycles/"
+                        + cycle + "/approve", true),
+                new Case("POST", "/api/people/v1/hris/performance/compensation-planning/cycles/"
+                        + cycle + "/approved-snapshots", true),
+                new Case("POST", "/api/people/v1/hris/performance/compensation-planning/cycles/"
+                        + cycle + "/cancel", true));
+
+        for (Case requestCase : cases) {
+            MockServerHttpRequest.BaseBuilder<?> builder = MockServerHttpRequest.method(
+                            HttpMethod.valueOf(requestCase.method()), requestCase.path())
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000041")
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER,
+                            "CLIENT_FORGED");
+            if (requestCase.command()) {
+                builder.header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                        REVISION);
+            }
+            MockServerWebExchange exchange = exchange(builder);
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange, filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(requestCase.path()).isNotNull();
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                    .as(requestCase.path())
+                    .containsExactly("COMPENSATION_PLANNING");
+        }
+    }
+
+    @Test
     void selectedScopeIsLiveEvaluatedAndConsumedBeforeOwnerForwarding() {
         ProductSurfaceContextAggregationService authority = authority(allowed());
         ProductSurfaceDecisionContextFilter filter = filter(authority);

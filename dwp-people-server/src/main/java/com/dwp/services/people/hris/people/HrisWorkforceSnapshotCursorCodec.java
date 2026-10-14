@@ -4,6 +4,8 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedWorkforceSnapshotCursor;
 import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedWorkforceSnapshotRequest;
+import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedCompensationPopulationCursor;
+import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedCompensationPopulationRequest;
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotProjection;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -27,6 +29,7 @@ import java.util.HexFormat;
 final class HrisWorkforceSnapshotCursorCodec {
 
     private static final String VERSION = "1";
+    private static final String COMPENSATION_VERSION = "CP1";
     private static final String ALGORITHM = "HmacSHA256";
     private final byte[] secret;
 
@@ -72,6 +75,51 @@ final class HrisWorkforceSnapshotCursorCodec {
                     Long.parseLong(fields[1]), fields[2], fields[3],
                     WorkforceSnapshotProjection.valueOf(fields[4]),
                     Instant.parse(fields[5]), Long.parseLong(fields[6]), fields[7], digest);
+        } catch (BaseException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw invalidCursor();
+        }
+    }
+
+    String issueCompensationPopulation(
+            VerifiedCompensationPopulationRequest request,
+            String fullPopulationDigest,
+            String position) {
+        requireConfigured();
+        String payload = String.join("\n",
+                COMPENSATION_VERSION,
+                Long.toString(request.tenantId()),
+                request.callerModule(),
+                request.snapshotPublicId().toString(),
+                Long.toString(request.ownerRevision()),
+                request.asOf().toString(),
+                request.projection().name(),
+                request.purposeCode(),
+                fullPopulationDigest,
+                position);
+        byte[] encoded = payload.getBytes(StandardCharsets.UTF_8);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(encoded)
+                + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(mac(encoded));
+    }
+
+    VerifiedCompensationPopulationCursor verifyCompensationPopulation(String token) {
+        requireConfigured();
+        try {
+            String[] parts = token.split("\\.", -1);
+            if (parts.length != 2) throw invalidCursor();
+            byte[] payload = Base64.getUrlDecoder().decode(parts[0]);
+            byte[] signature = Base64.getUrlDecoder().decode(parts[1]);
+            if (!MessageDigest.isEqual(mac(payload), signature)) throw invalidCursor();
+            String[] fields = new String(payload, StandardCharsets.UTF_8)
+                    .split("\n", -1);
+            if (fields.length != 10
+                    || !COMPENSATION_VERSION.equals(fields[0])) throw invalidCursor();
+            return new VerifiedCompensationPopulationCursor(
+                    Long.parseLong(fields[1]), fields[2],
+                    java.util.UUID.fromString(fields[3]), Long.parseLong(fields[4]),
+                    Instant.parse(fields[5]), WorkforceSnapshotProjection.valueOf(fields[6]),
+                    fields[7], fields[8], fields[9], digest(token));
         } catch (BaseException exception) {
             throw exception;
         } catch (RuntimeException exception) {

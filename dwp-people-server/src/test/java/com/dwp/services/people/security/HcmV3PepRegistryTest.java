@@ -14,11 +14,11 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV38PeopleClosure() {
-        assertThat(registry.bindingContracts()).hasSize(108);
+    void loadsTheExactV39PeopleClosure() {
+        assertThat(registry.bindingContracts()).hasSize(120);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(81);
+                .distinct()).hasSize(93);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -40,7 +40,7 @@ class HcmV3PepRegistryTest {
                         && value.servicePath().equals(
                         "/v1/hris/employee-change-requests/{requestPublicId}/apply"));
         assertThat(registry.highRiskBindingContracts())
-                .hasSize(12)
+                .hasSize(14)
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
                 .containsExactlyInAnyOrder(
                         "route.hcm.management.org-publish.action",
@@ -52,14 +52,17 @@ class HcmV3PepRegistryTest {
                         "route.hcm.management.integration-execute.action",
                         "route.hcm.operations.performance-cycle-publish.action",
                         "route.hcm.operations.performance-population-freeze.action",
+                        "route.hcm.operations.compensation-plan-approve.action",
+                        "route.hcm.operations.compensation-snapshot-publish.action",
                         "route.hcm.operations.assignment-proposal-submit.action",
                         "route.hcm.operations.employee-change-request-apply.action",
                         "route.hcm.operations.assignment-event-publish.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
-                .hasSize(15)
+                .hasSize(16)
                 .containsOnlyKeys(
                         "predicate.directory-visible-person.v1",
                         "predicate.hcm-configuration-scope.v1",
+                        "predicate.hcm-compensation-planning-authority.v1",
                         "predicate.hcm-domain-target-population.v1",
                         "predicate.hcm-export-population.v1",
                         "predicate.hcm-integration-nonsecret-update.v1",
@@ -244,6 +247,43 @@ class HcmV3PepRegistryTest {
         assertThat(stepUp.targetIdPathParameter()).isEqualTo("cycleId");
         assertThat(stepUp.ownerServiceKey()).isEqualTo("people");
         assertThat(stepUp.audience()).isEqualTo("dwp-people-server");
+    }
+
+    @Test
+    void compensationPlanningUsesExactV39ReadAndIndependentApprovalBindings() {
+        HcmV3PepRegistry.Decision read = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET", "/v1/hris/performance/compensation-planning/cycles",
+                        Set.of("DATA.HRIS_COMPENSATION_PLAN:VIEW"), null,
+                        "NORMAL", Set.of(),
+                        "route.hcm.operations.compensation-planning.page", null));
+
+        assertThat(read.allowed()).isTrue();
+        assertThat(read.authority().capabilityContractKey())
+                .isEqualTo("hcm.compensation.plan.view");
+        assertThat(read.authority().predicatePolicyKeys())
+                .containsExactly("predicate.hcm-compensation-planning-authority.v1");
+        assertThat(read.authority().targetBindingKinds())
+                .containsExactly("TARGET_POPULATION");
+
+        HcmV3PepRegistry.Decision approve = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "POST", "/v1/hris/performance/compensation-planning/cycles/"
+                        + "00000000-0000-0000-0000-000000000004/approve",
+                        Set.of("ACTION.HRIS_COMPENSATION_PLAN_APPROVE:APPROVE"), null,
+                        "NORMAL", Set.of(),
+                        "route.hcm.operations.compensation-plan-approve.action", null));
+
+        assertThat(approve.allowed()).isTrue();
+        assertThat(approve.authority().profileKey()).isEqualTo("independent-approver");
+        assertThat(approve.authority().capabilityContractKey())
+                .isEqualTo("hcm.compensation.plan.approve");
+        assertThat(approve.authority().activationPolicy())
+                .isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertThat(approve.authority().stepUpBinding().targetType())
+                .isEqualTo("COMPENSATION_CYCLE");
+        assertThat(approve.authority().stepUpBinding().targetIdPathParameter())
+                .isEqualTo("cycleId");
     }
 
     @Test

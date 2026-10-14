@@ -15,6 +15,8 @@ import com.dwp.services.people.hr.performance.typedartifact.PerTypedArtifactQuer
 import com.dwp.services.people.hr.performance.typedartifact.PerTypedArtifactService;
 import com.dwp.services.people.hr.performance.typedartifact.PostedMoney;
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.security.HcmHighRiskCommandGuard;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,6 +73,7 @@ public class CompensationPlanningService {
     private final AuditOutboxRecorder audit;
     private final Clock clock;
     private final Supplier<CompensationPlanningAuthorityPort> authoritySupplier;
+    private final HcmHighRiskCommandGuard highRisk;
 
     @Autowired
     public CompensationPlanningService(
@@ -80,9 +83,11 @@ public class CompensationPlanningService {
             CompensationPopulationMaterializer populationMaterializer,
             CompensationPlanningCanonicalizer canonicalizer,
             AuditOutboxRecorder audit,
+            HcmHighRiskCommandGuard highRisk,
             ObjectProvider<CompensationPlanningAuthorityPort> authorityProvider) {
         this(repository, artifactService, artifactQuery, populationMaterializer,
-                canonicalizer, audit, Clock.systemUTC(), authorityProvider::getIfAvailable);
+                canonicalizer, audit, Clock.systemUTC(), authorityProvider::getIfAvailable,
+                highRisk);
     }
 
     CompensationPlanningService(
@@ -93,7 +98,8 @@ public class CompensationPlanningService {
             CompensationPlanningCanonicalizer canonicalizer,
             AuditOutboxRecorder audit,
             Clock clock,
-            Supplier<CompensationPlanningAuthorityPort> authoritySupplier) {
+            Supplier<CompensationPlanningAuthorityPort> authoritySupplier,
+            HcmHighRiskCommandGuard highRisk) {
         this.repository = Objects.requireNonNull(repository);
         this.artifactService = Objects.requireNonNull(artifactService);
         this.artifactQuery = Objects.requireNonNull(artifactQuery);
@@ -102,6 +108,7 @@ public class CompensationPlanningService {
         this.audit = Objects.requireNonNull(audit);
         this.clock = Objects.requireNonNull(clock);
         this.authoritySupplier = Objects.requireNonNull(authoritySupplier);
+        this.highRisk = Objects.requireNonNull(highRisk);
     }
 
     @Transactional
@@ -417,7 +424,8 @@ public class CompensationPlanningService {
             long expectedVersion,
             CompensationPlanningDtos.ApprovePlanRequest request,
             String idempotencyKey,
-            String correlationId) {
+            String correlationId,
+            HcmStepUpHeaders stepUpHeaders) {
         CommandContext context = commandContext(
                 "APPROVE", APPROVE,
                 CompensationPlanningAuthorization.APPROVE_CAPABILITY,
@@ -439,6 +447,10 @@ public class CompensationPlanningService {
         validateApproval(context, cycle, proposals);
         Reservation reservation = reserve(context, cycleId, expectedVersion);
         if (reservation.replay() != null) return reservation.replay();
+        highRisk.requireExact(
+                CompensationPlanningAuthorization.APPROVE_CAPABILITY,
+                "COMPENSATION_CYCLE", cycleId.toString(), expectedVersion,
+                CYCLE_BASE + '/' + cycleId + "/approve", request, stepUpHeaders);
         UUID receiptId = reservation.receiptId();
         long version = cas(() -> repository.approve(
                 context.actor().tenantId(), cycle, expectedVersion,
@@ -461,7 +473,8 @@ public class CompensationPlanningService {
             long expectedVersion,
             CompensationPlanningDtos.PublishSnapshotRequest request,
             String idempotencyKey,
-            String correlationId) {
+            String correlationId,
+            HcmStepUpHeaders stepUpHeaders) {
         CommandContext context = commandContext(
                 "APPROVE", PUBLISH,
                 CompensationPlanningAuthorization.APPROVE_CAPABILITY,
@@ -508,6 +521,11 @@ public class CompensationPlanningService {
         if (reservation.replay() != null) {
             return replayPublished(context.actor().tenantId(), reservation.replay());
         }
+        highRisk.requireExact(
+                CompensationPlanningAuthorization.APPROVE_CAPABILITY,
+                "COMPENSATION_CYCLE", cycleId.toString(), expectedVersion,
+                CYCLE_BASE + '/' + cycleId + "/approved-snapshots",
+                request, stepUpHeaders);
         UUID receiptId = reservation.receiptId();
         CompensationPlanningRepository.SnapshotInsert snapshot;
         try {
@@ -932,7 +950,7 @@ public class CompensationPlanningService {
                 new CompensationPlanningAuthorityPort.AuthorityRequest(
                         actor.tenantId(), actor.userId(), subject,
                         CompensationPlanningAuthorization.APPLICATION,
-                        CompensationPlanningAuthorization.RESOURCE,
+                        CompensationPlanningAuthorization.resourceForAction(action),
                         action, operation, capability,
                         CompensationPlanningAuthorization.PURPOSE, aggregateId);
         try {

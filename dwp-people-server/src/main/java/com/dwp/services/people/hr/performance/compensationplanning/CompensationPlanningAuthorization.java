@@ -12,7 +12,8 @@ import java.util.UUID;
 final class CompensationPlanningAuthorization {
 
     static final String APPLICATION = "APP.HRIS";
-    static final String RESOURCE = "DATA.HR_TALENT";
+    static final String DATA_RESOURCE = "DATA.HRIS_COMPENSATION_PLAN";
+    static final String APPROVAL_RESOURCE = "ACTION.HRIS_COMPENSATION_PLAN_APPROVE";
     static final String PURPOSE = "COMPENSATION_PLANNING";
     static final String VIEW_CAPABILITY = "hcm.compensation.plan.view";
     static final String PROPOSE_CAPABILITY = "hcm.compensation.plan.propose";
@@ -29,9 +30,13 @@ final class CompensationPlanningAuthorization {
     }
 
     static void requireActorPermission(PeopleRequestContext.Actor actor, String action) {
-        if (!actor.hasPermission(RESOURCE, action, "MANAGE")) {
+        if (!actor.hasPermission(resourceForAction(action), action)) {
             throw forbidden("The compensation-planning permission is not granted.");
         }
+    }
+
+    static String resourceForAction(String action) {
+        return "APPROVE".equals(action) ? APPROVAL_RESOURCE : DATA_RESOURCE;
     }
 
     static CompensationPlanningAuthorityPort.AuthorityEvidence verify(
@@ -87,8 +92,8 @@ final class CompensationPlanningAuthorization {
             PeopleRequestContext.Actor actor,
             CompensationPlanningAuthorityPort.AuthorityEvidence evidence,
             String field) {
-        boolean hasPlanningDuty = actor.hasPermission(
-                RESOURCE, "UPDATE", "APPROVE", "MANAGE");
+        boolean hasPlanningDuty = actor.hasPermission(DATA_RESOURCE, "UPDATE")
+                || actor.hasPermission(APPROVAL_RESOURCE, "APPROVE");
         return hasPlanningDuty
                 && PURPOSE.equals(evidence.purposeCode())
                 && evidence.fieldDecisions().get(field)

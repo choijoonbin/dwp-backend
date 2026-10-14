@@ -61907,6 +61907,219 @@
           "stepUpCommandBindings": [{"bindingKey": "route.hcm.configuration.payroll-formula-publish.action.binding.01", "targetType": "PAYROLL_FORMULA", "targetIdPathParameter": "formulaId", "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "X-DWP-Expected-Object-Version", "ownerServiceKey": "payroll", "audience": "dwp-payroll-server"}]
         }
       ]
+    },
+    {
+      "version": 39,
+      "capabilities": [
+        {
+          "contractKey": "hcm.compensation.plan.view",
+          "resolvedCapabilityCode": "DATA.HRIS_COMPENSATION_PLAN:VIEW",
+          "mappingVersion": 1,
+          "productKey": "hcm",
+          "surfaceKey": "hcm.operations",
+          "resourceKey": "DATA.HRIS_COMPENSATION_PLAN",
+          "action": "VIEW",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "TALENT_TARGET_POPULATION",
+          "riskTier": "LOW",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": false,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "People + HCM + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "hcm.compensation.plan.propose",
+          "resolvedCapabilityCode": "DATA.HRIS_COMPENSATION_PLAN:UPDATE",
+          "mappingVersion": 1,
+          "productKey": "hcm",
+          "surfaceKey": "hcm.operations",
+          "resourceKey": "DATA.HRIS_COMPENSATION_PLAN",
+          "action": "UPDATE",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "TALENT_TARGET_POPULATION",
+          "riskTier": "MEDIUM",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": false,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "People + HCM + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "hcm.compensation.plan.approve",
+          "resolvedCapabilityCode": "ACTION.HRIS_COMPENSATION_PLAN_APPROVE:APPROVE",
+          "mappingVersion": 1,
+          "productKey": "hcm",
+          "surfaceKey": "hcm.operations",
+          "resourceKey": "ACTION.HRIS_COMPENSATION_PLAN_APPROVE",
+          "action": "APPROVE",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "TALENT_TARGET_POPULATION",
+          "riskTier": "HIGH",
+          "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+          "sodPolicyId": "SOD-HCM-COMPENSATION-PLAN-APPROVE-V1",
+          "requiresProductEntitlement": false,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "People + HCM + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [
+        {
+          "predicatePolicyKey": "predicate.hcm-compensation-planning-authority.v1",
+          "ownerServiceKey": "people",
+          "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"],
+          "inputEvidenceSchemaKey": "HcmCompensationPlanningAuthorityEvidenceV1",
+          "parameterSchemaKey": "predicate.hcm-compensation-planning-authority.v1.parameters.v1",
+          "parameterSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "owner": "People + HCM + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ],
+      "routes": [
+        {
+          "routeContractKey": "route.hcm.operations.compensation-planning.page",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "PAGE", "sideEffectFree": null,
+          "uiRouteId": "hcm.operations.compensation-planning",
+          "uiRoutePattern": "/hr/operations/performance/compensation-planning",
+          "accessProfiles": [{"profileKey": "full-management", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-planning.page.binding.01", "method": "GET", "path": "/api/people/v1/hris/performance/compensation-planning/cycles", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-planning.page.binding.01", "method": "GET", "path": "/v1/hris/performance/compensation-planning/cycles", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-cycle-detail.data",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "full-management", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.view"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-cycle-detail.data.binding.01", "method": "GET", "path": "/api/people/v1/hris/performance/compensation-planning/cycles/{cycleId}", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-cycle-detail.data.binding.01", "method": "GET", "path": "/v1/hris/performance/compensation-planning/cycles/{cycleId}", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-proposals.data",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "full-management", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.view"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-proposals.data.binding.01", "method": "GET", "path": "/api/people/v1/hris/performance/compensation-planning/cycles/{cycleId}/proposals", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-proposals.data.binding.01", "method": "GET", "path": "/v1/hris/performance/compensation-planning/cycles/{cycleId}/proposals", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-proposal-detail.data",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "full-management", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.view"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-proposal-detail.data.binding.01", "method": "GET", "path": "/api/people/v1/hris/performance/compensation-planning/proposals/{proposalId}", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-proposal-detail.data.binding.01", "method": "GET", "path": "/v1/hris/performance/compensation-planning/proposals/{proposalId}", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-cycle-create.action",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "full-management", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.propose"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-cycle-create.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/performance/compensation-planning/cycles", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-cycle-create.action.binding.01", "method": "POST", "path": "/v1/hris/performance/compensation-planning/cycles", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-cycle-revise.action",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "full-management", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.propose"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-cycle-revise.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/performance/compensation-planning/cycles/{cycleId}/revisions", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-cycle-revise.action.binding.01", "method": "POST", "path": "/v1/hris/performance/compensation-planning/cycles/{cycleId}/revisions", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-budget-allocate.action",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "full-management", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.propose"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-budget-allocate.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/performance/compensation-planning/cycles/{cycleId}/budget-allocations", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-budget-allocate.action.binding.01", "method": "POST", "path": "/v1/hris/performance/compensation-planning/cycles/{cycleId}/budget-allocations", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-proposal-upsert.action",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "full-management", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.propose"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-proposal-upsert.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/performance/compensation-planning/cycles/{cycleId}/proposals/{proposalId}", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-proposal-upsert.action.binding.01", "method": "POST", "path": "/v1/hris/performance/compensation-planning/cycles/{cycleId}/proposals/{proposalId}", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-proposal-submit.action",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "full-management", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.propose"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-proposal-submit.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/performance/compensation-planning/cycles/{cycleId}/proposals/{proposalId}/submit", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-proposal-submit.action.binding.01", "method": "POST", "path": "/v1/hris/performance/compensation-planning/cycles/{cycleId}/proposals/{proposalId}/submit", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-plan-approve.action",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "independent-approver", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.approve"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-plan-approve.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/performance/compensation-planning/cycles/{cycleId}/approve", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-plan-approve.action.binding.01", "method": "POST", "path": "/v1/hris/performance/compensation-planning/cycles/{cycleId}/approve", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE",
+          "stepUpCommandBindings": [{"bindingKey": "route.hcm.operations.compensation-plan-approve.action.binding.01", "targetType": "COMPENSATION_CYCLE", "targetIdPathParameter": "cycleId", "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "X-DWP-Expected-Object-Version", "ownerServiceKey": "people", "audience": "dwp-people-server"}]
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-snapshot-publish.action",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "independent-approver", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.approve"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-snapshot-publish.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/performance/compensation-planning/cycles/{cycleId}/approved-snapshots", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-snapshot-publish.action.binding.01", "method": "POST", "path": "/v1/hris/performance/compensation-planning/cycles/{cycleId}/approved-snapshots", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE",
+          "stepUpCommandBindings": [{"bindingKey": "route.hcm.operations.compensation-snapshot-publish.action.binding.01", "targetType": "COMPENSATION_CYCLE", "targetIdPathParameter": "cycleId", "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "X-DWP-Expected-Object-Version", "ownerServiceKey": "people", "audience": "dwp-people-server"}]
+        },
+        {
+          "routeContractKey": "route.hcm.operations.compensation-cycle-cancel.action",
+          "navigationContextId": "hcm.operations",
+          "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"},
+          "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "full-management", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.compensation.plan.propose"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-compensation-planning-authority.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.compensation-cycle-cancel.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/performance/compensation-planning/cycles/{cycleId}/cancel", "pathParameterConstraints": {}}],
+          "servicePepBindings": [{"bindingKey": "route.hcm.operations.compensation-cycle-cancel.action.binding.01", "method": "POST", "path": "/v1/hris/performance/compensation-planning/cycles/{cycleId}/cancel", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {
@@ -61925,6 +62138,22 @@
         }
       ]
     },
+    "accessPolicies": [
+      {
+        "accessPolicyKey": "hcm.operations-access.v1",
+        "introducedInVersion": 39,
+        "normalCapabilityAdditions": [
+          "hcm.compensation.plan.view"
+        ]
+      },
+      {
+        "accessPolicyKey": "hcm.operations-overview-read.v1",
+        "introducedInVersion": 39,
+        "normalCapabilityAdditions": [
+          "hcm.compensation.plan.view"
+        ]
+      }
+    ],
     "capabilities": [
       {
         "contractKey": "approvals.form-user-directory.read",

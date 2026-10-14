@@ -68,7 +68,9 @@ public interface CompensationPlanningAuthorityPort {
         }
 
         public boolean permitsWorkerAssignment(UUID workerId, UUID assignmentId) {
-            return tenantWide || workerPublicIds.contains(workerId)
+            return tenantWide
+                    || (workerPublicIds.isEmpty() && assignmentPublicIds.isEmpty())
+                    || workerPublicIds.contains(workerId)
                     || assignmentPublicIds.contains(assignmentId);
         }
     }

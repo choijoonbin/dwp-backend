@@ -6,6 +6,10 @@ import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.services.people.hr.HcmPopulationScopeService;
 import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedWorkforceSnapshotCursor;
 import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedWorkforceSnapshotRequest;
+import com.dwp.services.people.hris.contracts.workforce.v1.CompensationPopulationSnapshotPage;
+import com.dwp.services.people.hris.contracts.workforce.v1.CompensationPopulationSnapshotQuery;
+import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedCompensationPopulationCursor;
+import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedCompensationPopulationRequest;
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotContract;
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotPage;
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotQuery;
@@ -18,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /** Resolves tenant and population authority owner-side; the consumer supplies neither. */
@@ -28,6 +33,14 @@ import java.util.function.Supplier;
         matchIfMissing = false)
 final class HrisWorkforceSnapshotAuthorityVerifier
         implements WorkforceSnapshotRequestVerifier {
+
+    private static final Set<String> COMPENSATION_AUTHORING_ROUTES = Set.of(
+            "route.hcm.operations.compensation-cycle-create.action",
+            "route.hcm.operations.compensation-cycle-revise.action");
+    private static final String COMPENSATION_CAPABILITY =
+            "hcm.compensation.plan.propose";
+    private static final String COMPENSATION_PREDICATE =
+            "predicate.hcm-compensation-planning-authority.v1";
 
     private final HcmPopulationScopeService populations;
     private final HrisWorkforceSnapshotCursorCodec cursors;
@@ -126,6 +139,96 @@ final class HrisWorkforceSnapshotAuthorityVerifier
             throw new IllegalArgumentException("An issued cursor is required for verification.");
         }
         return cursors.verify(page.nextCursor());
+    }
+
+    @Override
+    public VerifiedCompensationPopulationRequest verifyCompensationPopulation(
+            CompensationPopulationSnapshotQuery query) {
+        if (query == null) throw unavailable(
+                "Compensation population query is unavailable.");
+        PeopleRequestContext.Actor actor = actorSupplier.get();
+        HcmPepContext.Evidence evidence = evidenceSupplier.get();
+        if (actor == null || actor.tenantId() == null || actor.userId() == null
+                || actor.personPublicId() == null || evidence == null
+                || evidence.revalidateAt() == null
+                || !evidence.revalidateAt().isAfter(OffsetDateTime.now(clock))
+                || evidence.rolloutState() == null
+                || !evidence.rolloutState().matches("[01]1[01]")
+                || evidence.authority() == null
+                || !COMPENSATION_AUTHORING_ROUTES.contains(
+                evidence.authority().routeContractKey())
+                || !COMPENSATION_CAPABILITY.equals(
+                evidence.authority().capabilityContractKey())
+                || !"ACTION".equals(evidence.authority().routeKind())
+                || evidence.authority().readOnly()
+                || !Set.of(COMPENSATION_PREDICATE).equals(
+                evidence.authority().predicatePolicyKeys())
+                || !evidence.authority().targetBindingKinds()
+                .contains("TARGET_POPULATION")
+                || evidence.contextKey() == null
+                || !evidence.contextKey().matches("psc-[0-9a-f]{64}")
+                || !HcmEligibilityScopeKey.isCanonical(evidence.scopeKey())
+                || evidence.decisionRevision() == null
+                || !evidence.decisionRevision().matches("psr-[0-9a-f]{64}")
+                || !actor.hasPermission(
+                "DATA.HRIS_COMPENSATION_PLAN", "UPDATE")) {
+            throw forbidden(
+                    "Exact compensation authoring authority is required for the HRM snapshot.");
+        }
+        HcmPopulationScopeService.ResolvedPopulation population =
+                populations.requireOperationsForMutation("READ");
+        populations.requireTrustedScope(
+                population, "hcm.operations", "TARGET_POPULATION",
+                "TALENT_TARGET_POPULATION");
+        populations.requireField(population, "DIRECTORY");
+        populations.requireField(population, "EMPLOYMENT");
+        long tenantRevision = revision(population.targetPopulationRevision());
+        long policyRevision = revision(
+                population.scope().policyFingerprint() + ':' + evidence.contextKey());
+        UUID correlation = UUID.nameUUIDFromBytes((
+                evidence.contextKey() + ':' + evidence.decisionRevision()
+                        + ':' + query.snapshotPublicId())
+                .getBytes(StandardCharsets.UTF_8));
+        if (query.cursorToken() == null) {
+            return new VerifiedCompensationPopulationRequest(
+                    actor.tenantId(), tenantRevision, policyRevision,
+                    VerifiedWorkforceSnapshotRequest.PERFORMANCE_CALLER,
+                    correlation, query.snapshotPublicId(), query.ownerRevision(),
+                    query.asOf(), query.projection(), query.purposeCode(), query.limit(),
+                    null, null, null);
+        }
+        VerifiedCompensationPopulationCursor cursor =
+                cursors.verifyCompensationPopulation(query.cursorToken());
+        if (cursor.tenantId() != actor.tenantId()
+                || !VerifiedWorkforceSnapshotRequest.PERFORMANCE_CALLER.equals(
+                cursor.callerModule())
+                || !query.snapshotPublicId().equals(cursor.snapshotPublicId())
+                || query.ownerRevision() != cursor.ownerRevision()
+                || !query.asOf().equals(cursor.asOf())
+                || query.projection() != cursor.projection()
+                || !query.purposeCode().equals(cursor.purposeCode())) {
+            throw forbidden(
+                    "The compensation cursor is outside the current authority.");
+        }
+        return new VerifiedCompensationPopulationRequest(
+                actor.tenantId(), tenantRevision, policyRevision,
+                VerifiedWorkforceSnapshotRequest.PERFORMANCE_CALLER,
+                correlation, query.snapshotPublicId(), query.ownerRevision(),
+                query.asOf(), query.projection(), query.purposeCode(), query.limit(),
+                cursor.fullPopulationDigest(), cursor.position(),
+                query.cursorTokenDigest());
+    }
+
+    @Override
+    public VerifiedCompensationPopulationCursor
+            verifyIssuedCompensationPopulationCursor(
+            VerifiedCompensationPopulationRequest request,
+            CompensationPopulationSnapshotPage page) {
+        if (page.nextCursor() == null) {
+            throw new IllegalArgumentException(
+                    "An issued compensation cursor is required for verification.");
+        }
+        return cursors.verifyCompensationPopulation(page.nextCursor());
     }
 
     private long revision(String value) {

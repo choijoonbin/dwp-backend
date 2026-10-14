@@ -447,7 +447,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_wave2_v38_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_latest_v39_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -456,8 +456,12 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 38)
-        self.assertEqual(registry["version"], 38)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 39)
+        self.assertEqual(registry["version"], 39)
+        self.assertEqual(EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_VERSION"], 38)
+        self.assertTrue(str(
+            EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY"]
+        ).endswith("product-surfaces-v1.bundle-v38.json"))
         void_route = next(
             route for route in registry["routes"]
             if route["routeContractKey"]
@@ -512,6 +516,43 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 self.assertIn(
                     ("header", "X-DWP-Expected-Decision-Revision"), parameters
                 )
+
+    def test_compensation_planning_exports_all_v39_bindings_and_preserves_employee_v38(self) -> None:
+        registry = json.loads(
+            EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"].read_text(encoding="utf-8")
+        )
+        routes = [
+            route for route in registry["routes"]
+            if route["routeContractKey"]
+            in EXPORTER["COMPENSATION_PLANNING_ROUTE_KEYS"]
+        ]
+        people = json.loads(
+            (ROOT / "contracts/openapi/people.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(12, len(routes))
+        EXPORTER["validate_compensation_planning_contract"](people, gateway)
+        for route in routes:
+            binding = route["gatewayApiBindings"][0]
+            operation = gateway["paths"][binding["path"]][binding["method"].lower()]
+            parameters = {
+                (parameter.get("in"), parameter.get("name"))
+                for parameter in operation.get("parameters", [])
+                if isinstance(parameter, dict)
+            }
+            self.assertIn(("query", "contextScopeKey"), parameters)
+            if route["routeKind"] == "ACTION":
+                self.assertIn(
+                    ("header", "X-DWP-Expected-Decision-Revision"), parameters
+                )
+
+        employee = gateway["paths"][
+            "/api/people/v1/hris/employee-change-requests"
+        ]["post"]["x-dwp-product-authorization-v38"]
+        self.assertEqual(38, employee["registryVersion"])
 
     def test_gateway_projects_full_agent_contract_and_v33_governance(self) -> None:
         registry = json.loads(

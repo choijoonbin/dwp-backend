@@ -664,7 +664,7 @@ def local_environment() -> dict[str, str]:
         ),
         "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
         "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
-        "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "32",
+        "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "39",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "DWP_AGENT_IDENTITY_SIGNING_SECRET": (
             "dwp-local-agent-identity-signing-secret-v1"
@@ -706,6 +706,7 @@ def local_environment() -> dict[str, str]:
         "PEOPLE_DB_PASSWORD": "dwp_password",
         "DWP_PEOPLE_MIGRATION_PRINCIPAL_POLICY": "LOCAL_LEGACY",
         "DWP_HRIS_PERFORMANCE_WAVE1_ENABLED": "true",
+        "DWP_HRIS_PERFORMANCE_COMPENSATION_PLANNING_ENABLED": "true",
         "DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED": "true",
         "DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED": "true",
         "DWP_PEOPLE_FLYWAY_LOCATIONS": (
@@ -924,6 +925,9 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("PEOPLE_DB_PASSWORD", None)
         environment.pop("DWP_PEOPLE_MIGRATION_PRINCIPAL_POLICY", None)
         environment.pop("DWP_HRIS_PERFORMANCE_WAVE1_ENABLED", None)
+        environment.pop(
+            "DWP_HRIS_PERFORMANCE_COMPENSATION_PLANNING_ENABLED", None
+        )
         environment.pop("DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED", None)
         environment.pop("DWP_PEOPLE_FLYWAY_LOCATIONS", None)
         environment.pop("DWP_PEOPLE_LOCAL_SEED_ENABLED", None)

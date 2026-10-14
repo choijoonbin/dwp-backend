@@ -5,6 +5,8 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.hr.HcmPopulationRepository;
 import com.dwp.services.people.hr.HcmPopulationScopeService;
 import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedWorkforceSnapshotRequest;
+import com.dwp.services.people.hris.contracts.workforce.v1.CompensationPopulationSnapshotQuery;
+import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedCompensationPopulationRequest;
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotContract;
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotProjection;
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotQuery;
@@ -18,7 +20,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -122,6 +126,92 @@ class HrisWorkforceSnapshotOwnerTest {
                 "TALENT_TARGET_POPULATION");
     }
 
+    @Test
+    void verifierSealsTheCompensationQueryWithExactV39Authority() {
+        HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
+        HcmPopulationScopeService.ResolvedPopulation population = population();
+        when(populations.requireOperationsForMutation("READ")).thenReturn(population);
+        HrisWorkforceSnapshotAuthorityVerifier verifier = verifier(
+                populations,
+                actor(Set.of("DATA.HRIS_COMPENSATION_PLAN:UPDATE")),
+                compensationEvidence(NOW.plusSeconds(60)));
+        UUID snapshotId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
+        VerifiedCompensationPopulationRequest result = verifier
+                .verifyCompensationPopulation(compensationQuery(snapshotId, 17L));
+
+        assertThat(result.tenantId()).isEqualTo(TENANT);
+        assertThat(result.snapshotPublicId()).isEqualTo(snapshotId);
+        assertThat(result.ownerRevision()).isEqualTo(17L);
+        assertThat(result.callerModule()).isEqualTo("HRIS-PER");
+        verify(populations).requireOperationsForMutation("READ");
+        verify(populations).requireField(population, "DIRECTORY");
+        verify(populations).requireField(population, "EMPLOYMENT");
+    }
+
+    @Test
+    void compensationProviderFailsClosedWithoutTenantOwnedComponentEligibility() {
+        HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
+        HrisWorkforceSnapshotRepository repository = mock(
+                HrisWorkforceSnapshotRepository.class);
+        HcmPopulationScopeService.ResolvedPopulation population = population();
+        when(populations.requireOperationsForMutation("READ")).thenReturn(population);
+        HrisWorkforceSnapshotProvider provider = new HrisWorkforceSnapshotProvider(
+                populations, repository, new HrisWorkforceSnapshotCursorCodec(SECRET));
+
+        assertCode(() -> provider.queryCompensationPopulation(
+                        verifiedCompensation(
+                                UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                                17L, revision("population-17"), 5L)),
+                ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+        verify(repository, never()).immutableCompensationPopulation(
+                any(Long.class), any(), any(), any(Integer.class));
+    }
+
+    @Test
+    void compensationProviderOwnsSnapshotIdentityRevisionAndCanonicalComponents() {
+        HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
+        HrisWorkforceSnapshotRepository repository = mock(
+                HrisWorkforceSnapshotRepository.class);
+        HcmPopulationScopeService.ResolvedPopulation population = population();
+        when(populations.requireOperationsForMutation("READ")).thenReturn(population);
+        UUID workerId = UUID.fromString("10000000-0000-0000-0000-000000000001");
+        UUID assignmentId = UUID.fromString("20000000-0000-0000-0000-000000000001");
+        UUID organizationId = UUID.fromString("30000000-0000-0000-0000-000000000001");
+        var candidate = new HrisWorkforceSnapshotRepository.CompensationPopulationCandidate(
+                workerId, assignmentId, organizationId, null, null, 7L);
+        when(repository.immutableCompensationPopulation(
+                TENANT, population.scope(), NOW, 100_001)).thenReturn(List.of(candidate));
+        String eligibilityRevision = "eligibility-7";
+        HrisCompensationComponentEligibilitySource source = (tenantId, asOf, assignments) ->
+                new HrisCompensationComponentEligibilitySource.EligibilitySnapshot(
+                        eligibilityRevision, Map.of(assignmentId, List.of("1TIME", "BASE_SALARY")));
+        long tenantRevision = revision(population.targetPopulationRevision());
+        long policyRevision = 5L;
+        long ownerRevision = revision(
+                population.targetPopulationRevision() + ':' + eligibilityRevision
+                        + ':' + NOW + ':' + tenantRevision + ':' + policyRevision);
+        UUID snapshotId = compensationSnapshotId(
+                population.targetPopulationRevision(), eligibilityRevision);
+        HrisWorkforceSnapshotProvider provider = new HrisWorkforceSnapshotProvider(
+                populations, repository, new HrisWorkforceSnapshotCursorCodec(SECRET),
+                () -> source);
+
+        var result = provider.queryCompensationPopulation(verifiedCompensation(
+                snapshotId, ownerRevision, tenantRevision, policyRevision));
+
+        assertThat(result.snapshotPublicId()).isEqualTo(snapshotId);
+        assertThat(result.ownerRevision()).isEqualTo(ownerRevision);
+        assertThat(result.lines()).hasSize(1);
+        assertThat(result.lines().getFirst().eligibleComponentCodes())
+                .containsExactly("1TIME", "BASE_SALARY");
+
+        assertCode(() -> provider.queryCompensationPopulation(verifiedCompensation(
+                        UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+                        ownerRevision, tenantRevision, policyRevision)),
+                ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+    }
+
     private HrisWorkforceSnapshotAuthorityVerifier verifier(
             HcmPopulationScopeService populations,
             PeopleRequestContext.Actor actor,
@@ -152,13 +242,28 @@ class HrisWorkforceSnapshotOwnerTest {
                 "psc-" + "a".repeat(64), "hcm-scope-" + "b".repeat(40), "111");
     }
 
+    private HcmPepContext.Evidence compensationEvidence(Instant revalidateAt) {
+        HcmV3PepRegistry.RouteAuthority authority = new HcmV3PepRegistry.RouteAuthority(
+                "route.hcm.operations.compensation-cycle-create.action",
+                "ACTION", "full-work", false,
+                Set.of("predicate.hcm-compensation-planning-authority.v1"),
+                Set.of("TARGET_POPULATION"),
+                "route.hcm.operations.compensation-cycle-create.action.binding.01",
+                "hcm.compensation.plan.propose", "ACTIVE", "POST",
+                "/v1/hris/performance/compensation-planning/cycles", null);
+        return new HcmPepContext.Evidence(
+                authority, "psr-" + "c".repeat(64),
+                OffsetDateTime.ofInstant(revalidateAt, ZoneOffset.UTC),
+                "psc-" + "a".repeat(64), "hcm-scope-" + "b".repeat(40), "111");
+    }
+
     private HcmPopulationScopeService.ResolvedPopulation population() {
         HcmPopulationRepository.PopulationScope scope =
                 new HcmPopulationRepository.PopulationScope(
                         9L, "MGR-1", false,
                         Set.of(UUID.fromString(
                                 "30000000-0000-0000-0000-000000000001")),
-                        Set.of("DIRECTORY"), "policy-17");
+                        Set.of("DIRECTORY", "EMPLOYMENT"), "policy-17");
         return new HcmPopulationScopeService.ResolvedPopulation(
                 null, scope, new HcmPopulationRepository.PopulationEvidence(
                 2L, "population-17"));
@@ -181,6 +286,42 @@ class HrisWorkforceSnapshotOwnerTest {
                 WorkforceSnapshotQuery.PURPOSE_CODE,
                 WorkforceSnapshotProjection.PERFORMANCE_V1,
                 NOW, 1, ownerRevision, cursorPosition, cursorDigest);
+    }
+
+    private CompensationPopulationSnapshotQuery compensationQuery(
+            UUID snapshotId, long ownerRevision) {
+        return new CompensationPopulationSnapshotQuery(
+                snapshotId, ownerRevision, NOW,
+                WorkforceSnapshotProjection.COMPENSATION_POPULATION_V1,
+                CompensationPopulationSnapshotQuery.PURPOSE_CODE, 10, null);
+    }
+
+    private VerifiedCompensationPopulationRequest verifiedCompensation(
+            UUID snapshotId,
+            long ownerRevision,
+            long tenantRevision,
+            long policyRevision) {
+        return new VerifiedCompensationPopulationRequest(
+                TENANT, tenantRevision, policyRevision,
+                VerifiedWorkforceSnapshotRequest.PERFORMANCE_CALLER,
+                UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+                snapshotId, ownerRevision, NOW,
+                WorkforceSnapshotProjection.COMPENSATION_POPULATION_V1,
+                CompensationPopulationSnapshotQuery.PURPOSE_CODE,
+                10, null, null, null);
+    }
+
+    private UUID compensationSnapshotId(
+            String populationRevision, String eligibilityRevision) {
+        return UUID.nameUUIDFromBytes((
+                CompensationPopulationSnapshotQuery.PURPOSE_CODE + ':' + TENANT + ':'
+                        + populationRevision + ':' + NOW + ':' + eligibilityRevision)
+                .getBytes(StandardCharsets.UTF_8));
+    }
+
+    private long revision(String value) {
+        return Long.parseLong(
+                HrisWorkforceSnapshotRevision.digest(value).substring(0, 15), 16) + 1;
     }
 
     private WorkforceSnapshotV1 snapshot(int value) {

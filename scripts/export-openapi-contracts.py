@@ -23,9 +23,16 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v39.json"
+)
+PRODUCT_AUTHORIZATION_VERSION = 39
+HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY = (
     ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v38.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 38
+HRM_EMPLOYEE_CHANGE_AUTHORIZATION_VERSION = 38
+COMPENSATION_PLANNING_CONTROLLER_FLAG = (
+    "DWP_HRIS_PERFORMANCE_COMPENSATION_PLANNING_ENABLED"
+)
 HRIS_DESIGN_TIME_OVERLAY = CONTRACT_ROOT / "hris-wave1-design-time.json"
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 SYS_REFERENCE_CONFIGURATION_OPERATION_CONTRACTS = {
@@ -134,6 +141,20 @@ HRM_EMPLOYEE_CHANGE_OPERATION_CONTRACTS = {
 HRM_EMPLOYEE_CHANGE_ROUTE_KEYS = frozenset(
     HRM_EMPLOYEE_CHANGE_OPERATION_CONTRACTS
 )
+COMPENSATION_PLANNING_ROUTE_KEYS = frozenset({
+    "route.hcm.operations.compensation-planning.page",
+    "route.hcm.operations.compensation-cycle-detail.data",
+    "route.hcm.operations.compensation-proposals.data",
+    "route.hcm.operations.compensation-proposal-detail.data",
+    "route.hcm.operations.compensation-cycle-create.action",
+    "route.hcm.operations.compensation-cycle-revise.action",
+    "route.hcm.operations.compensation-budget-allocate.action",
+    "route.hcm.operations.compensation-proposal-upsert.action",
+    "route.hcm.operations.compensation-proposal-submit.action",
+    "route.hcm.operations.compensation-plan-approve.action",
+    "route.hcm.operations.compensation-snapshot-publish.action",
+    "route.hcm.operations.compensation-cycle-cancel.action",
+})
 HRM_EMPLOYEE_CHANGE_INTERNAL_OPERATION = (
     "post",
     "/internal/hris-people/v1/employee-change-requests/{requestPublicId}/approval-decisions",
@@ -461,6 +482,14 @@ def fetch_contract(service: ServiceContract) -> dict[str, Any]:
         raise RuntimeError(f"{service.name} did not publish an OpenAPI 3 document")
     if not document.get("paths"):
         raise RuntimeError(f"{service.name} published an empty OpenAPI path registry")
+    if service.name == "people" and not any(
+        path.startswith("/v1/hris/performance/compensation-planning")
+        for path in document["paths"]
+    ):
+        raise RuntimeError(
+            "People OpenAPI was not exported with "
+            f"{COMPENSATION_PLANNING_CONTROLLER_FLAG}=true"
+        )
     document.pop("servers", None)
     document = apply_design_time_overlay(service, document)
     validate_unique_operation_ids(document, service.name)
@@ -1056,24 +1085,39 @@ def gateway_contract(
     return prune_unreachable_components(gateway)
 
 
-def load_product_authorization_registry() -> dict[str, Any]:
+def load_authorization_registry(
+    registry_path: Path, registry_version: int
+) -> dict[str, Any]:
     try:
-        registry = json.loads(PRODUCT_AUTHORIZATION_REGISTRY.read_text(encoding="utf-8"))
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise RuntimeError(
             f"Unable to read product authorization registry at "
-            f"{PRODUCT_AUTHORIZATION_REGISTRY}: {error}"
+            f"{registry_path}: {error}"
         ) from error
     if (
         registry.get("bundleKey") != "product-surfaces"
-        or registry.get("version") != PRODUCT_AUTHORIZATION_VERSION
+        or registry.get("version") != registry_version
         or registry.get("bundleStatus") != "DRAFT"
         or not isinstance(registry.get("routes"), list)
     ):
         raise RuntimeError(
-            f"Product authorization v{PRODUCT_AUTHORIZATION_VERSION} registry is invalid"
+            f"Product authorization v{registry_version} registry is invalid"
         )
     return registry
+
+
+def load_product_authorization_registry() -> dict[str, Any]:
+    return load_authorization_registry(
+        PRODUCT_AUTHORIZATION_REGISTRY, PRODUCT_AUTHORIZATION_VERSION
+    )
+
+
+def load_hrm_employee_change_authorization_registry() -> dict[str, Any]:
+    return load_authorization_registry(
+        HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY,
+        HRM_EMPLOYEE_CHANGE_AUTHORIZATION_VERSION,
+    )
 
 
 def product_governed_operations() -> dict[tuple[str, str], bool]:
@@ -1491,11 +1535,85 @@ def normalize_gateway_people_schema(value: Any) -> Any:
     return value
 
 
+def validate_compensation_planning_contract(
+    people_document: dict[str, Any], gateway_document: dict[str, Any]
+) -> None:
+    """Require the complete controller/owner/browser v39 compensation slice."""
+    registry = load_product_authorization_registry()
+    routes = {
+        route.get("routeContractKey"): route
+        for route in registry["routes"]
+        if route.get("routeContractKey") in COMPENSATION_PLANNING_ROUTE_KEYS
+    }
+    if set(routes) != COMPENSATION_PLANNING_ROUTE_KEYS:
+        raise RuntimeError(
+            "Compensation-planning v39 authorization routes are not exact"
+        )
+
+    owner_operations: set[tuple[str, str]] = set()
+    browser_operations: set[tuple[str, str]] = set()
+    for route_key, route in routes.items():
+        owner_bindings = route.get("servicePepBindings")
+        browser_bindings = route.get("gatewayApiBindings")
+        if (
+            route.get("lifecycleState") != "ACTIVE"
+            or route.get("subject", {}).get("type") != "PRODUCT"
+            or not isinstance(owner_bindings, list)
+            or len(owner_bindings) != 1
+            or not isinstance(browser_bindings, list)
+            or len(browser_bindings) != 1
+        ):
+            raise RuntimeError(
+                f"Compensation-planning v39 route binding is invalid: {route_key}"
+            )
+        owner = owner_bindings[0]
+        browser = browser_bindings[0]
+        method = str(owner.get("method", "")).lower()
+        owner_path = owner.get("path")
+        browser_path = browser.get("path")
+        if (
+            method not in HTTP_METHODS
+            or str(browser.get("method", "")).lower() != method
+            or owner.get("serviceKey") != "people"
+            or owner.get("bindingKey") != browser.get("bindingKey")
+            or not isinstance(owner_path, str)
+            or prefixed("/api/people")(owner_path) != browser_path
+        ):
+            raise RuntimeError(
+                f"Compensation-planning v39 owner/browser binding drift: {route_key}"
+            )
+        owner_operations.add((method, owner_path))
+        browser_operations.add((method, browser_path))
+
+    actual_owner = {
+        (method, path)
+        for path, path_item in people_document.get("paths", {}).items()
+        if path.startswith("/v1/hris/performance/compensation-planning")
+        for method in path_item
+        if method in HTTP_METHODS
+    }
+    actual_browser = {
+        (method, path)
+        for path, path_item in gateway_document.get("paths", {}).items()
+        if path.startswith("/api/people/v1/hris/performance/compensation-planning")
+        for method in path_item
+        if method in HTTP_METHODS
+    }
+    if actual_owner != owner_operations or actual_browser != browser_operations:
+        raise RuntimeError(
+            "Compensation-planning OpenAPI operations are not exact: "
+            f"ownerMissing={sorted(owner_operations - actual_owner)}, "
+            f"ownerUnexpected={sorted(actual_owner - owner_operations)}, "
+            f"browserMissing={sorted(browser_operations - actual_browser)}, "
+            f"browserUnexpected={sorted(actual_browser - browser_operations)}"
+        )
+
+
 def validate_hrm_employee_change_contract(
     people_document: dict[str, Any], gateway_document: dict[str, Any]
 ) -> None:
     """Pin HRM-010 source, owner, browser, and workload-only callback contracts."""
-    registry = load_product_authorization_registry()
+    registry = load_hrm_employee_change_authorization_registry()
     routes = {
         route.get("routeContractKey"): route
         for route in registry["routes"]
@@ -1678,7 +1796,7 @@ def validate_hrm_employee_change_contract(
             "bindingKey": owner_binding["bindingKey"],
             "ownerServiceKey": owner_binding["serviceKey"],
             "productKey": subject["productKey"],
-            "registryVersion": PRODUCT_AUTHORIZATION_VERSION,
+            "registryVersion": HRM_EMPLOYEE_CHANGE_AUTHORIZATION_VERSION,
             "routeContractKey": route_key,
             "subjectType": subject["type"],
             "surfaceKey": subject["surfaceKey"],
@@ -2269,6 +2387,9 @@ def main() -> int:
         outputs["platform.json"], outputs["gateway-public.json"]
     )
     validate_hrm_employee_change_contract(
+        outputs["people.json"], outputs["gateway-public.json"]
+    )
+    validate_compensation_planning_contract(
         outputs["people.json"], outputs["gateway-public.json"]
     )
     validate_platform_device_identity(outputs["platform.json"])

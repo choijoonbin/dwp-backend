@@ -4,6 +4,7 @@ import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.security.HcmHighRiskCommandGuard;
 import com.dwp.services.people.hr.performance.typedartifact.CompensationArtifactContents.Guidelines;
 import com.dwp.services.people.hr.performance.typedartifact.CompensationArtifactContents.Guideline;
 import com.dwp.services.people.hr.performance.typedartifact.CompensationArtifactContents.Population;
@@ -112,7 +113,7 @@ class CompensationPlanningAuthorizationTest {
                 CompensationPlanningAuthorityPort.AuthorityEvidence(
                 10L, 20L, SUBJECT,
                 CompensationPlanningAuthorization.APPLICATION,
-                CompensationPlanningAuthorization.RESOURCE,
+                CompensationPlanningAuthorization.DATA_RESOURCE,
                 "UPDATE", "modern.compplan.cycle.revise",
                 CompensationPlanningAuthorization.PROPOSE_CAPABILITY,
                 CompensationPlanningAuthorization.PURPOSE,
@@ -129,7 +130,7 @@ class CompensationPlanningAuthorizationTest {
                 CompensationPlanningAuthorityPort.AuthorityEvidence(
                 10L, 20L, SUBJECT,
                 CompensationPlanningAuthorization.APPLICATION,
-                CompensationPlanningAuthorization.RESOURCE,
+                CompensationPlanningAuthorization.DATA_RESOURCE,
                 "UPDATE", "modern.compplan.cycle.revise",
                 CompensationPlanningAuthorization.PROPOSE_CAPABILITY,
                 CompensationPlanningAuthorization.PURPOSE,
@@ -178,18 +179,20 @@ class CompensationPlanningAuthorizationTest {
                 new CompensationPlanningCanonicalizer(new ObjectMapper()), now);
 
         PeopleRequestContext.set(20L, 10L, SUBJECT, Set.of(),
-                Set.of("DATA.HR_TALENT:APPROVE"));
+                Set.of("ACTION.HRIS_COMPENSATION_PLAN_APPROVE:APPROVE"));
         try {
             assertCode(() -> service.approve(
                     AGGREGATE, 7L,
                     new CompensationPlanningDtos.ApprovePlanRequest(
                             "APPROVE", "EMPTY_SET"),
-                    "empty-set", UUID.randomUUID().toString()), ErrorCode.INVALID_STATE);
+                    "empty-set", UUID.randomUUID().toString(), null),
+                    ErrorCode.INVALID_STATE);
             assertCode(() -> service.approve(
                     AGGREGATE, 7L,
                     new CompensationPlanningDtos.ApprovePlanRequest(
                             "APPROVE", "OVERFLOW_SET"),
-                    "overflow-set", UUID.randomUUID().toString()), ErrorCode.INVALID_STATE);
+                    "overflow-set", UUID.randomUUID().toString(), null),
+                    ErrorCode.INVALID_STATE);
             assertNoApprovalMutation(repository);
         } finally {
             PeopleRequestContext.clear();
@@ -239,9 +242,11 @@ class CompensationPlanningAuthorizationTest {
     @Test
     void viewOnlyDutyCannotReceiveDetailedCompensationFields() {
         PeopleRequestContext.Actor viewOnly = new PeopleRequestContext.Actor(
-                20L, 10L, SUBJECT, Set.of(), Set.of("DATA.HR_TALENT:VIEW"));
+                20L, 10L, SUBJECT, Set.of(),
+                Set.of("DATA.HRIS_COMPENSATION_PLAN:VIEW"));
         PeopleRequestContext.Actor proposer = new PeopleRequestContext.Actor(
-                20L, 10L, SUBJECT, Set.of(), Set.of("DATA.HR_TALENT:UPDATE"));
+                20L, 10L, SUBJECT, Set.of(),
+                Set.of("DATA.HRIS_COMPENSATION_PLAN:UPDATE"));
 
         assertThat(CompensationPlanningAuthorization.permitsDetailField(
                 viewOnly, evidence(), "PROPOSAL_AMOUNT")).isFalse();
@@ -305,11 +310,12 @@ class CompensationPlanningAuthorizationTest {
                 mock(PerTypedArtifactQueryPort.class),
                 mock(CompensationPopulationMaterializer.class), canonicalizer,
                 mock(AuditOutboxRecorder.class),
-                Clock.fixed(acceptedAt, ZoneOffset.UTC), () -> authority);
+                Clock.fixed(acceptedAt, ZoneOffset.UTC), () -> authority,
+                mock(HcmHighRiskCommandGuard.class));
 
         PeopleRequestContext.set(
                 actorId, tenantId, SUBJECT, Set.of(),
-                Set.of("DATA.HR_TALENT:UPDATE"));
+                Set.of("DATA.HRIS_COMPENSATION_PLAN:UPDATE"));
         try {
             CompensationPlanningDtos.CommandReceipt replay = service.allocateBudget(
                     cycleId, expectedVersion, request, key, correlationId.toString());
@@ -370,7 +376,7 @@ class CompensationPlanningAuthorizationTest {
         CompensationPlanningService service = service(repository, authority, canonicalizer, now);
 
         PeopleRequestContext.set(actorId, tenantId, SUBJECT, Set.of(),
-                Set.of("DATA.HR_TALENT:UPDATE"));
+                Set.of("DATA.HRIS_COMPENSATION_PLAN:UPDATE"));
         try {
             assertCode(() -> service.allocateBudget(
                     AGGREGATE, expectedVersion, request, key, UUID.randomUUID().toString()),
@@ -424,7 +430,7 @@ class CompensationPlanningAuthorizationTest {
         return new CompensationPlanningAuthorityPort.AuthorityRequest(
                 10L, 20L, SUBJECT,
                 CompensationPlanningAuthorization.APPLICATION,
-                CompensationPlanningAuthorization.RESOURCE,
+                CompensationPlanningAuthorization.DATA_RESOURCE,
                 "UPDATE", "modern.compplan.cycle.revise",
                 CompensationPlanningAuthorization.PROPOSE_CAPABILITY,
                 CompensationPlanningAuthorization.PURPOSE, AGGREGATE);
@@ -434,7 +440,7 @@ class CompensationPlanningAuthorizationTest {
         return new CompensationPlanningAuthorityPort.AuthorityEvidence(
                 10L, 20L, SUBJECT,
                 CompensationPlanningAuthorization.APPLICATION,
-                CompensationPlanningAuthorization.RESOURCE,
+                CompensationPlanningAuthorization.DATA_RESOURCE,
                 "UPDATE", "modern.compplan.cycle.revise",
                 CompensationPlanningAuthorization.PROPOSE_CAPABILITY,
                 CompensationPlanningAuthorization.PURPOSE,
@@ -486,19 +492,19 @@ class CompensationPlanningAuthorizationTest {
                 new CompensationPlanningCanonicalizer(new ObjectMapper()), now);
 
         PeopleRequestContext.set(actorId, tenantId, SUBJECT, Set.of(),
-                Set.of("DATA.HR_TALENT:APPROVE"));
+                Set.of("ACTION.HRIS_COMPENSATION_PLAN_APPROVE:APPROVE"));
         try {
             Runnable action = publish
                     ? () -> service.publish(
                             AGGREGATE, version,
                             new CompensationPlanningDtos.PublishSnapshotRequest(
                                     approvalReceiptId),
-                            "publish-key", UUID.randomUUID().toString())
+                            "publish-key", UUID.randomUUID().toString(), null)
                     : () -> service.approve(
                             AGGREGATE, version,
                             new CompensationPlanningDtos.ApprovePlanRequest(
                                     "APPROVE", "ANNUAL_REVIEW"),
-                            "approve-key", UUID.randomUUID().toString());
+                            "approve-key", UUID.randomUUID().toString(), null);
             assertCode(action, ErrorCode.SOD_CONFLICT);
             verify(repository, never()).reserveReceipt(
                     anyLong(), anyLong(), any(), any(), any(), any(), any(),
@@ -522,7 +528,8 @@ class CompensationPlanningAuthorizationTest {
                 mock(PerTypedArtifactQueryPort.class),
                 mock(CompensationPopulationMaterializer.class), canonicalizer,
                 mock(AuditOutboxRecorder.class),
-                Clock.fixed(now, ZoneOffset.UTC), () -> authority);
+                Clock.fixed(now, ZoneOffset.UTC), () -> authority,
+                mock(HcmHighRiskCommandGuard.class));
     }
 
     private static void assertHostileApprovalDenied(
@@ -566,16 +573,17 @@ class CompensationPlanningAuthorizationTest {
                 repository, mock(PerTypedArtifactService.class), artifactQuery,
                 mock(CompensationPopulationMaterializer.class),
                 new CompensationPlanningCanonicalizer(new ObjectMapper()), audit,
-                Clock.fixed(now, ZoneOffset.UTC), () -> authority);
+                Clock.fixed(now, ZoneOffset.UTC), () -> authority,
+                mock(HcmHighRiskCommandGuard.class));
 
         PeopleRequestContext.set(20L, 10L, SUBJECT, Set.of(),
-                Set.of("DATA.HR_TALENT:APPROVE"));
+                Set.of("ACTION.HRIS_COMPENSATION_PLAN_APPROVE:APPROVE"));
         try {
             assertCode(() -> service.approve(
                     AGGREGATE, 7L,
                     new CompensationPlanningDtos.ApprovePlanRequest(
                             "APPROVE", "HOSTILE_SET"),
-                    "hostile-" + UUID.randomUUID(), UUID.randomUUID().toString()),
+                    "hostile-" + UUID.randomUUID(), UUID.randomUUID().toString(), null),
                     ErrorCode.INVALID_STATE);
             assertNoApprovalMutation(repository);
             verify(audit, never()).record(any());

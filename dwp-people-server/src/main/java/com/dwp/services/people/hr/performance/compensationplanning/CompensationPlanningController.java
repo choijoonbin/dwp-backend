@@ -3,6 +3,7 @@ package com.dwp.services.people.hr.performance.compensationplanning;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -177,12 +178,18 @@ public final class CompensationPlanningController {
             @RequestHeader(CORRELATION) String correlationId,
             @RequestHeader(IDEMPOTENCY) String idempotencyKey,
             @RequestHeader(IF_MATCH) long expectedVersion,
+            @RequestHeader(HcmStepUpHeaders.CHALLENGE) String challenge,
+            @RequestHeader(HcmStepUpHeaders.DECISION_REVISION) String decisionRevision,
+            @RequestHeader(HcmStepUpHeaders.EXPECTED_OBJECT_VERSION)
+            Long expectedObjectVersion,
             @RequestParam MultiValueMap<String, String> query,
             @Valid @RequestBody CompensationPlanningDtos.ApprovePlanRequest request) {
         requireClosedQuery(query);
         requireCommandHeaders(correlationId, idempotencyKey, expectedVersion);
         return ApiResponse.success(service.approve(
-                cycleId, expectedVersion, request, idempotencyKey, correlationId));
+                cycleId, expectedVersion, request, idempotencyKey, correlationId,
+                new HcmStepUpHeaders(challenge, idempotencyKey,
+                        decisionRevision, expectedObjectVersion)));
     }
 
     @Operation(operationId = CompensationPlanningService.PUBLISH)
@@ -192,12 +199,18 @@ public final class CompensationPlanningController {
             @RequestHeader(CORRELATION) String correlationId,
             @RequestHeader(IDEMPOTENCY) String idempotencyKey,
             @RequestHeader(IF_MATCH) long expectedVersion,
+            @RequestHeader(HcmStepUpHeaders.CHALLENGE) String challenge,
+            @RequestHeader(HcmStepUpHeaders.DECISION_REVISION) String decisionRevision,
+            @RequestHeader(HcmStepUpHeaders.EXPECTED_OBJECT_VERSION)
+            Long expectedObjectVersion,
             @RequestParam MultiValueMap<String, String> query,
             @Valid @RequestBody CompensationPlanningDtos.PublishSnapshotRequest request) {
         requireClosedQuery(query);
         requireCommandHeaders(correlationId, idempotencyKey, expectedVersion);
         return ApiResponse.success(service.publish(
-                cycleId, expectedVersion, request, idempotencyKey, correlationId));
+                cycleId, expectedVersion, request, idempotencyKey, correlationId,
+                new HcmStepUpHeaders(challenge, idempotencyKey,
+                        decisionRevision, expectedObjectVersion)));
     }
 
     @Operation(operationId = CompensationPlanningService.CANCEL)

@@ -140,8 +140,11 @@ LEGACY_HCM_PEOPLE_PEP_V36_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
 LEGACY_HCM_PEOPLE_PEP_V37_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
     "hcm-people-pep-v37.generated.json"
 )
-HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+LEGACY_HCM_PEOPLE_PEP_V38_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
     "hcm-people-pep-v38.generated.json"
+)
+HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v39.generated.json"
 )
 LEGACY_HCM_TIME_PEP_V35_OUTPUT = (
     ROOT
@@ -181,7 +184,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 39))
+BUNDLE_VERSIONS = tuple(range(1, 40))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -291,6 +294,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 57, "routes": 974, "PAGE": 124, "DATA": 295, "ACTION": 555},
     38: {"capabilities": 242, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 59, "routes": 991, "PAGE": 128, "DATA": 298, "ACTION": 565},
+    39: {"capabilities": 245, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 60, "routes": 1003, "PAGE": 129, "DATA": 301, "ACTION": 573},
 }
 
 V37_TIME_VOID_ROUTE = "route.hcm.operations.time-clock-event-void.action"
@@ -298,6 +303,11 @@ V37_TIME_VOID_REMOVED_PROFILE = "self-service"
 V37_PROFILE_REMOVALS = frozenset({
     (V37_TIME_VOID_ROUTE, V37_TIME_VOID_REMOVED_PROFILE, 37),
 })
+V39_COMPENSATION_NAVIGATION_POLICY_KEYS = frozenset({
+    "hcm.operations-access.v1",
+    "hcm.operations-overview-read.v1",
+})
+V39_COMPENSATION_VIEW_CAPABILITY = "hcm.compensation.plan.view"
 
 V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES = frozenset({
     "route.dwaion.work.research-audit-download.data",
@@ -1139,7 +1149,8 @@ def _validate_descriptor_enrichment_envelope(
     """Require every descriptor patch to land in the snapshot that introduces its key."""
     require(isinstance(enrichment, dict), "descriptorEnrichments must be an object")
     require(
-        set(enrichment) == {"capabilities", "routes", "authorityEndpoints"},
+        set(enrichment)
+        == {"capabilities", "accessPolicies", "routes", "authorityEndpoints"},
         "descriptorEnrichments envelope is invalid",
     )
     authority = enrichment["authorityEndpoints"]
@@ -1196,6 +1207,26 @@ def _validate_descriptor_enrichment_envelope(
         "versioned access profile removals must contain only the exact v37 time void correction",
     )
 
+    access_policy_patches = unique(
+        enrichment["accessPolicies"],
+        "accessPolicyKey",
+        "access policy enrichments",
+    )
+    require(
+        set(access_policy_patches) == V39_COMPENSATION_NAVIGATION_POLICY_KEYS,
+        "access policy enrichments must contain only the v39 compensation navigation policies",
+    )
+    for policy_key, patch in access_policy_patches.items():
+        require(
+            patch
+            == {
+                "accessPolicyKey": policy_key,
+                "introducedInVersion": 39,
+                "normalCapabilityAdditions": [V39_COMPENSATION_VIEW_CAPABILITY],
+            },
+            f"{policy_key}: invalid v39 compensation navigation enrichment",
+        )
+
     all_capabilities = {
         item["contractKey"]: item
         for item in base["capabilities"]
@@ -1246,6 +1277,37 @@ def _apply_descriptor_enrichments(
         capabilities[key]["requiredResponsibilityCode"] = patch["requiredResponsibilityCode"]
         if "scopeResolver" in patch:
             capabilities[key]["scopeResolver"] = patch["scopeResolver"]
+
+    policies = unique(
+        candidate["accessPolicies"], "accessPolicyKey", f"v{version} access policies"
+    )
+    policy_patches = unique(
+        enrichment["accessPolicies"],
+        "accessPolicyKey",
+        "access policy enrichments",
+    )
+    for key, patch in policy_patches.items():
+        if key not in policies or version < patch["introducedInVersion"]:
+            continue
+        branches = [
+            branch
+            for branch in policies[key]["modeBranches"]
+            if branch.get("activeAccessMode") == "NORMAL"
+            and branch.get("resultGrantKind") == "CAPABILITY"
+            and branch.get("capabilityMode") == "ANY"
+        ]
+        require(len(branches) == 1, f"{key}: exact NORMAL ANY capability branch required")
+        capability_keys = branches[0]["capabilityContractKeys"]
+        for capability_key in patch["normalCapabilityAdditions"]:
+            require(
+                capability_key in capabilities,
+                f"{key}: unknown enriched capability {capability_key}",
+            )
+            require(
+                capability_key not in capability_keys,
+                f"{key}: duplicate enriched capability {capability_key}",
+            )
+            capability_keys.append(capability_key)
 
     routes = unique(candidate["routes"], "routeContractKey", f"v{version} routes")
     route_patches = unique(
@@ -1476,6 +1538,14 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
             ):
                 continue
             if (
+                current["version"] == 39
+                and section == "accessPolicies"
+                and _is_v39_compensation_navigation_policy_upgrade(
+                    descriptor_key, prior_descriptor, candidate_descriptor
+                )
+            ):
+                continue
+            if (
                 current["version"] == 35
                 and section == "capabilities"
                 and descriptor_key == "hcm.operations.talent.update"
@@ -1566,6 +1636,35 @@ def _is_v30_research_authority_upgrade(
         current_profiles[profile_key]["requiredAccess"] = copy.deepcopy(
             previous_profiles[profile_key]["requiredAccess"]
         )
+    return previous_copy == current_copy
+
+
+def _is_v39_compensation_navigation_policy_upgrade(
+    policy_key: str,
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    if policy_key not in V39_COMPENSATION_NAVIGATION_POLICY_KEYS:
+        return False
+    previous_copy = copy.deepcopy(previous)
+    current_copy = copy.deepcopy(current)
+    branches = [
+        branch
+        for branch in current_copy.get("modeBranches") or []
+        if branch.get("activeAccessMode") == "NORMAL"
+        and branch.get("resultGrantKind") == "CAPABILITY"
+        and branch.get("capabilityMode") == "ANY"
+    ]
+    if len(branches) != 1:
+        return False
+    capability_keys = branches[0].get("capabilityContractKeys")
+    if (
+        not isinstance(capability_keys, list)
+        or capability_keys.count(V39_COMPENSATION_VIEW_CAPABILITY) != 1
+        or capability_keys[-1] != V39_COMPENSATION_VIEW_CAPABILITY
+    ):
+        return False
+    capability_keys.pop()
     return previous_copy == current_copy
 
 
@@ -3170,6 +3269,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PEOPLE_PEP_V35_OUTPUT,
         LEGACY_HCM_PEOPLE_PEP_V36_OUTPUT,
         LEGACY_HCM_PEOPLE_PEP_V37_OUTPUT,
+        LEGACY_HCM_PEOPLE_PEP_V38_OUTPUT,
         HCM_PEOPLE_PEP_OUTPUT,
         LEGACY_HCM_TIME_PEP_V35_OUTPUT,
         LEGACY_HCM_TIME_PEP_V36_OUTPUT,
@@ -3518,7 +3618,7 @@ def main() -> int:
             version=37,
             product_key="hcm",
         )
-        hcm_people_pep = build_approvals_pep(
+        legacy_hcm_people_pep_v38 = build_approvals_pep(
             snapshots[37],
             "people",
             "hcm-people-pep-v38",
@@ -3532,6 +3632,22 @@ def main() -> int:
                 "predicatePolicies": 15,
             },
             version=38,
+            product_key="hcm",
+        )
+        hcm_people_pep = build_approvals_pep(
+            snapshots[38],
+            "people",
+            "hcm-people-pep-v39",
+            {
+                "routes": 93,
+                "bindings": 120,
+                "routeKinds": {"ACTION": 46, "DATA": 18, "PAGE": 29},
+                "capabilities": 49,
+                "accessPolicies": 5,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 16,
+            },
+            version=39,
             product_key="hcm",
         )
         legacy_hcm_time_pep_v35 = build_approvals_pep(
@@ -3805,6 +3921,11 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_PEOPLE_PEP_V38_OUTPUT,
+                render(legacy_hcm_people_pep_v38),
+                args.check,
+            ),
+            write_or_check(
                 HCM_PEOPLE_PEP_OUTPUT,
                 render(hcm_people_pep),
                 args.check,
@@ -3919,6 +4040,9 @@ def main() -> int:
         )
         verify_approvals_pep(
             LEGACY_HCM_PEOPLE_PEP_V37_OUTPUT, legacy_hcm_people_pep_v37
+        )
+        verify_approvals_pep(
+            LEGACY_HCM_PEOPLE_PEP_V38_OUTPUT, legacy_hcm_people_pep_v38
         )
         verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)
         verify_approvals_pep(

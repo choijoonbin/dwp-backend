@@ -171,6 +171,10 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
         self.assertEqual(people["PEOPLE_DB_USERNAME"], "dwp_people_runtime")
         self.assertEqual(people["PEOPLE_DB_PASSWORD"], "dwp_password")
         self.assertEqual(people["DWP_HRIS_PERFORMANCE_WAVE1_ENABLED"], "true")
+        self.assertEqual(
+            people["DWP_HRIS_PERFORMANCE_COMPENSATION_PLANNING_ENABLED"],
+            "true",
+        )
         self.assertEqual(people["DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED"], "true")
         self.assertTrue(
             all(
@@ -184,6 +188,7 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
             "PEOPLE_DB_USERNAME",
             "PEOPLE_DB_PASSWORD",
             "DWP_HRIS_PERFORMANCE_WAVE1_ENABLED",
+            "DWP_HRIS_PERFORMANCE_COMPENSATION_PLANNING_ENABLED",
             "DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED",
         ):
             self.assertTrue(
@@ -411,7 +416,7 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
         auth_only = {
             "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
             "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
-            "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "32",
+            "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "39",
         }
         for key, value in auth_only.items():
             self.assertEqual(environments["auth"][key], value)

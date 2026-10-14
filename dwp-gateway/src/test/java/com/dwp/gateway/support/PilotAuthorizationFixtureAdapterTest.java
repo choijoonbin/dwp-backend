@@ -11,17 +11,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PilotAuthorizationFixtureAdapterTest {
 
     @Test
-    void loadsV34LineageWithoutChangingTheFixedCaseAuthority() throws Exception {
+    void loadsV39LineageWithoutChangingTheFixedCaseAuthority() throws Exception {
         try (var input = getClass().getClassLoader().getResourceAsStream(
                 "product-authorization/pilot-fixtures.v1.generated.json")) {
             assertThat(input).isNotNull();
             var fixture = new com.fasterxml.jackson.databind.ObjectMapper().readTree(input);
             assertThat(fixture.path("fixtureChecksum").asText())
-                    .isEqualTo("d344d6c2b8dcd6e79270c23f5e2db25f5583ef132e558fd01a88384d53c1938f");
-            assertThat(fixture.path("registryLineage").path("latestAliasVersion").asInt()).isEqualTo(34);
-            assertThat(fixture.path("registryLineage").path("versions").size()).isEqualTo(34);
-            assertThat(fixture.path("registryLineage").path("versions").get(33).path("sha256").asText())
-                    .isEqualTo("852d20e1e639e1a7170f02b5714d21d8c51a9eb8ff5ac32d8b7940b82d6be83b");
+                    .isEqualTo("0269799dd5ad54de3dbf4c6b76f3ba43b5c1b29273eeddec2c9c8571027e418b");
+            assertThat(fixture.path("registryLineage").path("latestAliasVersion").asInt()).isEqualTo(39);
+            assertThat(fixture.path("registryLineage").path("versions").size()).isEqualTo(39);
+            assertThat(fixture.path("registryLineage").path("versions").get(38).path("sha256").asText())
+                    .isEqualTo("86e796c95e45c02892d4c4ae76e7a5b36114ab09554ffc1be3a450066fe8e34c");
+            assertThat(fixture.path("registryLineage").path("versions").get(37).path("sha256").asText())
+                    .isEqualTo("a41145d6a2faefd2e6030a2ca9a070769019d4db5513ea214bf542dda31c374a");
             assertThat(fixture.path("registryLineage").path("versions").get(31).path("sha256").asText())
                     .isEqualTo("b620ea86a8310cf23796e3e380b74c39764bdca28f41033496d21887a89da9cc");
             assertThat(fixture.path("registryLineage").path("versions").get(9).path("sha256").asText())

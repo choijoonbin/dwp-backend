@@ -147,4 +147,88 @@ class HrisWorkforceSnapshotRepository {
         return List.copyOf(new ArrayList<>(page(
                 tenantId, scope, asOf, afterPosition, limitPlusOne)));
     }
+
+    List<CompensationPopulationCandidate> immutableCompensationPopulation(
+            long tenantId,
+            HcmPopulationRepository.PopulationScope scope,
+            Instant asOf,
+            int maximumSizePlusOne) {
+        Set<UUID> organizations = scope.organizationIds().isEmpty()
+                ? Set.of(EMPTY_ORGANIZATION) : scope.organizationIds();
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("asOf", Date.valueOf(asOf.atZone(ZoneOffset.UTC).toLocalDate()))
+                .addValue("actorWorkerId", scope.actorWorkerId())
+                .addValue("managerAssignmentKey", scope.managerAssignmentKey())
+                .addValue("tenantWide", scope.tenantWide())
+                .addValue("organizationIds", organizations)
+                .addValue("limit", maximumSizePlusOne);
+        return List.copyOf(jdbc.query("""
+                SELECT worker.public_id AS worker_public_id,
+                       assignment.public_id AS assignment_public_id,
+                       organization.public_id AS organization_public_id,
+                       job.public_id AS job_profile_public_id,
+                       assignment.version AS assignment_owner_revision
+                  FROM ppl_workers worker
+                  JOIN LATERAL (
+                      SELECT relationship.work_relationship_id
+                        FROM ppl_work_relationships relationship
+                       WHERE relationship.tenant_id = worker.tenant_id
+                         AND relationship.worker_id = worker.worker_id
+                         AND relationship.start_date <= :asOf
+                         AND (relationship.end_date IS NULL
+                              OR relationship.end_date >= :asOf)
+                       ORDER BY relationship.primary_relationship DESC,
+                                relationship.start_date DESC,
+                                relationship.work_relationship_id DESC
+                       LIMIT 1
+                  ) relationship ON TRUE
+                  JOIN LATERAL (
+                      SELECT candidate.public_id, candidate.manager_assignment_key,
+                             candidate.organization_id, candidate.job_profile_id,
+                             candidate.version
+                        FROM ppl_assignments candidate
+                       WHERE candidate.tenant_id = worker.tenant_id
+                         AND candidate.work_relationship_id =
+                             relationship.work_relationship_id
+                         AND candidate.primary_assignment = TRUE
+                         AND candidate.assignment_status IN ('ACTIVE','SUSPENDED','PENDING')
+                         AND candidate.effective_start_date <= :asOf
+                         AND (candidate.effective_end_date IS NULL
+                              OR candidate.effective_end_date >= :asOf)
+                       ORDER BY candidate.effective_start_date DESC,
+                                candidate.effective_sequence DESC,
+                                candidate.assignment_id DESC
+                       LIMIT 1
+                  ) assignment ON TRUE
+                  JOIN ppl_organizations organization
+                    ON organization.tenant_id = worker.tenant_id
+                   AND organization.organization_id = assignment.organization_id
+             LEFT JOIN ppl_job_profiles job
+                    ON job.tenant_id = worker.tenant_id
+                   AND job.job_profile_id = assignment.job_profile_id
+                 WHERE worker.tenant_id = :tenantId
+                   AND worker.worker_id <> :actorWorkerId
+                   AND (:tenantWide
+                        OR assignment.manager_assignment_key = :managerAssignmentKey
+                        OR organization.public_id IN (:organizationIds))
+                 ORDER BY assignment.public_id::TEXT, worker.public_id::TEXT
+                 LIMIT :limit
+                """, parameters, (result, ignored) -> new CompensationPopulationCandidate(
+                result.getObject("worker_public_id", UUID.class),
+                result.getObject("assignment_public_id", UUID.class),
+                result.getObject("organization_public_id", UUID.class),
+                null,
+                result.getObject("job_profile_public_id", UUID.class),
+                result.getLong("assignment_owner_revision"))));
+    }
+
+    record CompensationPopulationCandidate(
+            UUID workerPublicId,
+            UUID assignmentPublicId,
+            UUID organizationPublicId,
+            UUID gradePublicId,
+            UUID jobProfilePublicId,
+            long assignmentOwnerRevision) {
+    }
 }
