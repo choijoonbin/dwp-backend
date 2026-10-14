@@ -14,7 +14,7 @@ class ProductAuthorizationReleaseLineageTest {
             new ProductAuthorizationContractValidator(mapper);
 
     @Test
-    void preservesV33ThroughV37AndAcceptsOnlyThePinnedHrisWave2V38() throws Exception {
+    void preservesV33ThroughV41AndAcceptsOnlyThePinnedCombinedControlV42() throws Exception {
         try (var v33Input = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v33.generated.json")
                 .getInputStream();
@@ -32,6 +32,18 @@ class ProductAuthorizationReleaseLineageTest {
                      .getInputStream();
              var v38Input = new ClassPathResource(
                      "product-authorization/product-surfaces-v1.bundle-v38.generated.json")
+                     .getInputStream();
+             var v39Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v39.generated.json")
+                     .getInputStream();
+             var v40Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v40.generated.json")
+                     .getInputStream();
+             var v41Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v41.generated.json")
+                     .getInputStream();
+             var v42Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v42.generated.json")
                      .getInputStream()) {
             var v33 = validator.validateDocument(v33Input);
             var v34 = validator.validateDocument(v34Input);
@@ -39,6 +51,10 @@ class ProductAuthorizationReleaseLineageTest {
             var v36 = validator.validateDocument(v36Input);
             var v37 = validator.validateDocument(v37Input);
             var v38 = validator.validateDocument(v38Input);
+            var v39 = validator.validateDocument(v39Input);
+            var v40 = validator.validateDocument(v40Input);
+            var v41 = validator.validateDocument(v41Input);
+            var v42 = validator.validateDocument(v42Input);
 
             assertThat(v33.checksum()).isEqualTo(
                     "9c9a18b44eb83de0e98f4ec16e44c1df0ce216e00bc7075462f4e35f7fb87639");
@@ -63,6 +79,16 @@ class ProductAuthorizationReleaseLineageTest {
                     "a41145d6a2faefd2e6030a2ca9a070769019d4db5513ea214bf542dda31c374a");
             assertThat(v38.capabilities()).hasSize(242);
             assertThat(v38.routes()).hasSize(991);
+            assertThat(v39.checksum()).isEqualTo(
+                    "86e796c95e45c02892d4c4ae76e7a5b36114ab09554ffc1be3a450066fe8e34c");
+            assertThat(v40.checksum()).isEqualTo(
+                    "4dca145cbc9169c2d1fde71771b83a1a0635679a7190a39d0a21b4e76bbb9329");
+            assertThat(v41.checksum()).isEqualTo(
+                    "026157acf598ebabf156b40e3c084c40d52346ebfd2019e2476f30ecdd2b8d93");
+            assertThat(v42.checksum()).isEqualTo(
+                    "f73f9a64816ac8f5567a2a7c292821f4a40e6d675915ebc3c3ac8aad7d1fd983");
+            assertThat(v42.capabilities()).hasSize(255);
+            assertThat(v42.routes()).hasSize(1028);
         }
     }
 

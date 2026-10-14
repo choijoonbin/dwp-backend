@@ -447,7 +447,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_latest_v41_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_latest_v42_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -456,8 +456,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 41)
-        self.assertEqual(registry["version"], 41)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 42)
+        self.assertEqual(registry["version"], 42)
         self.assertEqual(EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_VERSION"], 38)
         self.assertTrue(str(
             EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY"]
@@ -599,6 +599,79 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 self.assertNotIn(
                     ("header", "X-DWP-Step-Up-Challenge"), parameters
                 )
+
+    def test_wave5_v42_exports_exact_sys_per_tim_boundaries(self) -> None:
+        platform = json.loads(
+            (ROOT / "contracts/openapi/platform.json").read_text(encoding="utf-8")
+        )
+        people = json.loads(
+            (ROOT / "contracts/openapi/people.json").read_text(encoding="utf-8")
+        )
+        time = json.loads(
+            (ROOT / "contracts/openapi/time.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+        EXPORTER["validate_wave5_hris_control_contract"](
+            platform, people, time, gateway
+        )
+
+        registry = json.loads(
+            EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"].read_text(encoding="utf-8")
+        )
+        routes = {
+            route["routeContractKey"]: route for route in registry["routes"]
+            if route["routeContractKey"]
+            in EXPORTER["WAVE5_HRIS_CONTROL_ROUTE_KEYS"]
+        }
+        self.assertEqual(11, len(routes))
+        for route in routes.values():
+            binding = route["gatewayApiBindings"][0]
+            operation = gateway["paths"][binding["path"]][binding["method"].lower()]
+            parameters = {
+                (str(value.get("in", "")).lower(), str(value.get("name", "")).lower())
+                for value in operation.get("parameters", [])
+            }
+            self.assertIn(("query", "contextscopekey"), parameters)
+            self.assertNotIn(("header", "x-purpose-code"), parameters)
+            self.assertNotIn(("header", "x-dwp-population-kind"), parameters)
+            self.assertNotIn(("header", "x-dwp-step-up-challenge"), parameters)
+
+        wrong_one_of = copy.deepcopy(platform)
+        wrong_one_of["paths"]["/v1/admin/audit-control/events"]["get"][
+            "responses"
+        ]["200"]["content"]["*/*"]["schema"]["oneOf"].pop()
+        with self.assertRaisesRegex(RuntimeError, "conditional oneOf drift"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                wrong_one_of, people, time, gateway
+            )
+
+        wrong_population = copy.deepcopy(people)
+        review_parameters = wrong_population["paths"][
+            "/v1/hris/performance/reviews/{reviewId}"
+        ]["get"]["parameters"]
+        next(parameter for parameter in review_parameters
+             if parameter.get("name") == "X-DWP-Population-Kind")["schema"] = {
+            "enum": ["ASSIGNED_REVIEW_POPULATION", "SELF"],
+            "type": "string",
+        }
+        with self.assertRaisesRegex(RuntimeError, "trusted owner evidence drift"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, wrong_population, time, gateway
+            )
+
+        leaked_step_up = copy.deepcopy(gateway)
+        leaked_step_up["paths"][
+            "/api/time/v1/timecards/{timecardId}/decisions"
+        ]["post"]["parameters"].append({
+            "in": "header", "name": "X-DWP-Step-Up-Challenge",
+            "required": True, "schema": {"type": "string"},
+        })
+        with self.assertRaisesRegex(RuntimeError, "unexpected step-up proof"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, people, time, leaked_step_up
+            )
 
     def test_compensation_planning_validator_rejects_payload_graph_drift(self) -> None:
         people = json.loads(
@@ -1566,7 +1639,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         gateway = json.loads(
             (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(len(EXPORTER["WAVE2_TRUSTED_PURPOSE_OPERATIONS"]), 17)
+        self.assertEqual(len(EXPORTER["WAVE2_TRUSTED_PURPOSE_OPERATIONS"]), 28)
         for path, method in EXPORTER["WAVE2_TRUSTED_PURPOSE_OPERATIONS"]:
             operation = gateway["paths"][path][method]
             headers = {

@@ -37,13 +37,16 @@ public class HcmProductSurfaceEligibilityAdapter
     private static final String CONFIG = "RS_HCM_CONFIG";
     private static final String PAY_TARGET_POPULATION = "PAY_TARGET_POPULATION";
     private static final String PAYROLL_LEGAL_ENTITY_SCOPE = "PAYROLL_LEGAL_ENTITY_SCOPE";
+    private static final String ASSIGNED_REVIEW_POPULATION =
+            "ASSIGNED_REVIEW_POPULATION";
     private static final Set<String> DOMAIN_POPULATIONS = Set.of(
             "WORKFORCE_TARGET_POPULATION",
             "TIME_TARGET_POPULATION",
             "ABSENCE_TARGET_POPULATION",
             "BENEFITS_TARGET_POPULATION",
             PAY_TARGET_POPULATION,
-            "TALENT_TARGET_POPULATION");
+            "TALENT_TARGET_POPULATION",
+            ASSIGNED_REVIEW_POPULATION);
 
     private final HcmPopulationRepository repository;
     private final HcmPopulationScopeService populations;
@@ -139,12 +142,7 @@ public class HcmProductSurfaceEligibilityAdapter
                             value.relationshipRevision(), value.targetPopulationRevision(),
                             "TARGET_POPULATION", value.scope().dataBoundary().name(), false))
                     : Optional.empty();
-            case "hcm.operations" -> matchOperations(request, candidate)
-                    ? populations.findOperations("READ").map(value -> new ResolvedScope(
-                            value.relationshipRevision(), value.targetPopulationRevision(),
-                            "TARGET_POPULATION", value.scope().dataBoundary().name(), false,
-                            canonicalOperationsSourceKey(request, candidate)))
-                    : Optional.empty();
+            case "hcm.operations" -> resolveOperations(request, actor, candidate);
             case "hcm.management" -> resolveManagement(request, actor, candidate);
             default -> Optional.empty();
         };
@@ -175,6 +173,26 @@ public class HcmProductSurfaceEligibilityAdapter
         if (match(request, candidate, PAYROLL_LEGAL_ENTITY_SCOPE, candidate.kind())) return true;
         return DOMAIN_POPULATIONS.stream()
                 .anyMatch(source -> match(request, candidate, source, candidate.kind()));
+    }
+
+    private Optional<ResolvedScope> resolveOperations(
+            ProductSurfaceEligibilityDtos.EvaluateRequest request,
+            PeopleRequestContext.Actor actor,
+            ProductSurfaceEligibilityDtos.CandidateScope candidate) {
+        if (match(request, candidate, SELF, SELF)) {
+            // A small set of generated operations routes has an explicit SELF profile.  The
+            // candidate remains an Auth-signed opaque selector; People materializes it from the
+            // current actor linkage and never infers SELF from a URL object identifier.
+            return repository.actor(actor.tenantId(), actor.personPublicId())
+                    .map(value -> new ResolvedScope(
+                            value.revision(), "self:" + value.personId() + ':' + value.revision(),
+                            SELF, "Self", false));
+        }
+        if (!matchOperations(request, candidate)) return Optional.empty();
+        return populations.findOperations("READ").map(value -> new ResolvedScope(
+                value.relationshipRevision(), value.targetPopulationRevision(),
+                "TARGET_POPULATION", value.scope().dataBoundary().name(), false,
+                canonicalOperationsSourceKey(request, candidate)));
     }
 
     /**

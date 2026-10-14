@@ -22,6 +22,10 @@ channels:
         $ref: '#/components/messages/clockEventRecorded'
       employeeChangeApplied:
         $ref: '#/components/messages/employeeChangeApplied'
+      performanceReviewSubmitted:
+        $ref: '#/components/messages/performanceReviewSubmitted'
+      timecardDecisionRecorded:
+        $ref: '#/components/messages/timecardDecisionRecorded'
   workplaceOccupancySignals:
     address: dwp.workplace.occupancy-signals.v1
     messages:
@@ -38,6 +42,8 @@ operations:
       - $ref: '#/channels/domainEvents/messages/performancePopulationFrozen'
       - $ref: '#/channels/domainEvents/messages/clockEventRecorded'
       - $ref: '#/channels/domainEvents/messages/employeeChangeApplied'
+      - $ref: '#/channels/domainEvents/messages/performanceReviewSubmitted'
+      - $ref: '#/channels/domainEvents/messages/timecardDecisionRecorded'
   receiveWorkplaceOccupancySignal:
     action: receive
     channel:
@@ -71,6 +77,16 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/EmployeeChangeAppliedEnvelope'
+    performanceReviewSubmitted:
+      name: PerformanceReviewSubmitted.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PerformanceReviewSubmittedEnvelope'
+    timecardDecisionRecorded:
+      name: TimecardDecisionRecorded.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TimecardDecisionRecordedEnvelope'
     workplaceOccupancySignal:
       name: WorkplaceOccupancySignal
       contentType: application/json
@@ -328,6 +344,95 @@ components:
               $ref: '#/components/schemas/EmployeeChangeAppliedData'
     EmployeeChangeAppliedData:
       $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_022'
+    PerformanceReviewSubmittedEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - aggregateType
+            - data
+          properties:
+            type:
+              const: PerformanceReviewSubmitted.v1
+            schemaVersion:
+              const: 1
+            aggregateType:
+              const: PERFORMANCE_REVIEW
+            data:
+              $ref: '#/components/schemas/PerformanceReviewSubmittedData'
+    PerformanceReviewSubmittedData:
+      type: object
+      additionalProperties: false
+      required:
+        - reviewId
+        - participantId
+        - reviewerAssignmentId
+        - submissionId
+        - templateVersionId
+        - contentHash
+      properties:
+        reviewId:
+          type: string
+          format: uuid
+        participantId:
+          type: string
+          format: uuid
+        reviewerAssignmentId:
+          type: string
+          format: uuid
+        submissionId:
+          type: string
+          format: uuid
+        templateVersionId:
+          type: string
+          format: uuid
+        contentHash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+    TimecardDecisionRecordedEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - aggregateType
+            - data
+          properties:
+            type:
+              const: TimecardDecisionRecorded.v1
+            schemaVersion:
+              const: 1
+            aggregateType:
+              const: TIMECARD
+            data:
+              $ref: '#/components/schemas/TimecardDecisionRecordedData'
+    TimecardDecisionRecordedData:
+      type: object
+      additionalProperties: false
+      required:
+        - timecardId
+        - workerId
+        - status
+        - ledgerRevision
+        - decisionAt
+      properties:
+        timecardId:
+          type: string
+          format: uuid
+        workerId:
+          type: string
+          format: uuid
+        status:
+          enum: [APPROVED, REJECTED, CORRECTION_REQUIRED]
+        ledgerRevision:
+          type: integer
+          minimum: 1
+        decisionAt:
+          type: string
+          format: date-time
     WorkplaceOccupancySignal:
       type: object
       additionalProperties: false

@@ -80,6 +80,14 @@ final class ProductAuthorizationGateTopologyValidator {
                     + ": non-publishing review rejection must not declare step-up bindings.");
             return;
         }
+        ProductAuthorizationContractDtos.CapabilityContract auditCapability =
+                capabilities.get(HcmAuditAuthorityPolicy.CAPABILITY);
+        if (elevatedStepUp
+                && HcmAuditAuthorityPolicy.isExactReadRoute(route, auditCapability)) {
+            require(stepUps.isEmpty(), route.routeContractKey()
+                    + ": HCM audit evidence GET must not declare command step-up bindings.");
+            return;
+        }
         if (!elevatedStepUp) {
             require(stepUps.isEmpty(), route.routeContractKey()
                     + ": step-up command bindings are forbidden.");

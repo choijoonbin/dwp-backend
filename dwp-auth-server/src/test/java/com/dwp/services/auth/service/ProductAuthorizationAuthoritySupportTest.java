@@ -70,6 +70,20 @@ class ProductAuthorizationAuthoritySupportTest {
     }
 
     @Test
+    void delegatesTheClosedHcmAuditAuthorityIntersection() {
+        var identity = new ProductAuthorizationIdentityEvidenceService.IdentityEvidence(
+                Set.of("APP.HCM:VIEW", "ADMIN.AUDIT_VIEW:VIEW"),
+                Set.of("HRIS_AUDITOR"),
+                List.of(new com.dwp.services.auth.dto.AppGovernanceDtos.ResourceRole(
+                        "HRIS_DUTY_AUDITOR", "APP", "APP.HCM",
+                        java.util.UUID.randomUUID(), "RS_HCM_CONFIG", null)),
+                List.of(), "auth-audit-test");
+
+        assertThat(ProductAuthorizationAuthoritySupport.hcmAuditAuthority(identity).outcome())
+                .isEqualTo(HcmAuditAuthorityPolicy.Outcome.ALLOWED);
+    }
+
+    @Test
     void immutableBundleVersionsHaveExactAdditiveProductParticipation() throws Exception {
         List<Set<String>> expectedProducts = List.of(
                 Set.of("communications", "services"),

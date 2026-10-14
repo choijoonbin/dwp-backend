@@ -1446,6 +1446,215 @@
         },
         "type": "object"
       },
+      "TimeCommandReceiptV1": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "commandType": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "originatingAction": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestDigest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "resultRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "ACCEPTED",
+              "RUNNING",
+              "SUCCEEDED",
+              "REJECTED",
+              "FAILED",
+              "RESULT_UNKNOWN"
+            ]
+          },
+          "timecardId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "receiptId",
+          "commandType",
+          "originatingAction",
+          "timecardId",
+          "status",
+          "requestDigest",
+          "acceptedAt",
+          "completedAt",
+          "resultRef"
+        ],
+        "type": "object"
+      },
+      "TimecardCorrectionCommandV1": {
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TimecardCorrectionEntryV1"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reasonCode",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "TimecardCorrectionEntryV1": {
+        "additionalProperties": false,
+        "properties": {
+          "minutes": {
+            "maximum": 1440,
+            "minimum": -1440,
+            "not": {
+              "const": 0
+            },
+            "type": "integer"
+          },
+          "payCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workDate": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workDate",
+          "payCode",
+          "minutes"
+        ],
+        "type": "object"
+      },
+      "TimecardDecisionCommandV1": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "APPROVE",
+              "REJECT",
+              "REQUIRE_CORRECTION"
+            ]
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reasonCode"
+        ],
+        "type": "object"
+      },
+      "TimecardSubmitCommandV1": {
+        "additionalProperties": false,
+        "properties": {
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "TimecardV1": {
+        "additionalProperties": false,
+        "properties": {
+          "ledgerRevision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "periodEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "SUBMITTED",
+              "APPROVED",
+              "REJECTED",
+              "CORRECTION_REQUIRED",
+              "CLOSED"
+            ]
+          },
+          "timecardId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "totalMinutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "version": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workerId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timecardId",
+          "workerId",
+          "periodStart",
+          "periodEnd",
+          "state",
+          "totalMinutes",
+          "ledgerRevision",
+          "version"
+        ],
+        "type": "object"
+      },
       "TraceStep": {
         "properties": {
           "inputMinutes": {
@@ -1681,6 +1890,62 @@
         ],
         "x-dwp-controller-method": "voidEvent",
         "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/command-receipts/{receiptId}": {
+      "get": {
+        "operationId": "getTimeCommandReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receiptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "COMMAND_STATUS",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Population-Kind",
+            "required": true,
+            "schema": {
+              "const": "TARGET_POPULATION",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeCommandReceiptV1"
+                }
+              }
+            },
+            "description": "Originating command receipt"
+          },
+          "404": {
+            "description": "Receipt absent or outside the originating-command scope"
+          }
+        },
+        "tags": [
+          "time-command-receipt-controller"
+        ],
+        "x-dwp-controller-method": "receipt",
+        "x-dwp-opaque-not-found": true,
+        "x-dwp-purpose-code": "COMMAND_STATUS",
         "x-dwp-runtime-default": "OFF"
       }
     },
@@ -2474,6 +2739,337 @@
         "tags": [
           "interpretation-owner-controller"
         ]
+      }
+    },
+    "/v1/timecards/{timecardId}": {
+      "get": {
+        "operationId": "getTimecard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "timecardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "TIME_TIMECARD",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Population-Kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SELF",
+                "TARGET_POPULATION"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimecardV1"
+                }
+              }
+            },
+            "description": "Timecard projection"
+          }
+        },
+        "tags": [
+          "timecard-controller"
+        ],
+        "x-dwp-controller-method": "timecard",
+        "x-dwp-purpose-code": "TIME_TIMECARD",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/timecards/{timecardId}/corrections": {
+      "post": {
+        "operationId": "correctTimecard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "timecardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "TIME_TIMECARD",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Population-Kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SELF",
+                "TARGET_POPULATION"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimecardCorrectionCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeCommandReceiptV1"
+                }
+              }
+            },
+            "description": "Correction accepted"
+          }
+        },
+        "tags": [
+          "timecard-controller"
+        ],
+        "x-dwp-controller-method": "correct",
+        "x-dwp-purpose-code": "TIME_TIMECARD",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/timecards/{timecardId}/decisions": {
+      "post": {
+        "operationId": "decideTimecard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "timecardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "TIME_TIMECARD",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Population-Kind",
+            "required": true,
+            "schema": {
+              "const": "TARGET_POPULATION",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimecardDecisionCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeCommandReceiptV1"
+                }
+              }
+            },
+            "description": "Decision accepted"
+          }
+        },
+        "tags": [
+          "timecard-controller"
+        ],
+        "x-dwp-controller-method": "decide",
+        "x-dwp-purpose-code": "TIME_TIMECARD",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/timecards/{timecardId}/submit": {
+      "post": {
+        "operationId": "submitTimecard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "timecardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "TIME_TIMECARD",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Population-Kind",
+            "required": true,
+            "schema": {
+              "const": "SELF",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimecardSubmitCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeCommandReceiptV1"
+                }
+              }
+            },
+            "description": "Submission accepted"
+          }
+        },
+        "tags": [
+          "timecard-controller"
+        ],
+        "x-dwp-controller-method": "submit",
+        "x-dwp-purpose-code": "TIME_TIMECARD",
+        "x-dwp-runtime-default": "OFF"
       }
     }
   }

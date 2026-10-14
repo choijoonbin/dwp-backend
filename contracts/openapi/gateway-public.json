@@ -64993,6 +64993,103 @@
         },
         "type": "object"
       },
+      "people_AssignedReviewV1": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/people_ReviewAnswerV1"
+            },
+            "maxItems": 500,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "draftContentHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "dueAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "form": {
+            "$ref": "#/components/schemas/people_ReviewFormV1"
+          },
+          "participantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewerAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewerType": {
+            "enum": [
+              "SELF",
+              "MANAGER",
+              "SECOND_MANAGER",
+              "THIRD_MANAGER",
+              "PEER",
+              "DIRECT_REPORT",
+              "EXTERNAL",
+              "REFEREE"
+            ]
+          },
+          "stageKey": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "NOT_STARTED",
+              "IN_PROGRESS",
+              "SUBMITTED",
+              "RETURNED",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          },
+          "templateContentHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "templateVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "writable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reviewId",
+          "participantId",
+          "reviewerAssignmentId",
+          "reviewerType",
+          "stageKey",
+          "state",
+          "templateVersionId",
+          "templateContentHash",
+          "aggregateVersion",
+          "writable",
+          "draftContentHash",
+          "form",
+          "answers"
+        ],
+        "type": "object"
+      },
       "people_AssignmentEventEmptyCommandV1": {},
       "people_AssignmentImpactV1": {
         "properties": {
@@ -68734,6 +68831,66 @@
         "type": "object",
         "x-dwp-canonical-source": "IAQ-009"
       },
+      "people_Iaq022PerformanceMultiraterSurveyPageV1": {
+        "additionalProperties": false,
+        "properties": {
+          "availableActions": {
+            "items": {
+              "enum": [
+                "hris.action.performance.create-multirater-cycle",
+                "hris.action.performance.update-multirater-cycle",
+                "hris.action.performance.validate-multirater-cycle"
+              ]
+            },
+            "maxItems": 3,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "cycleId": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "DRAFT",
+                    "VALIDATED",
+                    "ACTIVE",
+                    "CLOSED"
+                  ]
+                },
+                "surveyCount": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cycleId",
+                "state",
+                "surveyCount"
+              ],
+              "type": "object"
+            },
+            "maxItems": 500,
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "availableActions",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
       "people_IaqAggregateFilterV1": {
         "additionalProperties": false,
         "properties": {
@@ -71627,6 +71784,216 @@
         ],
         "type": "object"
       },
+      "people_ReviewAnswerV1": {
+        "additionalProperties": false,
+        "properties": {
+          "answerType": {
+            "enum": [
+              "TEXT",
+              "DECIMAL",
+              "RATING",
+              "CHOICE"
+            ]
+          },
+          "itemKey": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "value": {
+            "oneOf": [
+              {
+                "maxLength": 10000,
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "items": {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              }
+            ]
+          }
+        },
+        "required": [
+          "itemKey",
+          "answerType",
+          "value"
+        ],
+        "type": "object"
+      },
+      "people_ReviewDraftCommandV1": {
+        "additionalProperties": false,
+        "properties": {
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/people_ReviewAnswerV1"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "answers"
+        ],
+        "type": "object"
+      },
+      "people_ReviewFormItemV1": {
+        "additionalProperties": false,
+        "properties": {
+          "itemKey": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "rubricScaleKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "enum": [
+              "TEXT",
+              "DECIMAL",
+              "RATING",
+              "CHOICE"
+            ]
+          }
+        },
+        "required": [
+          "itemKey",
+          "prompt",
+          "type",
+          "required",
+          "rubricScaleKey"
+        ],
+        "type": "object"
+      },
+      "people_ReviewFormV1": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/people_ReviewFormItemV1"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          },
+          "rubricScales": {
+            "items": {
+              "$ref": "#/components/schemas/people_ReviewRubricScaleV1"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "schemaVersion": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "items",
+          "rubricScales"
+        ],
+        "type": "object"
+      },
+      "people_ReviewRubricLevelV1": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "value": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label",
+          "score"
+        ],
+        "type": "object"
+      },
+      "people_ReviewRubricScaleV1": {
+        "additionalProperties": false,
+        "properties": {
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/people_ReviewRubricLevelV1"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "rubricScaleKey": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "rubricScaleKey",
+          "levels"
+        ],
+        "type": "object"
+      },
+      "people_ReviewSubmissionV1": {
+        "additionalProperties": false,
+        "properties": {
+          "contentHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "state": {
+            "const": "SUBMITTED"
+          },
+          "submissionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "submissionNo": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "submissionId",
+          "submissionNo",
+          "state",
+          "contentHash",
+          "submittedAt"
+        ],
+        "type": "object"
+      },
       "people_RevokePolicyRequest": {
         "properties": {
           "reason": {
@@ -71805,6 +72172,23 @@
           "stageConfig",
           "stageKey",
           "stageType"
+        ],
+        "type": "object"
+      },
+      "people_SubmitReviewCommandV1": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledgement": {
+            "const": true,
+            "type": "boolean"
+          },
+          "draftContentHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftContentHash"
         ],
         "type": "object"
       },
@@ -78825,6 +79209,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_GroupSendResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseHcmAuditEvidencePageV1": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_HcmAuditEvidencePageV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseHcmAuditEvidenceV1": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_HcmAuditEvidenceV1"
           },
           "errorCode": {
             "type": "string"
@@ -98871,6 +99309,175 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "platform_HcmAuditEvidencePageV1": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/platform_HcmAuditEvidenceV1"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "snapshotAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "size",
+          "snapshotAt",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "platform_HcmAuditEvidenceV1": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actorType": {
+            "type": "string"
+          },
+          "afterDigest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "aggregateRevision": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "aggregateType": {
+            "type": "string"
+          },
+          "approvalReceiptId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authorizationDecisionRef": {
+            "type": "string"
+          },
+          "beforeDigest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "causationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveCapability": {
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "evidenceDigest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "fieldPolicyRevision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "purposeCode": {
+            "const": "HRIS_AUDIT_EVIDENCE"
+          },
+          "reasonCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recordHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "retentionClass": {
+            "type": "string"
+          },
+          "scopeRevision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "sourceModule": {
+            "type": "string"
+          },
+          "sourceService": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId",
+          "occurredAt",
+          "category",
+          "action",
+          "outcome",
+          "severity",
+          "actorType",
+          "sourceService",
+          "sourceModule",
+          "aggregateType",
+          "aggregateRevision",
+          "effectiveCapability",
+          "purposeCode",
+          "authorizationDecisionRef",
+          "scopeRevision",
+          "fieldPolicyRevision",
+          "approvalReceiptId",
+          "reasonCode",
+          "beforeDigest",
+          "afterDigest",
+          "evidenceDigest",
+          "classification",
+          "retentionClass",
+          "causationId",
+          "correlationId",
+          "recordHash"
+        ],
         "type": "object"
       },
       "platform_HeatmapCell": {
@@ -132969,6 +133576,215 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "time_TimeCommandReceiptV1": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "commandType": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "originatingAction": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestDigest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "resultRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "ACCEPTED",
+              "RUNNING",
+              "SUCCEEDED",
+              "REJECTED",
+              "FAILED",
+              "RESULT_UNKNOWN"
+            ]
+          },
+          "timecardId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "receiptId",
+          "commandType",
+          "originatingAction",
+          "timecardId",
+          "status",
+          "requestDigest",
+          "acceptedAt",
+          "completedAt",
+          "resultRef"
+        ],
+        "type": "object"
+      },
+      "time_TimecardCorrectionCommandV1": {
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/time_TimecardCorrectionEntryV1"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reasonCode",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "time_TimecardCorrectionEntryV1": {
+        "additionalProperties": false,
+        "properties": {
+          "minutes": {
+            "maximum": 1440,
+            "minimum": -1440,
+            "not": {
+              "const": 0
+            },
+            "type": "integer"
+          },
+          "payCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workDate": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workDate",
+          "payCode",
+          "minutes"
+        ],
+        "type": "object"
+      },
+      "time_TimecardDecisionCommandV1": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "APPROVE",
+              "REJECT",
+              "REQUIRE_CORRECTION"
+            ]
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reasonCode"
+        ],
+        "type": "object"
+      },
+      "time_TimecardSubmitCommandV1": {
+        "additionalProperties": false,
+        "properties": {
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "time_TimecardV1": {
+        "additionalProperties": false,
+        "properties": {
+          "ledgerRevision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "periodEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "SUBMITTED",
+              "APPROVED",
+              "REJECTED",
+              "CORRECTION_REQUIRED",
+              "CLOSED"
+            ]
+          },
+          "timecardId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "totalMinutes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "version": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workerId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timecardId",
+          "workerId",
+          "periodStart",
+          "periodEnd",
+          "state",
+          "totalMinutes",
+          "ledgerRevision",
+          "version"
+        ],
         "type": "object"
       },
       "time_TraceStep": {
@@ -191191,6 +192007,257 @@
         "x-dwp-runtime-default": "OFF"
       }
     },
+    "/api/people/v1/hris/performance/reviews/{reviewId}": {
+      "get": {
+        "operationId": "people_getAssignedPerformanceReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reviewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_AssignedReviewV1"
+                }
+              }
+            },
+            "description": "Assigned review projection"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-controller-method": "review",
+        "x-dwp-purpose-code": "PERFORMANCE_REVIEW",
+        "x-dwp-runtime-default": "OFF"
+      },
+      "patch": {
+        "operationId": "people_updateAssignedPerformanceReviewDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reviewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_ReviewDraftCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_AssignedReviewV1"
+                }
+              }
+            },
+            "description": "Updated review draft"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-controller-method": "updateDraft",
+        "x-dwp-purpose-code": "PERFORMANCE_REVIEW",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/people/v1/hris/performance/reviews/{reviewId}/submit": {
+      "post": {
+        "operationId": "people_submitAssignedPerformanceReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reviewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_SubmitReviewCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ReviewSubmissionV1"
+                }
+              }
+            },
+            "description": "Immutable review submission"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-controller-method": "submit",
+        "x-dwp-purpose-code": "PERFORMANCE_REVIEW",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/people/v1/hris/performance/workbench/multirater-surveys": {
+      "get": {
+        "operationId": "people_getPerformanceMultiraterSurveyWorkbench",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_Iaq022PerformanceMultiraterSurveyPageV1"
+                }
+              }
+            },
+            "description": "IAQ-022 operator workbench"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-controller-method": "workbench",
+        "x-dwp-purpose-code": "PERFORMANCE_OPERATIONS",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
     "/api/people/v1/hris/performance/workbench/review-operations": {
       "get": {
         "operationId": "people_hrisPerformanceReviewOperations",
@@ -197032,6 +198099,27 @@
               "format": "int32",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "const": "HCM",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -197039,7 +198127,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/platform_ApiResponseEventPage"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/platform_ApiResponseEventPage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/platform_ApiResponseHcmAuditEvidencePageV1"
+                    }
+                  ]
                 }
               }
             },
@@ -197048,6 +198143,19 @@
         },
         "tags": [
           "platform"
+        ],
+        "x-dwp-controller-variants": [
+          {
+            "controllerMethod": "page",
+            "operationId": "getHcmAuditEvidencePage",
+            "purposeCode": "HRIS_AUDIT_EVIDENCE",
+            "requiredParameters": [
+              "product=HCM"
+            ],
+            "responseSchema": {
+              "$ref": "#/components/schemas/platform_ApiResponseHcmAuditEvidencePageV1"
+            }
+          }
         ]
       }
     },
@@ -197063,6 +198171,27 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "const": "HCM",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -197070,7 +198199,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/platform_ApiResponseEvent"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/platform_ApiResponseEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/platform_ApiResponseHcmAuditEvidenceV1"
+                    }
+                  ]
                 }
               }
             },
@@ -197079,6 +198215,19 @@
         },
         "tags": [
           "platform"
+        ],
+        "x-dwp-controller-variants": [
+          {
+            "controllerMethod": "detail",
+            "operationId": "getHcmAuditEvidence",
+            "purposeCode": "HRIS_AUDIT_EVIDENCE",
+            "requiredParameters": [
+              "product=HCM"
+            ],
+            "responseSchema": {
+              "$ref": "#/components/schemas/platform_ApiResponseHcmAuditEvidenceV1"
+            }
+          }
         ]
       }
     },
@@ -253112,6 +254261,56 @@
         "x-dwp-runtime-default": "OFF"
       }
     },
+    "/api/time/v1/command-receipts/{receiptId}": {
+      "get": {
+        "operationId": "time_getTimeCommandReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receiptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_TimeCommandReceiptV1"
+                }
+              }
+            },
+            "description": "Originating command receipt"
+          },
+          "404": {
+            "description": "Receipt absent or outside the originating-command scope"
+          }
+        },
+        "tags": [
+          "time"
+        ],
+        "x-dwp-controller-method": "receipt",
+        "x-dwp-opaque-not-found": true,
+        "x-dwp-purpose-code": "COMMAND_STATUS",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
     "/api/time/v1/hris/work-plan-receipts/{receiptId}": {
       "get": {
         "operationId": "time_hrisTimeWorkPlanReceipt",
@@ -254094,6 +255293,307 @@
         "tags": [
           "time"
         ]
+      }
+    },
+    "/api/time/v1/timecards/{timecardId}": {
+      "get": {
+        "operationId": "time_getTimecard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "timecardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_TimecardV1"
+                }
+              }
+            },
+            "description": "Timecard projection"
+          }
+        },
+        "tags": [
+          "time"
+        ],
+        "x-dwp-controller-method": "timecard",
+        "x-dwp-purpose-code": "TIME_TIMECARD",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/time/v1/timecards/{timecardId}/corrections": {
+      "post": {
+        "operationId": "time_correctTimecard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "timecardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/time_TimecardCorrectionCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_TimeCommandReceiptV1"
+                }
+              }
+            },
+            "description": "Correction accepted"
+          }
+        },
+        "tags": [
+          "time"
+        ],
+        "x-dwp-controller-method": "correct",
+        "x-dwp-purpose-code": "TIME_TIMECARD",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/time/v1/timecards/{timecardId}/decisions": {
+      "post": {
+        "operationId": "time_decideTimecard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "timecardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/time_TimecardDecisionCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_TimeCommandReceiptV1"
+                }
+              }
+            },
+            "description": "Decision accepted"
+          }
+        },
+        "tags": [
+          "time"
+        ],
+        "x-dwp-controller-method": "decide",
+        "x-dwp-purpose-code": "TIME_TIMECARD",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/time/v1/timecards/{timecardId}/submit": {
+      "post": {
+        "operationId": "time_submitTimecard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "timecardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/time_TimecardSubmitCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_TimeCommandReceiptV1"
+                }
+              }
+            },
+            "description": "Submission accepted"
+          }
+        },
+        "tags": [
+          "time"
+        ],
+        "x-dwp-controller-method": "submit",
+        "x-dwp-purpose-code": "TIME_TIMECARD",
+        "x-dwp-runtime-default": "OFF"
       }
     },
     "/scim/v2/Groups": {

@@ -23,9 +23,9 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v41.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v42.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 41
+PRODUCT_AUTHORIZATION_VERSION = 42
 HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY = (
     ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v38.json"
 )
@@ -234,6 +234,98 @@ PAYROLL_RUN_OPERATION_CONTRACTS = {
     ),
 }
 PAYROLL_RUN_ROUTE_KEYS = frozenset(PAYROLL_RUN_OPERATION_CONTRACTS)
+WAVE5_HRIS_CONTROL_OPERATION_CONTRACTS = {
+    "route.hcm.audit.evidence.page": (
+        "platform", "get", "/v1/admin/audit-control/events",
+        "getHcmAuditEvidencePage", None, "ApiResponseHcmAuditEvidencePageV1",
+        "HRIS_AUDIT_EVIDENCE",
+    ),
+    "route.hcm.audit.evidence-detail.data": (
+        "platform", "get", "/v1/admin/audit-control/events/{eventId}",
+        "getHcmAuditEvidence", None, "ApiResponseHcmAuditEvidenceV1",
+        "HRIS_AUDIT_EVIDENCE",
+    ),
+    "route.hcm.performance.assigned-review.data": (
+        "people", "get", "/v1/hris/performance/reviews/{reviewId}",
+        "getAssignedPerformanceReview", None, "AssignedReviewV1",
+        "PERFORMANCE_REVIEW",
+    ),
+    "route.hcm.performance.assigned-review-draft-update.action": (
+        "people", "patch", "/v1/hris/performance/reviews/{reviewId}",
+        "updateAssignedPerformanceReviewDraft", "ReviewDraftCommandV1",
+        "AssignedReviewV1", "PERFORMANCE_REVIEW",
+    ),
+    "route.hcm.performance.assigned-review-submit.action": (
+        "people", "post", "/v1/hris/performance/reviews/{reviewId}/submit",
+        "submitAssignedPerformanceReview", "SubmitReviewCommandV1",
+        "ReviewSubmissionV1", "PERFORMANCE_REVIEW",
+    ),
+    "route.hcm.operations.performance-multirater-surveys.page": (
+        "people", "get", "/v1/hris/performance/workbench/multirater-surveys",
+        "getPerformanceMultiraterSurveyWorkbench", None,
+        "Iaq022PerformanceMultiraterSurveyPageV1", "PERFORMANCE_OPERATIONS",
+    ),
+    "route.hcm.time.timecard.data": (
+        "time", "get", "/v1/timecards/{timecardId}",
+        "getTimecard", None, "TimecardV1", "TIME_TIMECARD",
+    ),
+    "route.hcm.time.timecard-correction.action": (
+        "time", "post", "/v1/timecards/{timecardId}/corrections",
+        "correctTimecard", "TimecardCorrectionCommandV1",
+        "TimeCommandReceiptV1", "TIME_TIMECARD",
+    ),
+    "route.hcm.time.timecard-submit.action": (
+        "time", "post", "/v1/timecards/{timecardId}/submit",
+        "submitTimecard", "TimecardSubmitCommandV1",
+        "TimeCommandReceiptV1", "TIME_TIMECARD",
+    ),
+    "route.hcm.time.timecard-decision.action": (
+        "time", "post", "/v1/timecards/{timecardId}/decisions",
+        "decideTimecard", "TimecardDecisionCommandV1",
+        "TimeCommandReceiptV1", "TIME_TIMECARD",
+    ),
+    "route.hcm.time.command-receipt.data": (
+        "time", "get", "/v1/command-receipts/{receiptId}",
+        "getTimeCommandReceipt", None, "TimeCommandReceiptV1", "COMMAND_STATUS",
+    ),
+}
+WAVE5_HRIS_POPULATION_SCHEMAS = {
+    "route.hcm.performance.assigned-review.data": {
+        "enum": ["SELF", "TARGET_POPULATION"], "type": "string",
+    },
+    "route.hcm.performance.assigned-review-draft-update.action": {
+        "enum": ["SELF", "TARGET_POPULATION"], "type": "string",
+    },
+    "route.hcm.performance.assigned-review-submit.action": {
+        "enum": ["SELF", "TARGET_POPULATION"], "type": "string",
+    },
+    "route.hcm.operations.performance-multirater-surveys.page": {
+        "const": "TARGET_POPULATION", "type": "string",
+    },
+    "route.hcm.time.timecard.data": {
+        "enum": ["SELF", "TARGET_POPULATION"], "type": "string",
+    },
+    "route.hcm.time.timecard-correction.action": {
+        "enum": ["SELF", "TARGET_POPULATION"], "type": "string",
+    },
+    "route.hcm.time.timecard-submit.action": {
+        "const": "SELF", "type": "string",
+    },
+    "route.hcm.time.timecard-decision.action": {
+        "const": "TARGET_POPULATION", "type": "string",
+    },
+    "route.hcm.time.command-receipt.data": {
+        "const": "TARGET_POPULATION", "type": "string",
+    },
+}
+WAVE5_HRIS_CONTROL_ROUTE_KEYS = frozenset(WAVE5_HRIS_CONTROL_OPERATION_CONTRACTS)
+WAVE5_STRICT_MUTATION_OPERATIONS = frozenset({
+    ("/api/people/v1/hris/performance/reviews/{reviewId}", "patch"),
+    ("/api/people/v1/hris/performance/reviews/{reviewId}/submit", "post"),
+    ("/api/time/v1/timecards/{timecardId}/corrections", "post"),
+    ("/api/time/v1/timecards/{timecardId}/submit", "post"),
+    ("/api/time/v1/timecards/{timecardId}/decisions", "post"),
+})
 HRM_EMPLOYEE_CHANGE_INTERNAL_OPERATION = (
     "post",
     "/internal/hris-people/v1/employee-change-requests/{requestPublicId}/approval-decisions",
@@ -332,6 +424,17 @@ WAVE2_TRUSTED_PURPOSE_OPERATIONS = frozenset({
     ("/api/payroll/v1/formulas/{formulaId}/validations", "post"),
     ("/api/payroll/v1/formulas/{formulaId}/simulations", "post"),
     ("/api/payroll/v1/formulas/{formulaId}/publish", "post"),
+    ("/api/platform/v1/admin/audit-control/events", "get"),
+    ("/api/platform/v1/admin/audit-control/events/{eventId}", "get"),
+    ("/api/people/v1/hris/performance/reviews/{reviewId}", "get"),
+    ("/api/people/v1/hris/performance/reviews/{reviewId}", "patch"),
+    ("/api/people/v1/hris/performance/reviews/{reviewId}/submit", "post"),
+    ("/api/people/v1/hris/performance/workbench/multirater-surveys", "get"),
+    ("/api/time/v1/timecards/{timecardId}", "get"),
+    ("/api/time/v1/timecards/{timecardId}/corrections", "post"),
+    ("/api/time/v1/timecards/{timecardId}/submit", "post"),
+    ("/api/time/v1/timecards/{timecardId}/decisions", "post"),
+    ("/api/time/v1/command-receipts/{receiptId}", "get"),
 })
 PLATFORM_DEVICE_SECURITY_SCHEMES = {
     "DeviceTenant": {
@@ -829,6 +932,51 @@ def apply_design_time_overlay(
                     "operationId": stable_operation_id,
                     "requiredParameters": reviewed.get("x-dwp-required-parameters", []),
                 }
+                if reviewed.get("x-dwp-purpose-code") is not None:
+                    variant["purposeCode"] = reviewed["x-dwp-purpose-code"]
+                conditional_response = reviewed.get("x-dwp-conditional-response")
+                if conditional_response is not None:
+                    if (
+                        not isinstance(conditional_response, dict)
+                        or set(conditional_response)
+                        != {"contentType", "schemaRef", "status"}
+                        or not isinstance(conditional_response.get("status"), str)
+                        or not isinstance(conditional_response.get("contentType"), str)
+                        or not str(conditional_response.get("schemaRef", "")).startswith(
+                            "#/components/schemas/"
+                        )
+                    ):
+                        raise RuntimeError(
+                            f"HRIS conditional response is invalid for "
+                            f"{service.name}: {method.upper()} {path}"
+                        )
+                    status = conditional_response["status"]
+                    content_type = conditional_response["contentType"]
+                    response_schema = existing.get("responses", {}).get(
+                        status, {}
+                    ).get("content", {}).get(content_type, {}).get("schema")
+                    if not isinstance(response_schema, dict):
+                        raise RuntimeError(
+                            f"HRIS conditional response has no base schema for "
+                            f"{service.name}: {method.upper()} {path} {status} {content_type}"
+                        )
+                    variant_schema = {"$ref": conditional_response["schemaRef"]}
+                    if "oneOf" in response_schema:
+                        alternatives = response_schema.get("oneOf")
+                        if not isinstance(alternatives, list) or not all(
+                            isinstance(value, dict) for value in alternatives
+                        ):
+                            raise RuntimeError(
+                                f"HRIS conditional response oneOf is invalid for "
+                                f"{service.name}: {method.upper()} {path}"
+                            )
+                        if variant_schema not in alternatives:
+                            alternatives.append(variant_schema)
+                    else:
+                        base_schema = copy.deepcopy(response_schema)
+                        response_schema.clear()
+                        response_schema["oneOf"] = [base_schema, variant_schema]
+                    variant["responseSchema"] = variant_schema
                 variants = [
                     item for item in variants
                     if item.get("controllerMethod") != controller_method
@@ -1322,6 +1470,14 @@ def add_product_governance_contract(document: dict[str, Any]) -> None:
                     )
             else:
                 canonical_revision = copy.deepcopy(EXPECTED_DECISION_REVISION_PARAMETER)
+            if (actual_path, method) in WAVE5_STRICT_MUTATION_OPERATIONS:
+                canonical_revision = copy.deepcopy(
+                    revision_collisions[0][1]
+                    if revision_collisions
+                    else EXPECTED_DECISION_REVISION_PARAMETER
+                )
+                canonical_revision["required"] = True
+                canonical_revision.pop("x-dwp-conditional-required", None)
             if actual_path in HOME_RUNTIME_MUTATION_PATHS and not command_proof_required:
                 canonical_revision["description"] = (
                     "Required and fail-closed for the Home Runtime authority states "
@@ -1732,6 +1888,236 @@ def validate_payroll_run_contract(
         or "404" not in receipt.get("responses", {})
     ):
         raise RuntimeError("Payroll command receipt must preserve opaque 404 semantics")
+
+
+def validate_wave5_hris_control_contract(
+        platform_document: dict[str, Any],
+        people_document: dict[str, Any],
+        time_document: dict[str, Any],
+        gateway_document: dict[str, Any]) -> None:
+    """Seal the combined SYS/PER/TIM v42 owner and browser transport boundary."""
+    registry = load_product_authorization_registry()
+    routes = {
+        route.get("routeContractKey"): route
+        for route in registry["routes"]
+        if route.get("routeContractKey") in WAVE5_HRIS_CONTROL_ROUTE_KEYS
+    }
+    if set(routes) != WAVE5_HRIS_CONTROL_ROUTE_KEYS:
+        raise RuntimeError("Wave5 HRIS v42 authorization routes are not exact")
+
+    documents = {
+        "platform": platform_document,
+        "people": people_document,
+        "time": time_document,
+    }
+    overlays = load_design_time_overlays()
+    expected_source = {service: set() for service in documents}
+
+    def parameters(operation: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+        return {
+            parameter_identity(parameter): parameter
+            for parameter in operation.get("parameters", [])
+            if isinstance(parameter, dict) and all(parameter_identity(parameter))
+        }
+
+    for route_key, contract in WAVE5_HRIS_CONTROL_OPERATION_CONTRACTS.items():
+        service, method, owner_path, operation_id, request_schema, response_schema, purpose = (
+            contract
+        )
+        route = routes[route_key]
+        owner_bindings = route.get("servicePepBindings")
+        browser_bindings = route.get("gatewayApiBindings")
+        if (
+            route.get("lifecycleState") != "ACTIVE"
+            or route.get("subject", {}).get("type") != "PRODUCT"
+            or not isinstance(owner_bindings, list)
+            or len(owner_bindings) != 1
+            or not isinstance(browser_bindings, list)
+            or len(browser_bindings) != 1
+            or route.get("stepUpCommandBindings") not in (None, [])
+        ):
+            raise RuntimeError(f"Wave5 HRIS route topology drift: {route_key}")
+        owner_binding = owner_bindings[0]
+        browser_binding = browser_bindings[0]
+        browser_path = browser_binding.get("path")
+        if (
+            owner_binding.get("serviceKey") != service
+            or owner_binding.get("method") != method.upper()
+            or owner_binding.get("path") != owner_path
+            or browser_binding.get("method") != method.upper()
+            or browser_binding.get("bindingKey") != owner_binding.get("bindingKey")
+            or not isinstance(browser_path, str)
+        ):
+            raise RuntimeError(f"Wave5 HRIS binding drift: {route_key}")
+        expected_source[service].add((method, owner_path))
+
+        source = overlays[service]["paths"].get(owner_path, {}).get(method)
+        owner = documents[service].get("paths", {}).get(owner_path, {}).get(method)
+        browser = gateway_document.get("paths", {}).get(browser_path, {}).get(method)
+        if not all(isinstance(value, dict) for value in (source, owner, browser)):
+            raise RuntimeError(f"Wave5 HRIS OpenAPI operation missing: {route_key}")
+        assert isinstance(source, dict)
+        assert isinstance(owner, dict)
+        assert isinstance(browser, dict)
+
+        if route_key.startswith("route.hcm.audit."):
+            fixed_query = {"product": {"kind": "FIXED", "value": "HCM"}}
+            if (
+                source.get("x-dwp-overlay-mode") != "PATCH"
+                or owner_binding.get("queryParameterConstraints") != fixed_query
+                or browser_binding.get("queryParameterConstraints") != fixed_query
+            ):
+                raise RuntimeError(f"HCM audit fixed product binding drift: {route_key}")
+            for label, operation, schema_prefix in (
+                ("owner", owner, ""),
+                ("Gateway", browser, "platform_"),
+            ):
+                product = parameters(operation).get(("query", "product"))
+                variants = operation.get("x-dwp-controller-variants", [])
+                variant = next((value for value in variants
+                                if value.get("controllerMethod")
+                                == source["x-dwp-controller-method"]), None)
+                one_of = operation.get("responses", {}).get("200", {}).get(
+                    "content", {}).get("*/*", {}).get("schema", {}).get("oneOf")
+                expected_ref = {
+                    "$ref": f"#/components/schemas/{schema_prefix}{response_schema}"
+                }
+                if (
+                    product is None
+                    or product.get("required") is not False
+                    or product.get("schema") != {"const": "HCM", "type": "string"}
+                    or not isinstance(variant, dict)
+                    or variant.get("operationId") != operation_id
+                    or variant.get("requiredParameters") != ["product=HCM"]
+                    or variant.get("purposeCode") != purpose
+                    or variant.get("responseSchema") != expected_ref
+                    or not isinstance(one_of, list)
+                    or len(one_of) != 2
+                    or expected_ref not in one_of
+                ):
+                    raise RuntimeError(
+                        f"HCM audit conditional oneOf drift: {label} {route_key}"
+                    )
+            continue
+
+        if (
+            source.get("x-dwp-overlay-mode") != "ADD"
+            or source.get("x-dwp-runtime-default") != "OFF"
+            or owner.get("x-dwp-runtime-default") != "OFF"
+            or browser.get("x-dwp-runtime-default") != "OFF"
+            or source.get("operationId") != operation_id
+            or owner.get("operationId") != operation_id
+            or browser.get("operationId") != f"{service}_{operation_id}"
+            or source.get("x-dwp-purpose-code") != purpose
+            or owner.get("x-dwp-purpose-code") != purpose
+            or browser.get("x-dwp-purpose-code") != purpose
+        ):
+            raise RuntimeError(f"Wave5 HRIS operation metadata drift: {route_key}")
+
+        source_parameters = parameters(source)
+        owner_parameters = parameters(owner)
+        browser_parameters = parameters(browser)
+        expected_population_schema = WAVE5_HRIS_POPULATION_SCHEMAS.get(route_key)
+        if expected_population_schema is None:
+            raise RuntimeError(f"Wave5 HRIS population contract missing: {route_key}")
+        for label, operation_parameters in (
+            ("source", source_parameters), ("owner", owner_parameters)
+        ):
+            purpose_parameter = operation_parameters.get(("header", "x-purpose-code"))
+            population_parameter = operation_parameters.get(
+                ("header", "x-dwp-population-kind")
+            )
+            if (
+                purpose_parameter is None
+                or purpose_parameter.get("required") is not True
+                or purpose_parameter.get("schema", {}).get("const") != purpose
+                or population_parameter is None
+                or population_parameter.get("required") is not True
+                or population_parameter.get("schema") != expected_population_schema
+            ):
+                raise RuntimeError(
+                    f"Wave5 HRIS trusted owner evidence drift: {label} {route_key}"
+                )
+        if (
+            ("header", "x-purpose-code") in browser_parameters
+            or ("header", "x-dwp-population-kind") in browser_parameters
+            or browser_parameters.get(("query", "contextscopekey"))
+            != SCOPE_SELECTION_PARAMETER
+        ):
+            raise RuntimeError(f"Wave5 HRIS browser evidence boundary drift: {route_key}")
+
+        mutation = route.get("routeKind") == "ACTION"
+        mutation_headers = {
+            ("header", "idempotency-key"),
+            ("header", "if-match"),
+            ("header", "x-dwp-expected-decision-revision"),
+        }
+        proof_header = ("header", "x-dwp-step-up-challenge")
+        if mutation:
+            if any(
+                not mutation_headers <= set(values)
+                or any(values[key].get("required") is not True
+                       for key in mutation_headers)
+                for values in (source_parameters, owner_parameters, browser_parameters)
+            ):
+                raise RuntimeError(f"Wave5 HRIS mutation header drift: {route_key}")
+        if (
+            any(proof_header in values
+                for values in (source_parameters, owner_parameters, browser_parameters))
+            or source.get("x-dwp-command-proof-required") is True
+            or owner.get("x-dwp-command-proof-required") is True
+            or browser.get("x-dwp-command-proof-required") is True
+        ):
+            raise RuntimeError(f"Wave5 HRIS unexpected step-up proof: {route_key}")
+
+        if request_schema is not None:
+            expected_request = {
+                "content": {"application/json": {"schema": {
+                    "$ref": f"#/components/schemas/{request_schema}"
+                }}},
+                "required": True,
+            }
+            if source.get("requestBody") != expected_request:
+                raise RuntimeError(f"Wave5 HRIS request schema drift: {route_key}")
+
+    for service, expected in expected_source.items():
+        actual = {
+            (method, path)
+            for path, path_item in overlays[service]["paths"].items()
+            for method in path_item
+            if method in HTTP_METHODS and (method, path) in expected
+        }
+        if actual != expected:
+            raise RuntimeError(f"Wave5 HRIS source operation set drift: {service}")
+
+    for service, names in {
+        "people": {
+            "AssignedReviewV1", "ReviewFormV1", "ReviewDraftCommandV1",
+            "SubmitReviewCommandV1", "ReviewSubmissionV1",
+            "Iaq022PerformanceMultiraterSurveyPageV1",
+        },
+        "time": {
+            "TimecardV1", "TimecardCorrectionCommandV1",
+            "TimecardSubmitCommandV1", "TimecardDecisionCommandV1",
+            "TimeCommandReceiptV1",
+        },
+        "platform": {"HcmAuditEvidencePageV1", "HcmAuditEvidenceV1"},
+    }.items():
+        schemas = overlays[service].get("components", {}).get("schemas", {})
+        if any(schemas.get(name, {}).get("additionalProperties") is not False
+               for name in names):
+            raise RuntimeError(f"Wave5 HRIS schema is not closed: {service}")
+
+    iaq = overlays["people"]["components"]["schemas"][
+        "Iaq022PerformanceMultiraterSurveyPageV1"
+    ]
+    actions = iaq["properties"]["availableActions"]["items"]["enum"]
+    if actions != [
+        "hris.action.performance.create-multirater-cycle",
+        "hris.action.performance.update-multirater-cycle",
+        "hris.action.performance.validate-multirater-cycle",
+    ] or any("review" in action or "submit" in action for action in actions):
+        raise RuntimeError("IAQ-022 review identity/action separation drift")
 
 
 def canonical_contract_hash(value: Any) -> str:
@@ -2952,6 +3338,10 @@ def main() -> int:
     )
     validate_payroll_run_contract(
         outputs["payroll.json"], outputs["gateway-public.json"]
+    )
+    validate_wave5_hris_control_contract(
+        outputs["platform.json"], outputs["people.json"], outputs["time.json"],
+        outputs["gateway-public.json"],
     )
     validate_platform_device_identity(outputs["platform.json"])
     validate_platform_device_identity(outputs["gateway-public.json"], gateway=True)

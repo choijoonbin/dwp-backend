@@ -71,6 +71,19 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.operations.time-interpretation.page",
             "route.hcm.operations.time-interpretation-run.action",
             "route.hcm.operations.time-interpretation-trace.data");
+    private static final Set<String> PER_TIM_WAVE5_POPULATION_ROUTE_KEYS = Set.of(
+            "route.hcm.performance.assigned-review.data",
+            "route.hcm.performance.assigned-review-draft-update.action",
+            "route.hcm.performance.assigned-review-submit.action",
+            "route.hcm.operations.performance-multirater-surveys.page",
+            "route.hcm.time.timecard.data",
+            "route.hcm.time.timecard-correction.action",
+            "route.hcm.time.timecard-submit.action",
+            "route.hcm.time.timecard-decision.action",
+            "route.hcm.time.command-receipt.data");
+    private static final Set<String> HCM_AUDIT_READ_ROUTE_KEYS = Set.of(
+            "route.hcm.audit.evidence.page",
+            "route.hcm.audit.evidence-detail.data");
     private static final Set<String> PAYROLL_OWNER_POPULATION_ROUTE_KEYS = Set.of(
             "route.hcm.operations.payroll-run-calculate.action",
             "route.hcm.operations.payroll-run.data",
@@ -149,7 +162,21 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             Map.entry("route.hcm.configuration.navigation-policy-revision-publish.action",
                     "HRIS_SYSTEM_ADMIN"),
             Map.entry("route.hcm.configuration.navigation-policy-revision-restore.action",
-                    "HRIS_SYSTEM_ADMIN"));
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.audit.evidence.page", "HRIS_AUDIT_EVIDENCE"),
+            Map.entry("route.hcm.audit.evidence-detail.data", "HRIS_AUDIT_EVIDENCE"),
+            Map.entry("route.hcm.performance.assigned-review.data", "PERFORMANCE_REVIEW"),
+            Map.entry("route.hcm.performance.assigned-review-draft-update.action",
+                    "PERFORMANCE_REVIEW"),
+            Map.entry("route.hcm.performance.assigned-review-submit.action",
+                    "PERFORMANCE_REVIEW"),
+            Map.entry("route.hcm.operations.performance-multirater-surveys.page",
+                    "PERFORMANCE_OPERATIONS"),
+            Map.entry("route.hcm.time.timecard.data", "TIME_TIMECARD"),
+            Map.entry("route.hcm.time.timecard-correction.action", "TIME_TIMECARD"),
+            Map.entry("route.hcm.time.timecard-submit.action", "TIME_TIMECARD"),
+            Map.entry("route.hcm.time.timecard-decision.action", "TIME_TIMECARD"),
+            Map.entry("route.hcm.time.command-receipt.data", "COMMAND_STATUS"));
     private static final List<String> INTERNAL_HEADERS = List.of(
             ROUTE_HEADER, CURRENT_REVISION_HEADER, CURRENT_REVALIDATE_AT_HEADER,
             RESPONSE_REVISION_HEADER, CONTEXT_HEADER, SCOPE_HEADER, ACTIVE_ACCESS_MODE_HEADER,
@@ -355,6 +382,37 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                     "DECISION_REVISION_CONFLICT", result.decisionRevision());
         }
         boolean allowed = result.decision() == ProductSurfaceContextDtos.Decision.ALLOWED;
+        if (result.decision() == ProductSurfaceContextDtos.Decision.STEP_UP_REQUIRED
+                && HCM_AUDIT_READ_ROUTE_KEYS.contains(route.routeContractKey())) {
+            // These two ELEVATED-only reads deliberately have no command binding. NORMAL may
+            // learn that step-up is required, but it must never receive owner-forwarding
+            // evidence or reach the Platform audit repository.  Do not expose the challenge
+            // oracle until the complete trusted route/query, tenant, subject, scope, purpose,
+            // and revision envelope has been established; Auth already proves the package,
+            // permission, auditor role/duty, and static SoD intersection.
+            ProductSurfaceContextDtos.SourceRevisions revisions = trustedResult.revisions();
+            String subjectPrincipal = request.getHeaders().getFirst(
+                    VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER);
+            boolean completeChallenge = activeAccessMode
+                    == ProductSurfaceContextDtos.AccessMode.NORMAL
+                    && "HRIS_AUDIT_EVIDENCE".equals(
+                            WAVE2_OWNER_PURPOSE_BY_ROUTE.get(route.routeContractKey()))
+                    && !blank(result.decisionRevision())
+                    && !blank(trustedResult.contextKey())
+                    && trustedResult.scope() != null
+                    && !blank(trustedResult.scope().key())
+                    && "RESOURCE_SET".equals(trustedResult.scope().kind())
+                    && !blank(subjectPrincipal)
+                    && revisions != null
+                    && numericRevision("field-policy", revisions.policy()) != null
+                    && numericRevision("authorization", revisions.auth()) != null;
+            if (!completeChallenge) {
+                return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                        "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+            }
+            return error(exchange, HttpStatus.FORBIDDEN,
+                    "STEP_UP_REQUIRED", result.decisionRevision());
+        }
         boolean eligibleStepUp = result.decision()
                 == ProductSurfaceContextDtos.Decision.STEP_UP_REQUIRED
                 && route.highRiskStepUp();
@@ -396,7 +454,8 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
         boolean requiresPopulationKind = TIM_WAVE2_ROUTE_KEYS.contains(route.routeContractKey())
-                || PAYROLL_OWNER_POPULATION_ROUTE_KEYS.contains(route.routeContractKey());
+                || PAYROLL_OWNER_POPULATION_ROUTE_KEYS.contains(route.routeContractKey())
+                || PER_TIM_WAVE5_POPULATION_ROUTE_KEYS.contains(route.routeContractKey());
         String populationKind = requiresPopulationKind && trustedResult.scope() != null
                 ? trustedResult.scope().kind() : null;
         if (requiresPopulationKind && blank(populationKind)) {

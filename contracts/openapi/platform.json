@@ -6403,6 +6403,60 @@
         },
         "type": "object"
       },
+      "ApiResponseHcmAuditEvidencePageV1": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HcmAuditEvidencePageV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseHcmAuditEvidenceV1": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HcmAuditEvidenceV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseHomeCompositionPolicyPreview": {
         "properties": {
           "correlationId": {
@@ -26610,6 +26664,175 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "HcmAuditEvidencePageV1": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HcmAuditEvidenceV1"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "snapshotAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "size",
+          "snapshotAt",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "HcmAuditEvidenceV1": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actorType": {
+            "type": "string"
+          },
+          "afterDigest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "aggregateRevision": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "aggregateType": {
+            "type": "string"
+          },
+          "approvalReceiptId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authorizationDecisionRef": {
+            "type": "string"
+          },
+          "beforeDigest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "causationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveCapability": {
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "evidenceDigest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "fieldPolicyRevision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "purposeCode": {
+            "const": "HRIS_AUDIT_EVIDENCE"
+          },
+          "reasonCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recordHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "retentionClass": {
+            "type": "string"
+          },
+          "scopeRevision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "sourceModule": {
+            "type": "string"
+          },
+          "sourceService": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId",
+          "occurredAt",
+          "category",
+          "action",
+          "outcome",
+          "severity",
+          "actorType",
+          "sourceService",
+          "sourceModule",
+          "aggregateType",
+          "aggregateRevision",
+          "effectiveCapability",
+          "purposeCode",
+          "authorizationDecisionRef",
+          "scopeRevision",
+          "fieldPolicyRevision",
+          "approvalReceiptId",
+          "reasonCode",
+          "beforeDigest",
+          "afterDigest",
+          "evidenceDigest",
+          "classification",
+          "retentionClass",
+          "causationId",
+          "correlationId",
+          "recordHash"
+        ],
         "type": "object"
       },
       "HeatmapCell": {
@@ -51893,6 +52116,15 @@
               "format": "int32",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "const": "HCM",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -51900,7 +52132,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseEventPage"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponseEventPage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApiResponseHcmAuditEvidencePageV1"
+                    }
+                  ]
                 }
               }
             },
@@ -51909,6 +52148,19 @@
         },
         "tags": [
           "admin-audit-control-controller"
+        ],
+        "x-dwp-controller-variants": [
+          {
+            "controllerMethod": "page",
+            "operationId": "getHcmAuditEvidencePage",
+            "purposeCode": "HRIS_AUDIT_EVIDENCE",
+            "requiredParameters": [
+              "product=HCM"
+            ],
+            "responseSchema": {
+              "$ref": "#/components/schemas/ApiResponseHcmAuditEvidencePageV1"
+            }
+          }
         ]
       }
     },
@@ -51924,6 +52176,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "const": "HCM",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -51931,7 +52192,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseEvent"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponseEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApiResponseHcmAuditEvidenceV1"
+                    }
+                  ]
                 }
               }
             },
@@ -51940,6 +52208,19 @@
         },
         "tags": [
           "admin-audit-control-controller"
+        ],
+        "x-dwp-controller-variants": [
+          {
+            "controllerMethod": "detail",
+            "operationId": "getHcmAuditEvidence",
+            "purposeCode": "HRIS_AUDIT_EVIDENCE",
+            "requiredParameters": [
+              "product=HCM"
+            ],
+            "responseSchema": {
+              "$ref": "#/components/schemas/ApiResponseHcmAuditEvidenceV1"
+            }
+          }
         ]
       }
     },

@@ -28,6 +28,10 @@ import static com.dwp.services.auth.service.ProductAuthorizationAuthoritySupport
 public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAuthorityPort {
 
     private static final String BUNDLE_KEY = "product-surfaces";
+    private static final Set<String> PERFORMANCE_REVIEW_DUAL_PROFILE_ROUTES = Set.of(
+            "route.hcm.performance.assigned-review.data",
+            "route.hcm.performance.assigned-review-draft-update.action",
+            "route.hcm.performance.assigned-review-submit.action");
 
     private final ProductAuthorizationContractRepository repository;
     private final ProductAuthorizationIdentityEvidenceService evidenceService;
@@ -279,7 +283,11 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         }
         List<ProductAuthorizationContractDtos.AccessProfile> profiles = route.accessProfiles().stream()
                 .filter(value -> value.activeAccessModes()
-                        .contains(request.activeAccessMode().name()))
+                        .contains(request.activeAccessMode().name())
+                        || HcmAuditAuthorityPolicy.isNormalChallengeCandidate(
+                                request, route,
+                                registry.capabilitiesByKey().get(
+                                        HcmAuditAuthorityPolicy.CAPABILITY)))
                 .sorted(Comparator.comparingInt(
                         ProductAuthorizationContractDtos.AccessProfile::precedence).reversed())
                 .toList();
@@ -297,26 +305,60 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         List<ProductSurfaceAuthorityDtos.EffectiveScope> directEntryScopes =
                 singleSelfEntryPolicyScopes(request, registry, identity);
         Evaluation firstDenial = null;
+        boolean allowedProfileScopeMismatch = false;
         for (ProductAuthorizationContractDtos.AccessProfile profile : profiles) {
             Evaluation result = evaluateProfile(
-                    request, registry, identity, profile, directEntryScopes);
+                    request, registry, identity, route, profile, directEntryScopes);
             if (blockingProfileDenial(result)) return result.forRoute();
             if (result.allowed() || result.decision()
                     == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED) {
+                if (requiresExactReviewProfileSelection(request)
+                        && result.scopes().stream().noneMatch(scope ->
+                                request.contextScopeKey().equals(scope.key()))) {
+                    // The three review routes intentionally share one permission across an
+                    // assigned-review population profile and a self profile.  Precedence must
+                    // not let the assigned profile swallow an explicitly selected SELF scope
+                    // (or vice versa); keep evaluating until the signed scope selects the
+                    // matching profile.  The reviewId itself is never identity evidence.
+                    allowedProfileScopeMismatch = true;
+                    continue;
+                }
                 return routed(request, identity, route, result);
             }
             if (firstDenial == null) firstDenial = result;
         }
+        if (allowedProfileScopeMismatch) {
+            return Evaluation.denied(
+                    ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID,
+                    "SCOPE_CONTEXT_EXPIRED");
+        }
         return Objects.requireNonNull(firstDenial).forRoute();
+    }
+
+    private boolean requiresExactReviewProfileSelection(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request) {
+        return request.contextScopeKey() != null
+                && !request.contextScopeKey().isBlank()
+                && PERFORMANCE_REVIEW_DUAL_PROFILE_ROUTES.contains(
+                        request.routeContractKey());
     }
 
     private Evaluation evaluateProfile(
             ProductSurfaceAuthorityDtos.EvaluateRequest request,
             Registry registry,
             ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
+            ProductAuthorizationContractDtos.GovernedRoute route,
             ProductAuthorizationContractDtos.AccessProfile profile,
             List<ProductSurfaceAuthorityDtos.EffectiveScope> directEntryScopes) {
         ProductAuthorizationContractDtos.RequiredAccess access = profile.requiredAccess();
+        ProductAuthorizationContractDtos.CapabilityContract capability =
+                "CAPABILITY".equals(access.type())
+                        ? registry.capabilitiesByKey().get(access.capabilityContractKey())
+                        : null;
+        if (HcmAuditAuthorityPolicy.isExactReadRoute(route, capability)) {
+            return evaluateHcmAuditCapability(request, identity, capability,
+                    profile.predicatePolicyKeys());
+        }
         return switch (access.type()) {
             case "CAPABILITY" -> evaluateCapability(
                     request,
@@ -375,6 +417,13 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 request, route, result);
         if (!result.allowed()) {
             Evaluation denial = result.forRoute();
+            if (denial.decision() == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED
+                    && request.activeAccessMode()
+                    == ProductSurfaceAuthorityDtos.AccessMode.NORMAL
+                    && HcmAuditAuthorityPolicy.ROUTES.contains(
+                            request.routeContractKey())) {
+                return denial.withProductEligibility(peopleEligibility);
+            }
             return denial.decision() == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED
                     ? denial.withRoute(
                             "grant-" + digest(request.routeContractKey() + '\n'
@@ -656,6 +705,72 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 ProductSurfaceAuthorityDtos.AccessSource.MANAGEMENT,
                 grants, scopes, readOnly, validUntil, false,
                 capability.resourceKey());
+    }
+
+    private Evaluation evaluateHcmAuditCapability(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
+            ProductAuthorizationContractDtos.CapabilityContract capability,
+            List<String> predicates) {
+        if (decisionSupport.capabilityDisabled(request.tenantId(), capability.contractKey())) {
+            return Evaluation.denied(
+                    ProductSurfaceAuthorityDtos.Decision.SURFACE_DENIED,
+                    "TENANT_CAPABILITY_DISABLED");
+        }
+        HcmAuditAuthorityPolicy.AuthorityEvidence evidence = hcmAuditAuthority(identity);
+        if (evidence.outcome() != HcmAuditAuthorityPolicy.Outcome.ALLOWED) {
+            return switch (evidence.outcome()) {
+                case APP_ENTITLEMENT_REQUIRED -> Evaluation.denied(
+                        ProductSurfaceAuthorityDtos.Decision.APP_DENIED,
+                        "APP_ENTITLEMENT_REQUIRED");
+                case CAPABILITY_REQUIRED -> Evaluation.denied(
+                        ProductSurfaceAuthorityDtos.Decision.SURFACE_DENIED,
+                        "SURFACE_CAPABILITY_REQUIRED");
+                case RESPONSIBILITY_REQUIRED -> Evaluation.denied(
+                        ProductSurfaceAuthorityDtos.Decision.SURFACE_DENIED,
+                        "RESPONSIBILITY_REQUIRED");
+                case SOD_CONFLICT -> Evaluation.denied(
+                        ProductSurfaceAuthorityDtos.Decision.SOD_CONFLICT,
+                        "SOD_CONFLICT");
+                case ALLOWED -> throw new IllegalStateException("Unreachable audit authority state");
+            };
+        }
+        AppGovernanceDtos.ResourceRole responsibility = evidence.responsibility();
+        List<ProductSurfaceAuthorityDtos.EffectiveScope> scopes = responsibilityScopes(
+                request, List.of(responsibility), true);
+        ProductSurfaceAuthorityDtos.CapabilityGrant grant =
+                new ProductSurfaceAuthorityDtos.CapabilityGrant(
+                        capability.contractKey(), capability.resolvedCapabilityCode(),
+                        capabilityAuthority(capability.authorityMode()), predicates,
+                        ProductSurfaceAuthorityDtos.ResponsibilityRequirement.REQUIRED,
+                        new ProductSurfaceAuthorityDtos.Responsibility(
+                                HcmAuditAuthorityPolicy.RESPONSIBILITY,
+                                HcmAuditAuthorityPolicy.RESOURCE_SET),
+                        scopes.stream().map(ProductSurfaceAuthorityDtos.EffectiveScope::key)
+                                .toList(),
+                        true,
+                        true,
+                        request.activeAccessMode() == ProductSurfaceAuthorityDtos.AccessMode.NORMAL
+                                ? ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE
+                                : ProductSurfaceAuthorityDtos.ActivationState.ACTIVE,
+                        responsibility.validTo());
+        if (request.activeAccessMode() == ProductSurfaceAuthorityDtos.AccessMode.NORMAL) {
+            return Evaluation.challenge(
+                    ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED,
+                    "STEP_UP_REQUIRED", capability.activationPolicy(), requiredAcr,
+                    ProductSurfaceAuthorityDtos.AccessSource.MANAGEMENT,
+                    List.of(grant), scopes, true, responsibility.validTo(),
+                    HcmAuditAuthorityPolicy.PRODUCT_RESOURCE);
+        }
+        if (request.activeAccessMode() != ProductSurfaceAuthorityDtos.AccessMode.ELEVATED) {
+            return Evaluation.denied(
+                    ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED,
+                    "ROUTE_CAPABILITY_REQUIRED");
+        }
+        return Evaluation.allowed(
+                ProductSurfaceAuthorityDtos.AccessSource.MANAGEMENT,
+                List.of(grant), scopes, true, responsibility.validTo(), false,
+                HcmAuditAuthorityPolicy.PRODUCT_RESOURCE);
     }
 
     private record EntryPolicyEvaluation(List<Evaluation> allowed, Evaluation typedDeny) {}

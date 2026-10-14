@@ -226,7 +226,8 @@ public class ProductAuthorizationContractValidator {
                         .contains(value.responsibilityRequirement()),
                 value.contractKey() + ": invalid responsibility requirement.");
         if ("REQUIRED".equals(value.responsibilityRequirement())) {
-            require("APP_CONFIG_ADMIN".equals(value.requiredResponsibilityCode()),
+            require("APP_CONFIG_ADMIN".equals(value.requiredResponsibilityCode())
+                            || HcmAuditAuthorityPolicy.exactCapability(value),
                     value.contractKey() + ": exact required responsibility code is required.");
         } else {
             require(value.requiredResponsibilityCode() == null,

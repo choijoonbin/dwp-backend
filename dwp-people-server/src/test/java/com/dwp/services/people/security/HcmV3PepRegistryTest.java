@@ -14,11 +14,11 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV39PeopleClosure() {
-        assertThat(registry.bindingContracts()).hasSize(120);
+    void loadsTheExactV42PeopleClosure() {
+        assertThat(registry.bindingContracts()).hasSize(124);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(93);
+                .distinct()).hasSize(97);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -58,7 +58,7 @@ class HcmV3PepRegistryTest {
                         "route.hcm.operations.employee-change-request-apply.action",
                         "route.hcm.operations.assignment-event-publish.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
-                .hasSize(16)
+                .hasSize(17)
                 .containsOnlyKeys(
                         "predicate.directory-visible-person.v1",
                         "predicate.hcm-configuration-scope.v1",
@@ -72,10 +72,78 @@ class HcmV3PepRegistryTest {
                         "predicate.hcm-org-publish-sod.v1",
                         "predicate.hcm-performance-cycle-object.v1",
                         "predicate.hcm-performance-cycle-publish-sod.v1",
+                        "predicate.hcm-performance-review-assignment.v1",
                         "predicate.hcm-workforce-visible-person.v1",
                         "predicate.people.object-version.v1",
                         "predicate.self-person.v1",
                         "predicate.team-target-population.v1");
+    }
+
+    @Test
+    void assignedReviewRoutesKeepSelfAndAssignedIdentitySeparate() {
+        String reviewId = "00000000-0000-0000-0000-000000000042";
+        HcmV3PepRegistry.Decision assigned = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET", "/v1/hris/performance/reviews/" + reviewId,
+                        Set.of("APP.HCM:VIEW", "DATA.HRIS_PERFORMANCE_REVIEW:UPDATE"),
+                        null, "NORMAL", Set.of(),
+                        "route.hcm.performance.assigned-review.data", null,
+                        "PERFORMANCE_REVIEW", "TARGET_POPULATION"));
+        assertThat(assigned.allowed()).isTrue();
+        assertThat(assigned.authority().profileKey()).isEqualTo("assigned-reviewer");
+        assertThat(assigned.authority().capabilityContractKey())
+                .isEqualTo("hcm.team.performance.review");
+        assertThat(assigned.authority().targetBindingKinds())
+                .containsExactlyInAnyOrder("OBJECT", "TARGET_POPULATION");
+
+        HcmV3PepRegistry.Decision self = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "PATCH", "/v1/hris/performance/reviews/" + reviewId,
+                        Set.of("APP.HCM:VIEW", "DATA.HRIS_PERFORMANCE_REVIEW:UPDATE"),
+                        null, "NORMAL", Set.of(),
+                        "route.hcm.performance.assigned-review-draft-update.action", null,
+                        "PERFORMANCE_REVIEW", "SELF"));
+        assertThat(self.allowed()).isTrue();
+        assertThat(self.authority().profileKey()).isEqualTo("self-reviewer");
+        assertThat(self.authority().capabilityContractKey())
+                .isEqualTo("per.review.self.submit");
+        assertThat(self.authority().predicatePolicyKeys())
+                .containsExactly("predicate.hcm-performance-review-assignment.v1");
+
+        assertThat(registry.authorize(new HcmV3PepRegistry.RequestEvidence(
+                "GET", "/v1/hris/performance/reviews/" + reviewId,
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_PERFORMANCE_REVIEW:UPDATE"),
+                null, "NORMAL", Set.of(),
+                "route.hcm.performance.assigned-review.data", null,
+                "CLIENT_FORGED", "TARGET_POPULATION")).denialCode())
+                .isEqualTo("TRUSTED_PURPOSE_REQUIRED");
+        assertThat(registry.authorize(new HcmV3PepRegistry.RequestEvidence(
+                "GET", "/v1/hris/performance/reviews/" + reviewId,
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_PERFORMANCE_REVIEW:UPDATE"),
+                null, "NORMAL", Set.of(),
+                "route.hcm.performance.assigned-review.data", null,
+                "PERFORMANCE_REVIEW", "NAMED_POPULATION")).allowed()).isFalse();
+    }
+
+    @Test
+    void iaq022RemainsAnOperatorWorkbenchAndCannotBecomeReviewIdentity() {
+        HcmV3PepRegistry.Decision decision = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET", "/v1/hris/performance/workbench/multirater-surveys",
+                        Set.of("APP.HCM:VIEW", "DATA.HR_TALENT:VIEW"),
+                        null, "NORMAL", Set.of(),
+                        "route.hcm.operations.performance-multirater-surveys.page", null,
+                        "PERFORMANCE_OPERATIONS", "TARGET_POPULATION"));
+
+        assertThat(decision.allowed()).isTrue();
+        assertThat(decision.authority().profileKey())
+                .isEqualTo("performance-operator-reader");
+        assertThat(decision.authority().capabilityContractKey())
+                .isEqualTo("hcm.operations.performance.view");
+        assertThat(decision.authority().predicatePolicyKeys())
+                .containsExactly("predicate.hcm-domain-target-population.v1");
+        assertThat(decision.authority().targetBindingKinds())
+                .containsExactly("TARGET_POPULATION");
     }
 
     @Test

@@ -5,10 +5,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS = ROOT / "contracts" / "product-authorization"
-AUTH_SEEDS = (
-    ROOT / "dwp-auth-server" / "src" / "main" / "resources"
-    / "product-authorization"
-)
 PLATFORM_PROJECTION = (
     ROOT / "dwp-platform-server" / "src" / "main" / "resources"
     / "product-authorization" / "hcm-platform-pep-v40.generated.json"
@@ -131,20 +127,14 @@ class ProductAuthorizationV40Test(unittest.TestCase):
             route["gatewayApiBindings"][0]["path"],
         )
 
-    def test_latest_alias_seed_index_and_platform_projection_are_v40(self) -> None:
-        alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
-        auth_alias = json.loads(
-            (AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text()
-        )
+    def test_platform_projection_remains_immutably_pinned_to_v40(self) -> None:
         index = json.loads(
             (CONTRACTS / "product-surfaces-v1.index.json").read_text()
         )
         projection = json.loads(PLATFORM_PROJECTION.read_text())
 
-        self.assertEqual(self.v40, alias)
-        self.assertEqual(self.v40, auth_alias)
-        self.assertEqual(40, index["latestVersion"])
-        self.assertEqual(V40_SHA256, index["latestChecksum"])
+        v40_index = next(value for value in index["versions"] if value["version"] == 40)
+        self.assertEqual(V40_SHA256, v40_index["checksum"])
         self.assertEqual(40, projection["registryRef"]["version"])
         self.assertEqual(V40_SHA256, projection["registryRef"]["sha256"])
         self.assertEqual(28, projection["projectedRouteContractCount"])

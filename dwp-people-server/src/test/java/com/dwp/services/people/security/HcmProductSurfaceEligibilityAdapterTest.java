@@ -139,6 +139,48 @@ class HcmProductSurfaceEligibilityAdapterTest {
     }
 
     @Test
+    void materializesOnlySignedAssignedReviewAndSelfSelectorsOnOperationsSurface() {
+        PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("WORKSPACE_MEMBER"), Set.of());
+        HcmPopulationRepository.ActorWorkforce actor =
+                new HcmPopulationRepository.ActorWorkforce(
+                        41L, PERSON, "Reviewer", "A-REVIEWER", "Reviewer", "Talent",
+                        2L, 4L, 7L);
+        when(repository.actor(TENANT, PERSON)).thenReturn(Optional.of(actor));
+        when(populations.findOperations("READ")).thenReturn(Optional.of(teamPopulation()));
+        String assigned = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations",
+                "ASSIGNED_REVIEW_POPULATION", "TARGET_POPULATION");
+        String self = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations", "SELF", "SELF");
+
+        ProductSurfaceEligibilityDtos.EligibilityResult assignedResult = adapter.evaluate(
+                request("hcm.operations", assigned, "TARGET_POPULATION", null));
+        ProductSurfaceEligibilityDtos.EligibilityResult selfResult = adapter.evaluate(
+                request("hcm.operations", self, "SELF", null));
+
+        assertThat(assignedResult.decision())
+                .isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(assignedResult.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.sourceScopeKey()).isEqualTo(assigned);
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+        });
+        assertThat(selfResult.decision())
+                .isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(selfResult.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.sourceScopeKey()).isEqualTo(self);
+            assertThat(scope.kind()).isEqualTo("SELF");
+        });
+
+        String inferred = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations",
+                "SURVEY_RATER_ASSIGNMENT", "TARGET_POPULATION");
+        ProductSurfaceEligibilityDtos.EligibilityResult rejected = adapter.evaluate(
+                request("hcm.operations", inferred, "TARGET_POPULATION", null));
+        assertThat(rejected.decision())
+                .isEqualTo(ProductSurfaceEligibilityDtos.Decision.SCOPE_INVALID);
+    }
+
+    @Test
     void payrollFoundationAliasUsesTheCanonicalPayDerivedScopeOnlyForOperations() {
         PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("TENANT_ADMIN"), Set.of());
         when(populations.findOperations("READ")).thenReturn(Optional.of(teamPopulation()));

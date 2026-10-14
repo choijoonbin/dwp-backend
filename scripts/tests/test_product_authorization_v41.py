@@ -5,10 +5,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS = ROOT / "contracts" / "product-authorization"
-AUTH_SEEDS = (
-    ROOT / "dwp-auth-server" / "src" / "main" / "resources"
-    / "product-authorization"
-)
 PAYROLL_PROJECTION = (
     ROOT / "dwp-payroll-server" / "src" / "main" / "resources"
     / "product-authorization" / "hcm-payroll-pep-v41.generated.json"
@@ -131,20 +127,14 @@ class ProductAuthorizationV41Test(unittest.TestCase):
             self.assertEqual("payroll", binding[0]["ownerServiceKey"])
             self.assertEqual("dwp-payroll-server", binding[0]["audience"])
 
-    def test_alias_seed_index_and_payroll_projection_are_v41(self) -> None:
-        alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
-        auth_alias = json.loads(
-            (AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text()
-        )
+    def test_payroll_projection_remains_immutably_pinned_to_v41(self) -> None:
         index = json.loads(
             (CONTRACTS / "product-surfaces-v1.index.json").read_text()
         )
         projection = json.loads(PAYROLL_PROJECTION.read_text())
 
-        self.assertEqual(self.v41, alias)
-        self.assertEqual(self.v41, auth_alias)
-        self.assertEqual(41, index["latestVersion"])
-        self.assertEqual(V41_SHA256, index["latestChecksum"])
+        v41_index = next(value for value in index["versions"] if value["version"] == 41)
+        self.assertEqual(V41_SHA256, v41_index["checksum"])
         self.assertEqual(41, projection["registryRef"]["version"])
         self.assertEqual(V41_SHA256, projection["registryRef"]["sha256"])
         self.assertEqual("payroll", projection["ownerServiceKey"])

@@ -2140,6 +2140,103 @@
         },
         "type": "object"
       },
+      "AssignedReviewV1": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateVersion": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewAnswerV1"
+            },
+            "maxItems": 500,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "draftContentHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "dueAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "form": {
+            "$ref": "#/components/schemas/ReviewFormV1"
+          },
+          "participantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewerAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewerType": {
+            "enum": [
+              "SELF",
+              "MANAGER",
+              "SECOND_MANAGER",
+              "THIRD_MANAGER",
+              "PEER",
+              "DIRECT_REPORT",
+              "EXTERNAL",
+              "REFEREE"
+            ]
+          },
+          "stageKey": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "NOT_STARTED",
+              "IN_PROGRESS",
+              "SUBMITTED",
+              "RETURNED",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          },
+          "templateContentHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "templateVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "writable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reviewId",
+          "participantId",
+          "reviewerAssignmentId",
+          "reviewerType",
+          "stageKey",
+          "state",
+          "templateVersionId",
+          "templateContentHash",
+          "aggregateVersion",
+          "writable",
+          "draftContentHash",
+          "form",
+          "answers"
+        ],
+        "type": "object"
+      },
       "AssignmentEventEmptyCommandV1": {},
       "AssignmentImpactV1": {
         "properties": {
@@ -5881,6 +5978,66 @@
         "type": "object",
         "x-dwp-canonical-source": "IAQ-009"
       },
+      "Iaq022PerformanceMultiraterSurveyPageV1": {
+        "additionalProperties": false,
+        "properties": {
+          "availableActions": {
+            "items": {
+              "enum": [
+                "hris.action.performance.create-multirater-cycle",
+                "hris.action.performance.update-multirater-cycle",
+                "hris.action.performance.validate-multirater-cycle"
+              ]
+            },
+            "maxItems": 3,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "cycleId": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "DRAFT",
+                    "VALIDATED",
+                    "ACTIVE",
+                    "CLOSED"
+                  ]
+                },
+                "surveyCount": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cycleId",
+                "state",
+                "surveyCount"
+              ],
+              "type": "object"
+            },
+            "maxItems": 500,
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "availableActions",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
       "IaqAggregateFilterV1": {
         "additionalProperties": false,
         "properties": {
@@ -9045,6 +9202,216 @@
         ],
         "type": "object"
       },
+      "ReviewAnswerV1": {
+        "additionalProperties": false,
+        "properties": {
+          "answerType": {
+            "enum": [
+              "TEXT",
+              "DECIMAL",
+              "RATING",
+              "CHOICE"
+            ]
+          },
+          "itemKey": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "value": {
+            "oneOf": [
+              {
+                "maxLength": 10000,
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "items": {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              }
+            ]
+          }
+        },
+        "required": [
+          "itemKey",
+          "answerType",
+          "value"
+        ],
+        "type": "object"
+      },
+      "ReviewDraftCommandV1": {
+        "additionalProperties": false,
+        "properties": {
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewAnswerV1"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "answers"
+        ],
+        "type": "object"
+      },
+      "ReviewFormItemV1": {
+        "additionalProperties": false,
+        "properties": {
+          "itemKey": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "rubricScaleKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "enum": [
+              "TEXT",
+              "DECIMAL",
+              "RATING",
+              "CHOICE"
+            ]
+          }
+        },
+        "required": [
+          "itemKey",
+          "prompt",
+          "type",
+          "required",
+          "rubricScaleKey"
+        ],
+        "type": "object"
+      },
+      "ReviewFormV1": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewFormItemV1"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          },
+          "rubricScales": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewRubricScaleV1"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "schemaVersion": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "items",
+          "rubricScales"
+        ],
+        "type": "object"
+      },
+      "ReviewRubricLevelV1": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "value": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label",
+          "score"
+        ],
+        "type": "object"
+      },
+      "ReviewRubricScaleV1": {
+        "additionalProperties": false,
+        "properties": {
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewRubricLevelV1"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "rubricScaleKey": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "rubricScaleKey",
+          "levels"
+        ],
+        "type": "object"
+      },
+      "ReviewSubmissionV1": {
+        "additionalProperties": false,
+        "properties": {
+          "contentHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "state": {
+            "const": "SUBMITTED"
+          },
+          "submissionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "submissionNo": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "submissionId",
+          "submissionNo",
+          "state",
+          "contentHash",
+          "submittedAt"
+        ],
+        "type": "object"
+      },
       "RevokePolicyRequest": {
         "properties": {
           "reason": {
@@ -9223,6 +9590,23 @@
           "stageConfig",
           "stageKey",
           "stageType"
+        ],
+        "type": "object"
+      },
+      "SubmitReviewCommandV1": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledgement": {
+            "const": true,
+            "type": "boolean"
+          },
+          "draftContentHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftContentHash"
         ],
         "type": "object"
       },
@@ -14443,6 +14827,290 @@
           "performance-cycle-controller"
         ],
         "x-dwp-controller-method": "validate",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/performance/reviews/{reviewId}": {
+      "get": {
+        "operationId": "getAssignedPerformanceReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reviewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PERFORMANCE_REVIEW",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Population-Kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SELF",
+                "TARGET_POPULATION"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignedReviewV1"
+                }
+              }
+            },
+            "description": "Assigned review projection"
+          }
+        },
+        "tags": [
+          "performance-assigned-review-controller"
+        ],
+        "x-dwp-controller-method": "review",
+        "x-dwp-purpose-code": "PERFORMANCE_REVIEW",
+        "x-dwp-runtime-default": "OFF"
+      },
+      "patch": {
+        "operationId": "updateAssignedPerformanceReviewDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reviewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PERFORMANCE_REVIEW",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Population-Kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SELF",
+                "TARGET_POPULATION"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewDraftCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignedReviewV1"
+                }
+              }
+            },
+            "description": "Updated review draft"
+          }
+        },
+        "tags": [
+          "performance-assigned-review-controller"
+        ],
+        "x-dwp-controller-method": "updateDraft",
+        "x-dwp-purpose-code": "PERFORMANCE_REVIEW",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/performance/reviews/{reviewId}/submit": {
+      "post": {
+        "operationId": "submitAssignedPerformanceReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reviewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PERFORMANCE_REVIEW",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Population-Kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SELF",
+                "TARGET_POPULATION"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitReviewCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSubmissionV1"
+                }
+              }
+            },
+            "description": "Immutable review submission"
+          }
+        },
+        "tags": [
+          "performance-assigned-review-controller"
+        ],
+        "x-dwp-controller-method": "submit",
+        "x-dwp-purpose-code": "PERFORMANCE_REVIEW",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/performance/workbench/multirater-surveys": {
+      "get": {
+        "operationId": "getPerformanceMultiraterSurveyWorkbench",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PERFORMANCE_OPERATIONS",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Population-Kind",
+            "required": true,
+            "schema": {
+              "const": "TARGET_POPULATION",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Iaq022PerformanceMultiraterSurveyPageV1"
+                }
+              }
+            },
+            "description": "IAQ-022 operator workbench"
+          }
+        },
+        "tags": [
+          "performance-multirater-survey-controller"
+        ],
+        "x-dwp-controller-method": "workbench",
+        "x-dwp-purpose-code": "PERFORMANCE_OPERATIONS",
         "x-dwp-runtime-default": "OFF"
       }
     },
