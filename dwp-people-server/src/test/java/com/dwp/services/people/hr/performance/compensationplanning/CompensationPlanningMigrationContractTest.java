@@ -85,7 +85,9 @@ class CompensationPlanningMigrationContractTest {
                  ORDER BY installed_rank
                 """, String.class)).doesNotContain("17");
 
-        Flyway unrestricted = flyway(dataSource, null);
+        // Keep this V17 compatibility test pinned to its allocated migration now that
+        // the separately leased assigned-review V18 follows it in the same stream.
+        Flyway unrestricted = flyway(dataSource, "17");
         assertThat(unrestricted.migrate().migrationsExecuted).isEqualTo(1);
         assertThat(jdbc.queryForList("""
                 SELECT version
