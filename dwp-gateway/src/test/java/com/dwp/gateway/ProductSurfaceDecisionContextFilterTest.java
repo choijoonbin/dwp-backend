@@ -306,6 +306,141 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void payrollRunRoutesStripSpoofedEvidenceAndInjectExactTrustedOwnerContext() {
+        String runId = "10000000-0000-4000-8000-000000000201";
+        String receiptId = "10000000-0000-4000-8000-000000000202";
+        String subject = "10000000-0000-4000-8000-000000000041";
+        String context = "psc-" + "d".repeat(64);
+        record Case(
+                String method,
+                String path,
+                String routeKey,
+                String purpose,
+                String populationKind,
+                boolean command) {}
+        List<Case> cases = List.of(
+                new Case("POST", "/api/payroll/v1/runs/" + runId + "/attempts",
+                        "route.hcm.operations.payroll-run-calculate.action",
+                        "PAYROLL_PROCESSING", "PAY_GROUP", true),
+                new Case("GET", "/api/payroll/v1/runs/" + runId,
+                        "route.hcm.operations.payroll-run.data",
+                        "PAYROLL_PROCESSING", "NAMED_POPULATION", false),
+                new Case("POST", "/api/payroll/v1/runs/" + runId + "/approvals",
+                        "route.hcm.operations.payroll-run-approve.action",
+                        "PAYROLL_PROCESSING", "LEGAL_ENTITY", true),
+                new Case("POST", "/api/payroll/v1/runs/" + runId + "/finalize",
+                        "route.hcm.operations.payroll-run-finalize.action",
+                        "PAYROLL_PROCESSING", "PAY_GROUP", true),
+                new Case("GET", "/api/payroll/v1/command-receipts/" + receiptId,
+                        "route.hcm.operations.payroll-command-receipt.data",
+                        "COMMAND_STATUS", "ORIGINATING_COMMAND_SCOPE", false));
+
+        for (Case requestCase : cases) {
+            ProductSurfaceDecisionContextFilter filter = filter(authority(
+                    allowedWave2(requestCase.populationKind())));
+            MockServerHttpRequest.BaseBuilder<?> builder = MockServerHttpRequest.method(
+                            HttpMethod.valueOf(requestCase.method()), requestCase.path())
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER, subject)
+                    .header(ProductSurfaceDecisionContextFilter.ROUTE_HEADER, "client-route")
+                    .header(ProductSurfaceDecisionContextFilter.CONTEXT_HEADER, "client-context")
+                    .header(ProductSurfaceDecisionContextFilter.SCOPE_HEADER, "client-scope")
+                    .header(ProductSurfaceDecisionContextFilter.SUBJECT_PRINCIPAL_HEADER,
+                            "client-subject")
+                    .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_REVISION_HEADER,
+                            "999")
+                    .header(ProductSurfaceDecisionContextFilter.AUTHORIZATION_REVISION_HEADER,
+                            "888")
+                    .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER, "SELF")
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.MASKED_FIELD_GROUPS_HEADER,
+                            "PAYROLL_AMOUNT");
+            if (requestCase.command()) {
+                builder.header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                        REVISION);
+            }
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange(builder), filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(requestCase.path()).isNotNull();
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                    .containsExactly(requestCase.routeKey());
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.CONTEXT_HEADER))
+                    .containsExactly(context);
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.SCOPE_HEADER))
+                    .containsExactly(HCM_DERIVED_SCOPE);
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.SUBJECT_PRINCIPAL_HEADER))
+                    .containsExactly(subject);
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.FIELD_POLICY_REVISION_HEADER))
+                    .containsExactly("4663670355146917040");
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.AUTHORIZATION_REVISION_HEADER))
+                    .containsExactly("1991387878219104048");
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                    .containsExactly(requestCase.populationKind());
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                    .containsExactly(requestCase.purpose());
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.MASKED_FIELD_GROUPS_HEADER)).isFalse();
+        }
+    }
+
+    @Test
+    void payrollApprovalAndFinalizePreserveGeneratedStepUpForwarding() {
+        String runId = "10000000-0000-4000-8000-000000000203";
+        String subject = "10000000-0000-4000-8000-000000000041";
+        List<String> paths = List.of(
+                "/api/payroll/v1/runs/" + runId + "/approvals",
+                "/api/payroll/v1/runs/" + runId + "/finalize");
+
+        for (String path : paths) {
+            ProductSurfaceDecisionContextFilter filter = filter(authority(
+                    stepUpWave2("PAY_GROUP")));
+            MockServerWebExchange exchange = exchange(MockServerHttpRequest.post(path)
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER, subject)
+                    .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                            REVISION)
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER, "SELF"));
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange, filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(path).isNotNull();
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                    .containsExactly("PAYROLL_PROCESSING");
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                    .containsExactly("PAY_GROUP");
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.SUBJECT_PRINCIPAL_HEADER))
+                    .containsExactly(subject);
+        }
+    }
+
+    @Test
     void compensationPlanningPurposeIsGatewayOwnedForEveryPublicBinding() {
         ProductSurfaceDecisionContextFilter filter = filter(authority(
                 allowedWave2("LEGAL_ENTITY")));
@@ -1167,6 +1302,25 @@ class ProductSurfaceDecisionContextFilterTest {
                         REVALIDATE_AT, null, "urn:dwp:acr:mfa",
                         "STEPUP-MGMT-HIGH-V1", REVALIDATE_AT),
                 "ctx-approval", scope, false);
+    }
+
+    private ProductSurfaceContextAggregationService.TrustedProductEvaluation stepUpWave2(
+            String scopeKind) {
+        ProductSurfaceContextDtos.EffectiveScope scope =
+                new ProductSurfaceContextDtos.EffectiveScope(
+                        HCM_DERIVED_SCOPE, scopeKind, scopeKind, true, false, REVALIDATE_AT);
+        return new ProductSurfaceContextAggregationService.TrustedProductEvaluation(
+                new ProductSurfaceContextDtos.ProductEvaluationData(
+                        ProductSurfaceContextDtos.Decision.STEP_UP_REQUIRED,
+                        "STEP_UP_REQUIRED", REVISION, null, null, null, null,
+                        REVALIDATE_AT, null, "urn:dwp:acr:mfa",
+                        "STEPUP-MGMT-HIGH-V1", REVALIDATE_AT),
+                "psc-" + "d".repeat(64),
+                scope,
+                new ProductSurfaceContextDtos.SourceRevisions(
+                        "auth-v38", "policy-v38", "relationship-v1",
+                        "population-v1", null),
+                false);
     }
 
     private ProductSurfaceContextAggregationService.TrustedProductEvaluation routeNotRegistered() {

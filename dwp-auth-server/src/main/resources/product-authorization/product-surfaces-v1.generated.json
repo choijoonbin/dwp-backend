@@ -3418,7 +3418,8 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
-        "route.hcm.operations.assignment-command-receipt.data"
+        "route.hcm.operations.assignment-command-receipt.data",
+        "route.hcm.operations.payroll-command-receipt.data"
       ],
       "scopeResolver": "ORIGINATING_COMMAND_SCOPE",
       "sodPolicyId": null,
@@ -4290,6 +4291,103 @@
       "sodPolicyId": null,
       "sunsetAt": null,
       "surfaceKey": "hcm.management"
+    },
+    {
+      "action": "EXECUTE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.payroll-run.execute",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ACTION.HRIS_PAYROLL_RUN:EXECUTE",
+      "resourceKey": "ACTION.HRIS_PAYROLL_RUN",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.hcm.operations.payroll-run-calculate.action",
+        "route.hcm.operations.payroll-run.data"
+      ],
+      "scopeResolver": "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.payroll-support.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "DATA.HRIS_PAYROLL_STATUS:VIEW",
+      "resourceKey": "DATA.HRIS_PAYROLL_STATUS",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.hcm.operations.payroll-run.data"
+      ],
+      "scopeResolver": "PAY_TARGET_POPULATION",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
+      "action": "APPROVE",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.payroll.approve",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ACTION.HRIS_PAYROLL_APPROVE:APPROVE",
+      "resourceKey": "ACTION.HRIS_PAYROLL_APPROVE",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.operations.payroll-run-approve.action"
+      ],
+      "scopeResolver": "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE",
+      "sodPolicyId": "RUN_MAKER_NE_APPROVER",
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
+      "action": "EXECUTE",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.payroll.release",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ACTION.HRIS_PAYROLL_RELEASE:EXECUTE",
+      "resourceKey": "ACTION.HRIS_PAYROLL_RELEASE",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.operations.payroll-run-finalize.action"
+      ],
+      "scopeResolver": "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE",
+      "sodPolicyId": "RUN_MAKER_NE_FINALIZER",
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
     },
     {
       "action": "APPROVE",
@@ -7508,7 +7606,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "4dca145cbc9169c2d1fde71771b83a1a0635679a7190a39d0a21b4e76bbb9329",
+  "checksum": "026157acf598ebabf156b40e3c084c40d52346ebfd2019e2476f30ecdd2b8d93",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -8870,6 +8968,27 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "HcmPayrollCommandReceiptAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Payroll + HCM + Security",
+      "ownerServiceKey": "payroll",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-payroll-command-receipt-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-payroll-command-receipt-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.payroll-command-receipt.data"
+      ],
+      "targetBindingKinds": [
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "HcmPayrollConfigurationAuthorityEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "Payroll + HCM + Security",
@@ -8942,6 +9061,51 @@
       "routeContractKeys": [
         "route.hcm.operations.payroll-foundation-publish.action",
         "route.hcm.operations.payroll-foundation-reverse.action"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmPayrollRunAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Payroll + HCM + Security",
+      "ownerServiceKey": "payroll",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-payroll-run-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-payroll-run-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.payroll-run-approve.action",
+        "route.hcm.operations.payroll-run-calculate.action",
+        "route.hcm.operations.payroll-run-finalize.action",
+        "route.hcm.operations.payroll-run.data"
+      ],
+      "targetBindingKinds": [
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmPayrollRunSodEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Payroll + HCM + Security",
+      "ownerServiceKey": "payroll",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-payroll-run-sod.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-payroll-run-sod.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.payroll-run-approve.action",
+        "route.hcm.operations.payroll-run-finalize.action"
       ],
       "targetBindingKinds": [
         "OBJECT"
@@ -43680,6 +43844,68 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-payroll-command-receipt-authority.v1"
+          ],
+          "profileKey": "originating-command",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.command-receipt.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.payroll-command-receipt.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.payroll-command-receipt.data.originating-command.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.payroll-command-receipt.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-command-receipt.data.binding.01",
+          "method": "GET",
+          "path": "/api/payroll/v1/command-receipts/{receiptId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.payroll-command-receipt.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-command-receipt.data.binding.01",
+          "method": "GET",
+          "path": "/v1/command-receipts/{receiptId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-payroll-foundation-authority.v1"
           ],
           "profileKey": "full-management",
@@ -44258,6 +44484,261 @@
           "bindingKey": "route.hcm.operations.payroll-foundation-versions.data.binding.01",
           "method": "GET",
           "path": "/v1/hris/payroll/foundation/configurations/{configurationId}/versions",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-run-authority.v1",
+            "predicate.hcm-payroll-run-sod.v1"
+          ],
+          "profileKey": "independent-approver",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll.approve",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-run-approve.action.binding.01",
+          "method": "POST",
+          "path": "/api/payroll/v1/runs/{runId}/approvals",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.payroll-run-approve.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-run-approve.action.binding.01",
+          "method": "POST",
+          "path": "/v1/runs/{runId}/approvals",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-payroll-server",
+          "bindingKey": "route.hcm.operations.payroll-run-approve.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "payroll",
+          "targetIdPathParameter": "runId",
+          "targetType": "PAYROLL_RUN"
+        }
+      ],
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-run-authority.v1"
+          ],
+          "profileKey": "payroll-run-operator",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll-run.execute",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-run-calculate.action.binding.01",
+          "method": "POST",
+          "path": "/api/payroll/v1/runs/{runId}/attempts",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.payroll-run-calculate.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-run-calculate.action.binding.01",
+          "method": "POST",
+          "path": "/v1/runs/{runId}/attempts",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-run-authority.v1",
+            "predicate.hcm-payroll-run-sod.v1"
+          ],
+          "profileKey": "release-officer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll.release",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-run-finalize.action.binding.01",
+          "method": "POST",
+          "path": "/api/payroll/v1/runs/{runId}/finalize",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.payroll-run-finalize.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-run-finalize.action.binding.01",
+          "method": "POST",
+          "path": "/v1/runs/{runId}/finalize",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-payroll-server",
+          "bindingKey": "route.hcm.operations.payroll-run-finalize.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "payroll",
+          "targetIdPathParameter": "runId",
+          "targetType": "PAYROLL_RUN"
+        }
+      ],
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-run-authority.v1"
+          ],
+          "profileKey": "payroll-run-viewer",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKeys": [
+              "hcm.operations.payroll-run.execute",
+              "hcm.operations.payroll-support.view"
+            ],
+            "mode": "ANY",
+            "type": "CAPABILITY_EXPRESSION"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.payroll-run.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.payroll-run.data.payroll-run-viewer.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.payroll-run.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-run.data.binding.01",
+          "method": "GET",
+          "path": "/api/payroll/v1/runs/{runId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.payroll-run.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-run.data.binding.01",
+          "method": "GET",
+          "path": "/v1/runs/{runId}",
           "pathParameterConstraints": {},
           "serviceKey": "payroll"
         }
@@ -71164,5 +71645,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 40
+  "version": 41
 }

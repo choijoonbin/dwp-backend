@@ -177,17 +177,20 @@ LEGACY_HCM_PLATFORM_PEP_V38_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_nam
 HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v40.generated.json"
 )
-HCM_PAYROLL_PEP_OUTPUT = (
+LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT = (
     ROOT
     / "dwp-payroll-server/src/main/resources/product-authorization/"
     / "hcm-payroll-pep-v38.generated.json"
+)
+HCM_PAYROLL_PEP_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
+    "hcm-payroll-pep-v41.generated.json"
 )
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 41))
+BUNDLE_VERSIONS = tuple(range(1, 42))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -301,6 +304,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 60, "routes": 1003, "PAGE": 129, "DATA": 301, "ACTION": 573},
     40: {"capabilities": 248, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 61, "routes": 1012, "PAGE": 130, "DATA": 302, "ACTION": 580},
+    41: {"capabilities": 252, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 64, "routes": 1017, "PAGE": 130, "DATA": 304, "ACTION": 583},
 }
 
 V37_TIME_VOID_ROUTE = "route.hcm.operations.time-clock-event-void.action"
@@ -3285,6 +3290,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PLATFORM_PEP_V37_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V38_OUTPUT,
         HCM_PLATFORM_PEP_OUTPUT,
+        LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT,
         HCM_PAYROLL_PEP_OUTPUT,
     }
     candidates = {
@@ -3800,7 +3806,7 @@ def main() -> int:
             version=40,
             product_key="hcm",
         )
-        hcm_payroll_pep = build_approvals_pep(
+        legacy_hcm_payroll_pep_v38 = build_approvals_pep(
             snapshots[37],
             "payroll",
             "hcm-payroll-pep-v38",
@@ -3814,6 +3820,22 @@ def main() -> int:
                 "predicatePolicies": 3,
             },
             version=38,
+            product_key="hcm",
+        )
+        hcm_payroll_pep = build_approvals_pep(
+            snapshots[40],
+            "payroll",
+            "hcm-payroll-pep-v41",
+            {
+                "routes": 21,
+                "bindings": 21,
+                "routeKinds": {"ACTION": 14, "DATA": 6, "PAGE": 1},
+                "capabilities": 15,
+                "accessPolicies": 0,
+                "entitlementExpressions": 0,
+                "predicatePolicies": 6,
+            },
+            version=41,
             product_key="hcm",
         )
     except ContractError as exc:
@@ -3998,6 +4020,11 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT,
+                render(legacy_hcm_payroll_pep_v38),
+                args.check,
+            ),
+            write_or_check(
                 HCM_PAYROLL_PEP_OUTPUT,
                 render(hcm_payroll_pep),
                 args.check,
@@ -4095,6 +4122,9 @@ def main() -> int:
             LEGACY_HCM_PLATFORM_PEP_V38_OUTPUT, legacy_hcm_platform_pep_v38
         )
         verify_approvals_pep(HCM_PLATFORM_PEP_OUTPUT, hcm_platform_pep)
+        verify_approvals_pep(
+            LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT, legacy_hcm_payroll_pep_v38
+        )
         verify_approvals_pep(HCM_PAYROLL_PEP_OUTPUT, hcm_payroll_pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)

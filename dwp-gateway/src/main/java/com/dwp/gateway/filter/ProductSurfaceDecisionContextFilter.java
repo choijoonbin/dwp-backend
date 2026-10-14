@@ -71,6 +71,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.operations.time-interpretation.page",
             "route.hcm.operations.time-interpretation-run.action",
             "route.hcm.operations.time-interpretation-trace.data");
+    private static final Set<String> PAYROLL_OWNER_POPULATION_ROUTE_KEYS = Set.of(
+            "route.hcm.operations.payroll-run-calculate.action",
+            "route.hcm.operations.payroll-run.data",
+            "route.hcm.operations.payroll-run-approve.action",
+            "route.hcm.operations.payroll-run-finalize.action",
+            "route.hcm.operations.payroll-command-receipt.data");
     private static final Map<String, String> WAVE2_OWNER_PURPOSE_BY_ROUTE = Map.ofEntries(
             Map.entry("route.hcm.personal.employment-documents.page", "HR_LIFECYCLE"),
             Map.entry("route.hcm.operations.employment-assignments.page", "HR_LIFECYCLE"),
@@ -94,6 +100,16 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                     "PAYROLL_CONFIGURATION"),
             Map.entry("route.hcm.configuration.payroll-formula-publish.action",
                     "PAYROLL_CONFIGURATION"),
+            Map.entry("route.hcm.operations.payroll-run-calculate.action",
+                    "PAYROLL_PROCESSING"),
+            Map.entry("route.hcm.operations.payroll-run.data",
+                    "PAYROLL_PROCESSING"),
+            Map.entry("route.hcm.operations.payroll-run-approve.action",
+                    "PAYROLL_PROCESSING"),
+            Map.entry("route.hcm.operations.payroll-run-finalize.action",
+                    "PAYROLL_PROCESSING"),
+            Map.entry("route.hcm.operations.payroll-command-receipt.data",
+                    "COMMAND_STATUS"),
             Map.entry("route.hcm.operations.compensation-planning.page",
                     "COMPENSATION_PLANNING"),
             Map.entry("route.hcm.operations.compensation-cycle-detail.data",
@@ -379,10 +395,11 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
-        String populationKind = TIM_WAVE2_ROUTE_KEYS.contains(route.routeContractKey())
-                && trustedResult.scope() != null ? trustedResult.scope().kind() : null;
-        if (TIM_WAVE2_ROUTE_KEYS.contains(route.routeContractKey())
-                && blank(populationKind)) {
+        boolean requiresPopulationKind = TIM_WAVE2_ROUTE_KEYS.contains(route.routeContractKey())
+                || PAYROLL_OWNER_POPULATION_ROUTE_KEYS.contains(route.routeContractKey());
+        String populationKind = requiresPopulationKind && trustedResult.scope() != null
+                ? trustedResult.scope().kind() : null;
+        if (requiresPopulationKind && blank(populationKind)) {
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }

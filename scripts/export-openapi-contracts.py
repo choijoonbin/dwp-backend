@@ -23,9 +23,9 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v40.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v41.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 40
+PRODUCT_AUTHORIZATION_VERSION = 41
 HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY = (
     ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v38.json"
 )
@@ -211,6 +211,29 @@ COMPENSATION_PLANNING_OPERATION_CONTRACTS = {
 COMPENSATION_PLANNING_ROUTE_KEYS = frozenset(
     COMPENSATION_PLANNING_OPERATION_CONTRACTS
 )
+PAYROLL_RUN_OPERATION_CONTRACTS = {
+    "route.hcm.operations.payroll-run-calculate.action": (
+        "post", "/v1/runs/{runId}/attempts", "calculatePayrollRun",
+        "PAY_RUN_CALCULATE", "PAYROLL_PROCESSING",
+    ),
+    "route.hcm.operations.payroll-run.data": (
+        "get", "/v1/runs/{runId}", "getPayrollRun",
+        "PAY_RUN_VIEW", "PAYROLL_PROCESSING",
+    ),
+    "route.hcm.operations.payroll-run-approve.action": (
+        "post", "/v1/runs/{runId}/approvals", "approvePayrollRun",
+        "PAY_RUN_APPROVE", "PAYROLL_PROCESSING",
+    ),
+    "route.hcm.operations.payroll-run-finalize.action": (
+        "post", "/v1/runs/{runId}/finalize", "finalizePayrollRun",
+        "PAY_RUN_FINALIZE", "PAYROLL_PROCESSING",
+    ),
+    "route.hcm.operations.payroll-command-receipt.data": (
+        "get", "/v1/command-receipts/{receiptId}", "getPayrollCommandReceipt",
+        "PAY_COMMAND_RECEIPT_READ", "COMMAND_STATUS",
+    ),
+}
+PAYROLL_RUN_ROUTE_KEYS = frozenset(PAYROLL_RUN_OPERATION_CONTRACTS)
 HRM_EMPLOYEE_CHANGE_INTERNAL_OPERATION = (
     "post",
     "/internal/hris-people/v1/employee-change-requests/{requestPublicId}/approval-decisions",
@@ -1571,6 +1594,146 @@ def validate_sys_reference_configuration_contract(
                     )
 
 
+def validate_payroll_run_contract(
+    payroll_document: dict[str, Any], gateway_document: dict[str, Any]
+) -> None:
+    """Pin the PAY-011 public PEP bridge before the owner runtime is enabled."""
+    registry = load_product_authorization_registry()
+    routes = {
+        route.get("routeContractKey"): route
+        for route in registry["routes"]
+        if route.get("routeContractKey") in PAYROLL_RUN_ROUTE_KEYS
+    }
+    if set(routes) != PAYROLL_RUN_ROUTE_KEYS:
+        raise RuntimeError("Payroll-run v41 authorization routes are not exact")
+
+    expected_owner_operations: set[tuple[str, str]] = set()
+    expected_gateway_operations: set[tuple[str, str]] = set()
+    for route_key, route in routes.items():
+        owner_bindings = route.get("servicePepBindings")
+        gateway_bindings = route.get("gatewayApiBindings")
+        if (
+            route.get("lifecycleState") != "ACTIVE"
+            or route.get("subject") != {
+                "type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"
+            }
+            or not isinstance(owner_bindings, list)
+            or len(owner_bindings) != 1
+            or not isinstance(gateway_bindings, list)
+            or len(gateway_bindings) != 1
+        ):
+            raise RuntimeError(f"Payroll-run v41 route is invalid: {route_key}")
+        owner = owner_bindings[0]
+        browser = gateway_bindings[0]
+        expected_method, expected_owner_path, _, _, _ = (
+            PAYROLL_RUN_OPERATION_CONTRACTS[route_key]
+        )
+        method = str(owner.get("method", "")).lower()
+        owner_path = owner.get("path")
+        browser_path = browser.get("path")
+        if (
+            method != expected_method
+            or owner_path != expected_owner_path
+            or owner.get("serviceKey") != "payroll"
+            or browser.get("bindingKey") != owner.get("bindingKey")
+            or str(browser.get("method", "")).lower() != method
+            or not isinstance(owner_path, str)
+            or prefixed("/api/payroll")(owner_path) != browser_path
+        ):
+            raise RuntimeError(f"Payroll-run v41 binding drift: {route_key}")
+        expected_owner_operations.add((method, owner_path))
+        expected_gateway_operations.add((method, browser_path))
+
+    overlay_paths = load_design_time_overlays().get("payroll", {}).get("paths", {})
+    actual_overlay = {
+        (method, path)
+        for path, path_item in overlay_paths.items()
+        if path in {path for _, path in expected_owner_operations}
+        for method in path_item
+        if method in HTTP_METHODS
+    }
+    if actual_overlay != expected_owner_operations:
+        raise RuntimeError("Payroll-run v41 design-time operations are not exact")
+
+    proof_routes = {
+        "route.hcm.operations.payroll-run-approve.action",
+        "route.hcm.operations.payroll-run-finalize.action",
+    }
+
+    def parameters(operation: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+        return {
+            (str(value.get("in", "")).lower(), str(value.get("name", "")).lower()): value
+            for value in operation.get("parameters", [])
+            if isinstance(value, dict)
+        }
+
+    for route_key, route in routes.items():
+        method, owner_path, operation_id, alias, purpose = (
+            PAYROLL_RUN_OPERATION_CONTRACTS[route_key]
+        )
+        browser_path = route["gatewayApiBindings"][0]["path"]
+        owner_operation = payroll_document.get("paths", {}).get(owner_path, {}).get(method)
+        browser_operation = gateway_document.get("paths", {}).get(browser_path, {}).get(method)
+        if (
+            not isinstance(owner_operation, dict)
+            or not isinstance(browser_operation, dict)
+            or owner_operation.get("operationId") != operation_id
+            or browser_operation.get("operationId") != f"payroll_{operation_id}"
+        ):
+            raise RuntimeError(f"Payroll-run v41 OpenAPI operation drift: {route_key}")
+        for label, operation in (("owner", owner_operation), ("gateway", browser_operation)):
+            if (
+                operation.get("x-dwp-runtime-default") != "OFF"
+                or operation.get("x-dwp-source-authorization-alias") != alias
+                or operation.get("x-dwp-purpose-code") != purpose
+            ):
+                raise RuntimeError(
+                    f"Payroll-run v41 {label} contract metadata drift: {route_key}"
+                )
+        owner_parameters = parameters(owner_operation)
+        browser_parameters = parameters(browser_operation)
+        if ("query", "contextscopekey") not in browser_parameters:
+            raise RuntimeError(f"Payroll-run v41 scope selector missing: {route_key}")
+
+        if route_key in proof_routes:
+            expected_step_up = [{
+                "audience": "dwp-payroll-server",
+                "bindingKey": route_key + ".binding.01",
+                "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+                "expectedObjectVersionSource": "COMMAND_HEADER",
+                "ownerServiceKey": "payroll",
+                "targetIdPathParameter": "runId",
+                "targetType": "PAYROLL_RUN",
+            }]
+            proof_headers = {
+                ("header", "x-dwp-step-up-challenge"),
+                ("header", "x-dwp-expected-decision-revision"),
+                ("header", "x-dwp-expected-object-version"),
+            }
+            if (
+                route.get("stepUpCommandBindings") != expected_step_up
+                or owner_operation.get("x-dwp-command-proof-required") is not True
+                or browser_operation.get("x-dwp-command-proof-required") is not True
+                or not proof_headers <= set(owner_parameters)
+                or not proof_headers <= set(browser_parameters)
+                or any(
+                    owner_parameters[key].get("required") is not True
+                    or browser_parameters[key].get("required") is not True
+                    for key in proof_headers
+                )
+            ):
+                raise RuntimeError(f"Payroll-run v41 step-up proof drift: {route_key}")
+        elif route.get("stepUpCommandBindings"):
+            raise RuntimeError(f"Payroll-run v41 unexpected step-up: {route_key}")
+
+    receipt = payroll_document["paths"]["/v1/command-receipts/{receiptId}"]["get"]
+    if (
+        receipt.get("x-dwp-opaque-not-found") is not True
+        or "404" not in receipt.get("responses", {})
+    ):
+        raise RuntimeError("Payroll command receipt must preserve opaque 404 semantics")
+
+
 def canonical_contract_hash(value: Any) -> str:
     payload = json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -2786,6 +2949,9 @@ def main() -> int:
     )
     validate_compensation_planning_contract(
         outputs["people.json"], outputs["gateway-public.json"]
+    )
+    validate_payroll_run_contract(
+        outputs["payroll.json"], outputs["gateway-public.json"]
     )
     validate_platform_device_identity(outputs["platform.json"])
     validate_platform_device_identity(outputs["gateway-public.json"], gateway=True)

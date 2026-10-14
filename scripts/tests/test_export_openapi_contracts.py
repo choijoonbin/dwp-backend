@@ -447,7 +447,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_latest_v40_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_latest_v41_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -456,8 +456,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 40)
-        self.assertEqual(registry["version"], 40)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 41)
+        self.assertEqual(registry["version"], 41)
         self.assertEqual(EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_VERSION"], 38)
         self.assertTrue(str(
             EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY"]
@@ -553,6 +553,52 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             "/api/people/v1/hris/employee-change-requests"
         ]["post"]["x-dwp-product-authorization-v38"]
         self.assertEqual(38, employee["registryVersion"])
+
+    def test_payroll_run_v41_exports_exact_peps_and_proof_boundary(self) -> None:
+        registry = json.loads(
+            EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"].read_text(encoding="utf-8")
+        )
+        routes = {
+            route["routeContractKey"]: route for route in registry["routes"]
+            if route["routeContractKey"] in EXPORTER["PAYROLL_RUN_ROUTE_KEYS"]
+        }
+        payroll = json.loads(
+            (ROOT / "contracts/openapi/payroll.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(EXPORTER["PAYROLL_RUN_ROUTE_KEYS"], set(routes))
+        EXPORTER["validate_payroll_run_contract"](payroll, gateway)
+        proof_routes = {
+            "route.hcm.operations.payroll-run-approve.action",
+            "route.hcm.operations.payroll-run-finalize.action",
+        }
+        for route_key, route in routes.items():
+            binding = route["gatewayApiBindings"][0]
+            operation = gateway["paths"][binding["path"]][binding["method"].lower()]
+            parameters = {
+                (parameter.get("in"), parameter.get("name")): parameter
+                for parameter in operation.get("parameters", [])
+                if isinstance(parameter, dict)
+            }
+            self.assertIn(("query", "contextScopeKey"), parameters)
+            if route["routeKind"] == "ACTION":
+                self.assertIn(
+                    ("header", "X-DWP-Expected-Decision-Revision"), parameters
+                )
+            if route_key in proof_routes:
+                for name in (
+                    "X-DWP-Step-Up-Challenge",
+                    "X-DWP-Expected-Decision-Revision",
+                    "X-DWP-Expected-Object-Version",
+                ):
+                    self.assertTrue(parameters[("header", name)]["required"])
+            else:
+                self.assertNotIn(
+                    ("header", "X-DWP-Step-Up-Challenge"), parameters
+                )
 
     def test_compensation_planning_validator_rejects_payload_graph_drift(self) -> None:
         people = json.loads(

@@ -17,6 +17,41 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestSupport {
 
     @Test
+    void v41GovernsExactPayrollRunPepsAndOnlyElevatesApprovalAndFinalize() {
+        GeneratedProductRouteCatalog latest = catalog(41);
+        for (List<String> binding : List.of(
+                List.of("POST", "/api/payroll/v1/runs/"
+                                + "00000000-0000-4000-8000-000000000001/attempts",
+                        "route.hcm.operations.payroll-run-calculate.action", "ACTION", "false"),
+                List.of("GET", "/api/payroll/v1/runs/"
+                                + "00000000-0000-4000-8000-000000000001",
+                        "route.hcm.operations.payroll-run.data", "DATA", "false"),
+                List.of("POST", "/api/payroll/v1/runs/"
+                                + "00000000-0000-4000-8000-000000000001/approvals",
+                        "route.hcm.operations.payroll-run-approve.action", "ACTION", "true"),
+                List.of("POST", "/api/payroll/v1/runs/"
+                                + "00000000-0000-4000-8000-000000000001/finalize",
+                        "route.hcm.operations.payroll-run-finalize.action", "ACTION", "true"),
+                List.of("GET", "/api/payroll/v1/command-receipts/"
+                                + "00000000-0000-4000-8000-000000000002",
+                        "route.hcm.operations.payroll-command-receipt.data", "DATA", "false"))) {
+            var match = latest.match(binding.get(0), binding.get(1));
+            assertThat(match.status()).as(binding.toString())
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(match.uniqueRoute().routeContractKey()).isEqualTo(binding.get(2));
+            assertThat(match.uniqueRoute().routeKind()).isEqualTo(binding.get(3));
+            assertThat(match.uniqueRoute().highRiskStepUp())
+                    .isEqualTo(Boolean.parseBoolean(binding.get(4)));
+            assertThat(catalog(40).match(binding.get(0), binding.get(1)).uniqueRoute())
+                    .as(binding.toString()).isNull();
+        }
+
+        assertThat(latest.match("DELETE", "/api/payroll/v1/runs/"
+                        + "00000000-0000-4000-8000-000000000001").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+    }
+
+    @Test
     void v21GovernsEveryAiRuntimeControlBindingWithExactMethods() {
         GeneratedProductRouteCatalog latest = catalog(21);
         for (List<String> binding : List.of(

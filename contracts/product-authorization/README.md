@@ -54,12 +54,17 @@ canonical source contains a version 1 base plus append-only version 2 through
 - `product-surfaces-v1.bundle-v32.json` — immutable Communications code-set read boundary, checksum `b620ea86…`
 - `product-surfaces-v1.bundle-v33.json` — combined default-off HRIS Wave 1 and system-management closure, checksum `9c9a18b4…`
 - `product-surfaces-v1.bundle-v34.json` — assignment-proposal read/command authority closure, checksum `852d20e1…`
-- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v34
+- `product-surfaces-v1.bundle-v35.json` through `bundle-v37.json` — HRIS G7 operation closure and immutable performance/time authority corrections
+- `product-surfaces-v1.bundle-v38.json` — HRIS Wave 2 People, Time, and Payroll configuration closure
+- `product-surfaces-v1.bundle-v39.json` — compensation-planning authority closure
+- `product-surfaces-v1.bundle-v40.json` — HRIS navigation-policy authority closure
+- `product-surfaces-v1.bundle-v41.json` — PAY-011 payroll-run and originating-command-receipt PEP bridge, checksum `026157ac…`
+- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v41
 - `product-surfaces-v1.index.json` — checksummed version/artifact index
 
 Auth classpath resources use the same names with `.generated.json` before the
 extension. Every contract snapshot is byte-identical to its Auth seed peer;
-the latest Auth alias is byte-identical to bundle v34. The generator verifies
+the latest Auth alias is byte-identical to bundle v41. The generator verifies
 all files, checksums, aliases, descriptor preservation and monotonic reverse
 references in both generate and `--check` modes.
 
@@ -109,6 +114,13 @@ lifecycle commands. Submit is the only HIGH-risk command and is closed by the
 manifest as DRAFT only; it does not import, approve, activate or assign v34.
 The runtime People projection advances to `hcm-people-pep-v34.generated.json`
 while the v3 and v33 projections remain immutable lineage artifacts.
+
+Canonical v41 preserves every v1-v40 byte and appends only the five PAY-011
+operation bindings: calculate, run view, approve, finalize, and originating
+command receipt. Approve and finalize alone require the high-assurance step-up
+contract and Payroll-owned maker-checker evidence. Generation and Auth V250
+declare v41 as `DRAFT`; they do not enable the default-off owner runtime,
+approve the bundle, activate it, or assign it to a tenant.
 
 Two superseded integration-branch DRAFT artifacts used different v32/v33
 checksums (`9e4e274b…` and `254ead67…`). They are not members of the canonical

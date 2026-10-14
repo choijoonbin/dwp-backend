@@ -761,6 +761,100 @@
         },
         "/v1/hris/payroll/foundation/receipts/{commandId}/reconcile": {
           "post": {"operationId": "hrisPayrollReconcileCommand", "parameters": [{"in": "path", "name": "commandId", "required": true, "schema": {"format": "uuid", "type": "string"}}], "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "reconcile", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/runs/{runId}/attempts": {
+          "post": {
+            "operationId": "calculatePayrollRun",
+            "parameters": [
+              {"in": "path", "name": "runId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Object-Version", "required": true, "schema": {"format": "int64", "minimum": 0, "type": "integer"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"format": "uuid", "type": "string"}}
+            ],
+            "responses": {"202": {"description": "Payroll calculation attempt accepted"}},
+            "tags": ["payroll-run-controller"],
+            "x-dwp-controller-method": "calculate",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "PAYROLL_PROCESSING",
+            "x-dwp-runtime-default": "OFF",
+            "x-dwp-source-authorization-alias": "PAY_RUN_CALCULATE"
+          }
+        },
+        "/v1/runs/{runId}": {
+          "get": {
+            "operationId": "getPayrollRun",
+            "parameters": [
+              {"in": "path", "name": "runId", "required": true, "schema": {"format": "uuid", "type": "string"}}
+            ],
+            "responses": {"200": {"description": "Field-projected payroll run"}},
+            "tags": ["payroll-run-controller"],
+            "x-dwp-controller-method": "run",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "PAYROLL_PROCESSING",
+            "x-dwp-runtime-default": "OFF",
+            "x-dwp-source-authorization-alias": "PAY_RUN_VIEW"
+          }
+        },
+        "/v1/runs/{runId}/approvals": {
+          "post": {
+            "operationId": "approvePayrollRun",
+            "parameters": [
+              {"in": "path", "name": "runId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"maxLength": 16384, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Object-Version", "required": true, "schema": {"format": "int64", "minimum": 0, "type": "integer"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"format": "uuid", "type": "string"}}
+            ],
+            "responses": {"202": {"description": "Payroll run approval accepted"}},
+            "tags": ["payroll-run-controller"],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-controller-method": "approve",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "PAYROLL_PROCESSING",
+            "x-dwp-runtime-default": "OFF",
+            "x-dwp-source-authorization-alias": "PAY_RUN_APPROVE"
+          }
+        },
+        "/v1/runs/{runId}/finalize": {
+          "post": {
+            "operationId": "finalizePayrollRun",
+            "parameters": [
+              {"in": "path", "name": "runId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"maxLength": 16384, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Object-Version", "required": true, "schema": {"format": "int64", "minimum": 0, "type": "integer"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"format": "uuid", "type": "string"}}
+            ],
+            "responses": {"202": {"description": "Payroll run finalization accepted"}},
+            "tags": ["payroll-run-controller"],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-controller-method": "finalize",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "PAYROLL_PROCESSING",
+            "x-dwp-runtime-default": "OFF",
+            "x-dwp-source-authorization-alias": "PAY_RUN_FINALIZE"
+          }
+        },
+        "/v1/command-receipts/{receiptId}": {
+          "get": {
+            "operationId": "getPayrollCommandReceipt",
+            "parameters": [
+              {"in": "path", "name": "receiptId", "required": true, "schema": {"format": "uuid", "type": "string"}}
+            ],
+            "responses": {
+              "200": {"description": "Field-projected originating command receipt"},
+              "404": {"description": "Receipt absent or outside the current originating-command scope"}
+            },
+            "tags": ["payroll-command-receipt-controller"],
+            "x-dwp-controller-method": "receipt",
+            "x-dwp-opaque-not-found": true,
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "COMMAND_STATUS",
+            "x-dwp-runtime-default": "OFF",
+            "x-dwp-source-authorization-alias": "PAY_COMMAND_RECEIPT_READ"
+          }
         }
       }
     },
