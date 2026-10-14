@@ -261,6 +261,53 @@ class ProductAuthorizationAuthorityAdapterTest {
     }
 
     @Test
+    void explicitReviewScopeSelectsTheMatchingDualProfileWithoutUsingReviewId() throws IOException {
+        useContract("product-surfaces-v1.bundle-v42.generated.json");
+        evidence(Set.of(
+                "APP.HCM:VIEW",
+                "DATA.HRIS_PERFORMANCE_REVIEW:UPDATE"), List.of());
+        String route = "route.hcm.performance.assigned-review.data";
+
+        ProductSurfaceAuthorityDtos.AuthorityResult assigned = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                route, null, null, null, null, List.of());
+        assertThat(assigned.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(assigned.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.capabilityContractKey())
+                                .isEqualTo("hcm.team.performance.review"));
+        assertThat(assigned.scopes()).singleElement()
+                .extracting(ProductSurfaceAuthorityDtos.EffectiveScope::kind)
+                .isEqualTo("TARGET_POPULATION");
+
+        ProductSurfaceAuthorityDtos.EvaluateRequest selfRequest = request(
+                "hcm", "hcm.operations", route);
+        String selfScope = ProductAuthorizationAuthoritySupport.scopeKey(
+                selfRequest, "SELF", "SELF");
+        ProductSurfaceAuthorityDtos.AuthorityResult self = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                route, null, selfScope, null, null, List.of());
+        assertThat(self.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(self.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.capabilityContractKey())
+                                .isEqualTo("per.review.self.submit"));
+        assertThat(self.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.key()).isEqualTo(selfScope);
+            assertThat(scope.kind()).isEqualTo("SELF");
+        });
+
+        ProductSurfaceAuthorityDtos.AuthorityResult stale = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                route, null, "scope-stale", null, null, List.of());
+        assertThat(stale.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+        assertThat(stale.routeGrantRef()).isNull();
+    }
+
+    @Test
     void requiresStepUpForActivationPolicyAndAllowsVerifiedElevatedPermission() {
         evidence(Set.of("ACTION.WORKFORCE_CONTROLLED_EXPORT:EXPORT"), List.of());
         ProductSurfaceAuthorityDtos.AuthorityResult challenged = evaluate(
@@ -856,6 +903,71 @@ class ProductAuthorizationAuthorityAdapterTest {
         assertThat(absentRoute.reasonCode()).isEqualTo("PRODUCT_NOT_REGISTERED");
         assertThat(driftedSurface.reasonCode()).isEqualTo("SURFACE_NOT_REGISTERED");
         assertThat(driftedRoute.reasonCode()).isEqualTo("ROUTE_NOT_REGISTERED");
+    }
+
+    @Test
+    void hcmAuditEvidenceNormalIsChallengeOnlyAndElevatedIsTheOnlyAllowedMode()
+            throws Exception {
+        useContract("product-surfaces-v1.bundle-v42.generated.json");
+        AppGovernanceDtos.ResourceRole duty = role(
+                "HRIS_DUTY_AUDITOR", "APP.HCM", "RS_HCM_CONFIG");
+        evidence(
+                Set.of("APP.HCM:VIEW", "ADMIN.AUDIT_VIEW:VIEW"),
+                Set.of("HRIS_AUDITOR"), List.of(duty));
+
+        ProductSurfaceAuthorityDtos.AuthorityResult challenge = evaluate(
+                "hcm", "hcm.management", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.audit.evidence.page",
+                null, null, null, null, List.of());
+        assertThat(challenge.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        assertThat(challenge.routeGrantRef()).isNull();
+        assertThat(challenge.requiredAssurance()).isEqualTo("urn:dwp:acr:mfa");
+        assertThat(challenge.effectiveReadOnly()).isTrue();
+
+        ProductSurfaceAuthorityDtos.AuthorityResult allowed = evaluate(
+                "hcm", "hcm.management", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                "route.hcm.audit.evidence.page",
+                null, null, null, null, List.of());
+        assertThat(allowed.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(allowed.routeGrantRef()).startsWith("grant-");
+        assertThat(allowed.appResourceKey()).isEqualTo("APP.HCM");
+        assertThat(allowed.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("RESOURCE_SET");
+            assertThat(scope.readOnly()).isTrue();
+        });
+
+        evidence(
+                Set.of("ADMIN.AUDIT_VIEW:VIEW"),
+                Set.of("HRIS_AUDITOR"), List.of(duty));
+        ProductSurfaceAuthorityDtos.AuthorityResult unqualified = evaluate(
+                "hcm", "hcm.management", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.audit.evidence.page",
+                null, null, null, null, List.of());
+        assertThat(unqualified.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
+        assertThat(unqualified.decision())
+                .isNotEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+
+        evidence(
+                Set.of("APP.HCM:VIEW", "ADMIN.AUDIT_VIEW:VIEW"),
+                Set.of("HRIS_AUDITOR", "HRIS_CONFIG_AUTHOR"), List.of(duty));
+        ProductSurfaceAuthorityDtos.AuthorityResult normalConflict = evaluate(
+                "hcm", "hcm.management", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.audit.evidence-detail.data",
+                null, null, null, null, List.of());
+        assertThat(normalConflict.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SOD_CONFLICT);
+        assertThat(normalConflict.decision())
+                .isNotEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        ProductSurfaceAuthorityDtos.AuthorityResult conflicted = evaluate(
+                "hcm", "hcm.management", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                "route.hcm.audit.evidence-detail.data",
+                null, null, null, null, List.of());
+        assertThat(conflicted.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SOD_CONFLICT);
+        assertThat(conflicted.routeGrantRef()).isNull();
     }
 
     private void evidence(

@@ -132,17 +132,25 @@ public class HcmPopulationScopeService {
     }
 
     public void requireSelfScope() {
+        requireSelfScope("hcm.personal");
+    }
+
+    /** Revalidates an Auth-selected SELF resolver declared on a generated surface. */
+    public void requireSelfScope(String sourceSurfaceKey) {
         HcmPepContext.Evidence evidence = HcmPepContext.current();
         if (evidence == null) return;
+        if (!Set.of("hcm.personal", "hcm.operations").contains(sourceSurfaceKey)) {
+            throw forbidden("The selected HCM self-scope source is not supported.");
+        }
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         HcmPopulationRepository.ActorWorkforce workforce = repository.actor(
                 actor.tenantId(), actor.personPublicId()).orElseThrow(() -> forbidden(
                         "The current identity is not linked to an active HCM worker."));
         String sourceKey = ProductSurfaceScopeKey.key(
-                actor.tenantId(), actor.userId(), "hcm", "hcm.personal", "SELF", "SELF");
+                actor.tenantId(), actor.userId(), "hcm", sourceSurfaceKey, "SELF", "SELF");
         String targetRevision = "self:" + workforce.personId() + ':' + workforce.revision();
         String derived = HcmEligibilityScopeKeys.derived(
-                actor.tenantId(), actor.userId(), "hcm.personal", sourceKey,
+                actor.tenantId(), actor.userId(), sourceSurfaceKey, sourceKey,
                 workforce.revision(), targetRevision);
         if (!derived.equals(evidence.scopeKey())) {
             throw forbidden("The selected HCM self scope changed or is no longer current.");

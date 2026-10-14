@@ -156,6 +156,11 @@ final class ProductAuthorizationAuthoritySupport {
                 && identity.hasPermission(resourceKey + ":VIEW");
     }
 
+    static HcmAuditAuthorityPolicy.AuthorityEvidence hcmAuditAuthority(
+            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity) {
+        return HcmAuditAuthorityPolicy.evaluate(identity);
+    }
+
     static boolean evaluateEntitlement(
             JsonNode expression,
             ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity) {

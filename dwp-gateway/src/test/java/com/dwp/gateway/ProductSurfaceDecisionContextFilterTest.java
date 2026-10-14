@@ -306,6 +306,156 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void wave5SysPerTimOwnerContextIsExactAndReplacesSpoofedHeaders() {
+        String id = "10000000-0000-4000-8000-000000000251";
+        record Case(
+                String method,
+                String path,
+                String route,
+                String purpose,
+                String population,
+                boolean command) {}
+        List<Case> cases = List.of(
+                new Case("GET", "/api/platform/v1/admin/audit-control/events?product=HCM",
+                        "route.hcm.audit.evidence.page", "HRIS_AUDIT_EVIDENCE", null, false),
+                new Case("GET", "/api/platform/v1/admin/audit-control/events/" + id
+                        + "?product=HCM", "route.hcm.audit.evidence-detail.data",
+                        "HRIS_AUDIT_EVIDENCE", null, false),
+                new Case("GET", "/api/people/v1/hris/performance/reviews/" + id,
+                        "route.hcm.performance.assigned-review.data",
+                        "PERFORMANCE_REVIEW", "TARGET_POPULATION", false),
+                new Case("PATCH", "/api/people/v1/hris/performance/reviews/" + id,
+                        "route.hcm.performance.assigned-review-draft-update.action",
+                        "PERFORMANCE_REVIEW", "SELF", true),
+                new Case("POST", "/api/people/v1/hris/performance/reviews/" + id + "/submit",
+                        "route.hcm.performance.assigned-review-submit.action",
+                        "PERFORMANCE_REVIEW", "SELF", true),
+                new Case("GET", "/api/people/v1/hris/performance/workbench/multirater-surveys",
+                        "route.hcm.operations.performance-multirater-surveys.page",
+                        "PERFORMANCE_OPERATIONS", "TARGET_POPULATION", false),
+                new Case("GET", "/api/time/v1/timecards/" + id,
+                        "route.hcm.time.timecard.data", "TIME_TIMECARD", "SELF", false),
+                new Case("POST", "/api/time/v1/timecards/" + id + "/corrections",
+                        "route.hcm.time.timecard-correction.action",
+                        "TIME_TIMECARD", "TARGET_POPULATION", true),
+                new Case("POST", "/api/time/v1/timecards/" + id + "/submit",
+                        "route.hcm.time.timecard-submit.action", "TIME_TIMECARD", "SELF", true),
+                new Case("POST", "/api/time/v1/timecards/" + id + "/decisions",
+                        "route.hcm.time.timecard-decision.action",
+                        "TIME_TIMECARD", "TARGET_POPULATION", true),
+                new Case("GET", "/api/time/v1/command-receipts/" + id,
+                        "route.hcm.time.command-receipt.data",
+                        "COMMAND_STATUS", "TARGET_POPULATION", false));
+
+        for (Case requestCase : cases) {
+            String scopeKind = requestCase.population() == null
+                    ? "RESOURCE_SET" : requestCase.population();
+            ProductSurfaceDecisionContextFilter filter = filter(authority(
+                    allowedWave2(scopeKind)));
+            MockServerHttpRequest.BaseBuilder<?> builder = MockServerHttpRequest.method(
+                            HttpMethod.valueOf(requestCase.method()), requestCase.path())
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000041")
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                            "CLIENT_FORGED");
+            if (requestCase.command()) {
+                builder.header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                        REVISION);
+            }
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange(builder), filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(requestCase.route()).isNotNull();
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                    .containsExactly(requestCase.route());
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                    .containsExactly(requestCase.purpose());
+            if (requestCase.population() == null) {
+                assertThat(forwarded.get().getHeaders().containsKey(
+                        ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER)).isFalse();
+            } else {
+                assertThat(forwarded.get().getHeaders().get(
+                        ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                        .containsExactly(requestCase.population());
+            }
+        }
+    }
+
+    @Test
+    void normalHcmAuditChallengeNeverReceivesOwnerForwardingEvidence() {
+        ProductSurfaceDecisionContextFilter filter = filter(authority(
+                stepUpWave2("RESOURCE_SET")));
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/platform/v1/admin/audit-control/events?product=HCM")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041"));
+        AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+        filter.filter(exchange, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isFalse();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(body(exchange)).contains("STEP_UP_REQUIRED");
+    }
+
+    @Test
+    void hcmAuditChallengeIsNotExposedForInvalidQueryOrIncompleteTrustedEnvelope() {
+        for (String path : List.of(
+                "/api/platform/v1/admin/audit-control/events",
+                "/api/platform/v1/admin/audit-control/events?product=PAYROLL",
+                "/api/platform/v1/admin/audit-control/events?product=HCM&product=HCM",
+                "/api/platform/v1/admin/audit-control/events?product=%ZZ")) {
+            MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(path)
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000041"));
+
+            filter(authority(stepUpWave2("RESOURCE_SET")))
+                    .filter(exchange, ignored -> Mono.empty()).block();
+
+            assertThat(exchange.getResponse().getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(body(exchange)).doesNotContain("STEP_UP_REQUIRED");
+        }
+
+        var complete = stepUpWave2("RESOURCE_SET");
+        var withoutRevisions = new ProductSurfaceContextAggregationService.TrustedProductEvaluation(
+                complete.data(), complete.contextKey(), complete.scope(), false);
+        MockServerWebExchange incomplete = exchange(MockServerHttpRequest.get(
+                        "/api/platform/v1/admin/audit-control/events?product=HCM")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041"));
+
+        filter(authority(withoutRevisions)).filter(incomplete, ignored -> Mono.empty()).block();
+
+        assertThat(incomplete.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(incomplete)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE")
+                .doesNotContain("STEP_UP_REQUIRED");
+    }
+
+    @Test
     void payrollRunRoutesStripSpoofedEvidenceAndInjectExactTrustedOwnerContext() {
         String runId = "10000000-0000-4000-8000-000000000201";
         String receiptId = "10000000-0000-4000-8000-000000000202";

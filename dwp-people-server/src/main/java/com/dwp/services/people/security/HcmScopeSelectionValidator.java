@@ -33,6 +33,8 @@ final class HcmScopeSelectionValidator {
                             "PerformanceCycleService:locked-cycle-object"),
                     java.util.Map.entry("predicate.hcm-performance-cycle-publish-sod.v1",
                             "PerformanceCycleService:publisher-maker-sod"),
+                    java.util.Map.entry("predicate.hcm-performance-review-assignment.v1",
+                            "PerformanceReviewAssignmentAuthority:reviewer-object-assignment"),
                     java.util.Map.entry("predicate.hcm-workforce-visible-person.v1",
                             "WorkforcePeopleAndOrganizationChart:population-filter"),
                     java.util.Map.entry("predicate.people.object-version.v1",
@@ -55,6 +57,39 @@ final class HcmScopeSelectionValidator {
                     "Generated HCM route declares an unsupported owner predicate.");
         }
         String route = authority.routeContractKey();
+        if (java.util.Set.of(
+                "route.hcm.performance.assigned-review.data",
+                "route.hcm.performance.assigned-review-draft-update.action",
+                "route.hcm.performance.assigned-review-submit.action").contains(route)) {
+            if (!java.util.Set.of("predicate.hcm-performance-review-assignment.v1")
+                    .equals(authority.predicatePolicyKeys())) {
+                throw new IllegalStateException(
+                        "Assigned review route predicate closure changed.");
+            }
+            if ("self-reviewer".equals(authority.profileKey())
+                    && "per.review.self.submit".equals(
+                    authority.capabilityContractKey())
+                    && java.util.Set.of("SELF", "OBJECT")
+                    .equals(authority.targetBindingKinds())) {
+                populations.requireSelfScope("hcm.operations");
+                return;
+            }
+            if ("assigned-reviewer".equals(authority.profileKey())
+                    && "hcm.team.performance.review".equals(
+                    authority.capabilityContractKey())
+                    && java.util.Set.of("OBJECT", "TARGET_POPULATION")
+                    .equals(authority.targetBindingKinds())) {
+                HcmPopulationScopeService.ResolvedPopulation population =
+                        populations.requireOperations("READ");
+                populations.requireTrustedScope(
+                        population, "hcm.operations", "TARGET_POPULATION",
+                        "ASSIGNED_REVIEW_POPULATION");
+                // The owner predicate remains the final reviewId assignment check; a URL
+                // reviewId is never treated as reviewer identity evidence.
+                return;
+            }
+            throw new IllegalStateException("Assigned review scope profile changed.");
+        }
         if (route.startsWith("route.hcm.personal.")) {
             populations.requireSelfScope();
             return;

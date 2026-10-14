@@ -42,6 +42,8 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             "X-DWP-Current-Revalidate-At";
     static final String CURRENT_CONTEXT_HEADER = "X-DWP-Context-Key";
     static final String CURRENT_SCOPE_HEADER = "X-DWP-Context-Scope-Key";
+    static final String POPULATION_KIND_HEADER = "X-DWP-Population-Kind";
+    static final String PURPOSE_HEADER = "X-Purpose-Code";
     static final String EXPECTED_DECISION_REVISION_HEADER =
             "X-DWP-Expected-Decision-Revision";
     static final String RESPONSE_DECISION_REVISION_HEADER = "X-DWP-Decision-Revision";
@@ -145,7 +147,9 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
                         request.getHeader(RESOURCE_ROLES_HEADER),
                         activeAccessMode,
                         parse(request.getHeader(PeopleSecurityHeaders.SUPPORT_SCOPES)),
-                        trustedRoute, request.getQueryString()));
+                        trustedRoute, request.getQueryString(),
+                        exactHeader(request, PURPOSE_HEADER),
+                        exactHeader(request, POPULATION_KIND_HEADER)));
         if (!decision.allowed()) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "The exact HCM route authority required for this operation is missing.");

@@ -3403,6 +3403,32 @@
     },
     {
       "action": "VIEW",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.audit.evidence.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiredResponsibilityCode": "HRIS_DUTY_AUDITOR",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ADMIN.AUDIT_VIEW:VIEW",
+      "resourceKey": "ADMIN.AUDIT_VIEW",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.audit.evidence-detail.data",
+        "route.hcm.audit.evidence.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_HCM_CONFIG",
+      "sodPolicyId": "SOD_HRIS_AUDIT_INDEPENDENCE",
+      "sunsetAt": null,
+      "surfaceKey": "hcm.management"
+    },
+    {
+      "action": "VIEW",
       "activationPolicy": null,
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
       "contractKey": "hcm.command-receipt.view",
@@ -3419,7 +3445,8 @@
       "riskTier": "LOW",
       "routeContractKeys": [
         "route.hcm.operations.assignment-command-receipt.data",
-        "route.hcm.operations.payroll-command-receipt.data"
+        "route.hcm.operations.payroll-command-receipt.data",
+        "route.hcm.time.command-receipt.data"
       ],
       "scopeResolver": "ORIGINATING_COMMAND_SCOPE",
       "sodPolicyId": null,
@@ -4530,6 +4557,7 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
+        "route.hcm.operations.performance-multirater-surveys.page",
         "route.hcm.operations.performance-review-operations.page"
       ],
       "scopeResolver": "TALENT_TARGET_POPULATION",
@@ -4656,7 +4684,8 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
-        "route.hcm.operations.time-approve.action"
+        "route.hcm.operations.time-approve.action",
+        "route.hcm.time.timecard-decision.action"
       ],
       "scopeResolver": "TIME_TARGET_POPULATION",
       "sodPolicyId": null,
@@ -4710,7 +4739,9 @@
       "routeContractKeys": [
         "route.hcm.operations.time-clock-event-void.action",
         "route.hcm.operations.time-interpretation-run.action",
-        "route.hcm.operations.time-interpretation-trace.data"
+        "route.hcm.operations.time-interpretation-trace.data",
+        "route.hcm.time.timecard-correction.action",
+        "route.hcm.time.timecard.data"
       ],
       "scopeResolver": "TIME_TARGET_POPULATION",
       "sodPolicyId": null,
@@ -4970,7 +5001,9 @@
       "riskTier": "MEDIUM",
       "routeContractKeys": [
         "route.hcm.operations.time-interpretation-run.action",
-        "route.hcm.personal.time-clock-event-record.action"
+        "route.hcm.personal.time-clock-event-record.action",
+        "route.hcm.time.timecard-correction.action",
+        "route.hcm.time.timecard-submit.action"
       ],
       "scopeResolver": "SELF",
       "sodPolicyId": null,
@@ -4994,7 +5027,8 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
-        "route.hcm.operations.time-interpretation-trace.data"
+        "route.hcm.operations.time-interpretation-trace.data",
+        "route.hcm.time.timecard.data"
       ],
       "scopeResolver": "SELF",
       "sodPolicyId": null,
@@ -5125,6 +5159,32 @@
       "surfaceKey": "hcm.team"
     },
     {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.team.performance.review",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "DATA.HRIS_PERFORMANCE_REVIEW:UPDATE",
+      "resourceKey": "DATA.HRIS_PERFORMANCE_REVIEW",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.performance.assigned-review-draft-update.action",
+        "route.hcm.performance.assigned-review-submit.action",
+        "route.hcm.performance.assigned-review.data"
+      ],
+      "scopeResolver": "ASSIGNED_REVIEW_POPULATION",
+      "sodPolicyId": "NO_REVIEW_OUTSIDE_ASSIGNMENT",
+      "sunsetAt": null,
+      "surfaceKey": "hcm.team"
+    },
+    {
       "action": "APPROVE",
       "activationPolicy": null,
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
@@ -5141,7 +5201,9 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
-        "route.hcm.team.time-decision.action"
+        "route.hcm.team.time-decision.action",
+        "route.hcm.time.timecard-decision.action",
+        "route.hcm.time.timecard.data"
       ],
       "scopeResolver": "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION",
       "sodPolicyId": null,
@@ -6505,6 +6567,32 @@
       "surfaceKey": "notifications.work"
     },
     {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "per.review.self.submit",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "DATA.HRIS_PERFORMANCE_REVIEW:UPDATE",
+      "resourceKey": "DATA.HRIS_PERFORMANCE_REVIEW",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.performance.assigned-review-draft-update.action",
+        "route.hcm.performance.assigned-review-submit.action",
+        "route.hcm.performance.assigned-review.data"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": "NO_REVIEW_OUTSIDE_ASSIGNMENT",
+      "sunsetAt": null,
+      "surfaceKey": "hcm.personal"
+    },
+    {
       "action": "CREATE",
       "activationPolicy": null,
       "authorityMode": "PERMISSION",
@@ -7606,7 +7694,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "026157acf598ebabf156b40e3c084c40d52346ebfd2019e2476f30ecdd2b8d93",
+  "checksum": "f73f9a64816ac8f5567a2a7c292821f4a40e6d675915ebc3c3ac8aad7d1fd983",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -8679,6 +8767,27 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "HcmAuditEvidenceAuthorityV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + HCM + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-audit-evidence-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-audit-evidence-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.audit.evidence-detail.data",
+        "route.hcm.audit.evidence.page"
+      ],
+      "targetBindingKinds": [
+        "CONFIG_SCOPE"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "HcmCompensationPlanningAuthorityEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "People + HCM + Security",
@@ -8777,6 +8886,7 @@
         "route.hcm.operations.performance-cycle-update.action",
         "route.hcm.operations.performance-cycle-validate.action",
         "route.hcm.operations.performance-cycles-list.data",
+        "route.hcm.operations.performance-multirater-surveys.page",
         "route.hcm.operations.performance-population-freeze.action",
         "route.hcm.operations.performance-review-operations.page",
         "route.hcm.operations.talent.page",
@@ -9158,6 +9268,30 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "HcmPerformanceReviewAssignmentEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "People + HCM + Security",
+      "ownerServiceKey": "people",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-performance-review-assignment.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-performance-review-assignment.v1",
+      "routeContractKeys": [
+        "route.hcm.performance.assigned-review-draft-update.action",
+        "route.hcm.performance.assigned-review-submit.action",
+        "route.hcm.performance.assigned-review.data"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "HcmReferenceConfigurationAuthorityEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "Platform + HCM + Security",
@@ -9215,6 +9349,72 @@
         "SELF",
         "OBJECT",
         "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmTimeCommandReceiptAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Time + HCM + Security",
+      "ownerServiceKey": "time",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-time-command-receipt-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-time-command-receipt-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.time.command-receipt.data"
+      ],
+      "targetBindingKinds": [
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmTimecardAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Time + HCM + Security",
+      "ownerServiceKey": "time",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-timecard-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-timecard-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.time.timecard-correction.action",
+        "route.hcm.time.timecard-decision.action",
+        "route.hcm.time.timecard-submit.action",
+        "route.hcm.time.timecard.data"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmTimecardDecisionSodEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Time + HCM + Security",
+      "ownerServiceKey": "time",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-timecard-decision-sod.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-timecard-decision-sod.v1",
+      "routeContractKeys": [
+        "route.hcm.time.timecard-decision.action"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
       ]
     },
     {
@@ -38198,6 +38398,150 @@
       "accessProfiles": [
         {
           "activeAccessModes": [
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-audit-evidence-authority.v1"
+          ],
+          "profileKey": "hcm-audit-evidence-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.audit.evidence.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.audit.evidence-detail.data.binding.01",
+              "projectionPolicyKey": "route.hcm.audit.evidence-detail.data.hcm-evidence-minimized.projection.v1",
+              "responseSchemaKey": "HcmAuditEvidenceV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.audit.evidence-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/audit-control/events/{eventId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "product": {
+              "kind": "FIXED",
+              "value": "HCM"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.audit.evidence-detail.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.audit.evidence-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/audit-control/events/{eventId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "product": {
+              "kind": "FIXED",
+              "value": "HCM"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-audit-evidence-authority.v1"
+          ],
+          "profileKey": "hcm-audit-evidence-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.audit.evidence.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.audit.evidence.page.binding.01",
+              "projectionPolicyKey": "route.hcm.audit.evidence.page.hcm-evidence-minimized.projection.v1",
+              "responseSchemaKey": "HcmAuditEvidencePageV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.audit.evidence.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/audit-control/events",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "product": {
+              "kind": "FIXED",
+              "value": "HCM"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.audit.evidence.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.audit.evidence.page.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/audit-control/events",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "product": {
+              "kind": "FIXED",
+              "value": "HCM"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.audit.hris",
+      "uiRoutePattern": "/admin/governance/audit-overview"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
             "NORMAL",
             "ELEVATED"
           ],
@@ -45528,6 +45872,67 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-domain-target-population.v1"
+          ],
+          "profileKey": "performance-operator-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.performance.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.performance-multirater-surveys.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.performance-multirater-surveys.page.performance-operator-reader.projection.v1",
+              "responseSchemaKey": "Iaq022PerformanceMultiraterSurveyPageV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.performance-multirater-surveys.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/workbench/multirater-surveys",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.performance-multirater-surveys.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.performance-multirater-surveys.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/workbench/multirater-surveys",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.performance-multirater-surveys",
+      "uiRoutePattern": "/hr/operations/performance/multirater-surveys"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-domain-target-population.v1",
             "predicate.hcm-performance-cycle-object.v1"
           ],
@@ -46839,6 +47244,245 @@
             }
           },
           "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-performance-review-assignment.v1"
+          ],
+          "profileKey": "assigned-reviewer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.team.performance.review",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.hcm-performance-review-assignment.v1"
+          ],
+          "profileKey": "self-reviewer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "per.review.self.submit",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.performance.assigned-review-draft-update.action.binding.01",
+          "method": "PATCH",
+          "path": "/api/people/v1/hris/performance/reviews/{reviewId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.performance.assigned-review-draft-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.performance.assigned-review-draft-update.action.binding.01",
+          "method": "PATCH",
+          "path": "/v1/hris/performance/reviews/{reviewId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-performance-review-assignment.v1"
+          ],
+          "profileKey": "assigned-reviewer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.team.performance.review",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.hcm-performance-review-assignment.v1"
+          ],
+          "profileKey": "self-reviewer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "per.review.self.submit",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.performance.assigned-review-submit.action.binding.01",
+          "method": "POST",
+          "path": "/api/people/v1/hris/performance/reviews/{reviewId}/submit",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.performance.assigned-review-submit.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.performance.assigned-review-submit.action.binding.01",
+          "method": "POST",
+          "path": "/v1/hris/performance/reviews/{reviewId}/submit",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-performance-review-assignment.v1"
+          ],
+          "profileKey": "assigned-reviewer",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.team.performance.review",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.performance.assigned-review.data.binding.01",
+              "projectionPolicyKey": "route.hcm.performance.assigned-review.data.assigned-reviewer.projection.v1",
+              "responseSchemaKey": "AssignedReviewV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.hcm-performance-review-assignment.v1"
+          ],
+          "profileKey": "self-reviewer",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "per.review.self.submit",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.performance.assigned-review.data.binding.01",
+              "projectionPolicyKey": "route.hcm.performance.assigned-review.data.self-reviewer.projection.v1",
+              "responseSchemaKey": "AssignedReviewV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.performance.assigned-review.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/reviews/{reviewId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.performance.assigned-review.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.performance.assigned-review.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/reviews/{reviewId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
         }
       ],
       "sideEffectFree": true,
@@ -48761,6 +49405,397 @@
       },
       "uiRouteId": "hcm.team.time",
       "uiRoutePattern": "/hr/team/time"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-command-receipt-authority.v1"
+          ],
+          "profileKey": "originating-command",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.command-receipt.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.time.command-receipt.data.binding.01",
+              "projectionPolicyKey": "route.hcm.time.command-receipt.data.originating-command.projection.v1",
+              "responseSchemaKey": "TimeCommandReceiptV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.time.command-receipt.data.binding.01",
+          "method": "GET",
+          "path": "/api/time/v1/command-receipts/{receiptId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.time.command-receipt.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.time.command-receipt.data.binding.01",
+          "method": "GET",
+          "path": "/v1/command-receipts/{receiptId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-timecard-authority.v1"
+          ],
+          "profileKey": "time-operator",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKeys": [
+              "hcm.operations.time.update"
+            ],
+            "mode": "ANY",
+            "type": "CAPABILITY_EXPRESSION"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.hcm-timecard-authority.v1"
+          ],
+          "profileKey": "self-submitter",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.personal.time.submit",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.time.timecard-correction.action.binding.01",
+          "method": "POST",
+          "path": "/api/time/v1/timecards/{timecardId}/corrections",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.time.timecard-correction.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.time.timecard-correction.action.binding.01",
+          "method": "POST",
+          "path": "/v1/timecards/{timecardId}/corrections",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-timecard-authority.v1",
+            "predicate.hcm-timecard-decision-sod.v1"
+          ],
+          "profileKey": "time-approver",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.approve",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.hcm-timecard-authority.v1",
+            "predicate.hcm-timecard-decision-sod.v1"
+          ],
+          "profileKey": "manager-approver",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.team.time.approve",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.time.timecard-decision.action.binding.01",
+          "method": "POST",
+          "path": "/api/time/v1/timecards/{timecardId}/decisions",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.time.timecard-decision.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.time.timecard-decision.action.binding.01",
+          "method": "POST",
+          "path": "/v1/timecards/{timecardId}/decisions",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-timecard-authority.v1"
+          ],
+          "profileKey": "self-submitter",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.personal.time.submit",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.time.timecard-submit.action.binding.01",
+          "method": "POST",
+          "path": "/api/time/v1/timecards/{timecardId}/submit",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.personal",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.time.timecard-submit.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.time.timecard-submit.action.binding.01",
+          "method": "POST",
+          "path": "/v1/timecards/{timecardId}/submit",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.personal",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 400,
+          "predicatePolicyKeys": [
+            "predicate.hcm-timecard-authority.v1"
+          ],
+          "profileKey": "time-operator",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKeys": [
+              "hcm.operations.time.update"
+            ],
+            "mode": "ANY",
+            "type": "CAPABILITY_EXPRESSION"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.time.timecard.data.binding.01",
+              "projectionPolicyKey": "route.hcm.time.timecard.data.time-operator.projection.v1",
+              "responseSchemaKey": "TimecardV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-timecard-authority.v1"
+          ],
+          "profileKey": "manager-approver",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.team.time.approve",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.time.timecard.data.binding.01",
+              "projectionPolicyKey": "route.hcm.time.timecard.data.manager-approver.projection.v1",
+              "responseSchemaKey": "TimecardV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.hcm-timecard-authority.v1"
+          ],
+          "profileKey": "self-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.personal.time.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.time.timecard.data.binding.01",
+              "projectionPolicyKey": "route.hcm.time.timecard.data.self-reader.projection.v1",
+              "responseSchemaKey": "TimecardV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.time.timecard.data.binding.01",
+          "method": "GET",
+          "path": "/api/time/v1/timecards/{timecardId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.time.timecard.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.time.timecard.data.binding.01",
+          "method": "GET",
+          "path": "/v1/timecards/{timecardId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
     },
     {
       "accessProfiles": [
@@ -71645,5 +72680,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 41
+  "version": 42
 }
