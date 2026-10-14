@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -39,6 +40,8 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
     private final PlatformApprovalsPepRegistry approvalsPepRegistry;
     private final HcmPlatformPepRegistry hcmPlatformPepRegistry;
     private final PlatformProductAuthorizationSupport productAuthorization;
+    private final HcmAuditEvidenceSecurityPolicy hcmAuditEvidencePolicy =
+            new HcmAuditEvidenceSecurityPolicy();
 
     @Autowired
     public PlatformSecurityFilter(
@@ -119,6 +122,13 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
         String path = request.getRequestURI();
+        boolean hcmAuditProjectionAttempt =
+                hcmAuditEvidencePolicy.auditProjectionAttempt(request);
+        if (hcmAuditProjectionAttempt) {
+            response.setHeader(HttpHeaders.CACHE_CONTROL,
+                    "private, no-store, max-age=0");
+            response.setHeader(HttpHeaders.PRAGMA, "no-cache");
+        }
         boolean devicePath = PlatformDeviceIdentity.owns(request.getMethod(), path);
         String identityPlane = PlatformDeviceIdentity.exactHeader(
                 request, PlatformDeviceIdentity.PLANE_HEADER);
@@ -200,8 +210,25 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
         boolean canaryProductPath = canaryPepRegistry.ownsPath(path)
                 && !ServicesProductSurfacePepFilter.hasVerifiedRequesterResponseAuthority(request);
         boolean approvalProductPath = approvalsPepRegistry.governsPathFamily(path);
-        boolean hcmPlatformPath = hcmPlatformPepRegistry.governsPathFamily(path);
-        boolean productPath = canaryProductPath || approvalProductPath || hcmPlatformPath;
+        boolean hcmAuditProductPath = hcmAuditEvidencePolicy.exactHcmRouteCandidate(request);
+        if (hcmAuditProjectionAttempt && !hcmAuditProductPath) {
+            writeError(response, ErrorCode.INVALID_INPUT_VALUE,
+                    "The audit product projection is invalid for this route.");
+            return;
+        }
+        if (hcmAuditProductPath) {
+            HcmAuditEvidenceSecurityPolicy.Evaluation shape =
+                    hcmAuditEvidencePolicy.validateRequestShape(request);
+            if (!shape.allowed()) {
+                writeError(response, shape.errorCode(), shape.message());
+                return;
+            }
+        }
+        boolean hcmPlatformPath = hcmPlatformPepRegistry.governsPathFamily(path)
+                && (!hcmAuditEvidencePolicy.sharedEvidencePath(path)
+                || hcmAuditProductPath);
+        boolean productPath = canaryProductPath || approvalProductPath
+                || hcmPlatformPath || hcmAuditProductPath;
         boolean exactEnforcement = false;
         if (productPath && gatewayIdentity) {
             String rolloutState = productAuthorization.exactHeader(
@@ -214,7 +241,8 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
                         "Trusted product rollout evidence is missing or invalid.");
                 return;
             }
-            exactEnforcement = hcmPlatformPath || rolloutState.charAt(1) == '1';
+            exactEnforcement = hcmPlatformPath || hcmAuditProductPath
+                    || rolloutState.charAt(1) == '1';
         }
         boolean supportAccess = !isBlank(request.getHeader(SUPPORT_SESSION_HEADER));
         if (supportAccess && !authorizedSupportRequest(request)) {
@@ -274,6 +302,16 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
             if (trustedAuthority == null) {
                 writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                         "Trusted product route, context, scope, and revision evidence is invalid.");
+                return;
+            }
+        }
+        HcmAuditEvidenceSecurityPolicy.Evaluation hcmAuditEvaluation = null;
+        if (hcmAuditProductPath && exactEnforcement) {
+            hcmAuditEvaluation = hcmAuditEvidencePolicy.evaluate(
+                    request, trustedAuthority);
+            if (!hcmAuditEvaluation.allowed()) {
+                writeError(response, hcmAuditEvaluation.errorCode(),
+                        hcmAuditEvaluation.message());
                 return;
             }
         }
@@ -372,12 +410,20 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
                     && !"ELEVATED".equals(productAuthorization.exactHeader(
                     request, "X-DWP-Active-Access-Mode"))) {
                 writeError(response, ErrorCode.STEP_UP_REQUIRED,
-                        "Elevated access mode is required for this HCM configuration command.");
+                        "Elevated access mode is required for this HCM route.");
                 return;
             }
             request.setAttribute(
                     HcmPlatformPepRegistry.class.getName() + ".authority",
                     decision.authority());
+            response.setHeader(RESPONSE_DECISION_REVISION_HEADER,
+                    trustedAuthority.currentRevision());
+            exactHcmPlatformAccess = true;
+        }
+        if (hcmAuditProductPath && exactEnforcement) {
+            request.setAttribute(
+                    HcmAuditEvidenceSecurityPolicy.class.getName() + ".routeContractKey",
+                    hcmAuditEvaluation.routeContractKey());
             response.setHeader(RESPONSE_DECISION_REVISION_HEADER,
                     trustedAuthority.currentRevision());
             exactHcmPlatformAccess = true;
@@ -398,6 +444,13 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
             return;
         }
         boolean savedViewCustodyPath = path.startsWith("/v1/admin/saved-view-ownership");
+        if (auditAdminPath
+                && hcmAuditEvidencePolicy.carriesHrisAuditorEvidence(request)
+                && !hcmAuditProductPath) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "HRIS auditors may use only the closed HCM evidence routes.");
+            return;
+        }
         if (auditAdminPath && isBlank(request.getHeader(PERMISSIONS_HEADER))) {
             writeError(response, ErrorCode.FORBIDDEN, "Audit permission is required.");
             return;

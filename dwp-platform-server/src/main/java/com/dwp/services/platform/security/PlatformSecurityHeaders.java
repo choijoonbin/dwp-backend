@@ -18,6 +18,14 @@ final class PlatformSecurityHeaders {
     static final String EXPECTED_DECISION_REVISION = "X-DWP-Expected-Decision-Revision";
     static final String CONTEXT = "X-DWP-Context-Key";
     static final String SCOPE = "X-DWP-Context-Scope-Key";
+    static final String SUBJECT_PRINCIPAL_PUBLIC_ID =
+            "X-DWP-Subject-Principal-Public-ID";
+    static final String FIELD_POLICY_REVISION = "X-DWP-Field-Policy-Revision";
+    static final String AUTHORIZATION_REVISION = "X-DWP-Authorization-Revision";
+    static final String MASKED_FIELD_GROUPS = "X-DWP-Masked-Field-Groups";
+    static final String OMITTED_FIELD_GROUPS = "X-DWP-Omitted-Field-Groups";
+    static final String PURPOSE = "X-Purpose-Code";
+    static final String ACTIVE_ACCESS_MODE = "X-DWP-Active-Access-Mode";
     static final String RESPONSE_DECISION_REVISION = "X-DWP-Decision-Revision";
     static final String ROLLOUT_COHORT = "X-DWP-Rollout-Cohort";
     static final String ROLLOUT_REVISION = "X-DWP-Rollout-Revision";

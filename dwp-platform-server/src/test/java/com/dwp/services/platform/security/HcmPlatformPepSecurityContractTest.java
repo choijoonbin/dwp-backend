@@ -20,8 +20,8 @@ class HcmPlatformPepSecurityContractTest {
             registry);
 
     @Test
-    void loadsOnlyTheTwentyOneExactSysHandoffBindings() {
-        assertThat(registry.bindingContracts()).hasSize(21)
+    void loadsOnlyTheTwentyThreeExactSysHandoffBindings() {
+        assertThat(registry.bindingContracts()).hasSize(23)
                 .extracting(HcmPlatformPepRegistry.BindingContract::routeContractKey)
                 .contains(
                         "route.hcm.configuration.settings-reference.page",
@@ -29,7 +29,9 @@ class HcmPlatformPepSecurityContractTest {
                         "route.hcm.configuration.configuration-version-publish.action",
                         "route.hcm.configuration.navigation-policy-workspace.page",
                         "route.hcm.configuration.navigation-policy-revision-publish.action",
-                        "route.hcm.operations.navigation-projection.data");
+                        "route.hcm.operations.navigation-projection.data",
+                        "route.hcm.audit.evidence.page",
+                        "route.hcm.audit.evidence-detail.data");
         assertThat(registry.governsPathFamily(
                 "/v1/admin/hris/configurations/c1/versions/2/publish")).isTrue();
         assertThat(registry.governsPathFamily("/v1/admin/users")).isFalse();
@@ -44,6 +46,66 @@ class HcmPlatformPepSecurityContractTest {
                 "/v1/admin/hris/navigation-policies/workspace")).isTrue();
         assertThat(registry.governsPathFamily(
                 "/v1/hris/navigation/projection")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v1/admin/audit-control/events")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v1/admin/audit-control/events/10000000-0000-4000-8000-000000000001"))
+                .isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v1/admin/audit-control/cases")).isFalse();
+    }
+
+    @Test
+    void auditReadKeepsHighRiskActivationWithoutCommandBinding() {
+        HcmPlatformPepRegistry.Decision decision = registry.authorize(
+                new HcmPlatformPepRegistry.RequestEvidence(
+                        "GET",
+                        "/v1/admin/audit-control/events",
+                        java.util.Set.of("ADMIN.AUDIT_VIEW:VIEW"),
+                        "route.hcm.audit.evidence.page"));
+
+        assertThat(decision.allowed()).isTrue();
+        assertThat(decision.authority().routeKind()).isEqualTo("PAGE");
+        assertThat(decision.authority().highRisk()).isTrue();
+        assertThat(decision.authority().capabilityContractKey())
+                .isEqualTo("hcm.audit.evidence.view");
+        assertThat(decision.authority().activationPolicy())
+                .isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertThat(decision.authority().stepUpCommandBinding()).isNull();
+    }
+
+    @Test
+    void sharedAuditPathKeepsGenericCompatibilityButFencesHrisAuditors() throws Exception {
+        MockHttpServletRequest generic = base(
+                "GET", "/v1/admin/audit-control/events");
+        generic.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.AUDIT_VIEW:VIEW");
+        MockHttpServletResponse genericResponse = new MockHttpServletResponse();
+        filter.doFilter(generic, genericResponse, new MockFilterChain());
+        assertThat(genericResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest auditor = base(
+                "GET", "/v1/admin/audit-control/events");
+        auditor.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.AUDIT_VIEW:VIEW");
+        auditor.addHeader(PlatformSecurityFilter.ROLES_HEADER, "HRIS_AUDITOR");
+        MockHttpServletResponse auditorResponse = new MockHttpServletResponse();
+        filter.doFilter(auditor, auditorResponse, new MockFilterChain());
+        assertThat(auditorResponse.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void exactHcmAuditReadRequiresTheWholeElevatedIntersection() throws Exception {
+        MockHttpServletRequest allowed = hcmAuditRequest();
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest productOnly = hcmAuditRequest();
+        productOnly.removeHeader(PlatformSecurityFilter.RESOURCE_ROLES_HEADER);
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+        filter.doFilter(productOnly, deniedResponse, new MockFilterChain());
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
     }
 
     @Test
@@ -213,6 +275,27 @@ class HcmPlatformPepSecurityContractTest {
         request.addHeader(PlatformSecurityFilter.USER_HEADER, "101");
         request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "7");
         request.addHeader("X-DWP-Identity-Plane", "TENANT");
+        return request;
+    }
+
+    private MockHttpServletRequest hcmAuditRequest() {
+        MockHttpServletRequest request = base(
+                "GET", "/v1/admin/audit-control/events");
+        request.setParameter("product", "HCM");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "HRIS_AUDITOR");
+        request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "APP.HCM:VIEW,ADMIN.AUDIT_VIEW:VIEW");
+        request.addHeader(PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "HRIS_DUTY_AUDITOR@RS_HCM_CONFIG");
+        request.addHeader("X-DWP-Active-Access-Mode", "ELEVATED");
+        request.addHeader("X-Purpose-Code", "HRIS_AUDIT_EVIDENCE");
+        request.addHeader("X-DWP-Subject-Principal-Public-ID",
+                "10000000-0000-4000-8000-000000000001");
+        request.addHeader("X-DWP-Field-Policy-Revision", "17");
+        request.addHeader("X-DWP-Authorization-Revision", "29");
+        trustedEvidence(request, "route.hcm.audit.evidence.page", false);
+        request.removeHeader(PlatformSecurityFilter.CONTEXT_HEADER);
+        request.addHeader(PlatformSecurityFilter.CONTEXT_HEADER, "hcm.management");
         return request;
     }
 
