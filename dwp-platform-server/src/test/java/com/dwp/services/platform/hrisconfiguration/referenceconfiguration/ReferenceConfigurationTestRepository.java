@@ -16,6 +16,7 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
     final Map<String, VersionDetail> versions = new HashMap<>();
     final Map<String, StoredReceipt> receipts = new HashMap<>();
     final Map<String, StoredReceipt> receiptsById = new HashMap<>();
+    final List<CanonicalReceipt> canonicalReceipts = new ArrayList<>();
     final List<Snapshot> history = new ArrayList<>();
     final List<String> outbox = new ArrayList<>();
     final List<String> audit = new ArrayList<>();
@@ -51,6 +52,11 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
         StoredReceipt stored = new StoredReceipt(requestDigest, receipt);
         receipts.put(receiptKey(tenantId, subjectId, originatingAction, idempotencyKey), stored);
         receiptsById.put(tenantId + ":" + receipt.receiptId(), stored);
+    }
+
+    @Override
+    public void saveCanonicalReceipt(long tenantId, CanonicalReceipt receipt) {
+        canonicalReceipts.add(receipt);
     }
 
     @Override

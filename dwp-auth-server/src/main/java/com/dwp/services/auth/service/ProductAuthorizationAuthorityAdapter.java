@@ -32,6 +32,11 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             "route.hcm.performance.assigned-review.data",
             "route.hcm.performance.assigned-review-draft-update.action",
             "route.hcm.performance.assigned-review-submit.action");
+    private static final String HCM_PRODUCT = "hcm";
+    private static final String HCM_UTILITY_SURFACE = "hcm.utility";
+    private static final String HCM_EXPLORER_RECEIPT_ROUTE =
+            "route.hcm.utility.explorer-command-receipt.data";
+    private static final String HCM_SHELL_CAPABILITY = "hcm.app.shell.view";
 
     private final ProductAuthorizationContractRepository repository;
     private final ProductAuthorizationIdentityEvidenceService evidenceService;
@@ -281,6 +286,11 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     registry.hasProduct(request.productKey())
                             ? ROUTE_NOT_REGISTERED : PRODUCT_NOT_REGISTERED);
         }
+        if (usesCurrentReceiptSelectorOnUnrelatedRoute(request)) {
+            return Evaluation.denied(
+                    ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID,
+                    "SCOPE_CONTEXT_EXPIRED");
+        }
         List<ProductAuthorizationContractDtos.AccessProfile> profiles = route.accessProfiles().stream()
                 .filter(value -> value.activeAccessModes()
                         .contains(request.activeAccessMode().name())
@@ -312,9 +322,11 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             if (blockingProfileDenial(result)) return result.forRoute();
             if (result.allowed() || result.decision()
                     == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED) {
-                if (requiresExactReviewProfileSelection(request)
+                if ((requiresExactReviewProfileSelection(request)
                         && result.scopes().stream().noneMatch(scope ->
-                                request.contextScopeKey().equals(scope.key()))) {
+                                request.contextScopeKey().equals(scope.key())))
+                        || (requiresExactReceiptProfileSelection(request)
+                        && !matchesExactReceiptProfile(request, result))) {
                     // The three review routes intentionally share one permission across an
                     // assigned-review population profile and a self profile.  Precedence must
                     // not let the assigned profile swallow an explicitly selected SELF scope
@@ -323,7 +335,8 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     allowedProfileScopeMismatch = true;
                     continue;
                 }
-                return routed(request, identity, route, result);
+                return routed(request, identity, route,
+                        rebindUtilityShellSelf(request, registry, result));
             }
             if (firstDenial == null) firstDenial = result;
         }
@@ -341,6 +354,78 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 && !request.contextScopeKey().isBlank()
                 && PERFORMANCE_REVIEW_DUAL_PROFILE_ROUTES.contains(
                         request.routeContractKey());
+    }
+
+    private boolean requiresExactReceiptProfileSelection(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request) {
+        return HCM_PRODUCT.equals(request.productKey())
+                && HCM_UTILITY_SURFACE.equals(request.surfaceKey())
+                && HCM_EXPLORER_RECEIPT_ROUTE.equals(request.routeContractKey())
+                && request.contextScopeKey() != null
+                && !request.contextScopeKey().matches("^hcm-scope-[a-f0-9]{40}$");
+    }
+
+    private boolean usesCurrentReceiptSelectorOnUnrelatedRoute(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request) {
+        return HCM_PRODUCT.equals(request.productKey())
+                && HCM_UTILITY_SURFACE.equals(request.surfaceKey())
+                && !HCM_EXPLORER_RECEIPT_ROUTE.equals(request.routeContractKey())
+                && scopeKey(request, "ORIGINATING_COMMAND_SCOPE", "TARGET_POPULATION")
+                .equals(request.contextScopeKey());
+    }
+
+    private boolean matchesExactReceiptProfile(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Evaluation result) {
+        String expected = scopeKey(
+                request, "ORIGINATING_COMMAND_SCOPE", "TARGET_POPULATION");
+        return expected.equals(request.contextScopeKey())
+                && result.scopes().size() == 1
+                && expected.equals(result.scopes().getFirst().key());
+    }
+
+    private Evaluation rebindUtilityShellSelf(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Registry registry,
+            Evaluation result) {
+        ProductAuthorizationContractDtos.CapabilityContract capability =
+                registry.capabilitiesByKey().get(HCM_SHELL_CAPABILITY);
+        if (!HCM_PRODUCT.equals(request.productKey())
+                || !HCM_UTILITY_SURFACE.equals(request.surfaceKey())
+                || capability == null
+                || !"SELF".equals(capability.scopeResolver())
+                || result.grants().isEmpty()
+                || result.grants().stream().anyMatch(grant ->
+                !(grant instanceof ProductSurfaceAuthorityDtos.CapabilityGrant value)
+                        || !HCM_SHELL_CAPABILITY.equals(
+                        value.capabilityContractKey()))) {
+            return result;
+        }
+        String selfKey = scopeKey(request, "SELF", "SELF");
+        List<ProductSurfaceAuthorityDtos.EffectiveScope> scopes = List.of(
+                new ProductSurfaceAuthorityDtos.EffectiveScope(
+                        selfKey, "SELF", "Self", true,
+                        result.effectiveReadOnly(), result.validUntil()));
+        List<ProductSurfaceAuthorityDtos.EffectiveGrant> grants = result.grants().stream()
+                .map(grant -> {
+                    ProductSurfaceAuthorityDtos.CapabilityGrant value =
+                            (ProductSurfaceAuthorityDtos.CapabilityGrant) grant;
+                    return (ProductSurfaceAuthorityDtos.EffectiveGrant)
+                            new ProductSurfaceAuthorityDtos.CapabilityGrant(
+                                    value.capabilityContractKey(),
+                                    value.resolvedCapabilityCode(), value.authorityMode(),
+                                    value.predicatePolicyKeys(),
+                                    value.responsibilityRequirement(), value.responsibility(),
+                                    List.of(selfKey), value.requiresProductEntitlement(),
+                                    value.readOnly(), value.activationState(),
+                                    value.validUntil());
+                }).toList();
+        return new Evaluation(
+                result.decision(), result.reasonCode(), result.accessSource(),
+                grants, scopes, result.routeGrantRef(), result.effectiveReadOnly(),
+                result.requiresProductEligibility(), result.validUntil(),
+                result.requiredAssurance(), result.requestPolicyRef(),
+                result.appResourceKey());
     }
 
     private Evaluation evaluateProfile(

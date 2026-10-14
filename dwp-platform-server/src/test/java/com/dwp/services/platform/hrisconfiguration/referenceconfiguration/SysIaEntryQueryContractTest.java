@@ -398,7 +398,8 @@ class SysIaEntryQueryContractTest {
         return new AccessContext(
                 42, 77, UUID.fromString("00000000-0000-0000-0000-000000000077"),
                 "APP.HCM:VIEW,CONFIG.HRIS_WORKBENCH:VIEW,CONFIG.HRIS_POLICY:UPDATE",
-                "TENANT_ADMIN",
+                "TENANT_ADMIN", "psc-" + "c".repeat(64),
+                "hcm-scope-" + "d".repeat(40),
                 new PopulationScope(
                         ScopeType.LEGAL_ENTITY, SCOPE_ID, SCOPE_DIGEST, decisionRevision),
                 7, 9, NOW.plusDays(30), masked, omitted, "HRIS_SYSTEM_ADMIN");

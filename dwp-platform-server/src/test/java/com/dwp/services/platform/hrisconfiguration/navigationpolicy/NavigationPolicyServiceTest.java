@@ -147,7 +147,11 @@ class NavigationPolicyServiceTest {
                         "approve-own-policy", UUID.randomUUID(),
                         "decision-7", "fresh-step-up", "POST",
                         "/v1/admin/hris/navigation-policies/revisions/" + revisionId
-                                + "/approve", null),
+                                + "/approve", routeAuthority(
+                        "route.hcm.configuration.navigation-policy-revision-approve.action"),
+                        "route.hcm.configuration.navigation-policy-revision-approve.action",
+                        "hcm-context-7", "hcm-scope-" + "a".repeat(40),
+                        "decision-7", "b".repeat(64), 7, 11),
                 revisionId, new LifecycleCommand(
                         2L, "a".repeat(64), "APPROVE_POLICY")))
                 .isInstanceOf(BaseException.class)
@@ -194,7 +198,11 @@ class NavigationPolicyServiceTest {
                 "publish-policy-retry", UUID.randomUUID(),
                 "decision-7", "fresh-step-up", "POST",
                 "/v1/admin/hris/navigation-policies/revisions/" + revisionId
-                        + "/publish", null);
+                        + "/publish", routeAuthority(
+                "route.hcm.configuration.navigation-policy-revision-publish.action"),
+                "route.hcm.configuration.navigation-policy-revision-publish.action",
+                "hcm-context-7", "hcm-scope-" + "a".repeat(40),
+                "decision-7", "b".repeat(64), 7, 11);
 
         CommandReceipt committed = service.publish(publisher, first, revisionId, body);
 
@@ -208,7 +216,9 @@ class NavigationPolicyServiceTest {
         CommandContext retryWithoutReusableProof = new CommandContext(
                 first.idempotencyKey(), UUID.randomUUID(),
                 first.expectedDecisionRevision(), null, first.commandMethod(),
-                first.commandPath(), first.requestAuthority());
+                first.commandPath(), first.requestAuthority(),
+                null, null, null, null, null,
+                first.fieldPolicyRevision(), first.authorizationRevision());
 
         CommandReceipt replayed = service.publish(
                 publisher, retryWithoutReusableProof, revisionId, body);
@@ -245,5 +255,12 @@ class NavigationPolicyServiceTest {
         return new PolicyDocument(
                 policy.scopeKind(), policy.legalEntityPublicId(), policy.rolloutMode(),
                 policy.workbenchId(), groups);
+    }
+
+    private static com.dwp.services.platform.security.HcmPlatformPepRegistry.RouteAuthority
+            routeAuthority(String routeKey) {
+        return new com.dwp.services.platform.security.HcmPlatformPepRegistry.RouteAuthority(
+                routeKey, "ACTION", "POST", "/test", "test-profile", true,
+                "test-capability", "ENABLED", null);
     }
 }

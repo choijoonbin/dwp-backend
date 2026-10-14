@@ -42,11 +42,13 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
     static final String LEGACY_ROLE_FALLBACK_HEADER = "X-DWP-Legacy-Role-Fallback-Allowed";
     private static final String GATEWAY_SERVICE_IDENTITY = "dwp-gateway";
+    private static final String PLATFORM_SERVICE_IDENTITY = "dwp-platform-server";
+    private static final Set<String> PRODUCT_SURFACE_ELIGIBILITY_AUDIENCES = Set.of(
+            GATEWAY_SERVICE_IDENTITY, PLATFORM_SERVICE_IDENTITY);
     private static final String PRODUCT_SURFACE_ELIGIBILITY_PATH =
             "/internal/people/v1/product-surface-eligibility/evaluate";
     private static final String HRIS_NAVIGATION_LEGAL_ENTITY_VERIFY_PATH =
             "/internal/people/v1/hris/navigation/legal-entity-context/verify";
-    private static final String PLATFORM_SERVICE_IDENTITY = "dwp-platform-server";
     private static final Set<String> ADMIN_ROLES =
             Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
     private static final Set<String> WORKFORCE_ROLES =
@@ -122,10 +124,9 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
             return;
         }
         if (PRODUCT_SURFACE_ELIGIBILITY_PATH.equals(request.getRequestURI())
-                && !GATEWAY_SERVICE_IDENTITY.equals(
-                        request.getHeader(SERVICE_IDENTITY_HEADER))) {
+                && !exactEligibilityAudience(request)) {
             writeError(response, ErrorCode.UNAUTHORIZED,
-                    "Trusted gateway service identity is required.");
+                    "One exact trusted eligibility service identity is required.");
             return;
         }
         if (HRIS_NAVIGATION_LEGAL_ENTITY_VERIFY_PATH.equals(request.getRequestURI())
@@ -228,6 +229,26 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 && route != null && route.startsWith("route.hcm.");
     }
 
+    private boolean exactEligibilityAudience(HttpServletRequest request) {
+        if (!"POST".equals(request.getMethod())) return false;
+        String token = exactHeader(request, SERVICE_TOKEN_HEADER);
+        String identity = exactHeader(request, SERVICE_IDENTITY_HEADER);
+        String tenant = exactHeader(request, TENANT_HEADER);
+        String actor = exactHeader(request, USER_HEADER);
+        String subject = exactHeader(request, PERSON_PUBLIC_ID_HEADER);
+        return constantTimeEquals(serviceToken, token)
+                && identity != null
+                && PRODUCT_SURFACE_ELIGIBILITY_AUDIENCES.contains(identity)
+                && canonicalPositiveLong(tenant) != null
+                && canonicalPositiveLong(actor) != null
+                && canonicalUuid(subject) != null;
+    }
+
+    private Long canonicalPositiveLong(String value) {
+        Long parsed = positiveLong(value);
+        return parsed != null && Long.toString(parsed).equals(value) ? parsed : null;
+    }
+
     private boolean exactHcmEvidence(HttpServletRequest request, String expectedRoute) {
         return exactHcmEvidence(request) && expectedRoute.equals(
                 exactHeader(request, PeopleSecurityHeaders.ROUTE_CONTRACT));
@@ -291,6 +312,15 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         try {
             return UUID.fromString(value.trim());
         } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
+    private UUID canonicalUuid(String value) {
+        try {
+            UUID parsed = UUID.fromString(value);
+            return parsed.toString().equals(value) ? parsed : null;
+        } catch (IllegalArgumentException | NullPointerException exception) {
             return null;
         }
     }

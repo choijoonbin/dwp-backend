@@ -36,8 +36,14 @@ class ReferenceConfigurationPostgresTest {
 
     private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-10-12T12:00:00Z");
     private static final String SCOPE_DIGEST = "a".repeat(64);
+    private static final String AUTHORITY_SCOPE_DIGEST =
+            "4d6be313f8001ea3b7674fcaf69e7e5927ac10d868ad79f1e69fbc4aa4de934f";
     private static final String PAYLOAD_DIGEST = "b".repeat(64);
     private static final String SAMPLE_DIGEST = "c".repeat(64);
+    private static final long AUTHORITY_FIELD_REVISION = 4_663_670_355_146_917_040L;
+    private static final long PUBLIC_FIELD_REVISION = 6_948_340_445_824_176L;
+    private static final long AUTHORITY_AUTHORIZATION_REVISION = 1_991_387_878_219_104_048L;
+    private static final long PUBLIC_AUTHORIZATION_REVISION = 796_842_921_344_816L;
     private static final UUID SCOPE_ID = UUID.fromString("00000000-0000-0000-0000-000000000042");
     private static final JsonMapper MAPPER = JsonMapper.builder().findAndAddModules().build();
 
@@ -60,7 +66,7 @@ class ReferenceConfigurationPostgresTest {
                 .dataSource(dataSource)
                 .locations("filesystem:src/main/resources/db/migration")
                 .baselineVersion("324")
-                .target("325")
+                .target("327")
                 .cleanDisabled(false)
                 .load();
         flyway.clean();
@@ -121,6 +127,28 @@ class ReferenceConfigurationPostgresTest {
                 SELECT COUNT(*) FROM hris_reference_configuration_command_receipts
                  WHERE tenant_id = 42 AND configuration_id = ?
                 """, Integer.class, configurationId))).isEqualTo(6);
+        assertThat(transaction(() -> jdbc.queryForObject("""
+                SELECT population_scope_digest FROM sys_hris_command_receipts
+                 WHERE tenant_id = 42 AND command_receipt_id = ?
+                """, String.class, created.receiptId()))).isEqualTo(SCOPE_DIGEST);
+        assertThat(transaction(() -> jdbc.queryForObject("""
+                SELECT authority_population_scope_digest
+                  FROM sys_hris_command_receipts
+                 WHERE tenant_id = 42 AND command_receipt_id = ?
+                """, String.class, created.receiptId())))
+                .isEqualTo(AUTHORITY_SCOPE_DIGEST)
+                .isNotEqualTo(SCOPE_DIGEST);
+        assertThat(transaction(() -> jdbc.queryForMap("""
+                SELECT field_policy_revision, authority_field_policy_revision,
+                       authorization_revision, authority_authorization_revision
+                  FROM sys_hris_command_receipts
+                 WHERE tenant_id = 42 AND command_receipt_id = ?
+                """, created.receiptId())))
+                .containsEntry("field_policy_revision", PUBLIC_FIELD_REVISION)
+                .containsEntry("authority_field_policy_revision", AUTHORITY_FIELD_REVISION)
+                .containsEntry("authorization_revision", PUBLIC_AUTHORIZATION_REVISION)
+                .containsEntry("authority_authorization_revision",
+                        AUTHORITY_AUTHORIZATION_REVISION);
         String payload = transaction(() -> jdbc.queryForObject("""
                 SELECT payload::text FROM hris_reference_configuration_outbox
                  WHERE tenant_id = 42 AND aggregate_id = ?
@@ -143,6 +171,14 @@ class ReferenceConfigurationPostgresTest {
                        SET payload_digest = ?
                      WHERE tenant_id = 42 AND configuration_id = ? AND version = 1
                     """, SCOPE_DIGEST, configurationId);
+            return null;
+        })).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> transaction(() -> {
+            jdbc.update("""
+                    UPDATE sys_hris_command_receipts
+                       SET authority_population_scope_digest = ?
+                     WHERE tenant_id = 42 AND command_receipt_id = ?
+                    """, "f".repeat(64), created.receiptId());
             return null;
         })).isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -283,17 +319,34 @@ class ReferenceConfigurationPostgresTest {
                 : UUID.nameUUIDFromBytes(("scope-" + tenantId).getBytes());
         return new AccessContext(
                 tenantId, subjectId, UUID.nameUUIDFromBytes(("subject-" + subjectId).getBytes()),
-                permissions, "TENANT_ADMIN",
+                permissions, "TENANT_ADMIN", "psc-" + "c".repeat(64),
+                "hcm-scope-" + "d".repeat(40),
                 new PopulationScope(ScopeType.LEGAL_ENTITY, scopeId,
                         SCOPE_DIGEST, "decision-revision-7"),
-                7, 9, NOW.plusDays(30), Set.of(), Set.of(), "HRIS_SYSTEM_ADMIN");
+                AUTHORITY_FIELD_REVISION, AUTHORITY_AUTHORIZATION_REVISION,
+                NOW.plusDays(30), Set.of(), Set.of(), "HRIS_SYSTEM_ADMIN");
     }
 
     private static CommandContext command(String key, Long version, boolean highRisk) {
         return new CommandContext(
                 key, UUID.nameUUIDFromBytes(key.getBytes()), "HRIS_SYSTEM_ADMIN", version,
                 highRisk ? "decision-revision-7" : null,
-                highRisk ? "signed-step-up" : null);
+                highRisk ? "signed-step-up" : null,
+                originRoute(key), "psc-" + "c".repeat(64),
+                "hcm-scope-" + "d".repeat(40), "decision-revision-7");
+    }
+
+    private static String originRoute(String key) {
+        if (key.contains("create") || key.contains("shared-idempotency")) return "route.hcm.configuration.configuration-version-create.action";
+        if (key.contains("validate")) return "route.hcm.configuration.configuration-version-validate.action";
+        if (key.contains("simulate")) return "route.hcm.configuration.configuration-version-simulate.action";
+        if (key.contains("submit")) return "route.hcm.configuration.configuration-version-submit.action";
+        if (key.contains("approve")) return "route.hcm.configuration.configuration-version-approve.action";
+        if (key.contains("publish")) return "route.hcm.configuration.configuration-version-publish.action";
+        if (key.contains("rollback")) return "route.hcm.configuration.configuration-version-rollback.action";
+        if (key.contains("retire")) return "route.hcm.configuration.configuration-version-retire.action";
+        if (key.contains("schedule")) return "route.hcm.configuration.configuration-version-schedule.action";
+        return "route.hcm.configuration.configuration-version-create.action";
     }
 
     private static <T> T transaction(java.util.function.Supplier<T> action) {

@@ -14,9 +14,14 @@ interface NavigationPolicyRepository {
     Optional<StoredReceipt> findReceipt(
             long tenantId, long subjectId, String action, String idempotencyKey);
 
+    boolean canonicalReceiptExists(
+            long tenantId, UUID subjectPrincipalPublicId, UUID receiptId);
+
     void saveReceipt(
             long tenantId, long subjectId, String action, String idempotencyKey,
             String requestDigest, CommandReceipt receipt);
+
+    void saveCanonicalReceipt(long tenantId, CanonicalReceipt receipt);
 
     RevisionView createDraft(
             long tenantId, UUID candidatePolicyId, UUID revisionId, long actorId,
@@ -61,5 +66,31 @@ interface NavigationPolicyRepository {
             long tenantId, RevisionView revision, String payload, OffsetDateTime now);
 
     record StoredReceipt(String requestDigest, CommandReceipt receipt) {
+    }
+
+    record CanonicalReceipt(
+            UUID receiptId,
+            String commandType,
+            String originatingAction,
+            UUID subjectPrincipalPublicId,
+            String populationScopeDigest,
+            String authorityPopulationScopeDigest,
+            long fieldPolicyRevision,
+            long authorityFieldPolicyRevision,
+            String purposeCode,
+            long authorizationRevision,
+            long authorityAuthorizationRevision,
+            String originRouteContractKey,
+            String originContextKey,
+            String originContextScopeKey,
+            String originDecisionRevision,
+            String idempotencyKey,
+            String requestDigest,
+            UUID aggregatePublicId,
+            long aggregateRevision,
+            String status,
+            String resultRef,
+            UUID correlationId,
+            OffsetDateTime createdAt) {
     }
 }

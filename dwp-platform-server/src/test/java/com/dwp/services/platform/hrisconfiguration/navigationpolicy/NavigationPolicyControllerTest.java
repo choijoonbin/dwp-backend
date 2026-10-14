@@ -2,7 +2,9 @@ package com.dwp.services.platform.hrisconfiguration.navigationpolicy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.dwp.services.platform.security.HcmPlatformPepRegistry;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -16,6 +18,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,6 +50,9 @@ class NavigationPolicyControllerTest {
 
         mvc.perform(post("/v1/admin/hris/navigation-policies/drafts")
                         .headers(adminHeaders())
+                        .requestAttr(
+                                HcmPlatformPepRegistry.class.getName() + ".authority",
+                                routeAuthority())
                         .header("Idempotency-Key", "create-navigation-policy")
                         .header("X-Correlation-ID", CORRELATION)
                         .contentType("application/json")
@@ -54,7 +61,43 @@ class NavigationPolicyControllerTest {
                 .andExpect(jsonPath("$.data.revisionId").value(REVISION.toString()))
                 .andExpect(jsonPath("$.data.objectVersion").value(0));
 
-        verify(service).createDraft(any(), any(), eq(body));
+        ArgumentCaptor<NavigationPolicyService.CommandContext> command =
+                ArgumentCaptor.forClass(NavigationPolicyService.CommandContext.class);
+        verify(service).createDraft(any(), command.capture(), eq(body));
+        assertThat(command.getValue().populationScopeDigest())
+                .isEqualTo("b".repeat(64));
+        assertThat(command.getValue().originRouteContractKey())
+                .isEqualTo("route.hcm.configuration.navigation-policy-draft-create.action");
+    }
+
+    @Test
+    void rejectsMissingDuplicateAndMalformedTrustedPopulationDigest() throws Exception {
+        NavigationPolicyService service = mock(NavigationPolicyService.class);
+        MockMvc mvc = mvc(service);
+        PolicyDocument policy = NavigationPolicyCanonicalTest.policy(
+                ScopeKind.TENANT, null, true);
+        DraftCommand body = new DraftCommand(
+                ScopeKind.TENANT, null, null, RolloutMode.ENFORCED,
+                NavigationPolicyCanonical.WORKBENCH_ID, policy.groups(), 0L,
+                "a".repeat(64));
+
+        org.springframework.http.HttpHeaders missing = adminHeaders();
+        missing.remove("X-DWP-Population-Scope-Digest");
+        assertThatThrownBy(() -> mvc.perform(
+                commandRequest(missing, body)))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class);
+
+        org.springframework.http.HttpHeaders duplicate = adminHeaders();
+        duplicate.add("X-DWP-Population-Scope-Digest", "c".repeat(64));
+        assertThatThrownBy(() -> mvc.perform(
+                commandRequest(duplicate, body)))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class);
+
+        org.springframework.http.HttpHeaders malformed = adminHeaders();
+        malformed.set("X-DWP-Population-Scope-Digest", "not-a-digest");
+        assertThatThrownBy(() -> mvc.perform(
+                commandRequest(malformed, body)))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -98,8 +141,33 @@ class NavigationPolicyControllerTest {
         headers.add("X-DWP-Context-Scope-Key", scopeKey());
         headers.add("X-DWP-Current-Decision-Revision", "decision-7");
         headers.add("X-DWP-Current-Revalidate-At", NOW.plusHours(1).toString());
+        headers.add("X-DWP-Population-Scope-Digest", "b".repeat(64));
+        headers.add("X-DWP-Field-Policy-Revision", "7");
+        headers.add("X-DWP-Authorization-Revision", "11");
         headers.add("X-Purpose-Code", NavigationPolicyService.PURPOSE);
         return headers;
+    }
+
+    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+            commandRequest(
+            org.springframework.http.HttpHeaders headers, DraftCommand body)
+            throws Exception {
+        return post("/v1/admin/hris/navigation-policies/drafts")
+                .headers(headers)
+                .requestAttr(
+                        HcmPlatformPepRegistry.class.getName() + ".authority",
+                        routeAuthority())
+                .header("Idempotency-Key", "create-navigation-policy")
+                .header("X-Correlation-ID", CORRELATION)
+                .contentType("application/json")
+                .content(mapper().writeValueAsBytes(body));
+    }
+
+    private static HcmPlatformPepRegistry.RouteAuthority routeAuthority() {
+        return new HcmPlatformPepRegistry.RouteAuthority(
+                "route.hcm.configuration.navigation-policy-draft-create.action",
+                "ACTION", "POST", "/v1/admin/hris/navigation-policies/drafts",
+                "test-profile", false, "test-capability", "ENABLED", null);
     }
 
     private static MockMvc mvc(NavigationPolicyService service) {

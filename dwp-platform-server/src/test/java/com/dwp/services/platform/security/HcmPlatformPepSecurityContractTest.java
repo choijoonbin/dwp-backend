@@ -20,6 +20,10 @@ class HcmPlatformPepSecurityContractTest {
             "10000000-0000-4000-8000-000000000012";
     private static final String OTHER_SUBJECT =
             "10000000-0000-4000-8000-000000000013";
+    private static final String EXPLORER_CONTEXT =
+            "psc-" + "0123456789abcdef".repeat(4);
+    private static final String OTHER_EXPLORER_CONTEXT =
+            "psc-" + "fedcba9876543210".repeat(4);
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final HcmPlatformPepRegistry registry =
@@ -165,6 +169,32 @@ class HcmPlatformPepSecurityContractTest {
     }
 
     @Test
+    void explorerAuthorityContextRequiresOpaqueLowercaseAndTrustedEquality() {
+        for (String deniedContext : new String[]{
+                "hcm.utility",
+                "psc-" + "A".repeat(64),
+                "psc-" + "a".repeat(63),
+                null,
+                OTHER_EXPLORER_CONTEXT}) {
+            assertThat(registry.authorize(explorerRequest(
+                    "GET", "/v1/hris/explorer",
+                    Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                    Set.of("HRIS_EMPLOYEE"),
+                    Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                    "route.hcm.utility.explorer.page", ownerEvidence(),
+                    deniedContext)).allowed()).isFalse();
+        }
+        assertThat(registry.authorize(explorerRequest(
+                "GET", "/v1/hris/explorer",
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                Set.of("HRIS_EMPLOYEE"),
+                Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                "route.hcm.utility.explorer.page",
+                ownerEvidence(OTHER_EXPLORER_CONTEXT),
+                EXPLORER_CONTEXT)).allowed()).isFalse();
+    }
+
+    @Test
     void explorerReceiptRejectsSubjectOriginAndRequestContextMismatch() {
         String path = "/v1/admin/hris/command-receipts/"
                 + "10000000-0000-4000-8000-000000000043";
@@ -172,19 +202,19 @@ class HcmPlatformPepSecurityContractTest {
         HcmPlatformPepRegistry.ExplorerReceiptEvidence subjectMismatch =
                 new HcmPlatformPepRegistry.ExplorerReceiptEvidence(
                         OTHER_SUBJECT, "EXPLORER_RECENT_RECORD",
-                        "hcm.utility", "tenant-7");
+                        EXPLORER_CONTEXT, "tenant-7");
         HcmPlatformPepRegistry.ExplorerReceiptEvidence invalidOrigin =
                 new HcmPlatformPepRegistry.ExplorerReceiptEvidence(
                         SUBJECT, "CONFIGURATION_PUBLISH",
-                        "hcm.utility", "tenant-7");
+                        EXPLORER_CONTEXT, "tenant-7");
         HcmPlatformPepRegistry.ExplorerReceiptEvidence contextMismatch =
                 new HcmPlatformPepRegistry.ExplorerReceiptEvidence(
                         SUBJECT, "EXPLORER_PREFERENCES_REPLACE",
-                        "hcm.configuration", "tenant-7");
+                        OTHER_EXPLORER_CONTEXT, "tenant-7");
         HcmPlatformPepRegistry.ExplorerReceiptEvidence validReceipt =
                 new HcmPlatformPepRegistry.ExplorerReceiptEvidence(
                         SUBJECT, "EXPLORER_RECENT_RECORD",
-                        "hcm.utility", "tenant-7");
+                        EXPLORER_CONTEXT, "tenant-7");
 
         HcmPlatformPepRegistry.Decision valid = registry.authorize(explorerRequest(
                 "GET", path,
@@ -259,6 +289,14 @@ class HcmPlatformPepSecurityContractTest {
         MockHttpServletResponse staleAuthorityResponse = new MockHttpServletResponse();
         filter.doFilter(staleAuthority, staleAuthorityResponse, new MockFilterChain());
         assertThat(staleAuthorityResponse.getStatus()).isEqualTo(503);
+
+        MockHttpServletRequest zeroDescendant = explorerHttpRequest();
+        zeroDescendant.setAttribute(
+                HcmPlatformPepRegistry.EXPLORER_OWNER_EVIDENCE_ATTRIBUTE,
+                ownerEvidence(DECISION_REVISION, 17, 29, Set.of(), null));
+        MockHttpServletResponse zeroDescendantResponse = new MockHttpServletResponse();
+        filter.doFilter(zeroDescendant, zeroDescendantResponse, new MockFilterChain());
+        assertThat(zeroDescendantResponse.getStatus()).isEqualTo(403);
     }
 
     @Test
@@ -466,9 +504,22 @@ class HcmPlatformPepSecurityContractTest {
             Set<String> resourceRoles,
             String route,
             HcmPlatformPepRegistry.ExplorerOwnerEvidence ownerEvidence) {
+        return explorerRequest(method, path, permissions, roles, resourceRoles,
+                route, ownerEvidence, EXPLORER_CONTEXT);
+    }
+
+    private HcmPlatformPepRegistry.RequestEvidence explorerRequest(
+            String method,
+            String path,
+            Set<String> permissions,
+            Set<String> roles,
+            Set<String> resourceRoles,
+            String route,
+            HcmPlatformPepRegistry.ExplorerOwnerEvidence ownerEvidence,
+            String requestContext) {
         return new HcmPlatformPepRegistry.RequestEvidence(
                 method, path, permissions, roles, resourceRoles,
-                DECISION_REVISION, "hcm.utility", "tenant-7",
+                DECISION_REVISION, requestContext, "tenant-7",
                 ownerEvidence, route);
     }
 
@@ -479,13 +530,32 @@ class HcmPlatformPepSecurityContractTest {
     }
 
     private HcmPlatformPepRegistry.ExplorerOwnerEvidence ownerEvidence(
+            String contextKey) {
+        return ownerEvidence(
+                DECISION_REVISION, contextKey, 17, 29,
+                Set.of("route.hcm.personal.me.page"), null);
+    }
+
+    private HcmPlatformPepRegistry.ExplorerOwnerEvidence ownerEvidence(
             String decisionRevision,
             long fieldPolicyRevision,
             long authorizationRevision,
             Set<String> allowedDescendantPageRouteKeys,
             HcmPlatformPepRegistry.ExplorerReceiptEvidence receiptEvidence) {
+        return ownerEvidence(decisionRevision, EXPLORER_CONTEXT,
+                fieldPolicyRevision, authorizationRevision,
+                allowedDescendantPageRouteKeys, receiptEvidence);
+    }
+
+    private HcmPlatformPepRegistry.ExplorerOwnerEvidence ownerEvidence(
+            String decisionRevision,
+            String contextKey,
+            long fieldPolicyRevision,
+            long authorizationRevision,
+            Set<String> allowedDescendantPageRouteKeys,
+            HcmPlatformPepRegistry.ExplorerReceiptEvidence receiptEvidence) {
         return new HcmPlatformPepRegistry.ExplorerOwnerEvidence(
-                decisionRevision, "hcm.utility", "tenant-7",
+                decisionRevision, contextKey, "tenant-7",
                 "HRIS_APP_DISCOVERY", SUBJECT,
                 fieldPolicyRevision, authorizationRevision,
                 allowedDescendantPageRouteKeys, receiptEvidence);
@@ -500,7 +570,7 @@ class HcmPlatformPepSecurityContractTest {
                 "HRIS_DUTY_APP_SHELL_READER@SELF");
         trustedEvidence(request, "route.hcm.utility.explorer.page", false);
         request.removeHeader(PlatformSecurityFilter.CONTEXT_HEADER);
-        request.addHeader(PlatformSecurityFilter.CONTEXT_HEADER, "hcm.utility");
+        request.addHeader(PlatformSecurityFilter.CONTEXT_HEADER, EXPLORER_CONTEXT);
         return request;
     }
 

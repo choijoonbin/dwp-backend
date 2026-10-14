@@ -58,6 +58,20 @@ class JdbcNavigationPolicyRepository implements NavigationPolicyRepository {
     }
 
     @Override
+    public boolean canonicalReceiptExists(
+            long tenantId, UUID subjectPrincipalPublicId, UUID receiptId) {
+        bindPrincipal(tenantId, subjectPrincipalPublicId);
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM sys_hris_command_receipts
+                 WHERE tenant_id = ?
+                   AND subject_principal_public_id = ?
+                   AND public_id = ?
+                """, Integer.class, tenantId, subjectPrincipalPublicId, receiptId);
+        return count != null && count == 1;
+    }
+
+    @Override
     public void saveReceipt(
             long tenantId, long subjectId, String action, String idempotencyKey,
             String requestDigest, CommandReceipt receipt) {
@@ -71,6 +85,37 @@ class JdbcNavigationPolicyRepository implements NavigationPolicyRepository {
                 """, tenantId, receipt.receiptId(), subjectId, action, idempotencyKey,
                 requestDigest, receipt.policyId(), receipt.revisionNumber(), receipt.revisionId(),
                 write(receipt), receipt.createdAt());
+    }
+
+    @Override
+    public void saveCanonicalReceipt(long tenantId, CanonicalReceipt receipt) {
+        bindPrincipal(tenantId, receipt.subjectPrincipalPublicId());
+        jdbc.update("""
+                INSERT INTO sys_hris_command_receipts (
+                    command_receipt_id, public_id, tenant_id, command_type,
+                    originating_action, subject_principal_public_id,
+                    population_scope_digest, authority_population_scope_digest,
+                    field_policy_revision, authority_field_policy_revision, purpose_code,
+                    authorization_revision, authority_authorization_revision,
+                    origin_route_contract_key,
+                    origin_context_key, origin_context_scope_key,
+                    origin_decision_revision, idempotency_key, request_digest,
+                    aggregate_public_id, aggregate_revision, status, result_ref,
+                    correlation_id, created_at, completed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, receipt.receiptId(), receipt.receiptId(), tenantId,
+                receipt.commandType(), receipt.originatingAction(),
+                receipt.subjectPrincipalPublicId(), receipt.populationScopeDigest(),
+                receipt.authorityPopulationScopeDigest(),
+                receipt.fieldPolicyRevision(), receipt.authorityFieldPolicyRevision(),
+                receipt.purposeCode(), receipt.authorizationRevision(),
+                receipt.authorityAuthorizationRevision(),
+                receipt.originRouteContractKey(),
+                receipt.originContextKey(), receipt.originContextScopeKey(),
+                receipt.originDecisionRevision(), receipt.idempotencyKey(),
+                receipt.requestDigest(), receipt.aggregatePublicId(),
+                receipt.aggregateRevision(), receipt.status(), receipt.resultRef(),
+                receipt.correlationId(), receipt.createdAt(), receipt.createdAt());
     }
 
     @Override
@@ -398,6 +443,15 @@ class JdbcNavigationPolicyRepository implements NavigationPolicyRepository {
     private void bindTenant(long tenantId) {
         jdbc.queryForObject("SELECT set_config('dwp.tenant_id', ?, true)",
                 String.class, Long.toString(tenantId));
+    }
+
+    private void bindPrincipal(long tenantId, UUID subjectPrincipalPublicId) {
+        bindTenant(tenantId);
+        if (subjectPrincipalPublicId == null) {
+            throw new IllegalArgumentException("subjectPrincipalPublicId is required");
+        }
+        jdbc.queryForObject("SELECT set_config('dwp.principal_public_id', ?, true)",
+                String.class, subjectPrincipalPublicId.toString());
     }
 
     private long advisoryKey(long tenantId, long subjectId, String action, String key) {

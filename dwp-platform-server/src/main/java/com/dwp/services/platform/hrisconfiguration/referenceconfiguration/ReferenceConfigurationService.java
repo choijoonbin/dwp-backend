@@ -3,6 +3,7 @@ package com.dwp.services.platform.hrisconfiguration.referenceconfiguration;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.platform.contracts.hris.generated.HrisConfigurationPublishedV1;
+import com.dwp.services.platform.hrisconfiguration.explorer.HrisExplorerAuthoritySeals;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -620,7 +621,7 @@ public class ReferenceConfigurationService {
             Object body,
             Function<UUID, MutationResult> mutation) {
         validateAccess(access);
-        validateCommand(command);
+        validateLegacyCommand(command);
         Map<String, Object> requestIdentity = new LinkedHashMap<>();
         requestIdentity.put("commandType", commandType);
         requestIdentity.put("configurationId", configurationId);
@@ -645,18 +646,39 @@ public class ReferenceConfigurationService {
             return prior.get().receipt();
         }
 
+        validateCanonicalSeal(access, command, action);
+        String authorityPopulationScopeDigest =
+                HrisExplorerAuthoritySeals.populationScopeDigest(
+                        access.contextScopeKey());
         UUID receiptId = UUID.randomUUID();
         MutationResult result = mutation.apply(receiptId);
         OffsetDateTime createdAt = now();
+        long publicFieldPolicyRevision = HrisExplorerAuthoritySeals.publicRevision(
+                access.fieldPolicyRevision());
+        long publicAuthorizationRevision = HrisExplorerAuthoritySeals.publicRevision(
+                access.authorizationRevision());
         CommandReceipt receipt = new CommandReceipt(
                 receiptId, commandType, action, access.subjectPublicId(),
-                access.scope().digest(), access.fieldPolicyRevision(), command.purposeCode(),
-                access.authorizationRevision(), "SUCCEEDED", command.correlationId(),
+                access.scope().digest(), publicFieldPolicyRevision, command.purposeCode(),
+                publicAuthorizationRevision, "SUCCEEDED", command.correlationId(),
                 requestDigest, createdAt, result.aggregateVersion(),
                 result.configurationId() + "/" + result.version());
         repository.saveReceipt(
                 access.tenantId(), access.subjectId(), action, command.idempotencyKey(),
                 requestDigest, receipt);
+        repository.saveCanonicalReceipt(access.tenantId(), new CanonicalReceipt(
+                receipt.receiptId(), receipt.commandType(), receipt.originatingAction(),
+                receipt.subjectPrincipalPublicId(),
+                access.scope().digest(),
+                authorityPopulationScopeDigest,
+                publicFieldPolicyRevision, access.fieldPolicyRevision(),
+                receipt.purposeCode(), publicAuthorizationRevision,
+                access.authorizationRevision(), command.originRouteContractKey(),
+                command.originContextKey(), command.originContextScopeKey(),
+                command.originDecisionRevision(), command.idempotencyKey(),
+                requestDigest, result.configurationId(), receipt.aggregateVersion(),
+                receipt.status(), receipt.resultRef(), receipt.correlationId(),
+                receipt.createdAt()));
         repository.appendAudit(
                 access.tenantId(), configurationId, result.version(), action,
                 access.subjectId(), command.correlationId().toString(), requestDigest, createdAt);
@@ -1222,7 +1244,7 @@ public class ReferenceConfigurationService {
         }
     }
 
-    private void validateCommand(CommandContext command) {
+    private void validateLegacyCommand(CommandContext command) {
         if (command == null
                 || command.idempotencyKey() == null
                 || command.idempotencyKey().length() < 16
@@ -1231,6 +1253,43 @@ public class ReferenceConfigurationService {
                 || !PURPOSE.equals(command.purposeCode())) {
             throw invalid("REFERENCE_CONFIGURATION_COMMAND_CONTEXT_INVALID");
         }
+    }
+
+    private void validateCanonicalSeal(
+            AccessContext access, CommandContext command, String action) {
+        if (!originRoute(action).equals(command.originRouteContractKey())
+                || access.contextKey() == null
+                || !access.contextKey().equals(command.originContextKey())
+                || access.contextScopeKey() == null
+                || !access.contextScopeKey().equals(command.originContextScopeKey())
+                || !access.scope().decisionRevision().equals(
+                command.originDecisionRevision())) {
+            throw invalid("REFERENCE_CONFIGURATION_COMMAND_CONTEXT_INVALID");
+        }
+    }
+
+    private String originRoute(String action) {
+        return switch (action) {
+            case "configuration.version.create" ->
+                    "route.hcm.configuration.configuration-version-create.action";
+            case "configuration.version.validate" ->
+                    "route.hcm.configuration.configuration-version-validate.action";
+            case "configuration.version.simulate" ->
+                    "route.hcm.configuration.configuration-version-simulate.action";
+            case "configuration.version.submit" ->
+                    "route.hcm.configuration.configuration-version-submit.action";
+            case "configuration.version.approve" ->
+                    "route.hcm.configuration.configuration-version-approve.action";
+            case "configuration.version.schedule" ->
+                    "route.hcm.configuration.configuration-version-schedule.action";
+            case "configuration.version.publish" ->
+                    "route.hcm.configuration.configuration-version-publish.action";
+            case "configuration.version.rollback" ->
+                    "route.hcm.configuration.configuration-version-rollback.action";
+            case "configuration.version.retire" ->
+                    "route.hcm.configuration.configuration-version-retire.action";
+            default -> "";
+        };
     }
 
     private VersionDetail requiredVersion(
@@ -1380,6 +1439,8 @@ public class ReferenceConfigurationService {
             UUID subjectPublicId,
             String permissions,
             String roles,
+            String contextKey,
+            String contextScopeKey,
             PopulationScope scope,
             long fieldPolicyRevision,
             long authorizationRevision,
@@ -1400,7 +1461,11 @@ public class ReferenceConfigurationService {
             String purposeCode,
             Long expectedObjectVersion,
             String expectedDecisionRevision,
-            String stepUpChallenge) {
+            String stepUpChallenge,
+            String originRouteContractKey,
+            String originContextKey,
+            String originContextScopeKey,
+            String originDecisionRevision) {
     }
 
     private record MutationResult(UUID configurationId, long version, long aggregateVersion) {

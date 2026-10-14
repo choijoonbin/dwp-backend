@@ -113,6 +113,37 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
     }
 
     @Override
+    public void saveCanonicalReceipt(long tenantId, CanonicalReceipt receipt) {
+        bindPrincipal(tenantId, receipt.subjectPrincipalPublicId());
+        jdbc.update("""
+                INSERT INTO sys_hris_command_receipts (
+                    command_receipt_id, public_id, tenant_id, command_type,
+                    originating_action, subject_principal_public_id,
+                    population_scope_digest, authority_population_scope_digest,
+                    field_policy_revision, authority_field_policy_revision, purpose_code,
+                    authorization_revision, authority_authorization_revision,
+                    origin_route_contract_key,
+                    origin_context_key, origin_context_scope_key,
+                    origin_decision_revision, idempotency_key, request_digest,
+                    aggregate_public_id, aggregate_revision, status, result_ref,
+                    correlation_id, created_at, completed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, receipt.receiptId(), receipt.receiptId(), tenantId,
+                receipt.commandType(), receipt.originatingAction(),
+                receipt.subjectPrincipalPublicId(), receipt.populationScopeDigest(),
+                receipt.authorityPopulationScopeDigest(),
+                receipt.fieldPolicyRevision(), receipt.authorityFieldPolicyRevision(),
+                receipt.purposeCode(), receipt.authorizationRevision(),
+                receipt.authorityAuthorizationRevision(),
+                receipt.originRouteContractKey(),
+                receipt.originContextKey(), receipt.originContextScopeKey(),
+                receipt.originDecisionRevision(), receipt.idempotencyKey(),
+                receipt.requestDigest(), receipt.aggregatePublicId(),
+                receipt.aggregateRevision(), receipt.status(), receipt.resultRef(),
+                receipt.correlationId(), receipt.createdAt(), receipt.createdAt());
+    }
+
+    @Override
     public long createVersion(
             long tenantId,
             PopulationScope scope,
@@ -740,6 +771,16 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                 "SELECT set_config('dwp.tenant_id', ?, true)",
                 String.class,
                 Long.toString(tenantId));
+    }
+
+    private void bindPrincipal(long tenantId, UUID subjectPrincipalPublicId) {
+        bindTenant(tenantId);
+        if (subjectPrincipalPublicId == null) {
+            throw new IllegalArgumentException("subjectPrincipalPublicId is required");
+        }
+        jdbc.queryForObject(
+                "SELECT set_config('dwp.principal_public_id', ?, true)",
+                String.class, subjectPrincipalPublicId.toString());
     }
 
     private long advisoryKey(

@@ -2497,6 +2497,11 @@ def validate_sys012_work_explorer_contract(
         assert isinstance(owner, dict)
         assert isinstance(browser, dict)
         expected_profiles = normalized_profiles(route)
+        expected_purpose = (
+            "COMMAND_STATUS"
+            if contract_id == "SYS-API-038"
+            else "HRIS_APP_DISCOVERY"
+        )
         for label, operation, expected_id in (
             ("source", source, operation_id),
             ("owner", owner, operation_id),
@@ -2506,7 +2511,7 @@ def validate_sys012_work_explorer_contract(
                 operation.get("operationId") != expected_id
                 or operation.get("x-dwp-runtime-default") != "OFF"
                 or operation.get("x-dwp-contract-id") != contract_id
-                or operation.get("x-dwp-purpose-code") != "HRIS_APP_DISCOVERY"
+                or operation.get("x-dwp-purpose-code") != expected_purpose
                 or operation.get("x-dwp-access-profiles") != expected_profiles
                 or operation.get("security", object()) == []
             ):
