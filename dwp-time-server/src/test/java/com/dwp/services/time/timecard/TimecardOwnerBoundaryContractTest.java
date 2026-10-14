@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -267,6 +268,109 @@ class TimecardOwnerBoundaryContractTest {
                 .andExpect(jsonPath("$.errorCode").value("E4000"));
 
         org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).execute(any());
+    }
+
+    @Test
+    void correctionRejectsRawScalarAndContainerCoercionBeforeRepositoryMutation()
+            throws Exception {
+        String[] hostileBodies = {
+            """
+            {"reasonCode":17,"entries":[
+              {"workDate":"2026-10-14","payCode":"REGULAR","minutes":1}
+            ]}
+            """,
+            """
+            {"reasonCode":"R","entries":{}}
+            """,
+            """
+            {"reasonCode":"R","entries":[true]}
+            """,
+            """
+            {"reasonCode":"R","entries":[
+              {"workDate":["2026-10-14"],"payCode":"REGULAR","minutes":1}
+            ]}
+            """,
+            """
+            {"reasonCode":"R","entries":[
+              {"workDate":"2026-10-14","payCode":false,"minutes":1}
+            ]}
+            """,
+            """
+            {"reasonCode":"R","entries":[
+              {"workDate":"2026-10-14","payCode":"REGULAR","minutes":"1"}
+            ]}
+            """,
+            """
+            {"reasonCode":"R","entries":[
+              {"workDate":"2026-10-14","payCode":"REGULAR","minutes":1.5}
+            ]}
+            """
+        };
+
+        for (String body : hostileBodies) {
+            mockMvc.perform(post("/v1/timecards/{timecardId}/corrections", CARD)
+                            .requestAttr(TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
+                                    authority(TimecardAction.CORRECT, PopulationKind.SELF,
+                                            "TIME_TIMECARD", Set.of("DATA.HR_TIME:CREATE")))
+                            .header("Idempotency-Key", "timecard-coercion-0001")
+                            .header("If-Match", "7")
+                            .header("X-DWP-Expected-Decision-Revision", DECISION_REVISION)
+                            .contentType("application/json")
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("E4000"));
+        }
+
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void submitRejectsRawScalarCoercionBeforeRepositoryMutation() throws Exception {
+        mockMvc.perform(post("/v1/timecards/{timecardId}/submit", CARD)
+                        .requestAttr(TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
+                                authority(TimecardAction.SUBMIT, PopulationKind.SELF,
+                                        "TIME_TIMECARD", Set.of("DATA.HR_TIME:CREATE")))
+                        .header("Idempotency-Key", "timecard-coercion-0002")
+                        .header("If-Match", "7")
+                        .header("X-DWP-Expected-Decision-Revision", DECISION_REVISION)
+                        .contentType("application/json")
+                        .content("{\"reasonCode\":false}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("E4000"));
+
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void decisionRejectsRawScalarCoercionBeforeRepositoryMutation() throws Exception {
+        String[] hostileBodies = {
+            """
+            {"decision":0,"reasonCode":"R"}
+            """,
+            """
+            {"decision":"APPROVE","reasonCode":true}
+            """,
+            """
+            {"decision":"APPROVE","reasonCode":"R","comment":17}
+            """
+        };
+
+        for (String body : hostileBodies) {
+            mockMvc.perform(post("/v1/timecards/{timecardId}/decisions", CARD)
+                            .requestAttr(TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
+                                    authority(TimecardAction.DECIDE,
+                                            PopulationKind.TARGET_POPULATION,
+                                            "TIME_TIMECARD", Set.of("DATA.HR_TIME:APPROVE")))
+                            .header("Idempotency-Key", "timecard-coercion-0003")
+                            .header("If-Match", "7")
+                            .header("X-DWP-Expected-Decision-Revision", DECISION_REVISION)
+                            .contentType("application/json")
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("E4000"));
+        }
+
+        verifyNoInteractions(repository);
     }
 
     private TimecardRecord record() {

@@ -165,10 +165,14 @@ public final class TimecardOwnerController {
             if (command == null || !command.isObject()) {
                 throw new IllegalArgumentException("Timecard command must be a JSON object");
             }
-            if (type == TimecardSubmitCommandV1.class) {
-                requireOptionalString(command, "reasonCode");
+            if (type == TimecardCorrectionCommandV1.class) {
+                requireCorrectionTypes(command);
+            } else if (type == TimecardSubmitCommandV1.class) {
+                requireStringIfPresent(command, "reasonCode");
             } else if (type == TimecardDecisionCommandV1.class) {
-                requireOptionalString(command, "comment");
+                requireStringIfPresent(command, "decision");
+                requireStringIfPresent(command, "reasonCode");
+                requireStringIfPresent(command, "comment");
             }
             return STRICT_COMMAND_MAPPER.readValue(json, type);
         } catch (JsonProcessingException | IllegalArgumentException invalid) {
@@ -179,7 +183,28 @@ public final class TimecardOwnerController {
         }
     }
 
-    private static void requireOptionalString(JsonNode command, String field) {
+    private static void requireCorrectionTypes(JsonNode command) {
+        requireStringIfPresent(command, "reasonCode");
+        if (!command.has("entries")) {
+            return;
+        }
+        JsonNode entries = command.get("entries");
+        if (!entries.isArray()) {
+            throw new IllegalArgumentException("entries must be an array");
+        }
+        for (JsonNode entry : entries) {
+            if (!entry.isObject()) {
+                throw new IllegalArgumentException("each correction entry must be an object");
+            }
+            requireStringIfPresent(entry, "workDate");
+            requireStringIfPresent(entry, "payCode");
+            if (entry.has("minutes") && !entry.get("minutes").isIntegralNumber()) {
+                throw new IllegalArgumentException("minutes must be an integer");
+            }
+        }
+    }
+
+    private static void requireStringIfPresent(JsonNode command, String field) {
         if (command.has(field) && !command.get(field).isTextual()) {
             throw new IllegalArgumentException(field + " must be a string when present");
         }
