@@ -1623,7 +1623,9 @@
               "APPROVED",
               "REJECTED",
               "CORRECTION_REQUIRED",
-              "CLOSED"
+              "LOCKED",
+              "CLOSED",
+              "SUPERSEDED"
             ]
           },
           "timecardId": {
@@ -2785,7 +2787,16 @@
                 }
               }
             },
-            "description": "Timecard projection"
+            "description": "Timecard projection",
+            "headers": {
+              "ETag": {
+                "description": "Entity version for conditional follow-up requests.",
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2793,6 +2804,7 @@
         ],
         "x-dwp-controller-method": "timecard",
         "x-dwp-purpose-code": "TIME_TIMECARD",
+        "x-dwp-reviewed-design-time-contract": "WAVE5-PER-TIM-TRANSPORT-R1",
         "x-dwp-runtime-default": "OFF"
       }
     },

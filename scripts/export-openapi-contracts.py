@@ -247,17 +247,17 @@ WAVE5_HRIS_CONTROL_OPERATION_CONTRACTS = {
     ),
     "route.hcm.performance.assigned-review.data": (
         "people", "get", "/v1/hris/performance/reviews/{reviewId}",
-        "getAssignedPerformanceReview", None, "AssignedReviewV1",
+        "getAssignedReview", None, "AssignedReviewV1",
         "PERFORMANCE_REVIEW",
     ),
     "route.hcm.performance.assigned-review-draft-update.action": (
         "people", "patch", "/v1/hris/performance/reviews/{reviewId}",
-        "updateAssignedPerformanceReviewDraft", "ReviewDraftCommandV1",
+        "saveReviewDraft", "ReviewDraftCommandV1",
         "AssignedReviewV1", "PERFORMANCE_REVIEW",
     ),
     "route.hcm.performance.assigned-review-submit.action": (
         "people", "post", "/v1/hris/performance/reviews/{reviewId}/submit",
-        "submitAssignedPerformanceReview", "SubmitReviewCommandV1",
+        "submitReview", "SubmitReviewCommandV1",
         "ReviewSubmissionV1", "PERFORMANCE_REVIEW",
     ),
     "route.hcm.operations.performance-multirater-surveys.page": (
@@ -318,6 +318,61 @@ WAVE5_HRIS_POPULATION_SCHEMAS = {
         "const": "TARGET_POPULATION", "type": "string",
     },
 }
+WAVE5_HRIS_SUCCESS_RESPONSES = {
+    "route.hcm.performance.assigned-review.data": ("200", "application/json"),
+    "route.hcm.performance.assigned-review-draft-update.action": (
+        "200", "application/json",
+    ),
+    "route.hcm.performance.assigned-review-submit.action": (
+        "200", "application/json",
+    ),
+    "route.hcm.operations.performance-multirater-surveys.page": (
+        "200", "application/json",
+    ),
+    "route.hcm.time.timecard.data": ("200", "application/json"),
+    "route.hcm.time.timecard-correction.action": ("202", "application/json"),
+    "route.hcm.time.timecard-submit.action": ("202", "application/json"),
+    "route.hcm.time.timecard-decision.action": ("202", "application/json"),
+    "route.hcm.time.command-receipt.data": ("200", "application/json"),
+}
+WAVE5_PER_TRANSPORT_SCHEMA_NAMES = (
+    "ReviewCanonicalDecimal6V1",
+    "ReviewChoiceOptionV1",
+    "ReviewSectionAnswerConstraintsV1",
+    "ReviewTextAnswerConstraintsV1",
+    "ReviewDecimalAnswerConstraintsV1",
+    "ReviewRatingAnswerConstraintsV1",
+    "ReviewChoiceAnswerConstraintsV1",
+    "ReviewAnswerConstraintsV1",
+    "ReviewRubricLevelV1",
+    "ReviewRubricScaleV1",
+    "ReviewFormItemV1",
+    "ReviewFormV1",
+    "TextReviewAnswerV1",
+    "DecimalReviewAnswerV1",
+    "RatingReviewAnswerV1",
+    "ChoiceReviewAnswerV1",
+    "ReviewAnswerV1",
+    "AssignedReviewV1",
+    "ReviewDraftCommandV1",
+    "SubmitReviewCommandV1",
+    "ReviewSubmissionV1",
+    "Iaq022PerformanceMultiraterSurveyPageV1",
+)
+WAVE5_PER_TRANSPORT_SHA256 = (
+    "d9b2d974df45983aea1919e75e38ee063c08a9a835716743bc493a8b02b39bc0"
+)
+WAVE5_TIM_TRANSPORT_SCHEMA_NAMES = (
+    "TimecardV1",
+    "TimecardCorrectionEntryV1",
+    "TimecardCorrectionCommandV1",
+    "TimecardSubmitCommandV1",
+    "TimecardDecisionCommandV1",
+    "TimeCommandReceiptV1",
+)
+WAVE5_TIM_TRANSPORT_SHA256 = (
+    "96f3a6b0d7c6e7f228442f956daab0cfa44ce78dd65c8b477192ec77d0145db4"
+)
 WAVE5_HRIS_CONTROL_ROUTE_KEYS = frozenset(WAVE5_HRIS_CONTROL_OPERATION_CONTRACTS)
 WAVE5_STRICT_MUTATION_OPERATIONS = frozenset({
     ("/api/people/v1/hris/performance/reviews/{reviewId}", "patch"),
@@ -902,12 +957,18 @@ def apply_design_time_overlay(
             mode = reviewed.get("x-dwp-overlay-mode")
             controller_method = reviewed.get("x-dwp-controller-method")
             stable_operation_id = reviewed.get("operationId")
+            operation_id_aliases = reviewed.get("x-dwp-operation-id-aliases", [])
             if (
                 mode not in {"ADD", "PATCH"}
                 or not isinstance(controller_method, str)
                 or not controller_method
                 or not isinstance(stable_operation_id, str)
                 or not stable_operation_id
+                or not isinstance(operation_id_aliases, list)
+                or not all(
+                    isinstance(alias, str) and alias
+                    for alias in operation_id_aliases
+                )
             ):
                 raise RuntimeError(
                     f"HRIS design-time operation metadata is invalid for "
@@ -993,6 +1054,7 @@ def apply_design_time_overlay(
 
             canonical = copy.deepcopy(reviewed)
             canonical.pop("x-dwp-overlay-mode", None)
+            canonical.pop("x-dwp-operation-id-aliases", None)
             if existing is not None:
                 if not isinstance(existing, dict):
                     raise RuntimeError(
@@ -1000,7 +1062,9 @@ def apply_design_time_overlay(
                         f"{service.name}: {method.upper()} {path}"
                     )
                 actual_operation_id = existing.get("operationId")
-                if actual_operation_id not in {controller_method, stable_operation_id}:
+                if actual_operation_id not in {
+                    controller_method, stable_operation_id, *operation_id_aliases
+                }:
                     raise RuntimeError(
                         f"HRIS live controller method drift for {service.name}: "
                         f"{method.upper()} {path}; expected {controller_method}, "
@@ -1009,8 +1073,10 @@ def apply_design_time_overlay(
                 captured_slice = canonical.get("x-dwp-reviewed-springdoc-capture") is True
                 reviewed_design_time_revision = (
                     approved_snapshot
-                    and canonical.get("x-dwp-reviewed-design-time-contract")
-                    == "HRM-010"
+                    and canonical.get("x-dwp-reviewed-design-time-contract") in {
+                        "HRM-010",
+                        "WAVE5-PER-TIM-TRANSPORT-R1",
+                    }
                 )
                 if not (
                     approved_snapshot and captured_slice
@@ -2071,14 +2137,114 @@ def validate_wave5_hris_control_contract(
             raise RuntimeError(f"Wave5 HRIS unexpected step-up proof: {route_key}")
 
         if request_schema is not None:
-            expected_request = {
-                "content": {"application/json": {"schema": {
-                    "$ref": f"#/components/schemas/{request_schema}"
-                }}},
-                "required": True,
+            media_type = (
+                "application/merge-patch+json"
+                if route_key
+                == "route.hcm.performance.assigned-review-draft-update.action"
+                else "application/json"
+            )
+            for label, operation, schema_prefix in (
+                ("source", source, ""),
+                ("owner", owner, ""),
+                ("Gateway", browser, f"{service}_"),
+            ):
+                expected_request = {
+                    "content": {media_type: {"schema": {
+                        "$ref": (
+                            f"#/components/schemas/{schema_prefix}{request_schema}"
+                        )
+                    }}},
+                    "required": True,
+                }
+                if operation.get("requestBody") != expected_request:
+                    raise RuntimeError(
+                        f"Wave5 HRIS request schema drift: {label} {route_key}"
+                    )
+
+        success_contract = WAVE5_HRIS_SUCCESS_RESPONSES.get(route_key)
+        if success_contract is None:
+            raise RuntimeError(f"Wave5 HRIS success contract missing: {route_key}")
+        success_status, success_media_type = success_contract
+        for label, operation, schema_prefix in (
+            ("source", source, ""),
+            ("owner", owner, ""),
+            ("Gateway", browser, f"{service}_"),
+        ):
+            responses = operation.get("responses", {})
+            actual_success_statuses = {
+                status for status in responses if status.startswith("2")
             }
-            if source.get("requestBody") != expected_request:
-                raise RuntimeError(f"Wave5 HRIS request schema drift: {route_key}")
+            actual_success_content = responses.get(success_status, {}).get(
+                "content"
+            )
+            expected_success_content = {
+                success_media_type: {"schema": {
+                    "$ref": (
+                        f"#/components/schemas/{schema_prefix}{response_schema}"
+                    )
+                }}
+            }
+            if (
+                actual_success_statuses != {success_status}
+                or actual_success_content != expected_success_content
+            ):
+                raise RuntimeError(
+                    f"Wave5 HRIS success response drift: {label} {route_key}"
+                )
+
+        if route_key in {
+            "route.hcm.performance.assigned-review.data",
+            "route.hcm.performance.assigned-review-draft-update.action",
+            "route.hcm.time.timecard.data",
+        }:
+            expected_etag = {
+                "description": "Entity version for conditional follow-up requests.",
+                "schema": {"minLength": 1, "type": "string"},
+            }
+            for label, operation in (
+                ("source", source), ("owner", owner), ("Gateway", browser)
+            ):
+                actual_etag = operation.get("responses", {}).get("200", {}).get(
+                    "headers", {}).get("ETag")
+                if actual_etag != expected_etag:
+                    raise RuntimeError(
+                        f"Wave5 HRIS ETag response drift: {label} {route_key}"
+                    )
+
+        required_error_statuses = {
+            "route.hcm.performance.assigned-review.data": {"403", "404"},
+            "route.hcm.performance.assigned-review-draft-update.action": {
+                "403", "409"
+            },
+            "route.hcm.performance.assigned-review-submit.action": {
+                "403", "409", "422"
+            },
+        }.get(route_key, set())
+        if required_error_statuses:
+            for label, operation, schema_prefix in (
+                ("source", source, ""),
+                ("owner", owner, ""),
+                ("Gateway", browser, f"{service}_"),
+            ):
+                expected_error_schema = {
+                    "$ref": (
+                        "#/components/schemas/"
+                        f"{schema_prefix}HrisProblemDetailsV1"
+                    )
+                }
+                responses = operation.get("responses", {})
+                for status in required_error_statuses:
+                    actual_error_content = responses.get(status, {}).get("content")
+                    expected_error_content = {
+                        "application/problem+json": {
+                            "schema": expected_error_schema,
+                        }
+                    }
+                    if actual_error_content != expected_error_content:
+                        raise RuntimeError(
+                            "Wave5 HRIS error response drift: "
+                            f"{label} {route_key} {status}"
+                        )
 
     for service, expected in expected_source.items():
         actual = {
@@ -2108,14 +2274,82 @@ def validate_wave5_hris_control_contract(
                for name in names):
             raise RuntimeError(f"Wave5 HRIS schema is not closed: {service}")
 
+    def normalize_gateway_refs(value: Any, service: str) -> Any:
+        if isinstance(value, list):
+            return [normalize_gateway_refs(item, service) for item in value]
+        if isinstance(value, str) and value.startswith(
+                f"#/components/schemas/{service}_"):
+            return value.replace(
+                f"#/components/schemas/{service}_",
+                "#/components/schemas/",
+                1,
+            )
+        if isinstance(value, dict):
+            return {
+                key: normalize_gateway_refs(item, service)
+                for key, item in value.items()
+            }
+        return value
+
+    for service, schema_names, expected_hash in (
+        (
+            "people",
+            WAVE5_PER_TRANSPORT_SCHEMA_NAMES,
+            WAVE5_PER_TRANSPORT_SHA256,
+        ),
+        (
+            "time",
+            WAVE5_TIM_TRANSPORT_SCHEMA_NAMES,
+            WAVE5_TIM_TRANSPORT_SHA256,
+        ),
+    ):
+        source_schemas = overlays[service]["components"]["schemas"]
+        owner_schemas = documents[service]["components"]["schemas"]
+        source_graph = {
+            name: source_schemas.get(name) for name in schema_names
+        }
+        owner_graph = {
+            name: owner_schemas.get(name) for name in schema_names
+        }
+        gateway_graph = {
+            name: normalize_gateway_refs(
+                gateway_document.get("components", {}).get("schemas", {}).get(
+                    f"{service}_{name}"
+                ),
+                service,
+            )
+            for name in schema_names
+        }
+        if canonical_contract_hash(source_graph) != expected_hash:
+            raise RuntimeError(f"Wave5 HRIS sealed {service} schema drift")
+        if owner_graph != source_graph or gateway_graph != source_graph:
+            raise RuntimeError(
+                f"Wave5 HRIS generated {service} schema projection drift"
+            )
+
+    timecard_states = overlays["time"]["components"]["schemas"]["TimecardV1"][
+        "properties"
+    ]["state"]["enum"]
+    if timecard_states != [
+        "OPEN",
+        "SUBMITTED",
+        "APPROVED",
+        "REJECTED",
+        "CORRECTION_REQUIRED",
+        "LOCKED",
+        "CLOSED",
+        "SUPERSEDED",
+    ]:
+        raise RuntimeError("Wave5 HRIS timecard state precedence drift")
+
     iaq = overlays["people"]["components"]["schemas"][
         "Iaq022PerformanceMultiraterSurveyPageV1"
     ]
     actions = iaq["properties"]["availableActions"]["items"]["enum"]
     if actions != [
-        "hris.action.performance.create-multirater-cycle",
-        "hris.action.performance.update-multirater-cycle",
-        "hris.action.performance.validate-multirater-cycle",
+        "hris.action.per.create-cycle",
+        "hris.action.per.update-cycle-draft",
+        "hris.action.per.validate-cycle",
     ] or any("review" in action or "submit" in action for action in actions):
         raise RuntimeError("IAQ-022 review identity/action separation drift")
 

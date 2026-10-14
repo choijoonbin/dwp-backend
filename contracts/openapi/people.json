@@ -2153,7 +2153,11 @@
             },
             "maxItems": 500,
             "type": "array",
-            "uniqueItems": true
+            "uniqueItems": true,
+            "x-dwp-order-by": [
+              "itemKey"
+            ],
+            "x-dwp-unique-by": "itemKey"
           },
           "draftContentHash": {
             "pattern": "^[0-9a-f]{64}$",
@@ -2194,7 +2198,7 @@
             ]
           },
           "stageKey": {
-            "maxLength": 128,
+            "maxLength": 80,
             "minLength": 1,
             "type": "string"
           },
@@ -2861,6 +2865,31 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "ChoiceReviewAnswerV1": {
+        "additionalProperties": false,
+        "properties": {
+          "itemKey": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "const": "CHOICE",
+            "type": "string"
+          },
+          "optionKey": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemKey",
+          "kind",
+          "optionKey"
+        ],
         "type": "object"
       },
       "CloneScenarioRequest": {
@@ -4167,6 +4196,29 @@
           "decision",
           "reason",
           "version"
+        ],
+        "type": "object"
+      },
+      "DecimalReviewAnswerV1": {
+        "additionalProperties": false,
+        "properties": {
+          "decimalValue": {
+            "$ref": "#/components/schemas/ReviewCanonicalDecimal6V1"
+          },
+          "itemKey": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "const": "DECIMAL",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemKey",
+          "kind",
+          "decimalValue"
         ],
         "type": "object"
       },
@@ -5984,9 +6036,9 @@
           "availableActions": {
             "items": {
               "enum": [
-                "hris.action.performance.create-multirater-cycle",
-                "hris.action.performance.update-multirater-cycle",
-                "hris.action.performance.validate-multirater-cycle"
+                "hris.action.per.create-cycle",
+                "hris.action.per.update-cycle-draft",
+                "hris.action.per.validate-cycle"
               ]
             },
             "maxItems": 3,
@@ -8841,6 +8893,29 @@
         },
         "type": "object"
       },
+      "RatingReviewAnswerV1": {
+        "additionalProperties": false,
+        "properties": {
+          "itemKey": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "const": "RATING",
+            "type": "string"
+          },
+          "ratingValue": {
+            "$ref": "#/components/schemas/ReviewCanonicalDecimal6V1"
+          }
+        },
+        "required": [
+          "itemKey",
+          "kind",
+          "ratingValue"
+        ],
+        "type": "object"
+      },
       "Receipt": {
         "properties": {
           "appliedAt": {
@@ -9202,46 +9277,137 @@
         ],
         "type": "object"
       },
+      "ReviewAnswerConstraintsV1": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ReviewSectionAnswerConstraintsV1"
+          },
+          {
+            "$ref": "#/components/schemas/ReviewTextAnswerConstraintsV1"
+          },
+          {
+            "$ref": "#/components/schemas/ReviewDecimalAnswerConstraintsV1"
+          },
+          {
+            "$ref": "#/components/schemas/ReviewRatingAnswerConstraintsV1"
+          },
+          {
+            "$ref": "#/components/schemas/ReviewChoiceAnswerConstraintsV1"
+          }
+        ]
+      },
       "ReviewAnswerV1": {
+        "discriminator": {
+          "mapping": {
+            "CHOICE": "#/components/schemas/ChoiceReviewAnswerV1",
+            "DECIMAL": "#/components/schemas/DecimalReviewAnswerV1",
+            "RATING": "#/components/schemas/RatingReviewAnswerV1",
+            "TEXT": "#/components/schemas/TextReviewAnswerV1"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TextReviewAnswerV1"
+          },
+          {
+            "$ref": "#/components/schemas/DecimalReviewAnswerV1"
+          },
+          {
+            "$ref": "#/components/schemas/RatingReviewAnswerV1"
+          },
+          {
+            "$ref": "#/components/schemas/ChoiceReviewAnswerV1"
+          }
+        ]
+      },
+      "ReviewCanonicalDecimal6V1": {
+        "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,6})?$",
+        "type": "string"
+      },
+      "ReviewChoiceAnswerConstraintsV1": {
         "additionalProperties": false,
         "properties": {
-          "answerType": {
-            "enum": [
-              "TEXT",
-              "DECIMAL",
-              "RATING",
-              "CHOICE"
-            ]
+          "maximumSelections": {
+            "const": 1,
+            "type": "integer"
           },
-          "itemKey": {
-            "maxLength": 128,
-            "minLength": 1,
-            "type": "string"
+          "minimumSelections": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "integer"
           },
-          "value": {
-            "oneOf": [
-              {
-                "maxLength": 10000,
-                "type": "string"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "items": {
-                  "maxLength": 256,
-                  "type": "string"
-                },
-                "maxItems": 100,
-                "type": "array"
-              }
-            ]
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewChoiceOptionV1"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true,
+            "x-dwp-unique-by": "optionKey"
           }
         },
         "required": [
-          "itemKey",
-          "answerType",
-          "value"
+          "minimumSelections",
+          "maximumSelections",
+          "options"
+        ],
+        "type": "object"
+      },
+      "ReviewChoiceOptionV1": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "optionKey": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "optionKey",
+          "label"
+        ],
+        "type": "object"
+      },
+      "ReviewDecimalAnswerConstraintsV1": {
+        "additionalProperties": false,
+        "properties": {
+          "maximum": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReviewCanonicalDecimal6V1"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "minimum": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReviewCanonicalDecimal6V1"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scale": {
+            "maximum": 6,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "minimum",
+          "maximum",
+          "scale"
         ],
         "type": "object"
       },
@@ -9255,7 +9421,11 @@
             "maxItems": 500,
             "minItems": 1,
             "type": "array",
-            "uniqueItems": true
+            "uniqueItems": true,
+            "x-dwp-order-by": [
+              "itemKey"
+            ],
+            "x-dwp-unique-by": "itemKey"
           }
         },
         "required": [
@@ -9265,41 +9435,168 @@
       },
       "ReviewFormItemV1": {
         "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "SECTION"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "answerConstraints": {
+                  "$ref": "#/components/schemas/ReviewSectionAnswerConstraintsV1"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "TEXT"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "answerConstraints": {
+                  "$ref": "#/components/schemas/ReviewTextAnswerConstraintsV1"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "DECIMAL"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "answerConstraints": {
+                  "$ref": "#/components/schemas/ReviewDecimalAnswerConstraintsV1"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "RATING"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "answerConstraints": {
+                  "$ref": "#/components/schemas/ReviewRatingAnswerConstraintsV1"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "CHOICE"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "answerConstraints": {
+                  "$ref": "#/components/schemas/ReviewChoiceAnswerConstraintsV1"
+                }
+              }
+            }
+          }
+        ],
         "properties": {
-          "itemKey": {
-            "maxLength": 128,
-            "minLength": 1,
-            "type": "string"
+          "answerConstraints": {
+            "$ref": "#/components/schemas/ReviewAnswerConstraintsV1"
           },
-          "prompt": {
-            "maxLength": 2000,
-            "minLength": 1,
-            "type": "string"
-          },
-          "required": {
-            "type": "boolean"
-          },
-          "rubricScaleKey": {
+          "helpText": {
+            "maxLength": 5000,
             "type": [
               "string",
               "null"
             ]
           },
-          "type": {
+          "itemKey": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
             "enum": [
+              "SECTION",
               "TEXT",
               "DECIMAL",
               "RATING",
               "CHOICE"
             ]
+          },
+          "label": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "parentItemKey": {
+            "maxLength": 100,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "sequence": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "weight": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReviewCanonicalDecimal6V1"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "itemKey",
-          "prompt",
-          "type",
+          "parentItemKey",
+          "kind",
+          "sequence",
           "required",
-          "rubricScaleKey"
+          "weight",
+          "label",
+          "helpText",
+          "answerConstraints"
         ],
         "type": "object"
       },
@@ -9312,24 +9609,49 @@
             },
             "maxItems": 500,
             "minItems": 1,
-            "type": "array"
+            "type": "array",
+            "x-dwp-order-by": [
+              "sequence",
+              "itemKey"
+            ],
+            "x-dwp-sequence": "CONTIGUOUS_FROM_ONE",
+            "x-dwp-unique-by": "itemKey"
           },
           "rubricScales": {
             "items": {
               "$ref": "#/components/schemas/ReviewRubricScaleV1"
             },
             "maxItems": 100,
-            "type": "array"
+            "type": "array",
+            "x-dwp-order-by": [
+              "scaleKey"
+            ],
+            "x-dwp-unique-by": "scaleKey"
           },
           "schemaVersion": {
-            "minimum": 1,
-            "type": "integer"
+            "maxLength": 30,
+            "minLength": 1,
+            "type": "string"
           }
         },
         "required": [
           "schemaVersion",
           "items",
           "rubricScales"
+        ],
+        "type": "object"
+      },
+      "ReviewRatingAnswerConstraintsV1": {
+        "additionalProperties": false,
+        "properties": {
+          "scaleKey": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "scaleKey"
         ],
         "type": "object"
       },
@@ -9341,19 +9663,24 @@
             "minLength": 1,
             "type": "string"
           },
-          "score": {
-            "type": "number"
-          },
-          "value": {
-            "maxLength": 64,
+          "levelKey": {
+            "maxLength": 80,
             "minLength": 1,
             "type": "string"
+          },
+          "numericValue": {
+            "$ref": "#/components/schemas/ReviewCanonicalDecimal6V1"
+          },
+          "sequence": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
-          "value",
-          "label",
-          "score"
+          "levelKey",
+          "sequence",
+          "numericValue",
+          "label"
         ],
         "type": "object"
       },
@@ -9366,18 +9693,29 @@
             },
             "maxItems": 20,
             "minItems": 1,
-            "type": "array"
+            "type": "array",
+            "x-dwp-order-by": [
+              "sequence",
+              "levelKey"
+            ],
+            "x-dwp-unique-by": "levelKey"
           },
-          "rubricScaleKey": {
-            "maxLength": 128,
+          "scaleKey": {
+            "maxLength": 80,
             "minLength": 1,
             "type": "string"
           }
         },
         "required": [
-          "rubricScaleKey",
+          "scaleKey",
           "levels"
         ],
+        "type": "object"
+      },
+      "ReviewSectionAnswerConstraintsV1": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
         "type": "object"
       },
       "ReviewSubmissionV1": {
@@ -9409,6 +9747,24 @@
           "state",
           "contentHash",
           "submittedAt"
+        ],
+        "type": "object"
+      },
+      "ReviewTextAnswerConstraintsV1": {
+        "additionalProperties": false,
+        "properties": {
+          "maxLength": {
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "multiline": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "maxLength",
+          "multiline"
         ],
         "type": "object"
       },
@@ -9868,6 +10224,30 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "TextReviewAnswerV1": {
+        "additionalProperties": false,
+        "properties": {
+          "itemKey": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "const": "TEXT",
+            "type": "string"
+          },
+          "textValue": {
+            "maxLength": 10000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemKey",
+          "kind",
+          "textValue"
+        ],
         "type": "object"
       },
       "TimeCard": {
@@ -14832,7 +15212,7 @@
     },
     "/v1/hris/performance/reviews/{reviewId}": {
       "get": {
-        "operationId": "getAssignedPerformanceReview",
+        "operationId": "getAssignedReview",
         "parameters": [
           {
             "in": "path",
@@ -14874,7 +15254,36 @@
                 }
               }
             },
-            "description": "Assigned review projection"
+            "description": "Assigned review projection",
+            "headers": {
+              "ETag": {
+                "description": "Entity version for conditional follow-up requests.",
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrisProblemDetailsV1"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrisProblemDetailsV1"
+                }
+              }
+            },
+            "description": "Review absent or outside the assigned scope"
           }
         },
         "tags": [
@@ -14882,10 +15291,11 @@
         ],
         "x-dwp-controller-method": "review",
         "x-dwp-purpose-code": "PERFORMANCE_REVIEW",
+        "x-dwp-reviewed-design-time-contract": "WAVE5-PER-TIM-TRANSPORT-R1",
         "x-dwp-runtime-default": "OFF"
       },
       "patch": {
-        "operationId": "updateAssignedPerformanceReviewDraft",
+        "operationId": "saveReviewDraft",
         "parameters": [
           {
             "in": "path",
@@ -14949,7 +15359,7 @@
         ],
         "requestBody": {
           "content": {
-            "application/json": {
+            "application/merge-patch+json": {
               "schema": {
                 "$ref": "#/components/schemas/ReviewDraftCommandV1"
               }
@@ -14966,7 +15376,36 @@
                 }
               }
             },
-            "description": "Updated review draft"
+            "description": "Updated review draft",
+            "headers": {
+              "ETag": {
+                "description": "Entity version for conditional follow-up requests.",
+                "schema": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrisProblemDetailsV1"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrisProblemDetailsV1"
+                }
+              }
+            },
+            "description": "Version or draft conflict"
           }
         },
         "tags": [
@@ -14974,12 +15413,13 @@
         ],
         "x-dwp-controller-method": "updateDraft",
         "x-dwp-purpose-code": "PERFORMANCE_REVIEW",
+        "x-dwp-reviewed-design-time-contract": "WAVE5-PER-TIM-TRANSPORT-R1",
         "x-dwp-runtime-default": "OFF"
       }
     },
     "/v1/hris/performance/reviews/{reviewId}/submit": {
       "post": {
-        "operationId": "submitAssignedPerformanceReview",
+        "operationId": "submitReview",
         "parameters": [
           {
             "in": "path",
@@ -15061,6 +15501,36 @@
               }
             },
             "description": "Immutable review submission"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrisProblemDetailsV1"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrisProblemDetailsV1"
+                }
+              }
+            },
+            "description": "Version or draft conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrisProblemDetailsV1"
+                }
+              }
+            },
+            "description": "Review rule violation"
           }
         },
         "tags": [
@@ -15068,6 +15538,7 @@
         ],
         "x-dwp-controller-method": "submit",
         "x-dwp-purpose-code": "PERFORMANCE_REVIEW",
+        "x-dwp-reviewed-design-time-contract": "WAVE5-PER-TIM-TRANSPORT-R1",
         "x-dwp-runtime-default": "OFF"
       }
     },

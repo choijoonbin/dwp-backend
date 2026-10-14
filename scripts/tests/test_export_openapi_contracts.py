@@ -673,6 +673,100 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 platform, people, time, leaked_step_up
             )
 
+        wrong_people_schema = copy.deepcopy(people)
+        wrong_people_schema["components"]["schemas"]["AssignedReviewV1"][
+            "properties"
+        ]["stageKey"]["maxLength"] = 81
+        with self.assertRaisesRegex(RuntimeError, "generated people schema"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, wrong_people_schema, time, gateway
+            )
+
+        wrong_time_state = copy.deepcopy(time)
+        wrong_time_state["components"]["schemas"]["TimecardV1"]["properties"][
+            "state"
+        ]["enum"].remove("LOCKED")
+        with self.assertRaisesRegex(RuntimeError, "generated time schema"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, people, wrong_time_state, gateway
+            )
+
+        reordered_time_state = copy.deepcopy(time)
+        reordered_time_state["components"]["schemas"]["TimecardV1"][
+            "properties"
+        ]["state"]["enum"][-2:] = ["SUPERSEDED", "CLOSED"]
+        with self.assertRaisesRegex(RuntimeError, "generated time schema"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, people, reordered_time_state, gateway
+            )
+
+        missing_owner_etag = copy.deepcopy(people)
+        del missing_owner_etag["paths"][
+            "/v1/hris/performance/reviews/{reviewId}"
+        ]["get"]["responses"]["200"]["headers"]["ETag"]
+        with self.assertRaisesRegex(RuntimeError, "ETag response drift"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, missing_owner_etag, time, gateway
+            )
+
+        missing_gateway_etag = copy.deepcopy(gateway)
+        del missing_gateway_etag["paths"][
+            "/api/time/v1/timecards/{timecardId}"
+        ]["get"]["responses"]["200"]["headers"]["ETag"]
+        with self.assertRaisesRegex(RuntimeError, "ETag response drift"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, people, time, missing_gateway_etag
+            )
+
+        wrong_patch_media = copy.deepcopy(people)
+        patch_content = wrong_patch_media["paths"][
+            "/v1/hris/performance/reviews/{reviewId}"
+        ]["patch"]["requestBody"]["content"]
+        patch_content["application/json"] = patch_content.pop(
+            "application/merge-patch+json"
+        )
+        with self.assertRaisesRegex(RuntimeError, "request schema drift"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, wrong_patch_media, time, gateway
+            )
+
+        wrong_success_response = copy.deepcopy(time)
+        wrong_success_response["paths"][
+            "/v1/timecards/{timecardId}/corrections"
+        ]["post"]["responses"]["202"]["content"]["application/json"][
+            "schema"
+        ] = {"$ref": "#/components/schemas/TimecardV1"}
+        with self.assertRaisesRegex(RuntimeError, "success response drift"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, people, wrong_success_response, gateway
+            )
+
+        wrong_error_response = copy.deepcopy(gateway)
+        wrong_error_response["paths"][
+            "/api/people/v1/hris/performance/reviews/{reviewId}/submit"
+        ]["post"]["responses"]["422"]["content"]["application/json"] = (
+            wrong_error_response["paths"][
+                "/api/people/v1/hris/performance/reviews/{reviewId}/submit"
+            ]["post"]["responses"]["422"]["content"].pop(
+                "application/problem+json"
+            )
+        )
+        with self.assertRaisesRegex(RuntimeError, "error response drift"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, people, time, wrong_error_response
+            )
+
+        wrong_iaq_action = copy.deepcopy(gateway)
+        wrong_iaq_action["components"]["schemas"][
+            "people_Iaq022PerformanceMultiraterSurveyPageV1"
+        ]["properties"]["availableActions"]["items"]["enum"][0] = (
+            "hris.action.performance.create-multirater-cycle"
+        )
+        with self.assertRaisesRegex(RuntimeError, "generated people schema"):
+            EXPORTER["validate_wave5_hris_control_contract"](
+                platform, people, time, wrong_iaq_action
+            )
+
     def test_compensation_planning_validator_rejects_payload_graph_drift(self) -> None:
         people = json.loads(
             (ROOT / "contracts/openapi/people.json").read_text(encoding="utf-8")
@@ -862,6 +956,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             "platform": {
                 ("get", "/v1/hris/configuration/projection", "projection"),
                 ("get", "/v1/hris/workbench/settings-reference", "workbench"),
+                ("get", "/v1/admin/audit-control/events", "page"),
+                ("get", "/v1/admin/audit-control/events/{eventId}", "detail"),
                 (
                     "get",
                     "/v1/admin/hris/navigation-policies/workspace",
@@ -995,6 +1091,10 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 ("post", "/v1/hris/performance/cycles/{cycleId}/publish", "publish"),
                 ("get", "/v1/hris/performance/command-receipts/{receiptId}", "receipt"),
                 ("get", "/v1/hris/performance/workbench/review-operations", "query"),
+                ("get", "/v1/hris/performance/reviews/{reviewId}", "review"),
+                ("patch", "/v1/hris/performance/reviews/{reviewId}", "updateDraft"),
+                ("post", "/v1/hris/performance/reviews/{reviewId}/submit", "submit"),
+                ("get", "/v1/hris/performance/workbench/multirater-surveys", "workbench"),
                 ("get", "/v1/workforce/assignments/{assignmentId}", "assignment"),
                 ("get", "/v1/workforce/assignments/{assignmentId}/timeline", "timeline"),
                 ("get", "/v1/workforce/assignment-proposals/{proposalId}", "proposal"),
@@ -1014,6 +1114,11 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 ("post", "/v1/hris/payroll/foundation/configurations/{configurationId}/reversals", "reverse"),
                 ("get", "/v1/hris/payroll/foundation/receipts/{commandId}", "receipt"),
                 ("post", "/v1/hris/payroll/foundation/receipts/{commandId}/reconcile", "reconcile"),
+                ("post", "/v1/runs/{runId}/attempts", "calculate"),
+                ("get", "/v1/runs/{runId}", "run"),
+                ("post", "/v1/runs/{runId}/approvals", "approve"),
+                ("post", "/v1/runs/{runId}/finalize", "finalize"),
+                ("get", "/v1/command-receipts/{receiptId}", "receipt"),
             },
             "time": {
                 ("post", "/v1/clock-events", "record"),
@@ -1025,6 +1130,11 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 ("get", "/v1/hris/work-plan-receipts/{receiptId}", "receipt"),
                 ("get", "/v1/hris/workbench/clock-ingestion", "workbench"),
                 ("get", "/v1/hris/workbench/time-exceptions", "exceptions"),
+                ("get", "/v1/timecards/{timecardId}", "timecard"),
+                ("post", "/v1/timecards/{timecardId}/corrections", "correct"),
+                ("post", "/v1/timecards/{timecardId}/submit", "submit"),
+                ("post", "/v1/timecards/{timecardId}/decisions", "decide"),
+                ("get", "/v1/command-receipts/{receiptId}", "receipt"),
             },
         }
         overlays = EXPORTER["load_design_time_overlays"]()
@@ -1068,6 +1178,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         services = {service.name: service for service in EXPORTER["SERVICES"]}
         overlays = EXPORTER["load_design_time_overlays"]()
         patch_variants = {
+            ("platform", "/v1/admin/audit-control/events", "get", "page"),
+            ("platform", "/v1/admin/audit-control/events/{eventId}", "get", "detail"),
             ("people", "/v1/hr/home", "get", "people360"),
             ("people", "/v1/hr/team", "get", "teamPeople360"),
             ("people", "/v1/workforce/people", "get", "searchPeople360"),
@@ -1110,7 +1222,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                             operation["x-dwp-runtime-default"],
                         )
 
-        self.assertEqual(len(patch_variants), 4)
+        self.assertEqual(len(patch_variants), 6)
 
     def test_sys_reference_configuration_source_owner_and_gateway_are_exact(self) -> None:
         platform = json.loads(
@@ -1851,7 +1963,9 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 "PopulationFreeze",
                 "Projection",
                 "QueryState",
-            } | set(EXPORTER["HRM_CANONICAL_SCHEMA_SHA256"]),
+            }
+            | set(EXPORTER["HRM_CANONICAL_SCHEMA_SHA256"])
+            | set(EXPORTER["WAVE5_PER_TRANSPORT_SCHEMA_NAMES"]),
         )
         self.assertEqual(
             set(schemas["AssignmentProposalCreateRequest"]["required"]),
@@ -2035,7 +2149,11 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 pending.update(schema_references(schemas[name]) - closure)
             self.assertEqual(closure, expected_schemas[service])
             if service == "time":
-                self.assertEqual(set(schemas), expected_schemas[service])
+                self.assertEqual(
+                    set(schemas),
+                    expected_schemas[service]
+                    | set(EXPORTER["WAVE5_TIM_TRANSPORT_SCHEMA_NAMES"]),
+                )
 
     def test_g3_assignment_reviewed_components_reconcile_only_approved_snapshots(
             self) -> None:
