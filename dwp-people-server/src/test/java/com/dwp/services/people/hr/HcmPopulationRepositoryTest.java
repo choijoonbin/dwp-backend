@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -127,6 +128,34 @@ class HcmPopulationRepositoryTest {
                 .contains("request.reason")
                 .contains("LEFT JOIN abs_leave_balances balance")
                 .contains("AS available_minutes");
+    }
+
+    @Test
+    void benefitsMetricsAvoidPostgresReservedWindowAlias() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        List<String> statements = new ArrayList<>();
+        when(jdbc.queryForObject(
+                anyString(), any(MapSqlParameterSource.class),
+                ArgumentMatchers.<Class<Long>>any()))
+                .thenAnswer(invocation -> {
+                    statements.add(invocation.getArgument(0));
+                    return 0L;
+                });
+        HcmPopulationRepository repository = new HcmPopulationRepository(jdbc);
+        HcmPopulationRepository.PopulationScope scope =
+                new HcmPopulationRepository.PopulationScope(
+                        31L, "MANAGER-31", true, Set.of(),
+                        Set.of("BENEFITS"), "policy-v10");
+
+        repository.metrics(19L, scope, "BENEFITS");
+
+        assertThat(statements).hasSize(3);
+        assertThat(statements.stream().map(this::normalized))
+                .anySatisfy(sql -> assertThat(sql)
+                        .contains("FROM bnf_enrollment_windows enrollment_window")
+                        .contains("enrollment_window.lifecycle_state = 'OPEN'"))
+                .noneSatisfy(sql -> assertThat(sql)
+                        .contains("bnf_enrollment_windows window"));
     }
 
     private String normalized(String sql) {

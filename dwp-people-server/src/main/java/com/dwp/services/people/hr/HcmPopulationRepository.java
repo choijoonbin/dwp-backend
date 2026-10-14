@@ -353,18 +353,18 @@ public class HcmPopulationRepository {
                                AND plan.lifecycle_state = 'ACTIVE'
                             """), "INFO"),
                     metric("openWindows", count(tenantId, scope, """
-                            SELECT COUNT(DISTINCT window.enrollment_window_id)
-                              FROM bnf_enrollment_windows window
+                            SELECT COUNT(DISTINCT enrollment_window.enrollment_window_id)
+                              FROM bnf_enrollment_windows enrollment_window
                               JOIN bnf_benefit_plans plan
-                                ON plan.tenant_id = window.tenant_id
-                               AND plan.benefit_program_id = window.benefit_program_id
+                                ON plan.tenant_id = enrollment_window.tenant_id
+                               AND plan.benefit_program_id = enrollment_window.benefit_program_id
                               JOIN bnf_enrollments enrollment
                                 ON enrollment.tenant_id = plan.tenant_id
                                AND enrollment.benefit_plan_id = plan.benefit_plan_id
                               JOIN visible_workers visible
                                 ON visible.worker_id = enrollment.worker_id
-                             WHERE window.tenant_id = :tenantId
-                               AND window.lifecycle_state = 'OPEN'
+                             WHERE enrollment_window.tenant_id = :tenantId
+                               AND enrollment_window.lifecycle_state = 'OPEN'
                             """), "ATTENTION"),
                     metric("activeEnrollments", count(tenantId, scope, """
                             SELECT COUNT(*) FROM bnf_enrollments enrollment
