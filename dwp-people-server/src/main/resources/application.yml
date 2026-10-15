@@ -78,6 +78,10 @@ dwp:
         token: ${DWP_HRIS_ORIGIN_AUTHORITY_TOKEN:}
         timeout: ${DWP_HRIS_ORIGIN_AUTHORITY_TIMEOUT:PT2S}
         required-assurance: ${DWP_HRIS_ORIGIN_AUTHORITY_REQUIRED_ASSURANCE:}
+      recipient-authority:
+        auth-url: ${DWP_HRIS_RECIPIENT_AUTHORITY_URL:${SERVICE_AUTH_URL:http://localhost:8001}}
+        token: ${DWP_HRIS_RECIPIENT_AUTHORITY_TOKEN:}
+        timeout: ${DWP_HRIS_RECIPIENT_AUTHORITY_TIMEOUT:PT2S}
       relay:
         enabled: ${DWP_HRIS_EXPERIENCE_RELAY_ENABLED:false}
         batch-size: ${DWP_HRIS_EXPERIENCE_RELAY_BATCH_SIZE:25}

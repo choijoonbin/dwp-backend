@@ -62,6 +62,7 @@ dwp:
     product-surface-token: ${DWP_PRODUCT_SURFACE_TOKEN:}
     meeting-followup-authority-token: ${DWP_MEETING_FOLLOWUP_AUTHORITY_TOKEN:}
     hris-origin-authority-token: ${DWP_HRIS_ORIGIN_AUTHORITY_TOKEN:}
+    hris-recipient-authority-token: ${DWP_HRIS_RECIPIENT_AUTHORITY_TOKEN:}
     approval-recovery-token: ${DWP_APPROVAL_RECOVERY_TOKEN:}
     step-up:
       private-key-pem: ${DWP_AUTH_STEP_UP_PRIVATE_KEY_PEM:}
