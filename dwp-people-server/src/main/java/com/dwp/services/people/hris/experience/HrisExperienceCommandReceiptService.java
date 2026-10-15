@@ -65,18 +65,19 @@ public class HrisExperienceCommandReceiptService {
             HrisExperienceReceiptAuthority.CurrentAuthority current =
                     authority.require(row, originPolicy(row));
             requireOrigin(row, current);
-            UUID resultTarget = validatedResultTarget(row, family);
+            ResultProjection result = validatedResult(row, family);
             HrisExperienceCommandReceiptRepository.TargetEvidence target =
                     target(row.tenantId(), row.targetPublicId() == null
-                            ? resultTarget : row.targetPublicId(), family).orElse(null);
-            requireCurrentTarget(row, current, family, target);
+                            ? result.targetPublicId() : row.targetPublicId(), family)
+                            .orElse(null);
+            requireCurrentTarget(row, current, family, target, result);
             CommandReceiptV1 receipt = new CommandReceiptV1(
                     row.receiptId(), row.commandType(), row.action(), row.subjectPublicId(),
                     row.populationDigest(), row.fieldRevision(), row.purpose(),
                     row.authorizationRevision(), status(row.lifecycleState()),
                     row.correlationId(), row.requestDigest(), row.createdAt());
             URI location = "SUCCEEDED".equals(receipt.status())
-                    ? family.location(resultTarget) : null;
+                    ? family.location(result.targetPublicId()) : null;
             return new ProjectedReceipt(receipt, location);
         } catch (BaseException exception) {
             throw notFound();
@@ -117,7 +118,8 @@ public class HrisExperienceCommandReceiptService {
             HrisExperienceCommandReceiptRepository.ReceiptRecord row,
             HrisExperienceReceiptAuthority.CurrentAuthority current,
             Family family,
-            HrisExperienceCommandReceiptRepository.TargetEvidence target) {
+            HrisExperienceCommandReceiptRepository.TargetEvidence target,
+            ResultProjection result) {
         String fields = current.fieldGroups().stream().sorted().toList().toString();
         String currentPopulation = family.kind() == Kind.ASSIGNMENT
                 ? HrisExperienceDigests.assignmentPopulationDigest(
@@ -144,6 +146,7 @@ public class HrisExperienceCommandReceiptService {
         if (target.sourceRevision() < 0 || !fieldsAllowed(family, target, current)) {
             throw notFound();
         }
+        requireRevisionBinding(row, target, result);
         if (current.self()) {
             if (!current.actor().personPublicId().equals(row.subjectPublicId())) {
                 throw notFound();
@@ -163,6 +166,65 @@ public class HrisExperienceCommandReceiptService {
                 || target.workerId() != null
                 && populations.containsWorker(row.tenantId(), scope, target.workerId());
         if (!organization || !worker) throw notFound();
+    }
+
+    private void requireRevisionBinding(
+            HrisExperienceCommandReceiptRepository.ReceiptRecord row,
+            HrisExperienceCommandReceiptRepository.TargetEvidence target,
+            ResultProjection result) {
+        Long expected = row.expectedVersion();
+        if (expected == null || expected < 0) throw notFound();
+        if (!"SUCCEEDED".equals(status(row.lifecycleState()))) {
+            boolean valid = switch (row.action()) {
+                case "CREATE_ASSIGNMENT_EVENT", "CREATE_EMPLOYEE_CHANGE_REQUEST" ->
+                        target.originTargetRevision() == expected;
+                default -> target.sourceRevision() == expected;
+            };
+            if (!valid) throw notFound();
+            return;
+        }
+        if (result.sourceRevision() == null
+                || target.sourceRevision() < result.sourceRevision()) {
+            throw notFound();
+        }
+        switch (row.action()) {
+            case "CREATE_ASSIGNMENT_EVENT" -> {
+                if (result.sourceRevision() != 0
+                        || target.originTargetRevision() != expected) throw notFound();
+            }
+            case "VALIDATE_ASSIGNMENT_EVENT", "SUBMIT_ASSIGNMENT_EVENT",
+                    "PUBLISH_ASSIGNMENT_EVENT" ->
+                    requireIncrement(expected, 1, result.sourceRevision());
+            case "CREATE_EMPLOYEE_CHANGE_REQUEST" -> {
+                if (result.sourceRevision() != 1
+                        || target.originTargetRevision() != expected) throw notFound();
+            }
+            case "SUBMIT_EMPLOYEE_CHANGE_REQUEST" -> {
+                requireIncrement(expected, 1, result.sourceRevision());
+                if (!Objects.equals(target.approvalRequestId(), result.approvalRequestId())) {
+                    throw notFound();
+                }
+            }
+            case "APPLY_EMPLOYEE_CHANGE_REQUEST" -> {
+                requireIncrement(expected, 2, result.sourceRevision());
+                if (!Objects.equals(target.appliedTargetVersion(),
+                        result.appliedTargetVersion())
+                        || result.eventId() == null
+                        || !repository.exactAppliedOrigin(
+                        row.tenantId(), result.eventId(), result.targetPublicId(),
+                        row.receiptId(), row.correlationId(), result.sourceRevision(),
+                        result.appliedTargetVersion())) {
+                    throw notFound();
+                }
+            }
+            default -> throw notFound();
+        }
+    }
+
+    private void requireIncrement(long expected, int increment, long actual) {
+        if (expected > Long.MAX_VALUE - increment || actual != expected + increment) {
+            throw notFound();
+        }
     }
 
     private boolean fieldsAllowed(
@@ -196,13 +258,13 @@ public class HrisExperienceCommandReceiptService {
                 : repository.employeeChangeTarget(tenantId, targetId);
     }
 
-    private UUID validatedResultTarget(
+    private ResultProjection validatedResult(
             HrisExperienceCommandReceiptRepository.ReceiptRecord row,
             Family family) {
         String status = status(row.lifecycleState());
         if (!"SUCCEEDED".equals(status)) {
             if (row.resultReference() != null || row.resultCode() != null) throw notFound();
-            return null;
+            return new ResultProjection(null, null, null, null, null);
         }
         if (row.resultReference() == null
                 || !expectedResultCode(row.action()).equals(row.resultCode())) {
@@ -222,14 +284,17 @@ public class HrisExperienceCommandReceiptService {
             if (value == null || !value.isTextual()) throw notFound();
             UUID parsed = UUID.fromString(value.textValue());
             if (!parsed.toString().equals(value.textValue())) throw notFound();
-            requireResultScalars(row.action(), result, row.resultCode());
+            ResultScalars scalars = requireResultScalars(
+                    row.action(), result, row.resultCode());
             if (family.kind() == Kind.ASSIGNMENT
                     && "CREATE_ASSIGNMENT_EVENT".equals(row.action())) {
                 if (row.targetPublicId() != null) throw notFound();
             } else if (!parsed.equals(row.targetPublicId())) {
                 throw notFound();
             }
-            return parsed;
+            return new ResultProjection(
+                    parsed, scalars.sourceRevision(), scalars.approvalRequestId(),
+                    scalars.appliedTargetVersion(), scalars.eventId());
         } catch (BaseException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -237,36 +302,45 @@ public class HrisExperienceCommandReceiptService {
         }
     }
 
-    private void requireResultScalars(
+    private ResultScalars requireResultScalars(
             String action,
             JsonNode result,
             String resultCode) {
         String version = action.endsWith("ASSIGNMENT_EVENT")
                 ? "eventVersion" : "requestVersion";
         JsonNode versionValue = result.get(version);
+        long minimum = "CREATE_ASSIGNMENT_EVENT".equals(action) ? 0 : 1;
         if (versionValue == null || !versionValue.isIntegralNumber()
-                || versionValue.longValue() < 1) throw notFound();
+                || versionValue.longValue() < minimum) throw notFound();
         if (action.endsWith("ASSIGNMENT_EVENT")) {
             JsonNode lifecycle = result.get("lifecycleState");
             if (lifecycle == null || !lifecycle.isTextual()
                     || !resultCode.equals(lifecycle.textValue())) throw notFound();
         }
+        UUID approvalRequestId = null;
+        Long appliedTargetVersion = null;
+        UUID eventId = null;
         if ("SUBMIT_EMPLOYEE_CHANGE_REQUEST".equals(action)) {
-            requireCanonicalUuid(result.get("approvalRequestId"));
+            approvalRequestId = requireCanonicalUuid(result.get("approvalRequestId"));
         }
         if ("APPLY_EMPLOYEE_CHANGE_REQUEST".equals(action)) {
-            requireCanonicalUuid(result.get("eventId"));
+            eventId = requireCanonicalUuid(result.get("eventId"));
             JsonNode applied = result.get("appliedTargetVersion");
             if (applied == null || !applied.isIntegralNumber()
                     || applied.longValue() < 1) throw notFound();
+            appliedTargetVersion = applied.longValue();
         }
+        return new ResultScalars(
+                versionValue.longValue(), approvalRequestId,
+                appliedTargetVersion, eventId);
     }
 
-    private void requireCanonicalUuid(JsonNode value) {
+    private UUID requireCanonicalUuid(JsonNode value) {
         if (value == null || !value.isTextual()) throw notFound();
         try {
             UUID parsed = UUID.fromString(value.textValue());
             if (!parsed.toString().equals(value.textValue())) throw notFound();
+            return parsed;
         } catch (IllegalArgumentException exception) {
             throw notFound();
         }
@@ -374,6 +448,21 @@ public class HrisExperienceCommandReceiptService {
     }
 
     public record ProjectedReceipt(CommandReceiptV1 receipt, URI resultLocation) {
+    }
+
+    private record ResultProjection(
+            UUID targetPublicId,
+            Long sourceRevision,
+            UUID approvalRequestId,
+            Long appliedTargetVersion,
+            UUID eventId) {
+    }
+
+    private record ResultScalars(
+            long sourceRevision,
+            UUID approvalRequestId,
+            Long appliedTargetVersion,
+            UUID eventId) {
     }
 
     private record Tuple(String commandType, String action, String targetType) {

@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class HrisExperienceCommandReceiptServiceTest {
@@ -75,7 +76,7 @@ class HrisExperienceCommandReceiptServiceTest {
         when(authority.require(any(), any())).thenReturn(current);
         when(repository.employeeChangeTarget(TENANT, TARGET)).thenReturn(Optional.of(
                 new HrisExperienceCommandReceiptRepository.TargetEvidence(
-                        TARGET, 91L, ORGANIZATION, 2L,
+                        TARGET, 91L, ORGANIZATION, 2L, 0L, null, null,
                         java.util.List.of("PERSON_NAME"), null)));
 
         var result = service.read(row.receiptId());
@@ -84,6 +85,12 @@ class HrisExperienceCommandReceiptServiceTest {
         assertThat(result.resultLocation().toString()).isEqualTo(
                 "/hr/operations/people/employee-change-requests?requestPublicId=" + TARGET);
         assertThat(mapper.valueToTree(result.receipt()).size()).isEqualTo(12);
+
+        when(repository.employeeChangeTarget(TENANT, TARGET)).thenReturn(Optional.of(
+                new HrisExperienceCommandReceiptRepository.TargetEvidence(
+                        TARGET, 91L, ORGANIZATION, 2L, 1L, null, null,
+                        java.util.List.of("PERSON_NAME"), null)));
+        assertOpaqueNotFound(row.receiptId());
     }
 
     @Test
@@ -99,12 +106,152 @@ class HrisExperienceCommandReceiptServiceTest {
         when(authority.require(any(), any())).thenReturn(current);
         when(repository.assignmentTarget(TENANT, TARGET)).thenReturn(Optional.of(
                 new HrisExperienceCommandReceiptRepository.TargetEvidence(
-                        TARGET, null, ORGANIZATION, 2L,
+                        TARGET, null, ORGANIZATION, 2L, 7L, null, null,
                         java.util.List.of("EMPLOYMENT"), "HIRE")));
 
         assertThat(service.read(row.receiptId()).resultLocation().toString())
                 .isEqualTo("/api/people/v1/hris/assignment-events/" + TARGET);
         verify(populations, never()).containsWorker(anyLong(), any(), anyLong());
+    }
+
+    @Test
+    void assignmentCreateAllowsVersionZeroAndBindsExpectedOwnerRevision() {
+        var current = operations(Set.of("EMPLOYMENT"), true);
+        long fieldRevision = HrisExperienceDigests.assignmentRevision(
+                REVISION + '|' + current.fieldGroups().stream().sorted().toList());
+        String result = "{\"eventPublicId\":\"" + TARGET
+                + "\",\"lifecycleState\":\"DRAFT\",\"eventVersion\":0}";
+        var accepted = assignmentRow("HRM_ASSIGNMENT_EVENT_CREATE",
+                "CREATE_ASSIGNMENT_EVENT", null, "DRAFT", fieldRevision,
+                result, 8L);
+        when(repository.find(TENANT, accepted.receiptId())).thenReturn(Optional.of(accepted));
+        when(authority.require(any(), any())).thenReturn(current);
+        when(repository.assignmentTarget(TENANT, TARGET)).thenReturn(Optional.of(
+                new HrisExperienceCommandReceiptRepository.TargetEvidence(
+                        TARGET, null, ORGANIZATION, 0L, 8L, null, null,
+                        java.util.List.of("EMPLOYMENT"), "HIRE")));
+
+        assertThat(service.read(accepted.receiptId()).resultLocation().toString())
+                .isEqualTo("/api/people/v1/hris/assignment-events/" + TARGET);
+
+        var staleOwner = assignmentRow("HRM_ASSIGNMENT_EVENT_CREATE",
+                "CREATE_ASSIGNMENT_EVENT", null, "DRAFT", fieldRevision,
+                result, 7L);
+        when(repository.find(TENANT, staleOwner.receiptId()))
+                .thenReturn(Optional.of(staleOwner));
+        assertOpaqueNotFound(staleOwner.receiptId());
+    }
+
+    @Test
+    void assignmentTransitionsBindExpectedPlusOneAndAllowLaterCurrentRevision() {
+        var current = operations(Set.of("EMPLOYMENT"), true);
+        long fieldRevision = HrisExperienceDigests.assignmentRevision(
+                REVISION + '|' + current.fieldGroups().stream().sorted().toList());
+        var accepted = assignmentRow("HRM_ASSIGNMENT_EVENT_PUBLISH",
+                "PUBLISH_ASSIGNMENT_EVENT", TARGET, "PUBLISHED", fieldRevision,
+                "{\"eventPublicId\":\"" + TARGET
+                        + "\",\"lifecycleState\":\"PUBLISHED\",\"eventVersion\":4}",
+                3L);
+        when(repository.find(TENANT, accepted.receiptId())).thenReturn(Optional.of(accepted));
+        when(authority.require(any(), any())).thenReturn(current);
+        when(repository.assignmentTarget(TENANT, TARGET)).thenReturn(Optional.of(
+                new HrisExperienceCommandReceiptRepository.TargetEvidence(
+                        TARGET, 91L, ORGANIZATION, 6L, 8L, null, null,
+                        java.util.List.of("EMPLOYMENT"), "HIRE")));
+
+        assertThat(service.read(accepted.receiptId()).receipt().status())
+                .isEqualTo("SUCCEEDED");
+
+        var drifted = assignmentRow("HRM_ASSIGNMENT_EVENT_PUBLISH",
+                "PUBLISH_ASSIGNMENT_EVENT", TARGET, "PUBLISHED", fieldRevision,
+                "{\"eventPublicId\":\"" + TARGET
+                        + "\",\"lifecycleState\":\"PUBLISHED\",\"eventVersion\":5}",
+                3L);
+        when(repository.find(TENANT, drifted.receiptId())).thenReturn(Optional.of(drifted));
+        assertOpaqueNotFound(drifted.receiptId());
+    }
+
+    @Test
+    void employeeSubmitBindsIncrementAndDurableApprovalRequest() {
+        var current = operations(Set.of("DIRECTORY", "EMPLOYMENT"), true);
+        UUID approval = UUID.fromString("00000000-0000-4000-8000-000000000081");
+        long fields = HrisExperienceDigests.employeeChangeRevision(
+                REVISION + '|' + current.fieldGroups().stream().sorted().toList());
+        var accepted = employeeRow("EMPLOYEE_CHANGE_SUBMIT",
+                "SUBMIT_EMPLOYEE_CHANGE_REQUEST", "HR_OPERATIONS", "SUCCEEDED",
+                "SUBMITTED", "{\"requestPublicId\":\"" + TARGET
+                        + "\",\"requestVersion\":4,\"approvalRequestId\":\""
+                        + approval + "\"}", TARGET, HrisExperienceDigests.sha256(REVISION),
+                fields, 3L);
+        when(repository.find(TENANT, accepted.receiptId())).thenReturn(Optional.of(accepted));
+        when(authority.require(any(), any())).thenReturn(current);
+        when(repository.employeeChangeTarget(TENANT, TARGET)).thenReturn(Optional.of(
+                new HrisExperienceCommandReceiptRepository.TargetEvidence(
+                        TARGET, 91L, ORGANIZATION, 6L, 11L, approval, null,
+                        java.util.List.of("PERSON_NAME"), null)));
+
+        assertThat(service.read(accepted.receiptId()).receipt().status())
+                .isEqualTo("SUCCEEDED");
+
+        var mismatched = new HrisExperienceCommandReceiptRepository.TargetEvidence(
+                TARGET, 91L, ORGANIZATION, 6L, 11L, UUID.randomUUID(), null,
+                java.util.List.of("PERSON_NAME"), null);
+        when(repository.employeeChangeTarget(TENANT, TARGET))
+                .thenReturn(Optional.of(mismatched));
+        assertOpaqueNotFound(accepted.receiptId());
+
+        var revisionDrift = employeeRow("EMPLOYEE_CHANGE_SUBMIT",
+                "SUBMIT_EMPLOYEE_CHANGE_REQUEST", "HR_OPERATIONS", "SUCCEEDED",
+                "SUBMITTED", "{\"requestPublicId\":\"" + TARGET
+                        + "\",\"requestVersion\":5,\"approvalRequestId\":\""
+                        + approval + "\"}", TARGET, HrisExperienceDigests.sha256(REVISION),
+                fields, 3L);
+        when(repository.find(TENANT, revisionDrift.receiptId()))
+                .thenReturn(Optional.of(revisionDrift));
+        when(repository.employeeChangeTarget(TENANT, TARGET)).thenReturn(Optional.of(
+                new HrisExperienceCommandReceiptRepository.TargetEvidence(
+                        TARGET, 91L, ORGANIZATION, 6L, 11L, approval, null,
+                        java.util.List.of("PERSON_NAME"), null)));
+        assertOpaqueNotFound(revisionDrift.receiptId());
+    }
+
+    @Test
+    void employeeApplyBindsIncrementAppliedVersionAndDurableOutboxFact() {
+        var current = operations(Set.of("DIRECTORY", "EMPLOYMENT"), true);
+        UUID eventId = UUID.fromString("00000000-0000-4000-8000-000000000082");
+        long fields = HrisExperienceDigests.employeeChangeRevision(
+                REVISION + '|' + current.fieldGroups().stream().sorted().toList());
+        var row = employeeRow("EMPLOYEE_CHANGE_APPLY",
+                "APPLY_EMPLOYEE_CHANGE_REQUEST", "HR_LIFECYCLE", "SUCCEEDED",
+                "APPLIED", "{\"requestPublicId\":\"" + TARGET
+                        + "\",\"requestVersion\":6,\"appliedTargetVersion\":8,"
+                        + "\"eventId\":\"" + eventId + "\"}", TARGET,
+                HrisExperienceDigests.sha256(REVISION), fields, 4L);
+        when(repository.find(TENANT, row.receiptId())).thenReturn(Optional.of(row));
+        when(authority.require(any(), any())).thenReturn(current);
+        var durableTarget = new HrisExperienceCommandReceiptRepository.TargetEvidence(
+                TARGET, 91L, ORGANIZATION, 7L, 11L, UUID.randomUUID(), 8L,
+                java.util.List.of("PERSON_NAME"), null);
+        when(repository.employeeChangeTarget(TENANT, TARGET))
+                .thenReturn(Optional.of(durableTarget));
+        when(repository.exactAppliedOrigin(
+                TENANT, eventId, TARGET, row.receiptId(), row.correlationId(), 6L, 8L))
+                .thenReturn(true);
+
+        assertThat(service.read(row.receiptId()).receipt().status()).isEqualTo("SUCCEEDED");
+
+        when(repository.employeeChangeTarget(TENANT, TARGET)).thenReturn(Optional.of(
+                new HrisExperienceCommandReceiptRepository.TargetEvidence(
+                        TARGET, 91L, ORGANIZATION, 7L, 11L, UUID.randomUUID(), 9L,
+                        java.util.List.of("PERSON_NAME"), null)));
+        assertOpaqueNotFound(row.receiptId());
+
+        when(repository.employeeChangeTarget(TENANT, TARGET))
+                .thenReturn(Optional.of(durableTarget));
+        when(repository.exactAppliedOrigin(
+                TENANT, eventId, TARGET, row.receiptId(), row.correlationId(), 6L, 8L))
+                .thenReturn(false);
+        assertOpaqueNotFound(row.receiptId());
     }
 
     @Test
@@ -126,21 +273,69 @@ class HrisExperienceCommandReceiptServiceTest {
     }
 
     @Test
-    void currentPopulationAndFieldDriftAreOpaque() {
+    void currentPopulationAndFieldDriftAreIndependentlyOpaque() {
         var current = operations(Set.of("DIRECTORY", "EMPLOYMENT"), true);
-        var drifted = employeeRow("EMPLOYEE_CHANGE_CREATE",
+        String currentPopulation = HrisExperienceDigests.sha256(REVISION);
+        long currentFields = HrisExperienceDigests.employeeChangeRevision(
+                REVISION + '|' + current.fieldGroups().stream().sorted().toList());
+        var populationDrift = employeeRow("EMPLOYEE_CHANGE_CREATE",
                 "CREATE_EMPLOYEE_CHANGE_REQUEST", "HR_OPERATIONS", "SUCCEEDED",
                 "CREATED", "{\"requestPublicId\":\"" + TARGET
                         + "\",\"requestVersion\":1}", TARGET,
-                "f".repeat(64), 22L);
-        when(repository.find(TENANT, drifted.receiptId())).thenReturn(Optional.of(drifted));
+                "f".repeat(64), currentFields);
+        var fieldDrift = employeeRow("EMPLOYEE_CHANGE_CREATE",
+                "CREATE_EMPLOYEE_CHANGE_REQUEST", "HR_OPERATIONS", "SUCCEEDED",
+                "CREATED", "{\"requestPublicId\":\"" + TARGET
+                        + "\",\"requestVersion\":1}", TARGET,
+                currentPopulation, currentFields + 1);
+        when(repository.find(TENANT, populationDrift.receiptId()))
+                .thenReturn(Optional.of(populationDrift));
+        when(repository.find(TENANT, fieldDrift.receiptId()))
+                .thenReturn(Optional.of(fieldDrift));
         when(authority.require(any(), any())).thenReturn(current);
         when(repository.employeeChangeTarget(TENANT, TARGET)).thenReturn(Optional.of(
                 new HrisExperienceCommandReceiptRepository.TargetEvidence(
-                        TARGET, 91L, ORGANIZATION, 1L,
+                        TARGET, 91L, ORGANIZATION, 1L, 0L, null, null,
                         java.util.List.of("PERSON_NAME"), null)));
 
-        assertOpaqueNotFound(drifted.receiptId());
+        assertOpaqueNotFound(populationDrift.receiptId());
+        assertOpaqueNotFound(fieldDrift.receiptId());
+    }
+
+    @Test
+    void absentAndCrossTenantReceiptsAreOpaque() {
+        UUID absent = UUID.randomUUID();
+        assertOpaqueNotFound(absent);
+
+        PeopleRequestContext.clear();
+        PeopleRequestContext.set(19L, TENANT + 1, ACTOR, Set.of(), Set.of());
+        assertOpaqueNotFound(absent);
+        verify(repository).find(TENANT + 1, absent);
+        verifyNoInteractions(authority);
+    }
+
+    @Test
+    void exactAssignmentTargetOutsideCurrentOrganizationIsOpaque() {
+        var current = operations(Set.of("DIRECTORY", "EMPLOYMENT"), false);
+        String population = HrisExperienceDigests.sha256(REVISION);
+        long fields = HrisExperienceDigests.employeeChangeRevision(
+                REVISION + '|' + current.fieldGroups().stream().sorted().toList());
+        var row = employeeRow("EMPLOYEE_CHANGE_CREATE",
+                "CREATE_EMPLOYEE_CHANGE_REQUEST", "HR_OPERATIONS", "SUCCEEDED",
+                "CREATED", "{\"requestPublicId\":\"" + TARGET
+                        + "\",\"requestVersion\":1}", TARGET, population, fields);
+        UUID outOfScopeOrganization = UUID.fromString(
+                "00000000-0000-4000-8000-000000000099");
+        when(repository.find(TENANT, row.receiptId())).thenReturn(Optional.of(row));
+        when(authority.require(any(), any())).thenReturn(current);
+        when(repository.employeeChangeTarget(TENANT, TARGET)).thenReturn(Optional.of(
+                new HrisExperienceCommandReceiptRepository.TargetEvidence(
+                        TARGET, 92L, outOfScopeOrganization, 1L, 0L, null, null,
+                        java.util.List.of("ASSIGNMENT"), null)));
+        when(populations.containsWorker(TENANT, current.population().scope(), 92L))
+                .thenReturn(true);
+
+        assertOpaqueNotFound(row.receiptId());
     }
 
     @Test
@@ -156,7 +351,7 @@ class HrisExperienceCommandReceiptServiceTest {
         when(authority.require(any(), any())).thenReturn(current);
         when(repository.employeeChangeTarget(TENANT, TARGET)).thenReturn(Optional.of(
                 new HrisExperienceCommandReceiptRepository.TargetEvidence(
-                        TARGET, 91L, ORGANIZATION, 1L,
+                        TARGET, 91L, ORGANIZATION, 1L, 0L, null, null,
                         java.util.List.of("PERSON_NAME"), null)));
 
         var result = service.read(row.receiptId());
@@ -196,10 +391,25 @@ class HrisExperienceCommandReceiptServiceTest {
             UUID target,
             String population,
             long fields) {
+        return employeeRow(command, action, purpose, lifecycle, resultCode,
+                resultReference, target, population, fields, 0L);
+    }
+
+    private HrisExperienceCommandReceiptRepository.ReceiptRecord employeeRow(
+            String command,
+            String action,
+            String purpose,
+            String lifecycle,
+            String resultCode,
+            String resultReference,
+            UUID target,
+            String population,
+            long fields,
+            long expectedVersion) {
         return new HrisExperienceCommandReceiptRepository.ReceiptRecord(
                 UUID.randomUUID(), TENANT, command, "key", "a".repeat(64), ACTOR,
                 action, ACTOR, population, fields, purpose, 13L, "b".repeat(64),
-                "EMPLOYEE_CHANGE_REQUEST", target, 0L, lifecycle, resultCode,
+                "EMPLOYEE_CHANGE_REQUEST", target, expectedVersion, lifecycle, resultCode,
                 resultReference, UUID.randomUUID(), Instant.parse("2026-10-15T00:00:00Z"));
     }
 
@@ -210,12 +420,24 @@ class HrisExperienceCommandReceiptServiceTest {
             String resultCode,
             long fieldRevision,
             String resultReference) {
+        return assignmentRow(command, action, target, resultCode, fieldRevision,
+                resultReference, 1L);
+    }
+
+    private HrisExperienceCommandReceiptRepository.ReceiptRecord assignmentRow(
+            String command,
+            String action,
+            UUID target,
+            String resultCode,
+            long fieldRevision,
+            String resultReference,
+            long expectedVersion) {
         return new HrisExperienceCommandReceiptRepository.ReceiptRecord(
                 UUID.randomUUID(), TENANT, command, "key", "a".repeat(64), ACTOR,
                 action, ACTOR,
                 HrisExperienceDigests.assignmentPopulationDigest(mapper, REVISION),
                 fieldRevision, "HR_LIFECYCLE", 13L, "b".repeat(64),
-                "EMPLOYMENT_EVENT", target, 1L, "SUCCEEDED", resultCode,
+                "EMPLOYMENT_EVENT", target, expectedVersion, "SUCCEEDED", resultCode,
                 resultReference, UUID.randomUUID(), Instant.parse("2026-10-15T00:00:00Z"));
     }
 }

@@ -34,7 +34,7 @@ class EmploymentEventControllerTest {
     private final HrisExperienceCommandReceiptService receipts =
             mock(HrisExperienceCommandReceiptService.class);
     private final EmploymentEventController controller =
-            new EmploymentEventController(service, snapshots, receipts);
+            new EmploymentEventController(service, snapshots, receipts, true);
     private final CommandReceiptV1 receipt = mock(CommandReceiptV1.class);
 
     @Test
@@ -105,6 +105,21 @@ class EmploymentEventControllerTest {
         assertThat(response.getHeaders().getLocation()).isEqualTo(LOCATION);
         assertThat(response.getHeaders().getFirst(EmploymentEventController.CORRELATION))
                 .isEqualTo(CORRELATION.toString());
+    }
+
+    @Test
+    void defaultOffPreservesTheExistingAssignmentReceiptReader() {
+        when(receipt.correlationId()).thenReturn(CORRELATION);
+        when(service.receipt(EVENT)).thenReturn(receipt);
+        EmploymentEventController defaultOff = new EmploymentEventController(
+                service, snapshots, receipts, false);
+
+        ResponseEntity<CommandReceiptV1> response = defaultOff.receipt(EVENT);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isSameAs(receipt);
+        assertThat(response.getHeaders().getLocation()).isNull();
+        org.mockito.Mockito.verify(receipts, org.mockito.Mockito.never()).read(any());
     }
 
     private EmploymentEventDtos.CommandResult result(long version) {

@@ -1,5 +1,6 @@
 package com.dwp.services.people.hris.experience;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.flywaydb.core.api.MigrationVersion;
@@ -89,6 +90,9 @@ class Hrm002MigrationPostgresTest {
 
         insertTenant(TENANT_ONE, "hrm002-one");
         insertTenant(TENANT_TWO, "hrm002-two");
+        verifyExactOriginLookup();
+        verifyExactAppliedOriginBinding();
+        verifyExactEmployeeChangeTargetResolution();
         insertReady(TENANT_ONE, INTENT_ONE, SOURCE_ONE, REQUEST_ONE, CORRELATION_ONE);
         UUID intentTwo = uuid(201);
         insertReady(TENANT_TWO, intentTwo, uuid(202), uuid(203), uuid(204));
@@ -139,6 +143,148 @@ class Hrm002MigrationPostgresTest {
                      WHERE tenant_id=56002
                     """)).isZero();
         }
+    }
+
+    private void verifyExactOriginLookup() {
+        UUID event = uuid(601);
+        UUID aggregate = uuid(602);
+        owner.update("""
+                INSERT INTO sys_people_outbox_events(
+                    event_id,tenant_id,aggregate_type,aggregate_id,event_type,payload)
+                VALUES(?,?,'EMPLOYEE_CHANGE_REQUEST',?,
+                       'EmployeeChangeApplied.v1','{}'::jsonb)
+                """, event, TENANT_ONE, aggregate.toString());
+        var repository = new HrisExperienceNotificationRepository(
+                new NamedParameterJdbcTemplate(owner));
+
+        assertThat(repository.exactOriginExists(TENANT_ONE, event, aggregate)).isTrue();
+        assertThat(repository.exactOriginExists(TENANT_ONE, event, uuid(603))).isFalse();
+    }
+
+    private void verifyExactAppliedOriginBinding() {
+        UUID event = uuid(604);
+        UUID request = uuid(605);
+        UUID receipt = uuid(606);
+        UUID correlation = uuid(607);
+        owner.update("""
+                INSERT INTO sys_people_outbox_events(
+                    event_id,tenant_id,aggregate_type,aggregate_id,event_type,
+                    payload,correlation_id)
+                VALUES(?,?,'EMPLOYEE_CHANGE_REQUEST',?,
+                       'EmployeeChangeApplied.v1',CAST(? AS jsonb),?)
+                """, event, TENANT_ONE, request.toString(), """
+                {"eventId":"%s","aggregateId":"%s","requestPublicId":"%s",
+                 "causationId":"%s","correlationId":"%s","aggregateVersion":6,
+                 "appliedTargetVersion":8,"tenantId":56001}
+                """.formatted(event, request, request, receipt, correlation),
+                correlation.toString());
+        var repository = new HrisExperienceCommandReceiptRepository(
+                new NamedParameterJdbcTemplate(owner),
+                new ObjectMapper().findAndRegisterModules());
+
+        assertThat(repository.exactAppliedOrigin(
+                TENANT_ONE, event, request, receipt, correlation, 6L, 8L)).isTrue();
+        assertThat(repository.exactAppliedOrigin(
+                TENANT_ONE, event, request, receipt, correlation, 7L, 8L)).isFalse();
+        assertThat(repository.exactAppliedOrigin(
+                TENANT_ONE, event, request, uuid(608), correlation, 6L, 8L)).isFalse();
+    }
+
+    private void verifyExactEmployeeChangeTargetResolution() {
+        UUID personPublicId = uuid(610);
+        long personId = owner.queryForObject("""
+                INSERT INTO ppl_persons(tenant_id,public_id,person_key,display_name)
+                VALUES(?,?,?,'Exact target person') RETURNING person_id
+                """, Long.class, TENANT_ONE, personPublicId, "hrm002-person-610");
+        long legalEmployerId = owner.queryForObject("""
+                INSERT INTO ppl_legal_employers(tenant_id,employer_key,legal_name)
+                VALUES(?,?,'HRM-002 Employer') RETURNING legal_employer_id
+                """, Long.class, TENANT_ONE, "hrm002-employer-610");
+        UUID firstOrganization = uuid(611);
+        UUID exactOrganization = uuid(612);
+        long firstOrganizationId = insertOrganization(firstOrganization, "611");
+        long exactOrganizationId = insertOrganization(exactOrganization, "612");
+        long firstWorkerId = insertWorker(personId, uuid(613), "613");
+        long exactWorkerId = insertWorker(personId, uuid(614), "614");
+        long firstRelationship = insertRelationship(
+                firstWorkerId, legalEmployerId, uuid(615), "615");
+        long exactRelationship = insertRelationship(
+                exactWorkerId, legalEmployerId, uuid(616), "616");
+        insertAssignment(firstRelationship, firstOrganizationId, uuid(617), "617");
+        UUID exactAssignment = uuid(618);
+        insertAssignment(exactRelationship, exactOrganizationId, exactAssignment, "618");
+        UUID request = uuid(619);
+        owner.update("""
+                INSERT INTO ppl_employee_change_requests(
+                    public_id,tenant_id,requester_person_id,target_person_id,
+                    target_aggregate_type,target_aggregate_public_id,change_type,
+                    effective_date,lifecycle_state,expected_target_version,
+                    patch_schema_key,patch_schema_version,encrypted_patch,patch_hash,
+                    key_reference,field_groups,population_scope_digest,
+                    field_policy_revision,authorization_revision,
+                    originating_context_digest,correlation_id,version,created_by,updated_by)
+                VALUES(?,?,?,?,'ASSIGNMENT',?,'UPDATE_ASSIGNMENT',CURRENT_DATE,
+                    'DRAFT',1,'HRM.EmployeeChange.Assignment.v1',1,
+                    decode('01','hex'),?,'test-key','["ASSIGNMENT"]'::jsonb,?,1,1,?,
+                    ?,1,1,1)
+                """, request, TENANT_ONE, personId, personId, exactAssignment,
+                "a".repeat(64), "b".repeat(64), "c".repeat(64), uuid(620));
+        var repository = new HrisExperienceCommandReceiptRepository(
+                new NamedParameterJdbcTemplate(owner),
+                new ObjectMapper().findAndRegisterModules());
+
+        var target = repository.employeeChangeTarget(TENANT_ONE, request).orElseThrow();
+
+        assertThat(target.workerId()).isEqualTo(exactWorkerId).isNotEqualTo(firstWorkerId);
+        assertThat(target.organizationPublicId()).isEqualTo(exactOrganization)
+                .isNotEqualTo(firstOrganization);
+    }
+
+    private long insertOrganization(UUID publicId, String suffix) {
+        return owner.queryForObject("""
+                INSERT INTO ppl_organizations(
+                    tenant_id,public_id,organization_key,organization_type,name)
+                VALUES(?,?,?,'DEPARTMENT',?) RETURNING organization_id
+                """, Long.class, TENANT_ONE, publicId, "hrm002-org-" + suffix,
+                "HRM-002 Org " + suffix);
+    }
+
+    private long insertWorker(long personId, UUID publicId, String suffix) {
+        return owner.queryForObject("""
+                INSERT INTO ppl_workers(
+                    tenant_id,public_id,person_id,worker_number,worker_type)
+                VALUES(?,?,?,?,'EMPLOYEE') RETURNING worker_id
+                """, Long.class, TENANT_ONE, publicId, personId,
+                "hrm002-worker-" + suffix);
+    }
+
+    private long insertRelationship(
+            long workerId,
+            long legalEmployerId,
+            UUID publicId,
+            String suffix) {
+        return owner.queryForObject("""
+                INSERT INTO ppl_work_relationships(
+                    tenant_id,public_id,relationship_key,worker_id,legal_employer_id,
+                    relationship_type,start_date)
+                VALUES(?,?,?,?,?,'EMPLOYEE',DATE '2026-01-01')
+                RETURNING work_relationship_id
+                """, Long.class, TENANT_ONE, publicId, "hrm002-rel-" + suffix,
+                workerId, legalEmployerId);
+    }
+
+    private void insertAssignment(
+            long relationshipId,
+            long organizationId,
+            UUID publicId,
+            String suffix) {
+        owner.update("""
+                INSERT INTO ppl_assignments(
+                    tenant_id,public_id,assignment_key,work_relationship_id,
+                    organization_id,effective_start_date)
+                VALUES(?,?,?,?,?,DATE '2026-01-01')
+                """, TENANT_ONE, publicId, "hrm002-assignment-" + suffix,
+                relationshipId, organizationId);
     }
 
     private void verifyBoundedClaimState() {
@@ -304,6 +450,11 @@ class Hrm002MigrationPostgresTest {
                     data_region,isolation_model,created_by,updated_by)
                 VALUES(?,?,?,'HRM-002 Test','ACTIVE','local','POOL',1,1)
                 """, uuid((int) tenantId), tenantId, key);
+        owner.update("""
+                INSERT INTO ppl_organization_type_catalog(
+                    tenant_id,type_key,display_name,created_by,updated_by)
+                VALUES(?,'DEPARTMENT','Department',1,1)
+                """, tenantId);
     }
 
     private Map<String, Integer> checksums(Flyway flyway) {

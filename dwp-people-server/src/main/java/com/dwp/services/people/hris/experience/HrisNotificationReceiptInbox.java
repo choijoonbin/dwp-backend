@@ -50,6 +50,8 @@ public class HrisNotificationReceiptInbox {
                 || handoff.recipientUserId() == null
                 || handoff.recipientUserId() != receipt.recipientUserId()
                 || !handoff.sourceEventId().equals(receipt.sourceEventId())
+                || handoff.templateVersion() == null
+                || handoff.templateVersion() != receipt.templateVersion()
                 || !handoff.correlationId().equals(receipt.correlationId())) {
             throw conflict("Notification receipt does not match the admitted intent.");
         }

@@ -14,6 +14,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -94,13 +95,99 @@ class HrisExperienceReceiptAuthorityTest {
         assertOpaque(() -> authority.require(receipt(), policy()));
     }
 
+    @Test
+    void rejectsEveryCurrentOriginAuthorityDimensionDriftOpaque() {
+        var row = receipt();
+        List<HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority> drift =
+                List.of(
+                        current(TENANT + 1, USER, ACTOR,
+                                "HRM_EMPLOYEE_CHANGE_CREATE",
+                                "EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_SELF_SERVICE",
+                                ORIGIN_ROUTE, ORIGIN_CAPABILITY, "POST", false,
+                                row.authorizationRevision()),
+                        current(TENANT, USER + 1, ACTOR,
+                                "HRM_EMPLOYEE_CHANGE_CREATE",
+                                "EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_SELF_SERVICE",
+                                ORIGIN_ROUTE, ORIGIN_CAPABILITY, "POST", false,
+                                row.authorizationRevision()),
+                        current(TENANT, USER, UUID.randomUUID(),
+                                "HRM_EMPLOYEE_CHANGE_CREATE",
+                                "EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_SELF_SERVICE",
+                                ORIGIN_ROUTE, ORIGIN_CAPABILITY, "POST", false,
+                                row.authorizationRevision()),
+                        current(TENANT, USER, ACTOR, "EMPLOYEE_CHANGE_SUBMIT",
+                                "EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_SELF_SERVICE",
+                                ORIGIN_ROUTE, ORIGIN_CAPABILITY, "POST", false,
+                                row.authorizationRevision()),
+                        new HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority(
+                                TENANT, USER, ACTOR, "HRM_EMPLOYEE_CHANGE_CREATE",
+                                "SUBMIT_EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_CHANGE_REQUEST",
+                                "EMPLOYEE_SELF_SERVICE", ORIGIN_ROUTE, ORIGIN_CAPABILITY,
+                                "POST", false, row.authorizationRevision()),
+                        current(TENANT, USER, ACTOR,
+                                "HRM_EMPLOYEE_CHANGE_CREATE", "EMPLOYMENT_EVENT",
+                                "EMPLOYEE_SELF_SERVICE", ORIGIN_ROUTE, ORIGIN_CAPABILITY,
+                                "POST", false, row.authorizationRevision()),
+                        current(TENANT, USER, ACTOR,
+                                "HRM_EMPLOYEE_CHANGE_CREATE",
+                                "EMPLOYEE_CHANGE_REQUEST", "TEAM_MANAGEMENT",
+                                ORIGIN_ROUTE, ORIGIN_CAPABILITY, "POST", false,
+                                row.authorizationRevision()),
+                        current(TENANT, USER, ACTOR,
+                                "HRM_EMPLOYEE_CHANGE_CREATE",
+                                "EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_SELF_SERVICE",
+                                "route.changed", ORIGIN_CAPABILITY, "POST", false,
+                                row.authorizationRevision()),
+                        current(TENANT, USER, ACTOR,
+                                "HRM_EMPLOYEE_CHANGE_CREATE",
+                                "EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_SELF_SERVICE",
+                                ORIGIN_ROUTE, "hcm.changed", "POST", false,
+                                row.authorizationRevision()),
+                        current(TENANT, USER, ACTOR,
+                                "HRM_EMPLOYEE_CHANGE_CREATE",
+                                "EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_SELF_SERVICE",
+                                ORIGIN_ROUTE, ORIGIN_CAPABILITY, "GET", false,
+                                row.authorizationRevision()),
+                        current(TENANT, USER, ACTOR,
+                                "HRM_EMPLOYEE_CHANGE_CREATE",
+                                "EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_SELF_SERVICE",
+                                ORIGIN_ROUTE, ORIGIN_CAPABILITY, "POST", true,
+                                row.authorizationRevision()),
+                        current(row.authorizationRevision() + 1));
+
+        for (var candidate : drift) {
+            var source = mock(HrisExperienceOriginReceiptAuthoritySource.class);
+            when(sources.orderedStream()).thenAnswer(ignored -> Stream.of(source));
+            when(source.resolve(org.mockito.ArgumentMatchers.any()))
+                    .thenReturn(Optional.of(candidate));
+            var authority = new HrisExperienceReceiptAuthority(populations, sources);
+
+            assertOpaque(() -> authority.require(row, policy()));
+        }
+    }
+
     private HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority current(
             long revision) {
+        return current(TENANT, USER, ACTOR, "HRM_EMPLOYEE_CHANGE_CREATE",
+                "EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_SELF_SERVICE",
+                ORIGIN_ROUTE, ORIGIN_CAPABILITY, "POST", false, revision);
+    }
+
+    private HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority current(
+            long tenant,
+            long user,
+            UUID actor,
+            String command,
+            String targetType,
+            String purpose,
+            String route,
+            String capability,
+            String method,
+            boolean readOnly,
+            long revision) {
         return new HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority(
-                TENANT, USER, ACTOR, "HRM_EMPLOYEE_CHANGE_CREATE",
-                "CREATE_EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_CHANGE_REQUEST",
-                "EMPLOYEE_SELF_SERVICE", ORIGIN_ROUTE, ORIGIN_CAPABILITY,
-                "POST", false, revision);
+                tenant, user, actor, command, "CREATE_EMPLOYEE_CHANGE_REQUEST",
+                targetType, purpose, route, capability, method, readOnly, revision);
     }
 
     private HrisExperienceReceiptAuthority.OriginPolicy policy() {

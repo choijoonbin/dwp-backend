@@ -148,7 +148,8 @@ class HrisExperienceNotificationRepository {
     Optional<Handoff> handoff(long tenantId, UUID intentId) {
         establishTenant(tenantId);
         return jdbc.query("""
-                SELECT intent_id,source_event_id,recipient_user_id,decision,correlation_id
+                SELECT intent_id,source_event_id,recipient_user_id,decision,
+                       template_version,correlation_id
                   FROM ppl_hris_notification_intent_handoffs
                  WHERE tenant_id=:tenant AND intent_id=:intent
                 """, parameters(tenantId).addValue("intent", intentId), this::handoff)
@@ -293,6 +294,7 @@ class HrisExperienceNotificationRepository {
                 result.getObject("source_event_id", UUID.class),
                 result.getObject("recipient_user_id", Long.class),
                 result.getString("decision"),
+                result.getObject("template_version", Long.class),
                 result.getObject("correlation_id", UUID.class));
     }
 
@@ -324,6 +326,7 @@ class HrisExperienceNotificationRepository {
             UUID sourceEventId,
             Long recipientUserId,
             String decision,
+            Long templateVersion,
             UUID correlationId) {
     }
 

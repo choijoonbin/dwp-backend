@@ -63,7 +63,8 @@ class HrisNotificationReceiptInboxTest {
                 .thenReturn(Optional.empty(), Optional.of(digest));
         when(repository.handoff(TENANT, INTENT)).thenReturn(Optional.of(
                 new HrisExperienceNotificationRepository.Handoff(
-                        INTENT, SOURCE, RECIPIENT, "READY_LOCAL_ONLY", CORRELATION)));
+                        INTENT, SOURCE, RECIPIENT, "READY_LOCAL_ONLY", 1L,
+                        CORRELATION)));
         when(repository.lockStream(TENANT, INTENT, RECIPIENT)).thenReturn(
                 new HrisExperienceNotificationRepository.StreamState(1L, "FAILED"));
 
@@ -84,12 +85,34 @@ class HrisNotificationReceiptInboxTest {
         verify(repository, never()).lockStream(TENANT, INTENT, RECIPIENT);
     }
 
+    @Test
+    void rejectsReceiptWhoseTemplateVersionDiffersFromAdmittedIntent() {
+        var receipt = new HrisNotificationReceiptV1(
+                UUID.fromString("00000000-0000-4000-8000-000000000084"),
+                INTENT, SOURCE, TENANT, RECIPIENT, 1L,
+                "FAILED", "EMAIL", "DELIVERY_FAILED", null,
+                UUID.fromString("00000000-0000-4000-8000-000000000085"),
+                1L, 2L, "a".repeat(64), null, 1, NOW,
+                "PROVIDER_UNAVAILABLE", false, null, CORRELATION);
+        when(repository.receiptDigest(TENANT, receipt.receiptId()))
+                .thenReturn(Optional.empty());
+        when(repository.handoff(TENANT, INTENT)).thenReturn(Optional.of(
+                new HrisExperienceNotificationRepository.Handoff(
+                        INTENT, SOURCE, RECIPIENT, "READY_LOCAL_ONLY", 1L,
+                        CORRELATION)));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> inbox.accept(receipt))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class);
+        verify(repository, never()).lockStream(TENANT, INTENT, RECIPIENT);
+    }
+
     private void arrange(HrisNotificationReceiptV1 receipt) {
         when(repository.receiptDigest(TENANT, receipt.receiptId()))
                 .thenReturn(Optional.empty());
         when(repository.handoff(TENANT, INTENT)).thenReturn(Optional.of(
                 new HrisExperienceNotificationRepository.Handoff(
-                        INTENT, SOURCE, RECIPIENT, "READY_LOCAL_ONLY", CORRELATION)));
+                        INTENT, SOURCE, RECIPIENT, "READY_LOCAL_ONLY", 1L,
+                        CORRELATION)));
         when(repository.lockStream(TENANT, INTENT, RECIPIENT)).thenReturn(
                 new HrisExperienceNotificationRepository.StreamState(0L, null));
         when(repository.sequenceDigest(TENANT, INTENT, RECIPIENT, 1L))

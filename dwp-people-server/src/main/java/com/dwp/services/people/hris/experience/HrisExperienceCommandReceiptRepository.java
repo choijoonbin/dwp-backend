@@ -56,6 +56,9 @@ class HrisExperienceCommandReceiptRepository {
                               '{assignment,organizationRef,publicId}')::uuid
                             ELSE NULL END AS organization_public_id,
                        event.version AS source_revision,
+                       event.expected_owner_version AS origin_target_revision,
+                       NULL::uuid AS approval_request_id,
+                       NULL::bigint AS applied_target_version,
                        '["EMPLOYMENT"]'::jsonb::text AS field_groups,
                        event.event_type
                   FROM ppl_assignment_events event
@@ -67,41 +70,133 @@ class HrisExperienceCommandReceiptRepository {
     Optional<TargetEvidence> employeeChangeTarget(long tenantId, UUID requestPublicId) {
         establishTenant(tenantId);
         return jdbc.query("""
-                SELECT request.public_id,worker.worker_id AS target_worker_id,
-                       assignment.organization_public_id,
+                SELECT request.public_id,exact.target_worker_id,
+                       organization.public_id AS organization_public_id,
                        request.version AS source_revision,
+                       request.expected_target_version AS origin_target_revision,
+                       request.approval_case_public_id AS approval_request_id,
+                       request.applied_target_version AS applied_target_version,
                        request.field_groups::text AS field_groups,
                        NULL::varchar AS event_type
                   FROM ppl_employee_change_requests request
                   JOIN ppl_persons person
                     ON person.tenant_id=request.tenant_id
                    AND person.person_id=request.target_person_id
-                  LEFT JOIN LATERAL (
-                       SELECT value.worker_id
-                         FROM ppl_workers value
-                        WHERE value.tenant_id=person.tenant_id
-                          AND value.person_id=person.person_id
-                        ORDER BY CASE value.worker_status
-                                   WHEN 'ACTIVE' THEN 0 ELSE 1 END,
-                                 value.worker_id
-                        LIMIT 1
-                  ) worker ON true
-                  LEFT JOIN LATERAL (
-                       SELECT organization.public_id AS organization_public_id
-                         FROM ppl_assignments assignment
-                         JOIN ppl_organizations organization
-                           ON organization.tenant_id=assignment.tenant_id
-                          AND organization.organization_id=assignment.organization_id
-                        WHERE assignment.tenant_id=request.tenant_id
-                          AND assignment.worker_id=worker.worker_id
-                        ORDER BY assignment.primary_assignment DESC,
-                                 assignment.effective_start_date DESC,
-                                 assignment.assignment_id DESC
-                        LIMIT 1
-                  ) assignment ON true
+                  JOIN LATERAL (
+                       SELECT CASE WHEN count(DISTINCT candidate.worker_id)=1
+                                      THEN max(candidate.worker_id) END
+                                      AS target_worker_id,
+                              CASE WHEN count(DISTINCT candidate.organization_id)=1
+                                      THEN max(candidate.organization_id) END
+                                      AS organization_id
+                         FROM (
+                              SELECT worker.worker_id,assignment.organization_id
+                                FROM ppl_workers worker
+                                LEFT JOIN ppl_work_relationships relationship
+                                  ON relationship.tenant_id=worker.tenant_id
+                                 AND relationship.worker_id=worker.worker_id
+                                LEFT JOIN ppl_assignments assignment
+                                  ON assignment.tenant_id=relationship.tenant_id
+                                 AND assignment.work_relationship_id=
+                                     relationship.work_relationship_id
+                               WHERE request.target_aggregate_type='PERSON'
+                                 AND request.target_aggregate_public_id=person.public_id
+                                 AND worker.tenant_id=person.tenant_id
+                                 AND worker.person_id=person.person_id
+                              UNION ALL
+                              SELECT worker.worker_id,assignment.organization_id
+                                FROM ppl_workers worker
+                                LEFT JOIN ppl_work_relationships relationship
+                                  ON relationship.tenant_id=worker.tenant_id
+                                 AND relationship.worker_id=worker.worker_id
+                                LEFT JOIN ppl_assignments assignment
+                                  ON assignment.tenant_id=relationship.tenant_id
+                                 AND assignment.work_relationship_id=
+                                     relationship.work_relationship_id
+                               WHERE request.target_aggregate_type='WORKER'
+                                 AND worker.tenant_id=person.tenant_id
+                                 AND worker.person_id=person.person_id
+                                 AND worker.public_id=request.target_aggregate_public_id
+                              UNION ALL
+                              SELECT worker.worker_id,assignment.organization_id
+                                FROM ppl_work_relationships relationship
+                                JOIN ppl_workers worker
+                                  ON worker.tenant_id=relationship.tenant_id
+                                 AND worker.worker_id=relationship.worker_id
+                                LEFT JOIN ppl_assignments assignment
+                                  ON assignment.tenant_id=relationship.tenant_id
+                                 AND assignment.work_relationship_id=
+                                     relationship.work_relationship_id
+                               WHERE request.target_aggregate_type=
+                                     'EMPLOYMENT_RELATIONSHIP'
+                                 AND relationship.tenant_id=person.tenant_id
+                                 AND worker.person_id=person.person_id
+                                 AND relationship.public_id=
+                                     request.target_aggregate_public_id
+                              UNION ALL
+                              SELECT worker.worker_id,assignment.organization_id
+                                FROM ppl_assignments assignment
+                                JOIN ppl_work_relationships relationship
+                                  ON relationship.tenant_id=assignment.tenant_id
+                                 AND relationship.work_relationship_id=
+                                     assignment.work_relationship_id
+                                JOIN ppl_workers worker
+                                  ON worker.tenant_id=relationship.tenant_id
+                                 AND worker.worker_id=relationship.worker_id
+                               WHERE request.target_aggregate_type='ASSIGNMENT'
+                                 AND assignment.tenant_id=person.tenant_id
+                                 AND worker.person_id=person.person_id
+                                 AND assignment.public_id=
+                                     request.target_aggregate_public_id
+                         ) candidate
+                        HAVING count(*) > 0
+                            OR (request.target_aggregate_type='PERSON'
+                                AND request.target_aggregate_public_id=person.public_id)
+                  ) exact ON true
+                  LEFT JOIN ppl_organizations organization
+                    ON organization.tenant_id=request.tenant_id
+                   AND organization.organization_id=exact.organization_id
                  WHERE request.tenant_id=:tenant AND request.public_id=:target
                 """, parameters(tenantId).addValue("target", requestPublicId), this::target)
                 .stream().findFirst();
+    }
+
+    boolean exactAppliedOrigin(
+            long tenantId,
+            UUID eventId,
+            UUID requestPublicId,
+            UUID receiptId,
+            UUID correlationId,
+            long requestVersion,
+            long appliedTargetVersion) {
+        establishTenant(tenantId);
+        Integer count = jdbc.queryForObject("""
+                SELECT count(*)
+                  FROM sys_people_outbox_events
+                 WHERE tenant_id=:tenant
+                   AND event_id=:event
+                   AND aggregate_type='EMPLOYEE_CHANGE_REQUEST'
+                   AND aggregate_id=:request
+                   AND event_type='EmployeeChangeApplied.v1'
+                   AND correlation_id=:correlation
+                   AND payload->>'eventId'=:eventText
+                   AND payload->>'aggregateId'=:request
+                   AND payload->>'requestPublicId'=:request
+                   AND payload->>'causationId'=:receipt
+                   AND payload->>'correlationId'=:correlation
+                   AND payload->>'aggregateVersion'=:requestVersion
+                   AND payload->>'appliedTargetVersion'=:appliedTargetVersion
+                   AND payload->>'tenantId'=:tenantText
+                """, parameters(tenantId)
+                .addValue("event", eventId)
+                .addValue("eventText", eventId.toString())
+                .addValue("request", requestPublicId.toString())
+                .addValue("receipt", receiptId.toString())
+                .addValue("correlation", correlationId.toString())
+                .addValue("requestVersion", Long.toString(requestVersion))
+                .addValue("appliedTargetVersion", Long.toString(appliedTargetVersion))
+                .addValue("tenantText", Long.toString(tenantId)), Integer.class);
+        return count != null && count == 1;
     }
 
     private ReceiptRecord receipt(ResultSet result, int ignored) throws SQLException {
@@ -132,6 +227,9 @@ class HrisExperienceCommandReceiptRepository {
                     result.getObject("target_worker_id", Long.class),
                     result.getObject("organization_public_id", UUID.class),
                     result.getLong("source_revision"),
+                    result.getLong("origin_target_revision"),
+                    result.getObject("approval_request_id", UUID.class),
+                    result.getObject("applied_target_version", Long.class),
                     List.copyOf(mapper.readValue(
                             result.getString("field_groups"), STRING_LIST)),
                     result.getString("event_type"));
@@ -178,6 +276,9 @@ class HrisExperienceCommandReceiptRepository {
             Long workerId,
             UUID organizationPublicId,
             long sourceRevision,
+            long originTargetRevision,
+            UUID approvalRequestId,
+            Long appliedTargetVersion,
             List<String> fieldGroups,
             String eventType) {
         TargetEvidence {
