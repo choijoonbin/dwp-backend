@@ -143,6 +143,7 @@ dwp:
       retry-interval: ${DWP_NOTIFICATION_DOMAIN_EVENT_RETRY_INTERVAL:1s}
       maximum-attempts: ${DWP_NOTIFICATION_DOMAIN_EVENT_MAX_ATTEMPTS:4}
       producer-sources: ${DWP_NOTIFICATION_DOMAIN_EVENT_SOURCES:urn:dwp:messaging=dwp-messaging-server,urn:dwp:meetings=dwp-meeting-server,urn:dwp:platform:workplace=dwp-platform-server,urn:dwp:platform:mail=dwp-platform-server}
+      exact-source-event-onboardings: ${DWP_NOTIFICATION_DOMAIN_EVENT_EXACT_ONBOARDINGS:urn:dwp:people:hrm:dwp-experience=dwp-people-server:EmployeeChangeAppliedNotificationRequested.v1}
     approval-pilot:
       enabled: ${DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED:false}
       topic: ${DWP_NOTIFICATION_APPROVAL_PILOT_TOPIC:dwp.approval.events.v1}

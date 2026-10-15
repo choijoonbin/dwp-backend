@@ -149,7 +149,8 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                                         userId,
                                         "ACTIVE",
                                         "TENANT",
-                                        List.of("APP.MESSAGING:VIEW", "APP.WORKPLACE:VIEW",
+                                        List.of("APP.HCM:VIEW", "APP.MESSAGING:VIEW",
+                                                "APP.WORKPLACE:VIEW",
                                                 "APP.MAIL:VIEW"))),
                         "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,"
                                 + "messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,"
@@ -158,7 +159,8 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
         materializer = new DirectNotificationMaterializer(
                 nativeTransactions,
                 new NotificationProducerOwnershipPolicy(
-                        "dwp-messaging-server=messaging,"
+                        "dwp-people-server=hcm,"
+                                + "dwp-messaging-server=messaging,"
                                 + "dwp-platform-server=platform|workplace|mail"),
                 entitlements,
                 mapper);
@@ -315,6 +317,78 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                     .containsEntry("route", contract.route())
                     .containsEntry("type_key", contract.typeKey());
         }
+    }
+
+    @Test
+    void hcmEmployeeChangeAppliedMaterializesThroughExactSourceEventAndEntitlement()
+            throws Exception {
+        long recipient = 900032L;
+        UUID requestReference = UUID.randomUUID();
+        UUID personReference = UUID.randomUUID();
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        var data = mapper.createObjectNode();
+        var intent = data.putArray("notificationIntents").addObject()
+                .put("typeKey", "HCM.EMPLOYEE_CHANGE_APPLIED")
+                .put("threadKey", "hris:employee-change:" + requestReference)
+                .put("locale", "ko-KR")
+                .put("reasonCode", "EMPLOYEE_CHANGE_APPLIED")
+                .put("subjectReference", "person:" + personReference)
+                .put("targetReference", "employee-change:" + requestReference)
+                .put("actionRequired", false);
+        intent.putArray("recipientUserIds").add(recipient);
+        intent.putObject("variables")
+                .put("effectiveDate", "2026-10-15")
+                .put("requestReference", requestReference.toString())
+                .put("targetType", "PERSON");
+        DomainEventEnvelope event = DomainEventEnvelope.create(
+                "urn:dwp:people:hrm:dwp-experience",
+                "EmployeeChangeAppliedNotificationRequested.v1",
+                1,
+                tenantId,
+                "EMPLOYEE_CHANGE_REQUEST",
+                requestReference.toString(),
+                1,
+                "corr-hcm-employee-change-materialization",
+                null,
+                null,
+                data);
+        var translation = new NotificationDomainEventTranslator(
+                mapper,
+                "urn:dwp:messaging=dwp-messaging-server",
+                "urn:dwp:people:hrm:dwp-experience=dwp-people-server:"
+                        + "EmployeeChangeAppliedNotificationRequested.v1")
+                .translate(mapper.writeValueAsString(event))
+                .getFirst();
+
+        var result = materializer.materialize(
+                translation.actor(), translation.request(), translation.correlationId());
+
+        assertThat(result.recipientCount()).isOne();
+        assertThat(admin.queryForObject("""
+                SELECT count(*) FROM ntf_user_notifications
+                 WHERE tenant_id=? AND user_id=? AND notification_id=?
+                """, Integer.class, tenantId, recipient, result.notificationId())).isOne();
+        assertThat(admin.queryForMap("""
+                SELECT notification.target_ref,
+                       recipient_notification.reason_code,
+                       notification.action_payload ->> 'route' AS route,
+                       type.type_key,
+                       type.owner_app_key
+                  FROM ntf_notifications notification
+                  JOIN ntf_user_notifications recipient_notification
+                    ON recipient_notification.tenant_id = notification.tenant_id
+                   AND recipient_notification.notification_id = notification.notification_id
+                  JOIN ntf_notification_type_versions version
+                    ON version.type_version_id = notification.type_version_id
+                  JOIN ntf_notification_types type ON type.type_id = version.type_id
+                 WHERE notification.tenant_id=? AND notification.notification_id=?
+                   AND recipient_notification.user_id=?
+                """, tenantId, result.notificationId(), recipient))
+                .containsEntry("target_ref", "employee-change:" + requestReference)
+                .containsEntry("reason_code", "EMPLOYEE_CHANGE_APPLIED")
+                .containsEntry("route", "/hr/operations/people/employee-change-requests")
+                .containsEntry("type_key", "HCM.EMPLOYEE_CHANGE_APPLIED")
+                .containsEntry("owner_app_key", "hcm");
     }
 
     @Test

@@ -325,6 +325,80 @@ class NotificationMigrationInvariantTest {
                 .doesNotContain("endpoint_url", "push_token", "private_key", "auth_secret");
     }
 
+    @Test
+    void registersHcmEmployeeChangeAppliedWithStaticPrivacySafeTemplates()
+            throws IOException {
+        String migration = resource(
+                "db/migration/V35__register_hcm_employee_change_applied_notification.sql");
+
+        assertThat(migration)
+                .contains(
+                        "HCM.EMPLOYEE_CHANGE_APPLIED",
+                        "EmployeeChangeAppliedNotificationRequested.v1",
+                        "'hcm', 'People Platform', 'ACTIVE'",
+                        "\"audienceMode\":\"DIRECT\"",
+                        "\"interruptionLevel\":\"PASSIVE\"",
+                        "\"userConfigurable\":true",
+                        "\"previewPolicy\":\"TITLE_ONLY\"",
+                        "\"requiredVariables\":[]",
+                        "\"variableAllowlist\":[\"effectiveDate\",\"requestReference\",\"targetType\"]",
+                        "\"dedupeStrategy\":\"SOURCE_EVENT_RECIPIENT\"",
+                        "\"retentionPolicy\":\"TENANT_DEFAULT_LEGAL_HOLD_AWARE\"",
+                        "\"templateKey\":\"hcm.employee-change.applied\"",
+                        "\"templateVersion\":1",
+                        "\"templateModelDigest\":\"24b7eff4c70309f32c86911c7e52acf05ee0b38d368630272422e963109dd784\"",
+                        "\"purposeCode\":\"EMPLOYEE_SELF_SERVICE\"",
+                        "\"reasonCode\":\"EMPLOYEE_CHANGE_APPLIED\"",
+                        "\"requiredEntitlement\":\"APP.HCM:VIEW\"",
+                        "\"runbookUrl\":\"/notifications/admin/operations?typeKey=HCM.EMPLOYEE_CHANGE_APPLIED\"",
+                        "version.contract_payload ->> 'audienceMode' = 'DIRECT'",
+                        "version.contract_payload ->> 'interruptionLevel' = 'PASSIVE'",
+                        "version.contract_payload -> 'userConfigurable' = 'true'::jsonb",
+                        "version.contract_payload ->> 'previewPolicy' = 'TITLE_ONLY'",
+                        "version.contract_payload ->> 'dedupeStrategy' =",
+                        "version.contract_payload ->> 'retentionPolicy' =",
+                        "version.contract_payload ->> 'runbookUrl' =")
+                .contains(
+                        "'IN_APP', 'ko-KR'",
+                        "인사정보 변경이 반영되었습니다",
+                        "요청한 인사정보 변경이 반영되었습니다.",
+                        "직원변경 요청 화면에서 반영 결과를 확인하세요.",
+                        "변경 결과 확인",
+                        "08454d6cb4a2f8806fef3af419b0889f011ed47f74c62f6af34e1908f1be0d71")
+                .contains(
+                        "'IN_APP', 'en-US'",
+                        "Employee information updated",
+                        "The requested employee information change has been applied.",
+                        "Open employee change requests to review the result.",
+                        "Review change result",
+                        "1aae47c07c46152908708c68cd8c9f3557465a7d0807919411bcb6a56a67ce88")
+                .contains(
+                        "/hr/operations/people/employee-change-requests",
+                        "NULL, 'APP', 'hcm', 1",
+                        "'PUBLISHED', FALSE, FALSE, 'IMMEDIATE'",
+                        "'IN_APP', TRUE",
+                        "'IMMEDIATE', TRUE, 30, 'in-app-interactive'",
+                        "catalog-only registration")
+                .doesNotContain(
+                        "{{effectiveDate}}",
+                        "{{requestReference}}",
+                        "{{targetType}}",
+                        "urn:dwp:people:hrm:dwp-experience",
+                        "DWP_NOTIFICATION_DOMAIN_EVENTS_ENABLED",
+                        "DWP_HRIS_EXPERIENCE_ENABLED",
+                        "DWP_HRIS_EXPERIENCE_RELAY_ENABLED",
+                        "INSERT INTO ntf_notification_intents",
+                        "INSERT INTO ntf_notifications",
+                        "INSERT INTO ntf_user_notifications",
+                        "INSERT INTO ntf_outbox_events",
+                        "personPublicId",
+                        "emailAddress",
+                        "phoneNumber",
+                        "providerCredential",
+                        "http://",
+                        "https://");
+    }
+
     private String resource(String path) throws IOException {
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(path)) {
             if (input == null) throw new IOException("Missing test resource: " + path);

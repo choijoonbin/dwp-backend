@@ -106,6 +106,7 @@ class DirectNotificationMaterializerTest {
             "mentioned,MENTION",
             "ORG,ORGANIZATION",
             "SUBSCRIBED,SUBSCRIPTION",
+            "EMPLOYEE_CHANGE_APPLIED,EMPLOYEE_CHANGE_APPLIED",
             "meeting.invitation.created.v1,DIRECT",
             "'   ',DIRECT"
     })

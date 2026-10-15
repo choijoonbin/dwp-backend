@@ -44,8 +44,57 @@ class HrisNotificationIntentV1ProviderContractTest {
                 .idempotencyBindingDigest()).isNotEqualTo(admission.idempotencyBindingDigest());
     }
 
+    @Test
+    void admitsTheExactHrm002EmployeeChangeContractPins() {
+        HrisNotificationIntentV1 intent = hrm002Intent(11L);
+
+        HrisNotificationContractAdapter.Admission admission =
+                HrisNotificationContractAdapter.admit(intent);
+
+        assertThat(admission.effectiveRecipientUserIds()).containsExactly(11L);
+        assertThat(intent.producerAppKey()).isEqualTo("hcm");
+        assertThat(intent.typeKey()).isEqualTo("HCM.EMPLOYEE_CHANGE_APPLIED");
+        assertThat(intent.purposeCode()).isEqualTo("EMPLOYEE_SELF_SERVICE");
+        assertThat(intent.reasonCode()).isEqualTo("EMPLOYEE_CHANGE_APPLIED");
+        assertThat(intent.templateKey()).isEqualTo("hcm.employee-change.applied");
+        assertThat(intent.templateVersion()).isOne();
+        assertThat(intent.templateModelDigest()).isEqualTo(
+                "24b7eff4c70309f32c86911c7e52acf05ee0b38d368630272422e963109dd784");
+        assertThat(intent.classification()).isEqualTo("INTERNAL");
+        assertThat(intent.actionRequired()).isFalse();
+    }
+
     static HrisNotificationIntentV1 intent(List<Long> recipients, List<Long> exclusions) {
         return intent(recipients, exclusions, "a".repeat(64), "intent-key-1");
+    }
+
+    static HrisNotificationIntentV1 hrm002Intent(long recipient) {
+        UUID requestId = UUID.fromString("00000000-0000-4000-8000-000000000081");
+        UUID personId = UUID.fromString("00000000-0000-4000-8000-000000000077");
+        return new HrisNotificationIntentV1(
+                UUID.fromString("00000000-0000-0000-0000-000000000001"),
+                UUID.fromString("00000000-0000-0000-0000-000000000002"),
+                1L,
+                "hcm",
+                "HCM.EMPLOYEE_CHANGE_APPLIED",
+                "EMPLOYEE_SELF_SERVICE",
+                List.of(recipient),
+                List.of(19L),
+                "hris:employee-change:" + requestId,
+                "ko-KR",
+                "EMPLOYEE_CHANGE_APPLIED",
+                null,
+                "person:" + personId,
+                "employee-change:" + requestId,
+                "hcm.employee-change.applied",
+                1L,
+                "24b7eff4c70309f32c86911c7e52acf05ee0b38d368630272422e963109dd784",
+                "INTERNAL",
+                false,
+                null,
+                Instant.parse("2026-09-11T00:00:00Z"),
+                "hrm002:00000000-0000-0000-0000-000000000002",
+                UUID.fromString("00000000-0000-0000-0000-000000000003"));
     }
 
     private static HrisNotificationIntentV1 intent(

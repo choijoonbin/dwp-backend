@@ -259,6 +259,7 @@ public class DirectNotificationMaterializer {
             case "ORGANIZATION", "ORG" -> "ORGANIZATION";
             case "SUBSCRIPTION", "SUBSCRIBED" -> "SUBSCRIPTION";
             case "MANDATORY_POLICY", "MANDATORY" -> "MANDATORY_POLICY";
+            case "EMPLOYEE_CHANGE_APPLIED" -> "EMPLOYEE_CHANGE_APPLIED";
             case "DIRECT", "DIRECT_RECIPIENT" -> "DIRECT";
             default -> "DIRECT";
         };

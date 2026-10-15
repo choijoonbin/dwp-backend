@@ -15,6 +15,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NotificationDomainEventTranslatorTest {
 
+    private static final String HRIS_SOURCE = "urn:dwp:people:hrm:dwp-experience";
+    private static final String HRIS_EVENT =
+            "EmployeeChangeAppliedNotificationRequested.v1";
+    private static final String LEGACY_SOURCE_MAPPING =
+            "urn:dwp:messaging=dwp-messaging-server";
+    private static final String HRIS_ATOMIC_ONBOARDING =
+            HRIS_SOURCE + "=dwp-people-server:" + HRIS_EVENT;
+
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final NotificationDomainEventTranslator translator =
             new NotificationDomainEventTranslator(
@@ -213,6 +221,197 @@ class NotificationDomainEventTranslatorTest {
     }
 
     @Test
+    void translatesOnlyTheExactReservedHrisSourceEventPair() throws Exception {
+        NotificationDomainEventTranslator hrisTranslator =
+                new NotificationDomainEventTranslator(
+                        objectMapper, LEGACY_SOURCE_MAPPING, HRIS_ATOMIC_ONBOARDING);
+
+        NotificationDomainEventTranslator.Translation translated = hrisTranslator
+                .translate(hrisEvent(HRIS_EVENT, true))
+                .getFirst();
+
+        assertThat(translated.actor().sourceService()).isEqualTo("dwp-people-server");
+        assertThat(translated.request().sourceEventType()).isEqualTo(HRIS_EVENT);
+        assertThat(translated.request().typeKey()).isEqualTo("HCM.EMPLOYEE_CHANGE_APPLIED");
+        assertThat(translated.request().recipientUserIds()).containsExactly(900018L);
+        assertThat(translated.request().variables()).isEmpty();
+    }
+
+    @Test
+    void rejectsEveryOtherEventForTheReservedHrisSourceWhenHintsExist() throws Exception {
+        NotificationDomainEventTranslator hrisTranslator =
+                new NotificationDomainEventTranslator(
+                        objectMapper, LEGACY_SOURCE_MAPPING, HRIS_ATOMIC_ONBOARDING);
+
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEvent("EmployeeChangeApplied.v1", true)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("reserved HRIS notification source-event pair");
+    }
+
+    @Test
+    void rejectsNonExactHrisTypeReferencesAndVariables() throws Exception {
+        NotificationDomainEventTranslator hrisTranslator =
+                new NotificationDomainEventTranslator(
+                        objectMapper, LEGACY_SOURCE_MAPPING, HRIS_ATOMIC_ONBOARDING);
+
+        ObjectNode wrongType = hrisIntent();
+        wrongType.put("typeKey", "HCM.OTHER");
+        assertThatThrownBy(() -> hrisTranslator.translate(hrisEvent(HRIS_EVENT, wrongType)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("projection is not exact");
+
+        ObjectNode unsafeVariable = hrisIntent();
+        unsafeVariable.putObject("variables").put("employeeName", "민감정보");
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEvent(HRIS_EVENT, unsafeVariable)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("projection is not exact");
+
+        ObjectNode wrongReference = hrisIntent();
+        wrongReference.put("targetReference", "/hr/operations/people/employee-change-requests");
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEvent(HRIS_EVENT, wrongReference)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("projection is not exact");
+    }
+
+    @Test
+    void rejectsUnsupportedDataAndIntentFieldsForTheExactHrisEvent() throws Exception {
+        NotificationDomainEventTranslator hrisTranslator =
+                new NotificationDomainEventTranslator(
+                        objectMapper, LEGACY_SOURCE_MAPPING, HRIS_ATOMIC_ONBOARDING);
+
+        ObjectNode dataWithBusinessPayload = objectMapper.createObjectNode();
+        dataWithBusinessPayload.putArray("notificationIntents").add(hrisIntent());
+        dataWithBusinessPayload.put("employeeName", "민감정보");
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEnvelope(HRIS_EVENT, dataWithBusinessPayload)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("only notificationIntents");
+
+        ObjectNode intentWithUnsupportedField = hrisIntent();
+        intentWithUnsupportedField.put("body", "승인된 인사 변경입니다.");
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEvent(HRIS_EVENT, intentWithUnsupportedField)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("unsupported field");
+    }
+
+    @Test
+    void rejectsTargetChangesAndNonSingletonIntentsForTheExactHrisEvent() throws Exception {
+        NotificationDomainEventTranslator hrisTranslator =
+                new NotificationDomainEventTranslator(
+                        objectMapper, LEGACY_SOURCE_MAPPING, HRIS_ATOMIC_ONBOARDING);
+
+        ObjectNode targetChangeData = objectMapper.createObjectNode();
+        targetChangeData.putArray("notificationIntents").add(hrisIntent());
+        targetChangeData.putArray("notificationTargetChanges")
+                .addObject()
+                .put("ownerAppKey", "hris")
+                .put("targetReference",
+                        "employee-change:00000000-0000-4000-8000-000000000042")
+                .put("state", "DELETED")
+                .put("reason", "SOURCE_DELETED");
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEnvelope(HRIS_EVENT, targetChangeData)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("only notificationIntents");
+
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEnvelope(HRIS_EVENT, objectMapper.createObjectNode())))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("exactly one notification intent");
+
+        ObjectNode multipleIntentData = objectMapper.createObjectNode();
+        multipleIntentData.putArray("notificationIntents")
+                .add(hrisIntent())
+                .add(hrisIntent());
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEnvelope(HRIS_EVENT, multipleIntentData)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("exactly one notification intent");
+    }
+
+    @Test
+    void ignoresReservedHrisBusinessFactsWithoutNotificationProjectionHints() throws Exception {
+        NotificationDomainEventTranslator hrisTranslator =
+                new NotificationDomainEventTranslator(
+                        objectMapper, LEGACY_SOURCE_MAPPING, HRIS_ATOMIC_ONBOARDING);
+
+        assertThat(hrisTranslator.translate(
+                hrisEvent("EmployeeChangeApplied.v1", false))).isEmpty();
+    }
+
+    @Test
+    void failsClosedWhenTheReservedHrisExactPairIsMissing() throws Exception {
+        assertThatThrownBy(() -> translator.translate(hrisEvent(HRIS_EVENT, true)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("not notification-onboarded");
+
+        assertThatThrownBy(() -> new NotificationDomainEventTranslator(
+                objectMapper, HRIS_SOURCE + "=dwp-people-server", ""))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must be configured atomically");
+    }
+
+    @Test
+    void rejectsWildcardDuplicateUnknownAndOverbroadExactOnboardings() {
+        assertThatThrownBy(() -> new NotificationDomainEventTranslator(
+                objectMapper,
+                LEGACY_SOURCE_MAPPING,
+                HRIS_SOURCE + "=dwp-people-server:*"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not contain wildcards");
+        assertThatThrownBy(() -> new NotificationDomainEventTranslator(
+                objectMapper,
+                LEGACY_SOURCE_MAPPING,
+                HRIS_ATOMIC_ONBOARDING + '|' + HRIS_EVENT))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must be unique per source");
+        assertThatThrownBy(() -> new NotificationDomainEventTranslator(
+                objectMapper,
+                LEGACY_SOURCE_MAPPING,
+                HRIS_ATOMIC_ONBOARDING + ',' + HRIS_ATOMIC_ONBOARDING))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("onboarding sources must be unique");
+        assertThatThrownBy(() -> new NotificationDomainEventTranslator(
+                objectMapper,
+                LEGACY_SOURCE_MAPPING,
+                "urn:dwp:unknown=dwp-unknown-server:unknown.event.v1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("is not reserved");
+        assertThatThrownBy(() -> new NotificationDomainEventTranslator(
+                objectMapper,
+                LEGACY_SOURCE_MAPPING,
+                HRIS_ATOMIC_ONBOARDING + "|EmployeeChangeApplied.v1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires its exact atomic onboarding");
+        assertThatThrownBy(() -> new NotificationDomainEventTranslator(
+                objectMapper,
+                LEGACY_SOURCE_MAPPING,
+                HRIS_SOURCE + "=dwp-platform-server:" + HRIS_EVENT))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires its exact atomic onboarding");
+        assertThatThrownBy(() -> new NotificationDomainEventTranslator(
+                objectMapper,
+                LEGACY_SOURCE_MAPPING,
+                HRIS_SOURCE + "=dwp-people-server"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("source=service:eventType");
+    }
+
+    @Test
+    void rejectsLegacyAndAtomicSourceOverlapEvenWhenTheServiceMatches() {
+        assertThatThrownBy(() -> new NotificationDomainEventTranslator(
+                objectMapper,
+                LEGACY_SOURCE_MAPPING,
+                "urn:dwp:messaging=dwp-messaging-server:messaging.message.sent.v1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not overlap");
+    }
+
+    @Test
     void rejectsUnknownContextFieldsSoPayloadOrBodyCannotBeSmuggled() throws Exception {
         ObjectNode intent = canonicalIntent();
         intent.putArray("contexts").addObject()
@@ -292,6 +491,54 @@ class NotificationDomainEventTranslatorTest {
         intent.putArray("recipientUserIds").add(900018L);
         intent.putObject("variables");
         return intent;
+    }
+
+    private String hrisEvent(String eventType, boolean includeNotificationIntent)
+            throws Exception {
+        ObjectNode data = objectMapper.createObjectNode();
+        if (includeNotificationIntent) {
+            data.putArray("notificationIntents").add(hrisIntent());
+        } else {
+            data.put("requestReference", "00000000-0000-4000-8000-000000000042");
+        }
+        return hrisEnvelope(eventType, data);
+    }
+
+    private String hrisEvent(String eventType, ObjectNode intent) throws Exception {
+        ObjectNode data = objectMapper.createObjectNode();
+        data.putArray("notificationIntents").add(intent);
+        return hrisEnvelope(eventType, data);
+    }
+
+    private ObjectNode hrisIntent() {
+        ObjectNode intent = objectMapper.createObjectNode()
+                .put("typeKey", "HCM.EMPLOYEE_CHANGE_APPLIED")
+                .put("threadKey",
+                        "hris:employee-change:00000000-0000-4000-8000-000000000042")
+                .put("locale", "ko-KR")
+                .put("reasonCode", "EMPLOYEE_CHANGE_APPLIED")
+                .put("subjectReference", "person:00000000-0000-4000-8000-000000000077")
+                .put("targetReference",
+                        "employee-change:00000000-0000-4000-8000-000000000042")
+                .put("actionRequired", false);
+        intent.putArray("recipientUserIds").add(900018L);
+        intent.putObject("variables");
+        return intent;
+    }
+
+    private String hrisEnvelope(String eventType, ObjectNode data) throws Exception {
+        return objectMapper.writeValueAsString(DomainEventEnvelope.create(
+                HRIS_SOURCE,
+                eventType,
+                1,
+                7L,
+                "EMPLOYEE_CHANGE_REQUEST",
+                "00000000-0000-4000-8000-000000000042",
+                1,
+                "corr-hris-request-42",
+                null,
+                null,
+                data));
     }
 
     private String event(ObjectNode intent) throws Exception {

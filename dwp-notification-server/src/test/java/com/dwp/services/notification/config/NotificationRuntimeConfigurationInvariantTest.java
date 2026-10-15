@@ -46,6 +46,40 @@ class NotificationRuntimeConfigurationInvariantTest {
     }
 
     @Test
+    void hrisProducerIdentityEntitlementAndExactSourceEventAreConfiguredDefaultOff()
+            throws IOException {
+        String application = new ClassPathResource("application.yml")
+                .getContentAsString(StandardCharsets.UTF_8);
+        String producerSources = application.lines()
+                .map(String::trim)
+                .filter(line -> line.startsWith("producer-sources:"))
+                .findFirst()
+                .orElseThrow();
+        String exactOnboardings = application.lines()
+                .map(String::trim)
+                .filter(line -> line.startsWith("exact-source-event-onboardings:"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(application)
+                .contains("dwp-people-server=hcm|people")
+                .contains("hcm=APP.HCM:VIEW")
+                .contains("dwp-approval-server,dwp-people-server")
+                .contains("enabled: ${DWP_NOTIFICATION_DOMAIN_EVENTS_ENABLED:false}")
+                .doesNotContain(
+                        "exact-source-event-types:",
+                        "DWP_NOTIFICATION_DOMAIN_EVENT_EXACT_SOURCE_EVENT_TYPES",
+                        "urn:dwp:people:hrm:dwp-experience=*");
+        assertThat(producerSources)
+                .contains("DWP_NOTIFICATION_DOMAIN_EVENT_SOURCES")
+                .doesNotContain("urn:dwp:people:hrm:dwp-experience");
+        assertThat(exactOnboardings)
+                .isEqualTo("exact-source-event-onboardings: "
+                        + "${DWP_NOTIFICATION_DOMAIN_EVENT_EXACT_ONBOARDINGS:"
+                        + "urn:dwp:people:hrm:dwp-experience=dwp-people-server:"
+                        + "EmployeeChangeAppliedNotificationRequested.v1}");
+    }
+
+    @Test
     void longLivedStreamsDoNotRetainOpenEntityManagers() {
         ClassPathResource application = new ClassPathResource("application.yml");
         assertThat(application.exists()).isTrue();

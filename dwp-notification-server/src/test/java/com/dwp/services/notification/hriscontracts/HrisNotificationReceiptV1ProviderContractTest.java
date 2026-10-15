@@ -36,6 +36,40 @@ class HrisNotificationReceiptV1ProviderContractTest {
                 .hasMessageContaining("predates");
     }
 
+    @Test
+    void bindsAnInAppReceiptToTheExactHrm002Intent() {
+        HrisNotificationContractAdapter.Admission admission =
+                HrisNotificationContractAdapter.admit(
+                        HrisNotificationIntentV1ProviderContractTest.hrm002Intent(11L));
+        HrisNotificationReceiptV1 receipt = new HrisNotificationReceiptV1(
+                UUID.fromString("00000000-0000-0000-0000-000000000004"),
+                UUID.fromString("00000000-0000-0000-0000-000000000001"),
+                UUID.fromString("00000000-0000-0000-0000-000000000002"),
+                1L,
+                11L,
+                1L,
+                "DELIVERED",
+                "IN_APP",
+                "POLICY_ALLOWED",
+                "EMPLOYEE_CHANGE_APPLIED",
+                UUID.fromString("00000000-0000-0000-0000-000000000005"),
+                1L,
+                1L,
+                "a".repeat(64),
+                null,
+                0,
+                Instant.parse("2026-09-11T00:01:00Z"),
+                null,
+                false,
+                null,
+                UUID.fromString("00000000-0000-0000-0000-000000000003"));
+
+        assertThat(HrisNotificationContractAdapter.bindReceipt(admission, receipt))
+                .isSameAs(receipt);
+        assertThat(receipt.channel()).isEqualTo("IN_APP");
+        assertThat(receipt.templateVersion()).isOne();
+    }
+
     private static HrisNotificationReceiptV1 receipt(long recipient) {
         return receipt(recipient, 1L, Instant.parse("2026-09-11T00:01:00Z"));
     }
