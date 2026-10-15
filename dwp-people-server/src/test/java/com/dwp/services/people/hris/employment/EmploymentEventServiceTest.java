@@ -189,27 +189,6 @@ class EmploymentEventServiceTest {
     }
 
     @Test
-    void receiptDisclosesOnlyASealedOriginatingCommandForTheCurrentSubject() {
-        EmploymentEventRepository.ReceiptRow sealed = receipt(
-                "SUCCEEDED", "created", "a".repeat(64));
-        when(repository.receipt(TENANT, sealed.receiptId()))
-                .thenReturn(Optional.of(sealed));
-
-        assertThat(service.receipt(sealed.receiptId()).receiptId())
-                .isEqualTo(sealed.receiptId());
-
-        EmploymentEventRepository.ReceiptRow mismatched = receipt(
-                "SUCCEEDED", "created", "a".repeat(64),
-                "PUBLISH_ASSIGNMENT_EVENT");
-        when(repository.receipt(TENANT, mismatched.receiptId()))
-                .thenReturn(Optional.of(mismatched));
-        assertThatThrownBy(() -> service.receipt(mismatched.receiptId()))
-                .isInstanceOf(EmploymentEventProblem.class)
-                .satisfies(error -> assertThat(((EmploymentEventProblem) error).status())
-                        .isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
     void sameIdempotencyBindingRecoversOriginalReceiptAndDigestDriftConflicts() {
         EmploymentEventDtos.CreateCommand originalRequest = hire(false);
         String digest = canonicalizer.requestDigest(

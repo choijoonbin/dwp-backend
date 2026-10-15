@@ -1,6 +1,7 @@
 package com.dwp.services.people.hris.employment;
 
 import com.dwp.platform.contracts.hris.command.v1.CommandReceiptV1;
+import com.dwp.services.people.hris.experience.HrisExperienceCommandReceiptService;
 import com.dwp.services.people.security.HcmStepUpHeaders;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -30,8 +31,10 @@ class EmploymentEventControllerTest {
     private final EmploymentEventService service = mock(EmploymentEventService.class);
     private final EmploymentSnapshotAuthority snapshots =
             mock(EmploymentSnapshotAuthority.class);
+    private final HrisExperienceCommandReceiptService receipts =
+            mock(HrisExperienceCommandReceiptService.class);
     private final EmploymentEventController controller =
-            new EmploymentEventController(service, snapshots);
+            new EmploymentEventController(service, snapshots, receipts);
     private final CommandReceiptV1 receipt = mock(CommandReceiptV1.class);
 
     @Test
@@ -86,6 +89,22 @@ class EmploymentEventControllerTest {
         assertThat(response.getHeaders().getFirst(EmploymentEventController.CORRELATION))
                 .isEqualTo(CORRELATION.toString());
         assertThat(response.getHeaders().getLocation()).isNull();
+    }
+
+    @Test
+    void receiptProjectionCarriesOnlyTheAuthorizedResultLocation() {
+        when(receipt.correlationId()).thenReturn(CORRELATION);
+        when(receipts.read(EVENT)).thenReturn(
+                new HrisExperienceCommandReceiptService.ProjectedReceipt(
+                        receipt, LOCATION));
+
+        ResponseEntity<CommandReceiptV1> response = controller.receipt(EVENT);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isSameAs(receipt);
+        assertThat(response.getHeaders().getLocation()).isEqualTo(LOCATION);
+        assertThat(response.getHeaders().getFirst(EmploymentEventController.CORRELATION))
+                .isEqualTo(CORRELATION.toString());
     }
 
     private EmploymentEventDtos.CommandResult result(long version) {

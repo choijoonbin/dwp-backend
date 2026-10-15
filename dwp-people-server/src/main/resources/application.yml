@@ -68,6 +68,18 @@ spring:
 
 dwp:
   hris:
+    experience:
+      # HRM-002 remains dark until Central separately admits the exact
+      # Notification source/event/template package and authoritative recipient
+      # identity resolution exists. No direct channel I/O is implemented here.
+      enabled: ${DWP_HRIS_EXPERIENCE_ENABLED:false}
+      relay:
+        enabled: ${DWP_HRIS_EXPERIENCE_RELAY_ENABLED:false}
+        batch-size: ${DWP_HRIS_EXPERIENCE_RELAY_BATCH_SIZE:25}
+        maximum-attempts: ${DWP_HRIS_EXPERIENCE_RELAY_MAXIMUM_ATTEMPTS:10}
+        lease-seconds: ${DWP_HRIS_EXPERIENCE_RELAY_LEASE_SECONDS:30}
+        poll-delay-ms: ${DWP_HRIS_EXPERIENCE_RELAY_POLL_DELAY_MS:2000}
+        initial-delay-ms: ${DWP_HRIS_EXPERIENCE_RELAY_INITIAL_DELAY_MS:5000}
     navigation-legal-entity-owner:
       # Platform-to-People native owner verification is an explicit two-sided opt-in.
       enabled: ${DWP_HRIS_NAVIGATION_LEGAL_ENTITY_OWNER_ENABLED:false}
