@@ -14,8 +14,12 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class HcmProductSurfaceEligibilityAdapterTest {
@@ -86,6 +90,67 @@ class HcmProductSurfaceEligibilityAdapterTest {
         assertThat(result.productRelationshipRevision()).startsWith("hcm-rel-");
         assertThat(result.targetPopulationRevision()).startsWith("hcm-pop-");
         verifyNoInteractions(populations);
+    }
+
+    @Test
+    void derivesOnlyTheExactUtilitySelfSelectorFromTheCurrentActorBinding() {
+        PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("WORKSPACE_MEMBER"), Set.of());
+        HcmPopulationRepository.ActorWorkforce actor =
+                new HcmPopulationRepository.ActorWorkforce(
+                        41L, PERSON, "Member", "A-MEMBER", "Engineer", "Platform",
+                        2L, 4L, 7L);
+        when(repository.actor(TENANT, PERSON)).thenReturn(Optional.of(actor));
+        String utilitySelf = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.utility", "SELF", "SELF");
+
+        ProductSurfaceEligibilityDtos.EligibilityResult result = adapter.evaluate(
+                request("hcm.utility", utilitySelf, "SELF", null));
+
+        assertThat(result.decision()).isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(result.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.sourceScopeKey()).isEqualTo(utilitySelf);
+            assertThat(scope.key()).startsWith("hcm-scope-");
+            assertThat(scope.kind()).isEqualTo("SELF");
+            assertThat(scope.isDefault()).isTrue();
+        });
+        verifyNoInteractions(populations);
+    }
+
+    @Test
+    void rejectsPersonalReplayWrongUtilitySourceKindAndUnknownSurface() {
+        PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("WORKSPACE_MEMBER"), Set.of());
+        String personalSelf = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.personal", "SELF", "SELF");
+        String utilityTarget = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.utility", "SELF", "TARGET_POPULATION");
+        String utilityUnknown = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.utility", "UNKNOWN", "SELF");
+
+        for (ProductSurfaceEligibilityDtos.EvaluateRequest rejected : List.of(
+                request("hcm.utility", personalSelf, "SELF", null),
+                request("hcm.utility", utilityTarget, "TARGET_POPULATION", null),
+                request("hcm.utility", utilityUnknown, "SELF", null),
+                request("hcm.unknown", utilityUnknown, "SELF", null))) {
+            ProductSurfaceEligibilityDtos.EligibilityResult result = adapter.evaluate(rejected);
+            assertThat(result.decision()).isIn(
+                    ProductSurfaceEligibilityDtos.Decision.SCOPE_INVALID,
+                    ProductSurfaceEligibilityDtos.Decision.SURFACE_DENIED);
+            assertThat(result.scopes()).isEmpty();
+        }
+        verify(repository, times(3)).tenantRevision(TENANT);
+        verifyNoMoreInteractions(repository);
+        verifyNoInteractions(populations);
+    }
+
+    @Test
+    void utilityEligibilityFailsClosedWithoutTheVerifiedActorContext() {
+        String utilitySelf = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.utility", "SELF", "SELF");
+
+        assertThatThrownBy(() -> adapter.evaluate(
+                request("hcm.utility", utilitySelf, "SELF", null)))
+                .isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(repository, populations);
     }
 
     @Test

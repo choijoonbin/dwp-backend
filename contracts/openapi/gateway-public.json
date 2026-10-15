@@ -202126,7 +202126,7 @@
         "x-dwp-contract-id": "SYS-API-038",
         "x-dwp-controller-method": "receipt",
         "x-dwp-opaque-not-found": true,
-        "x-dwp-purpose-code": "HRIS_APP_DISCOVERY",
+        "x-dwp-purpose-code": "COMMAND_STATUS",
         "x-dwp-reviewed-design-time-contract": "SYS-012-WORK-EXPLORER-CONTROL-R1",
         "x-dwp-runtime-default": "OFF"
       }

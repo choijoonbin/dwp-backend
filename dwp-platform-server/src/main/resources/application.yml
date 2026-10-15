@@ -50,6 +50,17 @@ spring:
 
 dwp:
   hris:
+    explorer:
+      enabled: ${DWP_HRIS_EXPLORER_ENABLED:false}
+      auth-url: ${DWP_HRIS_EXPLORER_AUTH_URL:http://localhost:8001}
+      people-url: ${DWP_HRIS_EXPLORER_PEOPLE_URL:http://localhost:8003}
+      product-surface-token: ${DWP_HRIS_EXPLORER_PRODUCT_SURFACE_TOKEN:}
+      identity-sync-token: ${DWP_HRIS_EXPLORER_IDENTITY_SYNC_TOKEN:}
+      people-service-token: ${DWP_HRIS_EXPLORER_PEOPLE_SERVICE_TOKEN:}
+      authority-timeout: ${DWP_HRIS_EXPLORER_AUTHORITY_TIMEOUT:PT2S}
+      provider-timeout: ${DWP_HRIS_EXPLORER_PROVIDER_TIMEOUT:PT0.5S}
+      provider-freshness: ${DWP_HRIS_EXPLORER_PROVIDER_FRESHNESS:PT5M}
+      max-provider-concurrency: ${DWP_HRIS_EXPLORER_MAX_PROVIDER_CONCURRENCY:5}
     navigation-policy:
       enabled: ${DWP_HRIS_NAVIGATION_POLICY_ENABLED:false}
       legal-entity-owner:

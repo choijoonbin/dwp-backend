@@ -1,6 +1,7 @@
 package com.dwp.services.platform.hrisconfiguration.referenceconfiguration;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.platform.security.HcmPlatformPepRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -46,6 +47,7 @@ public class ReferenceConfigurationController {
     private static final String PERMISSIONS = "X-DWP-Permissions";
     private static final String ROLES = "X-DWP-Roles";
     private static final String CONTEXT_SCOPE = "X-DWP-Context-Scope-Key";
+    private static final String CONTEXT = "X-DWP-Context-Key";
     private static final String SCOPE_TYPE = "X-DWP-Reference-Configuration-Scope-Type";
     private static final String SCOPE_ID = "X-DWP-Reference-Configuration-Scope-ID";
     private static final String SCOPE_DIGEST = "X-DWP-Population-Scope-Digest";
@@ -245,6 +247,8 @@ public class ReferenceConfigurationController {
                 UUID.fromString(single(request, SUBJECT_PUBLIC_ID, true)),
                 single(request, PERMISSIONS, true),
                 single(request, ROLES, false),
+                single(request, CONTEXT, true),
+                gatewayScope,
                 new PopulationScope(
                         ScopeType.valueOf(single(request, SCOPE_TYPE, true)),
                         UUID.fromString(single(request, SCOPE_ID, true)),
@@ -264,13 +268,20 @@ public class ReferenceConfigurationController {
             boolean requireVersion,
             boolean highRisk) {
         String version = single(request, EXPECTED_OBJECT_VERSION, requireVersion);
+        Object authority = request.getAttribute(
+                HcmPlatformPepRegistry.class.getName() + ".authority");
         return new CommandContext(
                 single(request, IDEMPOTENCY, true),
                 uuidOrRandom(single(request, CORRELATION, false)),
                 purpose,
                 version == null ? null : nonNegativeLong(version),
                 single(request, EXPECTED_DECISION_REVISION, highRisk),
-                single(request, STEP_UP, highRisk));
+                single(request, STEP_UP, highRisk),
+                authority instanceof HcmPlatformPepRegistry.RouteAuthority route
+                        ? route.routeContractKey() : null,
+                single(request, CONTEXT, true),
+                single(request, CONTEXT_SCOPE, true),
+                single(request, DECISION_REVISION, true));
     }
 
     private String single(HttpServletRequest request, String name, boolean required) {

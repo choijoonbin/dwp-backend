@@ -2,6 +2,7 @@ package com.dwp.services.platform.hrisconfiguration.navigationpolicy;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.hrisconfiguration.explorer.HrisExplorerAuthoritySeals;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +28,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyDtos.*;
+import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyRepository.CanonicalReceipt;
 
 @Service
 public class NavigationPolicyService {
@@ -349,8 +351,19 @@ public class NavigationPolicyService {
             String clientRequestDigest, Object body,
             Runnable newMutationGuard,
             Function<UUID, RevisionView> mutation) {
-        validateCommand(command);
-        String serverDigest = digest(Map.of(
+        validateLegacyCommand(command);
+        Map<String, Object> digestMaterial = new LinkedHashMap<>();
+        digestMaterial.put("action", action);
+        digestMaterial.put("body", body);
+        digestMaterial.put("subjectPrincipalPublicId", access.subjectPublicId());
+        digestMaterial.put("contextScopeKey", access.contextScopeKey());
+        digestMaterial.put("clientRequestDigest", normalizeDigest(clientRequestDigest));
+        digestMaterial.put("decisionRevision", command.expectedDecisionRevision() == null
+                ? "<none>" : command.expectedDecisionRevision());
+        digestMaterial.put("fieldPolicyRevision", command.fieldPolicyRevision());
+        digestMaterial.put("authorizationRevision", command.authorizationRevision());
+        String serverDigest = digest(digestMaterial);
+        String legacyServerDigest = digest(Map.of(
                 "action", action,
                 "body", body,
                 "subjectPrincipalPublicId", access.subjectPublicId(),
@@ -363,15 +376,28 @@ public class NavigationPolicyService {
         var prior = repository.findReceipt(
                 access.tenantId(), access.subjectId(), action, command.idempotencyKey());
         if (prior.isPresent()) {
-            if (!prior.get().requestDigest().equals(serverDigest)) {
+            boolean exactReplay = prior.get().requestDigest().equals(serverDigest);
+            boolean historicalReplay = prior.get().requestDigest().equals(legacyServerDigest)
+                    && !repository.canonicalReceiptExists(
+                    access.tenantId(), access.subjectPublicId(),
+                    prior.get().receipt().receiptId());
+            if (!exactReplay && !historicalReplay) {
                 throw conflict("HRIS_NAV_POLICY_IDEMPOTENCY_PAYLOAD_MISMATCH");
             }
             return prior.get().receipt();
         }
+        validateCanonicalSeal(access, command, action);
+        String authorityPopulationScopeDigest =
+                HrisExplorerAuthoritySeals.populationScopeDigest(
+                        access.contextScopeKey());
         newMutationGuard.run();
         UUID receiptId = UUID.randomUUID();
         RevisionView result = mutation.apply(receiptId);
         OffsetDateTime createdAt = now();
+        long publicFieldPolicyRevision = HrisExplorerAuthoritySeals.publicRevision(
+                command.fieldPolicyRevision());
+        long publicAuthorizationRevision = HrisExplorerAuthoritySeals.publicRevision(
+                command.authorizationRevision());
         CommandReceipt receipt = new CommandReceipt(
                 receiptId, action, result.policyId(), result.revisionId(),
                 result.revisionNumber(), result.lifecycleState(), result.objectVersion(),
@@ -379,6 +405,19 @@ public class NavigationPolicyService {
         repository.saveReceipt(
                 access.tenantId(), access.subjectId(), action, command.idempotencyKey(),
                 serverDigest, receipt);
+        repository.saveCanonicalReceipt(access.tenantId(), new CanonicalReceipt(
+                receipt.receiptId(), receipt.commandType(), action,
+                access.subjectPublicId(), command.populationScopeDigest(),
+                authorityPopulationScopeDigest,
+                publicFieldPolicyRevision, command.fieldPolicyRevision(),
+                access.purposeCode(), publicAuthorizationRevision,
+                command.authorizationRevision(), command.originRouteContractKey(),
+                command.originContextKey(), command.originContextScopeKey(),
+                command.originDecisionRevision(), command.idempotencyKey(),
+                serverDigest, receipt.policyId(), receipt.objectVersion(),
+                "SUCCEEDED", receipt.policyId() + "/" + receipt.revisionId()
+                + "/" + receipt.revisionNumber(), receipt.correlationId(),
+                receipt.createdAt()));
         repository.appendAudit(
                 access.tenantId(), result, action, access.subjectId(),
                 command.correlationId(), serverDigest, createdAt);
@@ -556,13 +595,50 @@ public class NavigationPolicyService {
         }
     }
 
-    private void validateCommand(CommandContext command) {
+    private void validateLegacyCommand(CommandContext command) {
         if (command == null || command.idempotencyKey() == null
                 || command.idempotencyKey().length() < 16
                 || command.idempotencyKey().length() > 128
                 || command.correlationId() == null) {
             throw invalid("HRIS_NAV_POLICY_COMMAND_CONTEXT_INVALID");
         }
+    }
+
+    private void validateCanonicalSeal(
+            AccessContext access, CommandContext command, String action) {
+        if (!originRoute(action).equals(command.originRouteContractKey())
+                || !access.contextKey().equals(command.originContextKey())
+                || !access.contextScopeKey().equals(command.originContextScopeKey())
+                || !access.decisionRevision().equals(command.originDecisionRevision())
+                || command.populationScopeDigest() == null
+                || !command.populationScopeDigest().matches("^[a-f0-9]{64}$")
+                || command.fieldPolicyRevision() < 1
+                || command.authorizationRevision() < 1
+                || command.requestAuthority() == null
+                || !command.originRouteContractKey().equals(
+                command.requestAuthority().routeContractKey())) {
+            throw invalid("HRIS_NAV_POLICY_COMMAND_CONTEXT_INVALID");
+        }
+    }
+
+    private String originRoute(String action) {
+        return switch (action) {
+            case "CREATE_DRAFT" ->
+                    "route.hcm.configuration.navigation-policy-draft-create.action";
+            case "UPDATE_DRAFT" ->
+                    "route.hcm.configuration.navigation-policy-draft-update.action";
+            case "VALIDATE" ->
+                    "route.hcm.configuration.navigation-policy-draft-validate.action";
+            case "SUBMIT" ->
+                    "route.hcm.configuration.navigation-policy-draft-submit.action";
+            case "APPROVE" ->
+                    "route.hcm.configuration.navigation-policy-revision-approve.action";
+            case "PUBLISH" ->
+                    "route.hcm.configuration.navigation-policy-revision-publish.action";
+            case "RESTORE" ->
+                    "route.hcm.configuration.navigation-policy-revision-restore.action";
+            default -> "";
+        };
     }
 
     private void requireStepUp(
@@ -741,6 +817,13 @@ public class NavigationPolicyService {
             String commandMethod,
             String commandPath,
             com.dwp.services.platform.security.HcmPlatformPepRegistry.RouteAuthority
-                    requestAuthority) {
+                    requestAuthority,
+            String originRouteContractKey,
+            String originContextKey,
+            String originContextScopeKey,
+            String originDecisionRevision,
+            String populationScopeDigest,
+            long fieldPolicyRevision,
+            long authorizationRevision) {
     }
 }

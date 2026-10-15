@@ -62,7 +62,8 @@ public final class HcmPlatformPepRegistry {
             "HRIS_INTEGRATION_EXECUTOR");
     private static final String EXPLORER_DUTY =
             "HRIS_DUTY_APP_SHELL_READER@SELF";
-    private static final String EXPLORER_CONTEXT = "hcm.utility";
+    private static final Pattern EXPLORER_AUTHORITY_CONTEXT = Pattern.compile(
+            "^psc-[a-f0-9]{64}$");
     private static final String EXPLORER_PURPOSE = "HRIS_APP_DISCOVERY";
     private static final Set<String> EXPLORER_RECEIPT_ACTIONS = Set.of(
             "EXPLORER_PREFERENCES_REPLACE",
@@ -174,7 +175,8 @@ public final class HcmPlatformPepRegistry {
                 || evidence.currentDecisionRevision() == null
                 || !evidence.currentDecisionRevision().equals(
                 owner.currentDecisionRevision())
-                || !EXPLORER_CONTEXT.equals(evidence.contextKey())
+                || evidence.contextKey() == null
+                || !EXPLORER_AUTHORITY_CONTEXT.matcher(evidence.contextKey()).matches()
                 || !evidence.contextKey().equals(owner.contextKey())
                 || evidence.contextScopeKey() == null
                 || !evidence.contextScopeKey().equals(owner.contextScopeKey())

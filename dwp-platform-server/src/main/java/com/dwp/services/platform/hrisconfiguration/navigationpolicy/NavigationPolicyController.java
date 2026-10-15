@@ -46,6 +46,9 @@ public class NavigationPolicyController {
     private static final String CONTEXT_SCOPE = "X-DWP-Context-Scope-Key";
     private static final String DECISION_REVISION = "X-DWP-Current-Decision-Revision";
     private static final String REVALIDATE_AT = "X-DWP-Current-Revalidate-At";
+    private static final String SCOPE_DIGEST = "X-DWP-Population-Scope-Digest";
+    private static final String FIELD_POLICY_REVISION = "X-DWP-Field-Policy-Revision";
+    private static final String AUTHORIZATION_REVISION = "X-DWP-Authorization-Revision";
     private static final String PURPOSE = "X-Purpose-Code";
     private static final String IDEMPOTENCY = "Idempotency-Key";
     private static final String CORRELATION = "X-Correlation-ID";
@@ -188,7 +191,15 @@ public class NavigationPolicyController {
                 single(request, STEP_UP, false),
                 request.getMethod(), request.getRequestURI(),
                 authority instanceof HcmPlatformPepRegistry.RouteAuthority route
-                        ? route : null);
+                        ? route : null,
+                authority instanceof HcmPlatformPepRegistry.RouteAuthority route
+                        ? route.routeContractKey() : null,
+                single(request, CONTEXT, true),
+                single(request, CONTEXT_SCOPE, true),
+                single(request, DECISION_REVISION, true),
+                populationDigest(request),
+                positiveLong(single(request, FIELD_POLICY_REVISION, true)),
+                positiveLong(single(request, AUTHORIZATION_REVISION, true)));
     }
 
     private ResponseEntity<ApiResponse<CommandReceipt>> accepted(CommandReceipt receipt) {
@@ -219,6 +230,14 @@ public class NavigationPolicyController {
         long parsed = Long.parseLong(value);
         if (parsed < 1) throw new IllegalArgumentException("positive identifier required");
         return parsed;
+    }
+
+    private String populationDigest(HttpServletRequest request) {
+        String value = single(request, SCOPE_DIGEST, true);
+        if (!value.matches("^[a-f0-9]{64}$")) {
+            throw new IllegalArgumentException(SCOPE_DIGEST + " is invalid");
+        }
+        return value;
     }
 
     private void rejectBrowserPolicyInputs(HttpServletRequest request) {

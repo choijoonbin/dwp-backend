@@ -26,6 +26,8 @@ class ReferenceConfigurationServiceTest {
     static final String SCOPE_DIGEST = "a".repeat(64);
     static final String PAYLOAD_DIGEST = "b".repeat(64);
     static final String SAMPLE_DIGEST = "c".repeat(64);
+    static final String CONTEXT_KEY = "psc-" + "c".repeat(64);
+    static final String CONTEXT_SCOPE = "hcm-scope-" + "d".repeat(40);
     static final UUID SCOPE_ID = UUID.fromString("00000000-0000-0000-0000-000000000042");
 
     private final JsonMapper mapper = JsonMapper.builder().findAndAddModules().build();
@@ -252,7 +254,8 @@ class ReferenceConfigurationServiceTest {
                 NOW, null, null, null, null, null));
         AccessContext badPurpose = new AccessContext(
                 42, 101, subjectPublicId(101), "APP.HCM:VIEW,CONFIG.HRIS_POLICY:UPDATE",
-                "TENANT_ADMIN", scope(), 7, 9, NOW.plusDays(30), Set.of(), Set.of(), "OTHER");
+                "TENANT_ADMIN", CONTEXT_KEY, CONTEXT_SCOPE, scope(), 7, 9,
+                NOW.plusDays(30), Set.of(), Set.of(), "OTHER");
         assertThatThrownBy(() -> service.version(badPurpose, configurationId, 1))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("TRUSTED_CONTEXT_REQUIRED");
@@ -352,8 +355,9 @@ class ReferenceConfigurationServiceTest {
 
     static AccessContext manager(long subjectId, String permissions) {
         return new AccessContext(
-                42, subjectId, subjectPublicId(subjectId), permissions, "TENANT_ADMIN", scope(),
-                7, 9, NOW.plusDays(30), Set.of(), Set.of(), "HRIS_SYSTEM_ADMIN");
+                42, subjectId, subjectPublicId(subjectId), permissions, "TENANT_ADMIN",
+                CONTEXT_KEY, CONTEXT_SCOPE, scope(), 7, 9, NOW.plusDays(30),
+                Set.of(), Set.of(), "HRIS_SYSTEM_ADMIN");
     }
 
     static UUID subjectPublicId(long subjectId) {
@@ -364,7 +368,21 @@ class ReferenceConfigurationServiceTest {
         return new CommandContext(
                 key, UUID.nameUUIDFromBytes(key.getBytes()), "HRIS_SYSTEM_ADMIN", expectedVersion,
                 elevated ? "decision-revision-7" : null,
-                elevated ? "step-up-proof" : null);
+                elevated ? "step-up-proof" : null,
+                originRoute(key), CONTEXT_KEY, CONTEXT_SCOPE, "decision-revision-7");
+    }
+
+    private static String originRoute(String key) {
+        if (key.contains("create") || key.contains("shared-idempotency")) return "route.hcm.configuration.configuration-version-create.action";
+        if (key.contains("validate")) return "route.hcm.configuration.configuration-version-validate.action";
+        if (key.contains("simulate")) return "route.hcm.configuration.configuration-version-simulate.action";
+        if (key.contains("submit")) return "route.hcm.configuration.configuration-version-submit.action";
+        if (key.contains("approve")) return "route.hcm.configuration.configuration-version-approve.action";
+        if (key.contains("publish")) return "route.hcm.configuration.configuration-version-publish.action";
+        if (key.contains("rollback")) return "route.hcm.configuration.configuration-version-rollback.action";
+        if (key.contains("retire")) return "route.hcm.configuration.configuration-version-retire.action";
+        if (key.contains("schedule")) return "route.hcm.configuration.configuration-version-schedule.action";
+        return "route.hcm.configuration.configuration-version-create.action";
     }
 
     private record LifecycleReceipts(UUID approvalReceipt, String impactDigest) {

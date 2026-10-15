@@ -31,6 +31,8 @@ interface ReferenceConfigurationRepository {
             String requestDigest,
             CommandReceipt receipt);
 
+    void saveCanonicalReceipt(long tenantId, CanonicalReceipt receipt);
+
     long createVersion(
             long tenantId,
             PopulationScope scope,
@@ -115,6 +117,32 @@ interface ReferenceConfigurationRepository {
             OffsetDateTime now);
 
     record StoredReceipt(String requestDigest, CommandReceipt receipt) {
+    }
+
+    record CanonicalReceipt(
+            UUID receiptId,
+            String commandType,
+            String originatingAction,
+            UUID subjectPrincipalPublicId,
+            String populationScopeDigest,
+            String authorityPopulationScopeDigest,
+            long fieldPolicyRevision,
+            long authorityFieldPolicyRevision,
+            String purposeCode,
+            long authorizationRevision,
+            long authorityAuthorizationRevision,
+            String originRouteContractKey,
+            String originContextKey,
+            String originContextScopeKey,
+            String originDecisionRevision,
+            String idempotencyKey,
+            String requestDigest,
+            UUID aggregatePublicId,
+            long aggregateRevision,
+            String status,
+            String resultRef,
+            UUID correlationId,
+            OffsetDateTime createdAt) {
     }
 
     record CatalogPage(List<CatalogItem> items, boolean hasNext, boolean seekFound) {

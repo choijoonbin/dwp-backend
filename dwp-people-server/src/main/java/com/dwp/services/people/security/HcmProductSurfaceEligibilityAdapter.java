@@ -63,7 +63,9 @@ public class HcmProductSurfaceEligibilityAdapter
     public ProductSurfaceEligibilityDtos.EligibilityResult evaluate(
             ProductSurfaceEligibilityDtos.EvaluateRequest request) {
         if (!PRODUCT.equals(request.productKey())
-                || !Set.of("hcm.personal", "hcm.team", "hcm.operations", "hcm.management")
+                || !Set.of(
+                                "hcm.personal", "hcm.team", "hcm.operations",
+                                "hcm.management", "hcm.utility")
                         .contains(request.surfaceKey())) {
             return denied(ProductSurfaceEligibilityDtos.Decision.SURFACE_DENIED,
                     "HCM_SURFACE_NOT_OWNED", "surface", "surface");
@@ -136,6 +138,12 @@ public class HcmProductSurfaceEligibilityAdapter
                     .map(value -> new ResolvedScope(
                             value.revision(), "self:" + value.personId() + ':' + value.revision(),
                             "SELF", "Self", false))
+                    : Optional.empty();
+            case "hcm.utility" -> match(request, candidate, SELF, SELF)
+                    ? repository.actor(actor.tenantId(), actor.personPublicId())
+                    .map(value -> new ResolvedScope(
+                            value.revision(), "self:" + value.personId() + ':' + value.revision(),
+                            SELF, "Self", false))
                     : Optional.empty();
             case "hcm.team" -> matchAny(request, candidate, "TARGET_POPULATION", TEAM, TEAM_TARGET)
                     ? populations.findTeam().map(value -> new ResolvedScope(

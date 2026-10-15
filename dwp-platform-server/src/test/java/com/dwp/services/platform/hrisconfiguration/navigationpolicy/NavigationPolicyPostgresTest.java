@@ -34,6 +34,13 @@ class NavigationPolicyPostgresTest {
     private static final UUID LEGAL_ENTITY =
             UUID.fromString("00000000-0000-0000-0000-000000000042");
     private static final String DIGEST = "a".repeat(64);
+    private static final String PUBLIC_SCOPE_DIGEST = "b".repeat(64);
+    private static final String AUTHORITY_SCOPE_DIGEST =
+            "afa57daa73056c0c7ad41f58b72c754bccf6ee2d84b77b662c8eadb6ad8c9b11";
+    private static final long AUTHORITY_FIELD_REVISION = 4_663_670_355_146_917_040L;
+    private static final long PUBLIC_FIELD_REVISION = 6_948_340_445_824_176L;
+    private static final long AUTHORITY_AUTHORIZATION_REVISION = 1_991_387_878_219_104_048L;
+    private static final long PUBLIC_AUTHORIZATION_REVISION = 796_842_921_344_816L;
     private static final JsonMapper MAPPER = JsonMapper.builder().findAndAddModules().build();
 
     @Container
@@ -54,7 +61,7 @@ class NavigationPolicyPostgresTest {
                 .dataSource(dataSource)
                 .locations("filesystem:src/main/resources/db/migration")
                 .baselineVersion("325")
-                .target("326")
+                .target("327")
                 .cleanDisabled(false)
                 .load();
         flyway.clean();
@@ -115,6 +122,29 @@ class NavigationPolicyPostgresTest {
                  WHERE tenant_id = 42 AND policy_id = ?
                 """, Integer.class, published.policyId()))).isEqualTo(5);
         assertThat(transaction(() -> jdbc.queryForObject("""
+                SELECT population_scope_digest FROM sys_hris_command_receipts
+                 WHERE tenant_id = 42 AND command_receipt_id = ?
+                """, String.class, created.receiptId())))
+                .isEqualTo(PUBLIC_SCOPE_DIGEST);
+        assertThat(transaction(() -> jdbc.queryForObject("""
+                SELECT authority_population_scope_digest
+                  FROM sys_hris_command_receipts
+                 WHERE tenant_id = 42 AND command_receipt_id = ?
+                """, String.class, created.receiptId())))
+                .isEqualTo(AUTHORITY_SCOPE_DIGEST)
+                .isNotEqualTo(PUBLIC_SCOPE_DIGEST);
+        assertThat(transaction(() -> jdbc.queryForMap("""
+                SELECT field_policy_revision, authority_field_policy_revision,
+                       authorization_revision, authority_authorization_revision
+                  FROM sys_hris_command_receipts
+                 WHERE tenant_id = 42 AND command_receipt_id = ?
+                """, created.receiptId())))
+                .containsEntry("field_policy_revision", PUBLIC_FIELD_REVISION)
+                .containsEntry("authority_field_policy_revision", AUTHORITY_FIELD_REVISION)
+                .containsEntry("authorization_revision", PUBLIC_AUTHORIZATION_REVISION)
+                .containsEntry("authority_authorization_revision",
+                        AUTHORITY_AUTHORIZATION_REVISION);
+        assertThat(transaction(() -> jdbc.queryForObject("""
                 SELECT COUNT(*) FROM hris_navigation_policy_audit
                  WHERE tenant_id = 42 AND policy_id = ?
                 """, Integer.class, published.policyId()))).isEqualTo(5);
@@ -149,6 +179,14 @@ class NavigationPolicyPostgresTest {
                        SET payload_digest = ?
                      WHERE tenant_id = 42 AND revision_id = ?
                     """, "b".repeat(64), restored.revisionId());
+            return null;
+        })).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> transaction(() -> {
+            jdbc.update("""
+                    UPDATE sys_hris_command_receipts
+                       SET authority_population_scope_digest = ?
+                     WHERE tenant_id = 42 AND command_receipt_id = ?
+                    """, "f".repeat(64), created.receiptId());
             return null;
         })).isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -232,10 +270,26 @@ class NavigationPolicyPostgresTest {
 
     private static CommandContext command(String key, boolean stepUp) {
         String padded = key.length() < 16 ? key + "-idempotency-key" : key;
+        String route = originRoute(key);
+        var authority = new com.dwp.services.platform.security.HcmPlatformPepRegistry.RouteAuthority(
+                route, "ACTION", "POST", "/test", "test-profile", stepUp,
+                "test-capability", "ENABLED", null);
         return new CommandContext(
                 padded, UUID.nameUUIDFromBytes(key.getBytes()),
                 stepUp ? "decision-7" : null, stepUp ? "fresh-step-up-proof" : null,
-                "POST", "/test", null);
+                "POST", "/test", authority, route,
+                "hcm-management-context", scopeKey(), "decision-7",
+                "b".repeat(64), AUTHORITY_FIELD_REVISION,
+                AUTHORITY_AUTHORIZATION_REVISION);
+    }
+
+    private static String originRoute(String key) {
+        if (key.contains("validate")) return "route.hcm.configuration.navigation-policy-draft-validate.action";
+        if (key.contains("submit")) return "route.hcm.configuration.navigation-policy-draft-submit.action";
+        if (key.contains("approve")) return "route.hcm.configuration.navigation-policy-revision-approve.action";
+        if (key.contains("publish")) return "route.hcm.configuration.navigation-policy-revision-publish.action";
+        if (key.contains("restore")) return "route.hcm.configuration.navigation-policy-revision-restore.action";
+        return "route.hcm.configuration.navigation-policy-draft-create.action";
     }
 
     private static String scopeKey() {

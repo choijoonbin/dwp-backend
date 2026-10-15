@@ -3,6 +3,7 @@ package com.dwp.services.auth.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.dwp.core.security.ProductSurfaceScopeKey;
 import com.dwp.services.auth.dto.AppGovernanceDtos;
 import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
@@ -180,6 +181,191 @@ class ProductAuthorizationHcmAuthorityAdapterTest {
         assertThat(communications.requiresProductEligibility()).isFalse();
     }
 
+    @Test
+    void v43SkipsPeopleOnlyForTheSelectedOriginatingCommandReceiptGrant()
+            throws IOException {
+        useContract("product-surfaces-v1.bundle-v43.generated.json");
+        evidence(Set.of("DATA.HRIS_COMMAND_RECEIPT:VIEW"), List.of());
+
+        ProductSurfaceAuthorityDtos.AuthorityResult explorerReceipt = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer-command-receipt.data",
+                null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult assignmentReceipt = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.assignment-command-receipt.data",
+                null, null, null, null, List.of());
+
+        assertThat(explorerReceipt.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(explorerReceipt.requiresProductEligibility()).isFalse();
+        assertThat(explorerReceipt.effectiveGrants())
+                .singleElement().isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.capabilityContractKey())
+                                .isEqualTo("hcm.command-receipt.view"));
+        String originatingCommandScope = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.utility",
+                "ORIGINATING_COMMAND_SCOPE", "TARGET_POPULATION");
+        assertThat(explorerReceipt.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+            assertThat(scope.key()).isEqualTo(originatingCommandScope);
+        });
+        assertThat(explorerReceipt.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.scopeKeys())
+                                .containsExactly(originatingCommandScope));
+
+        assertThat(assignmentReceipt.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(assignmentReceipt.requiresProductEligibility()).isTrue();
+    }
+
+    @Test
+    void v43ExplorerShellAndOrdinaryHcmScopesStillRequirePeopleEligibility()
+            throws IOException {
+        useContract("product-surfaces-v1.bundle-v43.generated.json");
+        OffsetDateTime validTo = OffsetDateTime.now(CLOCK).plusMinutes(20);
+        evidence(Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"), List.of(role(
+                "HRIS_DUTY_APP_SHELL_READER", "APP.HCM",
+                "RS_HCM_UTILITY_SELF", validTo)));
+
+        ProductSurfaceAuthorityDtos.AuthorityResult explorerPage = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer.page",
+                null, null, null, null, List.of());
+
+        assertThat(explorerPage.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(explorerPage.requiresProductEligibility()).isTrue();
+        assertThat(explorerPage.effectiveGrants())
+                .singleElement().isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> {
+                            assertThat(grant.capabilityContractKey())
+                                    .isEqualTo("hcm.app.shell.view");
+                            assertThat(grant.responsibility())
+                                    .isEqualTo(new ProductSurfaceAuthorityDtos.Responsibility(
+                                            "HRIS_DUTY_APP_SHELL_READER",
+                                            "RS_HCM_UTILITY_SELF"));
+                            assertThat(grant.validUntil()).isEqualTo(validTo);
+                        });
+        assertThat(explorerPage.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("SELF");
+            assertThat(scope.key()).isEqualTo(ProductSurfaceScopeKey.key(
+                    10, 20, "hcm", "hcm.utility", "SELF", "SELF"));
+            assertThat(scope.validUntil()).isEqualTo(validTo);
+            assertThat(explorerPage.effectiveGrants().getFirst().scopeKeys())
+                    .containsExactly(scope.key());
+        });
+    }
+
+    @Test
+    void v43ExactCanonicalReceiptScopeSelectsPlatformProfileForOverlapOnly()
+            throws IOException {
+        useContract("product-surfaces-v1.bundle-v43.generated.json");
+        evidence(Set.of(
+                "APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW",
+                "DATA.HRIS_COMMAND_RECEIPT:VIEW"), List.of(role(
+                "HRIS_DUTY_APP_SHELL_READER", "APP.HCM",
+                "RS_HCM_UTILITY_SELF")));
+        String selector = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.utility",
+                "ORIGINATING_COMMAND_SCOPE", "TARGET_POPULATION");
+
+        ProductSurfaceAuthorityDtos.AuthorityResult selected = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer-command-receipt.data",
+                null, selector, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult ordinary = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer-command-receipt.data",
+                null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult explorerScoped = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer-command-receipt.data",
+                null, "hcm-scope-" + "b".repeat(40), null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult forged = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer-command-receipt.data",
+                null, "scope-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult malformed = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer-command-receipt.data",
+                null, "scope-bad", null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult selectorOnExplorerPage = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer.page",
+                null, selector, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult otherTenantSelector = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer.page", null,
+                ProductSurfaceScopeKey.key(
+                        11, 20, "hcm", "hcm.utility",
+                        "ORIGINATING_COMMAND_SCOPE", "TARGET_POPULATION"),
+                null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult otherActorSelector = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer.page", null,
+                ProductSurfaceScopeKey.key(
+                        10, 21, "hcm", "hcm.utility",
+                        "ORIGINATING_COMMAND_SCOPE", "TARGET_POPULATION"),
+                null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult otherTenantReceiptSelector = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer-command-receipt.data", null,
+                ProductSurfaceScopeKey.key(
+                        11, 20, "hcm", "hcm.utility",
+                        "ORIGINATING_COMMAND_SCOPE", "TARGET_POPULATION"),
+                null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult otherActorReceiptSelector = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.utility.explorer-command-receipt.data", null,
+                ProductSurfaceScopeKey.key(
+                        10, 21, "hcm", "hcm.utility",
+                        "ORIGINATING_COMMAND_SCOPE", "TARGET_POPULATION"),
+                null, null, List.of());
+
+        assertThat(selected.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(selected.requiresProductEligibility()).isFalse();
+        assertThat(selected.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.key()).isEqualTo(selector);
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+        });
+        assertThat(selected.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.capabilityContractKey())
+                                .isEqualTo("hcm.command-receipt.view"));
+        assertThat(ordinary.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.capabilityContractKey())
+                                .isEqualTo("hcm.app.shell.view"));
+        assertThat(explorerScoped.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.capabilityContractKey())
+                                .isEqualTo("hcm.app.shell.view"));
+        assertThat(forged.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+        assertThat(malformed.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+        assertThat(selectorOnExplorerPage.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+        assertThat(otherTenantSelector.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(otherActorSelector.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(otherTenantReceiptSelector.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+        assertThat(otherActorReceiptSelector.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+    }
+
     private void useContract(String resource) throws IOException {
         ProductAuthorizationContractDtos.BundleContract contract = new ObjectMapper()
                 .findAndRegisterModules().readValue(getClass().getResourceAsStream(
@@ -212,10 +398,16 @@ class ProductAuthorizationHcmAuthorityAdapterTest {
 
     private AppGovernanceDtos.ResourceRole role(
             String responsibility, String resourceKey, String resourceSetKey) {
+        return role(responsibility, resourceKey, resourceSetKey, null);
+    }
+
+    private AppGovernanceDtos.ResourceRole role(
+            String responsibility, String resourceKey, String resourceSetKey,
+            OffsetDateTime validTo) {
         return new AppGovernanceDtos.ResourceRole(
                 responsibility, "APP", resourceKey,
                 UUID.nameUUIDFromBytes(resourceSetKey.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
-                resourceSetKey, null);
+                resourceSetKey, validTo);
     }
 
     private ProductSurfaceAuthorityDtos.AuthorityResult evaluate(

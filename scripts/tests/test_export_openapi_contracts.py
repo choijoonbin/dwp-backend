@@ -815,6 +815,12 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         )
         for method, path in operations:
             operation = gateway["paths"][path][method]
+            self.assertEqual(
+                "COMMAND_STATUS"
+                if path.endswith("/admin/hris/command-receipts/{receiptId}")
+                else "HRIS_APP_DISCOVERY",
+                operation["x-dwp-purpose-code"],
+            )
             parameters = {
                 (str(value.get("in", "")).lower(), str(value.get("name", "")).lower()): value
                 for value in operation.get("parameters", [])
@@ -839,6 +845,15 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "metadata/profile drift"):
             EXPORTER["validate_sys012_work_explorer_contract"](
                 wrong_profile, gateway
+            )
+
+        wrong_receipt_purpose = copy.deepcopy(platform)
+        wrong_receipt_purpose["paths"][
+            "/v1/admin/hris/command-receipts/{receiptId}"
+        ]["get"]["x-dwp-purpose-code"] = "HRIS_APP_DISCOVERY"
+        with self.assertRaisesRegex(RuntimeError, "metadata/profile drift"):
+            EXPORTER["validate_sys012_work_explorer_contract"](
+                wrong_receipt_purpose, gateway
             )
 
         missing_if_match = copy.deepcopy(gateway)
