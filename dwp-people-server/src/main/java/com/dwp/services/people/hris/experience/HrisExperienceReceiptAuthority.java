@@ -2,6 +2,7 @@ package com.dwp.services.people.hris.experience;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.services.people.hr.HcmPopulationScopeService;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
@@ -22,13 +23,10 @@ class HrisExperienceReceiptAuthority {
             "route.hcm.operations.assignment-command-receipt.data";
     static final String CAPABILITY = "hcm.command-receipt.view";
 
-    private final HcmPopulationScopeService populations;
     private final ObjectProvider<HrisExperienceOriginReceiptAuthoritySource> originSources;
 
     HrisExperienceReceiptAuthority(
-            HcmPopulationScopeService populations,
             ObjectProvider<HrisExperienceOriginReceiptAuthoritySource> originSources) {
-        this.populations = populations;
         this.originSources = originSources;
     }
 
@@ -50,6 +48,7 @@ class HrisExperienceReceiptAuthority {
                 || !"GET".equals(route.method()) || !route.readOnly()
                 || evidence.decisionRevision() == null
                 || !evidence.decisionRevision().matches("psr-[0-9a-f]{64}")
+                || !Set.of("NORMAL", "ELEVATED").contains(evidence.activeAccessMode())
                 || evidence.revalidateAt() == null
                 || !evidence.revalidateAt().isAfter(OffsetDateTime.now())) {
             throw denied();
@@ -62,7 +61,8 @@ class HrisExperienceReceiptAuthority {
                 receipt.tenantId(), actor.userId(), actor.personPublicId(),
                 receipt.commandType(), receipt.action(), receipt.targetType(), purpose,
                 policy.routeContractKey(), policy.capabilityContractKey(),
-                policy.method(), policy.readOnly(), receipt.authorizationRevision());
+                policy.method(), policy.readOnly(), receipt.authorizationRevision(),
+                receipt.contextDigest(), receipt.subjectPublicId());
         HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority origin;
         try {
             origin = sources.getFirst().resolve(request).orElseThrow(this::denied);
@@ -83,35 +83,31 @@ class HrisExperienceReceiptAuthority {
                         policy.capabilityContractKey())
                 || !Objects.equals(origin.method(), policy.method())
                 || origin.readOnly() != policy.readOnly()
-                || origin.authorizationRevision() != receipt.authorizationRevision()) {
+                || origin.authorizationRevision() != receipt.authorizationRevision()
+                || !Objects.equals(origin.contextDigest(), receipt.contextDigest())) {
             throw denied();
         }
 
-        if ("EMPLOYEE_SELF_SERVICE".equals(purpose)) {
-            populations.requireSelfScope();
-            return new CurrentAuthority(actor, null,
-                    "self:" + evidence.scopeKey(),
-                    Set.of("DIRECTORY", "PERSON_PROFILE", "CONTACT"), evidence, origin);
+        HrisExperienceOriginReceiptAuthoritySource.CurrentOriginScope scope =
+                origin.scope();
+        boolean expectedSelf = "EMPLOYEE_SELF_SERVICE".equals(purpose);
+        if (scope == null || scope.self() != expectedSelf
+                || scope.scopeRevision() == null || scope.scopeRevision().isBlank()
+                || scope.fieldGroups().isEmpty()
+                || scope.sourceScopeKey() == null
+                || !scope.sourceScopeKey().matches("scope-[0-9a-f]{32}")
+                || !HcmEligibilityScopeKey.isCanonical(scope.derivedScopeKey())
+                || scope.productRelationshipRevision() == null
+                || scope.productRelationshipRevision().isBlank()
+                || scope.targetPopulationRevision() == null
+                || scope.targetPopulationRevision().isBlank()
+                || scope.freshUntil() == null
+                || !scope.freshUntil().isAfter(OffsetDateTime.now())) {
+            throw denied();
         }
-        if ("TEAM_MANAGEMENT".equals(purpose)) {
-            HcmPopulationScopeService.ResolvedPopulation population =
-                    populations.requireTeam();
-            populations.requireTrustedScope(
-                    population, "hcm.team", "TARGET_POPULATION",
-                    "TEAM/ORG_UNIT",
-                    "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION");
-            return new CurrentAuthority(actor, population,
-                    population.targetPopulationRevision(),
-                    population.scope().fieldGroups(), evidence, origin);
-        }
-        HcmPopulationScopeService.ResolvedPopulation population =
-                populations.requireOperations("READ");
-        populations.requireTrustedScope(
-                population, "hcm.operations", "TARGET_POPULATION",
-                "ORG_UNIT/LEGAL_ENTITY", "WORKFORCE_TARGET_POPULATION");
-        return new CurrentAuthority(actor, population,
-                population.targetPopulationRevision(),
-                population.scope().fieldGroups(), evidence, origin);
+        return new CurrentAuthority(
+                actor, scope.population(), scope.scopeRevision(), scope.fieldGroups(),
+                evidence, origin);
     }
 
     private BaseException denied() {

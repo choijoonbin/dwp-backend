@@ -412,7 +412,7 @@ class EmployeeChangeService {
     private ScopeBinding mutationScope(String capability) {
         HcmPepContext.Evidence pep = HcmPepContext.require();
         if ("hcm.personal.profile.update".equals(capability)) {
-            populationScopes.requireSelfScope();
+            populationScopes.requireSelfScope("hcm.operations");
             return new ScopeBinding(
                     null, true, "self:" + pep.scopeKey(),
                     Set.of("DIRECTORY", "PERSON_PROFILE", "CONTACT"));
@@ -421,7 +421,7 @@ class EmployeeChangeService {
             HcmPopulationScopeService.ResolvedPopulation population =
                     populationScopes.requireTeamForMutation();
             populationScopes.requireTrustedScope(
-                    population, "hcm.team", "TARGET_POPULATION",
+                    population, "hcm.operations", "TARGET_POPULATION",
                     "TEAM/ORG_UNIT",
                     "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION");
             return new ScopeBinding(

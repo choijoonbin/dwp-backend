@@ -73,6 +73,11 @@ dwp:
       # Notification source/event/template package and authoritative recipient
       # identity resolution exists. No direct channel I/O is implemented here.
       enabled: ${DWP_HRIS_EXPERIENCE_ENABLED:false}
+      origin-authority:
+        auth-url: ${DWP_HRIS_ORIGIN_AUTHORITY_URL:${SERVICE_AUTH_URL:http://localhost:8001}}
+        token: ${DWP_HRIS_ORIGIN_AUTHORITY_TOKEN:}
+        timeout: ${DWP_HRIS_ORIGIN_AUTHORITY_TIMEOUT:PT2S}
+        required-assurance: ${DWP_HRIS_ORIGIN_AUTHORITY_REQUIRED_ASSURANCE:}
       relay:
         enabled: ${DWP_HRIS_EXPERIENCE_RELAY_ENABLED:false}
         batch-size: ${DWP_HRIS_EXPERIENCE_RELAY_BATCH_SIZE:25}

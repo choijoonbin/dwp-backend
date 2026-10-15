@@ -36,6 +36,18 @@ public final class HcmPepContext {
             OffsetDateTime revalidateAt,
             String contextKey,
             String scopeKey,
-            String rolloutState) {
+            String rolloutState,
+            String activeAccessMode) {
+
+        public Evidence(
+                HcmV3PepRegistry.RouteAuthority authority,
+                String decisionRevision,
+                OffsetDateTime revalidateAt,
+                String contextKey,
+                String scopeKey,
+                String rolloutState) {
+            this(authority, decisionRevision, revalidateAt, contextKey, scopeKey,
+                    rolloutState, "NORMAL");
+        }
     }
 }

@@ -1,6 +1,10 @@
 package com.dwp.services.people.hris.experience;
 
+import com.dwp.services.people.hr.HcmPopulationScopeService;
+
+import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -26,7 +30,9 @@ public interface HrisExperienceOriginReceiptAuthoritySource {
             String expectedCapabilityContractKey,
             String expectedMethod,
             boolean expectedReadOnly,
-            long storedAuthorizationRevision) {
+            long storedAuthorizationRevision,
+            String storedContextDigest,
+            UUID subjectPublicId) {
     }
 
     record CurrentOriginAuthority(
@@ -41,6 +47,31 @@ public interface HrisExperienceOriginReceiptAuthoritySource {
             String capabilityContractKey,
             String method,
             boolean readOnly,
-            long authorizationRevision) {
+            long authorizationRevision,
+            String contextDigest,
+            CurrentOriginScope scope) {
+    }
+
+    /**
+     * The single owner-materialized scope used by both the V54 evidence check
+     * and the final receipt population/field checks.
+     */
+    record CurrentOriginScope(
+            HcmPopulationScopeService.ResolvedPopulation population,
+            String scopeRevision,
+            Set<String> fieldGroups,
+            String sourceScopeKey,
+            String derivedScopeKey,
+            String productRelationshipRevision,
+            String targetPopulationRevision,
+            OffsetDateTime freshUntil) {
+
+        public CurrentOriginScope {
+            fieldGroups = fieldGroups == null ? Set.of() : Set.copyOf(fieldGroups);
+        }
+
+        public boolean self() {
+            return population == null;
+        }
     }
 }

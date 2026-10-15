@@ -32,6 +32,9 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             "route.hcm.performance.assigned-review.data",
             "route.hcm.performance.assigned-review-draft-update.action",
             "route.hcm.performance.assigned-review-submit.action");
+    private static final Set<String> HCM_EMPLOYEE_CHANGE_MULTI_PROFILE_ROUTES = Set.of(
+            "route.hcm.operations.employee-change-request-create.action",
+            "route.hcm.operations.employee-change-request-submit.action");
     private static final String HCM_PRODUCT = "hcm";
     private static final String HCM_UTILITY_SURFACE = "hcm.utility";
     private static final String HCM_EXPLORER_RECEIPT_ROUTE =
@@ -322,16 +325,14 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             if (blockingProfileDenial(result)) return result.forRoute();
             if (result.allowed() || result.decision()
                     == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED) {
-                if ((requiresExactReviewProfileSelection(request)
+                if ((requiresExactProfileSelection(request)
                         && result.scopes().stream().noneMatch(scope ->
                                 request.contextScopeKey().equals(scope.key())))
                         || (requiresExactReceiptProfileSelection(request)
                         && !matchesExactReceiptProfile(request, result))) {
-                    // The three review routes intentionally share one permission across an
-                    // assigned-review population profile and a self profile.  Precedence must
-                    // not let the assigned profile swallow an explicitly selected SELF scope
-                    // (or vice versa); keep evaluating until the signed scope selects the
-                    // matching profile.  The reviewId itself is never identity evidence.
+                    // Overlapping profiles must not let precedence swallow an explicitly
+                    // selected source scope. Keep evaluating until the signed selector chooses
+                    // its matching profile; object identifiers are never identity evidence.
                     allowedProfileScopeMismatch = true;
                     continue;
                 }
@@ -348,12 +349,21 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         return Objects.requireNonNull(firstDenial).forRoute();
     }
 
-    private boolean requiresExactReviewProfileSelection(
+    private boolean requiresExactProfileSelection(
             ProductSurfaceAuthorityDtos.EvaluateRequest request) {
-        return request.contextScopeKey() != null
-                && !request.contextScopeKey().isBlank()
-                && PERFORMANCE_REVIEW_DUAL_PROFILE_ROUTES.contains(
-                        request.routeContractKey());
+        if (request.contextScopeKey() == null || request.contextScopeKey().isBlank()) {
+            return false;
+        }
+        if (PERFORMANCE_REVIEW_DUAL_PROFILE_ROUTES.contains(request.routeContractKey())) {
+            return true;
+        }
+        // Gateway traffic can carry a People-derived hcm-scope-* selection. The R2 source
+        // selector is the pre-intersection scope-* value used by the dedicated origin bridge.
+        return HCM_PRODUCT.equals(request.productKey())
+                && "hcm.operations".equals(request.surfaceKey())
+                && HCM_EMPLOYEE_CHANGE_MULTI_PROFILE_ROUTES.contains(
+                        request.routeContractKey())
+                && !request.contextScopeKey().matches("^hcm-scope-[a-f0-9]{40}$");
     }
 
     private boolean requiresExactReceiptProfileSelection(

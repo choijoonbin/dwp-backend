@@ -31,6 +31,10 @@ class ProductSurfaceInternalSecurityConfigTest {
             filter.doFilter(accepted, acceptedResponse, new MockFilterChain());
 
             assertThat(acceptedResponse.getStatus()).isEqualTo(200);
+            assertThat(accepted.getAttribute(
+                    ProductSurfaceInternalSecurityConfig
+                            .AUTHENTICATED_SERVICE_IDENTITY_ATTRIBUTE))
+                    .isEqualTo(identity);
         }
 
         MockHttpServletRequest rejected = new MockHttpServletRequest(
@@ -91,6 +95,10 @@ class ProductSurfaceInternalSecurityConfigTest {
         filter.doFilter(accepted, acceptedResponse, new MockFilterChain());
 
         assertThat(acceptedResponse.getStatus()).isEqualTo(200);
+        assertThat(accepted.getAttribute(
+                ProductSurfaceInternalSecurityConfig
+                        .AUTHENTICATED_SERVICE_IDENTITY_ATTRIBUTE))
+                .isEqualTo(ProductSurfaceInternalSecurityConfig.MEETING_SERVICE_IDENTITY);
 
         for (String path : new String[] {
                 "/internal/auth/v1/product-surface-authority/evaluate",
@@ -222,5 +230,150 @@ class ProductSurfaceInternalSecurityConfigTest {
         filter.doFilter(get, getResponse, new MockFilterChain());
 
         assertThat(getResponse.getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void acceptsOnlyTheDedicatedPeopleCredentialOnTheExactProductEvaluationPost()
+            throws Exception {
+        var filter = fullyConfiguredFilter();
+        MockHttpServletRequest request = peopleRequest(
+                "POST", ProductSurfaceInternalSecurityConfig.PRODUCT_SURFACE_EVALUATE_PATH);
+        request.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                "trusted-hris-origin-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(request.getAttribute(
+                ProductSurfaceInternalSecurityConfig
+                        .AUTHENTICATED_SERVICE_IDENTITY_ATTRIBUTE))
+                .isEqualTo(ProductSurfaceInternalSecurityConfig.PEOPLE_SERVICE_IDENTITY);
+    }
+
+    @Test
+    void rejectsPeopleCredentialOnWrongMethodPathOrWithAmbiguousHeaders() throws Exception {
+        var filter = fullyConfiguredFilter();
+
+        MockHttpServletRequest missing = peopleRequest(
+                "POST", ProductSurfaceInternalSecurityConfig.PRODUCT_SURFACE_EVALUATE_PATH);
+        assertUnauthorized(filter, missing);
+
+        MockHttpServletRequest blank = peopleRequest(
+                "POST", ProductSurfaceInternalSecurityConfig.PRODUCT_SURFACE_EVALUATE_PATH);
+        blank.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                " ");
+        assertUnauthorized(filter, blank);
+
+        MockHttpServletRequest wrongMethod = peopleRequest(
+                "GET", ProductSurfaceInternalSecurityConfig.PRODUCT_SURFACE_EVALUATE_PATH);
+        wrongMethod.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                "trusted-hris-origin-token");
+        assertUnauthorized(filter, wrongMethod);
+
+        MockHttpServletRequest wrongPath = peopleRequest(
+                "POST", "/internal/auth/v1/governed-route-authority/evaluate");
+        wrongPath.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                "trusted-hris-origin-token");
+        assertUnauthorized(filter, wrongPath);
+
+        MockHttpServletRequest duplicate = peopleRequest(
+                "POST", ProductSurfaceInternalSecurityConfig.PRODUCT_SURFACE_EVALUATE_PATH);
+        duplicate.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                "trusted-hris-origin-token");
+        duplicate.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                "trusted-hris-origin-token");
+        assertUnauthorized(filter, duplicate);
+
+        MockHttpServletRequest duplicateIdentity = peopleRequest(
+                "POST", ProductSurfaceInternalSecurityConfig.PRODUCT_SURFACE_EVALUATE_PATH);
+        duplicateIdentity.addHeader(
+                ProductSurfaceInternalSecurityConfig.SERVICE_IDENTITY_HEADER,
+                ProductSurfaceInternalSecurityConfig.PEOPLE_SERVICE_IDENTITY);
+        duplicateIdentity.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                "trusted-hris-origin-token");
+        assertUnauthorized(filter, duplicateIdentity);
+
+        MockHttpServletRequest mixed = peopleRequest(
+                "POST", ProductSurfaceInternalSecurityConfig.PRODUCT_SURFACE_EVALUATE_PATH);
+        mixed.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                "trusted-hris-origin-token");
+        mixed.addHeader(
+                ProductSurfaceInternalSecurityConfig.TOKEN_HEADER,
+                "trusted-product-surface-token");
+        assertUnauthorized(filter, mixed);
+    }
+
+    @Test
+    void neverAcceptsDedicatedCredentialsAcrossServiceIdentities() throws Exception {
+        var filter = fullyConfiguredFilter();
+
+        MockHttpServletRequest peopleWithProductToken = peopleRequest(
+                "POST", ProductSurfaceInternalSecurityConfig.PRODUCT_SURFACE_EVALUATE_PATH);
+        peopleWithProductToken.addHeader(
+                ProductSurfaceInternalSecurityConfig.TOKEN_HEADER,
+                "trusted-product-surface-token");
+        assertUnauthorized(filter, peopleWithProductToken);
+
+        MockHttpServletRequest gatewayWithPeopleToken = new MockHttpServletRequest(
+                "POST", ProductSurfaceInternalSecurityConfig.PRODUCT_SURFACE_EVALUATE_PATH);
+        gatewayWithPeopleToken.addHeader(
+                ProductSurfaceInternalSecurityConfig.SERVICE_IDENTITY_HEADER,
+                ProductSurfaceInternalSecurityConfig.GATEWAY_SERVICE_IDENTITY);
+        gatewayWithPeopleToken.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                "trusted-hris-origin-token");
+        assertUnauthorized(filter, gatewayWithPeopleToken);
+
+        MockHttpServletRequest gatewayWithMixedTokens = new MockHttpServletRequest(
+                "POST", ProductSurfaceInternalSecurityConfig.PRODUCT_SURFACE_EVALUATE_PATH);
+        gatewayWithMixedTokens.addHeader(
+                ProductSurfaceInternalSecurityConfig.SERVICE_IDENTITY_HEADER,
+                ProductSurfaceInternalSecurityConfig.GATEWAY_SERVICE_IDENTITY);
+        gatewayWithMixedTokens.addHeader(
+                ProductSurfaceInternalSecurityConfig.TOKEN_HEADER,
+                "trusted-product-surface-token");
+        gatewayWithMixedTokens.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                "trusted-hris-origin-token");
+        assertUnauthorized(filter, gatewayWithMixedTokens);
+    }
+
+    private ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter
+            fullyConfiguredFilter() {
+        return new ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter(
+                "trusted-product-surface-token",
+                "trusted-meeting-followup-token",
+                "trusted-hris-origin-token",
+                objectMapper);
+    }
+
+    private MockHttpServletRequest peopleRequest(String method, String path) {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        request.addHeader(
+                ProductSurfaceInternalSecurityConfig.SERVICE_IDENTITY_HEADER,
+                ProductSurfaceInternalSecurityConfig.PEOPLE_SERVICE_IDENTITY);
+        return request;
+    }
+
+    private void assertUnauthorized(
+            ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter filter,
+            MockHttpServletRequest request) throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(request.getAttribute(
+                ProductSurfaceInternalSecurityConfig
+                        .AUTHENTICATED_SERVICE_IDENTITY_ATTRIBUTE)).isNull();
     }
 }

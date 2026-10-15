@@ -2,7 +2,6 @@ package com.dwp.services.people.hris.experience;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import com.dwp.services.people.hr.HcmPopulationScopeService;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
 import com.dwp.services.people.security.PeopleRequestContext;
@@ -35,7 +34,6 @@ class HrisExperienceReceiptAuthorityTest {
             "route.hcm.operations.employee-change-request-create.action";
     private static final String ORIGIN_CAPABILITY = "hcm.personal.profile.update";
 
-    private final HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
     @SuppressWarnings("unchecked")
     private final ObjectProvider<HrisExperienceOriginReceiptAuthoritySource> sources =
             mock(ObjectProvider.class);
@@ -62,7 +60,7 @@ class HrisExperienceReceiptAuthorityTest {
     @Test
     void requiresExactlyOneOriginatingActionAuthoritySource() {
         when(sources.orderedStream()).thenReturn(Stream.empty());
-        var authority = new HrisExperienceReceiptAuthority(populations, sources);
+        var authority = new HrisExperienceReceiptAuthority(sources);
 
         assertOpaque(() -> authority.require(receipt(), policy()));
     }
@@ -71,7 +69,7 @@ class HrisExperienceReceiptAuthorityTest {
     void admitsExactCurrentOriginAndRejectsRevisionDrift() {
         var source = mock(HrisExperienceOriginReceiptAuthoritySource.class);
         when(sources.orderedStream()).thenAnswer(ignored -> Stream.of(source));
-        var authority = new HrisExperienceReceiptAuthority(populations, sources);
+        var authority = new HrisExperienceReceiptAuthority(sources);
         var row = receipt();
         var exact = current(row.authorizationRevision());
         when(source.resolve(org.mockito.ArgumentMatchers.any()))
@@ -82,6 +80,11 @@ class HrisExperienceReceiptAuthorityTest {
         when(source.resolve(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(Optional.of(current(row.authorizationRevision() + 1)));
         assertOpaque(() -> authority.require(row, policy()));
+
+        when(source.resolve(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(Optional.of(current(
+                        row.authorizationRevision(), "d".repeat(64))));
+        assertOpaque(() -> authority.require(row, policy()));
     }
 
     @Test
@@ -90,7 +93,7 @@ class HrisExperienceReceiptAuthorityTest {
         when(sources.orderedStream()).thenAnswer(ignored -> Stream.of(source));
         when(source.resolve(org.mockito.ArgumentMatchers.any()))
                 .thenThrow(new IllegalStateException("authority unavailable"));
-        var authority = new HrisExperienceReceiptAuthority(populations, sources);
+        var authority = new HrisExperienceReceiptAuthority(sources);
 
         assertOpaque(() -> authority.require(receipt(), policy()));
     }
@@ -123,7 +126,8 @@ class HrisExperienceReceiptAuthorityTest {
                                 TENANT, USER, ACTOR, "HRM_EMPLOYEE_CHANGE_CREATE",
                                 "SUBMIT_EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_CHANGE_REQUEST",
                                 "EMPLOYEE_SELF_SERVICE", ORIGIN_ROUTE, ORIGIN_CAPABILITY,
-                                "POST", false, row.authorizationRevision()),
+                                "POST", false, row.authorizationRevision(),
+                                row.contextDigest(), selfScope()),
                         current(TENANT, USER, ACTOR,
                                 "HRM_EMPLOYEE_CHANGE_CREATE", "EMPLOYMENT_EVENT",
                                 "EMPLOYEE_SELF_SERVICE", ORIGIN_ROUTE, ORIGIN_CAPABILITY,
@@ -160,7 +164,7 @@ class HrisExperienceReceiptAuthorityTest {
             when(sources.orderedStream()).thenAnswer(ignored -> Stream.of(source));
             when(source.resolve(org.mockito.ArgumentMatchers.any()))
                     .thenReturn(Optional.of(candidate));
-            var authority = new HrisExperienceReceiptAuthority(populations, sources);
+            var authority = new HrisExperienceReceiptAuthority(sources);
 
             assertOpaque(() -> authority.require(row, policy()));
         }
@@ -168,9 +172,16 @@ class HrisExperienceReceiptAuthorityTest {
 
     private HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority current(
             long revision) {
+        return current(revision, "c".repeat(64));
+    }
+
+    private HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority current(
+            long revision,
+            String contextDigest) {
         return current(TENANT, USER, ACTOR, "HRM_EMPLOYEE_CHANGE_CREATE",
                 "EMPLOYEE_CHANGE_REQUEST", "EMPLOYEE_SELF_SERVICE",
-                ORIGIN_ROUTE, ORIGIN_CAPABILITY, "POST", false, revision);
+                ORIGIN_ROUTE, ORIGIN_CAPABILITY, "POST", false, revision,
+                contextDigest);
     }
 
     private HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority current(
@@ -185,9 +196,36 @@ class HrisExperienceReceiptAuthorityTest {
             String method,
             boolean readOnly,
             long revision) {
+        return current(tenant, user, actor, command, targetType, purpose, route,
+                capability, method, readOnly, revision, "c".repeat(64));
+    }
+
+    private HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority current(
+            long tenant,
+            long user,
+            UUID actor,
+            String command,
+            String targetType,
+            String purpose,
+            String route,
+            String capability,
+            String method,
+            boolean readOnly,
+            long revision,
+            String contextDigest) {
         return new HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority(
                 tenant, user, actor, command, "CREATE_EMPLOYEE_CHANGE_REQUEST",
-                targetType, purpose, route, capability, method, readOnly, revision);
+                targetType, purpose, route, capability, method, readOnly, revision,
+                contextDigest, selfScope());
+    }
+
+    private HrisExperienceOriginReceiptAuthoritySource.CurrentOriginScope selfScope() {
+        return new HrisExperienceOriginReceiptAuthoritySource.CurrentOriginScope(
+                null, "self:hcm-scope-" + "1".repeat(40),
+                Set.of("DIRECTORY", "PERSON_PROFILE", "CONTACT"),
+                "scope-" + "2".repeat(32), "hcm-scope-" + "1".repeat(40),
+                "hcm-rel-current", "hcm-pop-current",
+                OffsetDateTime.now().plusMinutes(4));
     }
 
     private HrisExperienceReceiptAuthority.OriginPolicy policy() {

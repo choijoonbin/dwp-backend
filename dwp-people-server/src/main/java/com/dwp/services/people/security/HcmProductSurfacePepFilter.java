@@ -175,7 +175,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
 
         HcmPepContext.set(new HcmPepContext.Evidence(
                 decision.authority(), currentRevision, currentRevalidateAt,
-                trustedContext, trustedScope, state));
+                trustedContext, trustedScope, state, activeAccessMode));
         try {
             scopeValidator.validate(decision.authority());
         } catch (BaseException exception) {

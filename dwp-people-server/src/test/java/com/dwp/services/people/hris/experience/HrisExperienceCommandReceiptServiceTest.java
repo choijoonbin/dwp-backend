@@ -374,9 +374,14 @@ class HrisExperienceCommandReceiptServiceTest {
         var population = new HcmPopulationScopeService.ResolvedPopulation(
                 null, scope, new HcmPopulationRepository.PopulationEvidence(1L, "population:7"));
         var actor = PeopleRequestContext.require();
+        var originScope = new HrisExperienceOriginReceiptAuthoritySource.CurrentOriginScope(
+                population, REVISION, fields, "scope-" + "2".repeat(32),
+                "hcm-scope-" + "3".repeat(40), "hcm-rel-current",
+                "hcm-pop-current", java.time.OffsetDateTime.now().plusMinutes(4));
         var origin = new HrisExperienceOriginReceiptAuthoritySource.CurrentOriginAuthority(
                 TENANT, actor.userId(), ACTOR, "COMMAND", "ACTION", "TARGET",
-                "HR_OPERATIONS", "route", "capability", "POST", false, 13L);
+                "HR_OPERATIONS", "route", "capability", "POST", false, 13L,
+                "b".repeat(64), originScope);
         return new HrisExperienceReceiptAuthority.CurrentAuthority(
                 actor, population, REVISION, fields, mock(HcmPepContext.Evidence.class), origin);
     }

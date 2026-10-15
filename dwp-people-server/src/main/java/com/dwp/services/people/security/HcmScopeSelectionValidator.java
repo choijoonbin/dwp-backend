@@ -24,7 +24,7 @@ final class HcmScopeSelectionValidator {
                     java.util.Map.entry("predicate.hcm-integration-nonsecret-update.v1",
                             "HrisImportService:nonsecret-command"),
                     java.util.Map.entry("predicate.hcm-originating-command-receipt.v1",
-                            "EmploymentEventService:sealed-originating-command"),
+                            "HrisExperienceCommandReceiptService:sealed-originating-command"),
                     java.util.Map.entry("predicate.hcm-org-approval-sod.v1",
                             "OrganizationScenarioDecisionService:approver-maker-sod"),
                     java.util.Map.entry("predicate.hcm-org-publish-sod.v1",
@@ -44,6 +44,13 @@ final class HcmScopeSelectionValidator {
                     java.util.Map.entry("predicate.team-target-population.v1",
                             "HcmPopulationRepository:locked-team-population"));
 
+    private static final String RECEIPT_ROUTE =
+            "route.hcm.operations.assignment-command-receipt.data";
+    private static final java.util.Set<String> EMPLOYEE_CHANGE_MUTATION_ROUTES =
+            java.util.Set.of(
+                    "route.hcm.operations.employee-change-request-create.action",
+                    "route.hcm.operations.employee-change-request-submit.action");
+
     private final HcmPopulationScopeService populations;
 
     HcmScopeSelectionValidator(HcmPopulationScopeService populations) {
@@ -57,6 +64,28 @@ final class HcmScopeSelectionValidator {
                     "Generated HCM route declares an unsupported owner predicate.");
         }
         String route = authority.routeContractKey();
+        if (RECEIPT_ROUTE.equals(route)) {
+            if (!"DATA".equals(authority.routeKind())
+                    || !"originating-command".equals(authority.profileKey())
+                    || !authority.readOnly()
+                    || !"GET".equals(authority.method())
+                    || !"hcm.command-receipt.view".equals(
+                    authority.capabilityContractKey())
+                    || !java.util.Set.of("predicate.hcm-originating-command-receipt.v1")
+                    .equals(authority.predicatePolicyKeys())
+                    || !java.util.Set.of("OBJECT", "TARGET_POPULATION")
+                    .equals(authority.targetBindingKinds())) {
+                throw new IllegalStateException(
+                        "Originating-command receipt scope profile changed.");
+            }
+            // This scope is deliberately neutral. The receipt owner loads the sealed row and
+            // then re-proves the exact original action and live People population.
+            return;
+        }
+        if (EMPLOYEE_CHANGE_MUTATION_ROUTES.contains(route)) {
+            validateEmployeeChangeMutation(authority);
+            return;
+        }
         if (java.util.Set.of(
                 "route.hcm.performance.assigned-review.data",
                 "route.hcm.performance.assigned-review-draft-update.action",
@@ -126,6 +155,52 @@ final class HcmScopeSelectionValidator {
             return;
         }
         throw new IllegalStateException("Unknown generated HCM route plane.");
+    }
+
+    private void validateEmployeeChangeMutation(HcmV3PepRegistry.RouteAuthority authority) {
+        boolean submit = authority.routeContractKey().endsWith("-submit.action");
+        if (!"ACTION".equals(authority.routeKind()) || authority.readOnly()
+                || !"POST".equals(authority.method())
+                || !java.util.Set.of("predicate.hcm-employee-change-authority.v1")
+                .equals(authority.predicatePolicyKeys())) {
+            throw new IllegalStateException("Employee-change mutation profile changed.");
+        }
+        if ("self-service".equals(authority.profileKey())
+                && "hcm.personal.profile.update".equals(
+                authority.capabilityContractKey())
+                && (submit ? java.util.Set.of("SELF", "OBJECT")
+                : java.util.Set.of("SELF")).equals(authority.targetBindingKinds())) {
+            populations.requireSelfScope("hcm.operations");
+            return;
+        }
+        if ("team-management".equals(authority.profileKey())
+                && "hcm.team.people-change.request".equals(
+                authority.capabilityContractKey())
+                && (submit
+                ? java.util.Set.of("RELATIONSHIP", "OBJECT", "TARGET_POPULATION")
+                : java.util.Set.of("RELATIONSHIP", "TARGET_POPULATION"))
+                .equals(authority.targetBindingKinds())) {
+            HcmPopulationScopeService.ResolvedPopulation population = populations.requireTeam();
+            populations.requireTrustedScope(
+                    population, "hcm.operations", "TARGET_POPULATION",
+                    "TEAM/ORG_UNIT",
+                    "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION");
+            return;
+        }
+        if ("full-management".equals(authority.profileKey())
+                && "hcm.operations.people.update".equals(
+                authority.capabilityContractKey())
+                && (submit ? java.util.Set.of("OBJECT", "TARGET_POPULATION")
+                : java.util.Set.of("TARGET_POPULATION"))
+                .equals(authority.targetBindingKinds())) {
+            HcmPopulationScopeService.ResolvedPopulation population =
+                    populations.requireOperations("READ");
+            populations.requireTrustedScope(
+                    population, "hcm.operations", "TARGET_POPULATION",
+                    "ORG_UNIT/LEGAL_ENTITY", "WORKFORCE_TARGET_POPULATION");
+            return;
+        }
+        throw new IllegalStateException("Employee-change scope profile changed.");
     }
 
     static java.util.Map<String, String> ownerPredicateClosure() {
