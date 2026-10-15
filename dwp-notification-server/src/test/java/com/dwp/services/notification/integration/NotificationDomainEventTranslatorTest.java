@@ -277,6 +277,34 @@ class NotificationDomainEventTranslatorTest {
     }
 
     @Test
+    void rejectsMissingUnsafeAndNonCanonicalHrisLocales() throws Exception {
+        NotificationDomainEventTranslator hrisTranslator =
+                new NotificationDomainEventTranslator(
+                        objectMapper, LEGACY_SOURCE_MAPPING, HRIS_ATOMIC_ONBOARDING);
+
+        ObjectNode missingLocale = hrisIntent();
+        missingLocale.remove("locale");
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEvent(HRIS_EVENT, missingLocale)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("locale is invalid");
+
+        ObjectNode unsafeLocale = hrisIntent();
+        unsafeLocale.put("locale", "http://evil.example");
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEvent(HRIS_EVENT, unsafeLocale)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("locale is invalid");
+
+        ObjectNode paddedLocale = hrisIntent();
+        paddedLocale.put("locale", " ko-KR ");
+        assertThatThrownBy(() -> hrisTranslator.translate(
+                hrisEvent(HRIS_EVENT, paddedLocale)))
+                .isInstanceOf(NotificationDomainEventException.class)
+                .hasMessageContaining("locale is invalid");
+    }
+
+    @Test
     void rejectsUnsupportedDataAndIntentFieldsForTheExactHrisEvent() throws Exception {
         NotificationDomainEventTranslator hrisTranslator =
                 new NotificationDomainEventTranslator(

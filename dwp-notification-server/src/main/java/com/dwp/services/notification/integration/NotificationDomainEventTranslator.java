@@ -71,6 +71,8 @@ public class NotificationDomainEventTranslator {
     private static final Pattern TYPE_KEY = Pattern.compile("[A-Z][A-Z0-9_.-]{2,159}");
     private static final Pattern EVENT_TYPE =
             Pattern.compile("[A-Za-z][A-Za-z0-9._-]{0,199}");
+    private static final Pattern HRIS_LOCALE =
+            Pattern.compile("[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*");
     private static final Pattern VARIABLE_KEY =
             Pattern.compile("[A-Za-z][A-Za-z0-9_.-]{0,79}");
 
@@ -511,6 +513,7 @@ public class NotificationDomainEventTranslator {
                 || !HRIS_EMPLOYEE_CHANGE_TYPE_KEY.equals(request.typeKey())
                 || !Objects.equals(
                         "hris:employee-change:" + requestId, request.threadKey())
+                || !canonicalHrisLocale(request.locale())
                 || !"EMPLOYEE_CHANGE_APPLIED".equals(request.reasonCode())
                 || request.actorReference() != null
                 || request.subjectReference() == null
@@ -567,6 +570,17 @@ public class NotificationDomainEventTranslator {
             throw contract(
                     "The HRIS employee-change notification intent contains an unsupported field.");
         }
+        JsonNode locale = intents.get(0).get("locale");
+        if (locale == null
+                || !locale.isTextual()
+                || !locale.textValue().equals(locale.textValue().trim())
+                || !canonicalHrisLocale(locale.textValue())) {
+            throw contract("The HRIS employee-change notification locale is invalid.");
+        }
+    }
+
+    private boolean canonicalHrisLocale(String value) {
+        return value != null && HRIS_LOCALE.matcher(value).matches();
     }
 
     private boolean canonicalDate(Object value) {
