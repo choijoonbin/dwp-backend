@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Method;
 import java.time.Clock;
@@ -154,6 +155,22 @@ class EmployeeChangeServiceTest {
         assertThat(result.projection().queryState().partialFailures()).singleElement()
                 .extracting(EmployeeChangeDtos.PartialFailure::errorCode)
                 .isEqualTo("EMPLOYEE_CHANGE_QUERY_UNAVAILABLE");
+    }
+
+    @Test
+    void selfAndTeamMutationScopesUseTheOperationsRouteSurface() {
+        when(populationScopes.requireTeamForMutation()).thenReturn(population);
+
+        ReflectionTestUtils.invokeMethod(
+                service, "mutationScope", "hcm.personal.profile.update");
+        ReflectionTestUtils.invokeMethod(
+                service, "mutationScope", "hcm.team.people-change.request");
+
+        verify(populationScopes).requireSelfScope("hcm.operations");
+        verify(populationScopes).requireTrustedScope(
+                population, "hcm.operations", "TARGET_POPULATION",
+                "TEAM/ORG_UNIT",
+                "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION");
     }
 
     @Test

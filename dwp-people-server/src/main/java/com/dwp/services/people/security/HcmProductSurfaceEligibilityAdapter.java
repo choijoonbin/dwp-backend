@@ -196,6 +196,14 @@ public class HcmProductSurfaceEligibilityAdapter
                             value.revision(), "self:" + value.personId() + ':' + value.revision(),
                             SELF, "Self", false));
         }
+        if (match(request, candidate, TEAM_TARGET, "TARGET_POPULATION")) {
+            // Employee-change routes are owned by hcm.operations even when their selected
+            // authority profile is TEAM. Materialize only the exact operations-surface
+            // selector from the current direct-report/delegation relationship.
+            return populations.findTeam().map(value -> new ResolvedScope(
+                    value.relationshipRevision(), value.targetPopulationRevision(),
+                    "TARGET_POPULATION", value.scope().dataBoundary().name(), false));
+        }
         if (!matchOperations(request, candidate)) return Optional.empty();
         return populations.findOperations("READ").map(value -> new ResolvedScope(
                 value.relationshipRevision(), value.targetPopulationRevision(),

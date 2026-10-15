@@ -2,11 +2,13 @@ package com.dwp.services.people.hris.employment;
 
 import com.dwp.contracts.hris.xcon.v1.Xcon016WorkplaceAssignmentSnapshotV1;
 import com.dwp.platform.contracts.hris.command.v1.CommandReceiptV1;
+import com.dwp.services.people.hris.experience.HrisExperienceCommandReceiptService;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmStepUpHeaders;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -39,12 +41,18 @@ final class EmploymentEventController {
 
     private final EmploymentEventService service;
     private final EmploymentSnapshotAuthority snapshotAuthority;
+    private final HrisExperienceCommandReceiptService receipts;
+    private final boolean experienceEnabled;
 
     EmploymentEventController(
             EmploymentEventService service,
-            EmploymentSnapshotAuthority snapshotAuthority) {
+            EmploymentSnapshotAuthority snapshotAuthority,
+            HrisExperienceCommandReceiptService receipts,
+            @Value("${dwp.hris.experience.enabled:false}") boolean experienceEnabled) {
         this.service = service;
         this.snapshotAuthority = snapshotAuthority;
+        this.receipts = receipts;
+        this.experienceEnabled = experienceEnabled;
     }
 
     @Operation(operationId = "getSelfServiceEmploymentDocuments")
@@ -136,8 +144,19 @@ final class EmploymentEventController {
     @Operation(operationId = "getHrisCommandReceipt")
     @GetMapping("/v1/hris/command-receipts/{receiptId}")
     ResponseEntity<CommandReceiptV1> receipt(@PathVariable UUID receiptId) {
-        CommandReceiptV1 receipt = service.receipt(receiptId);
-        return ResponseEntity.ok().headers(headers(0, receipt.correlationId())).body(receipt);
+        if (!experienceEnabled) {
+            CommandReceiptV1 receipt = service.receipt(receiptId);
+            return ResponseEntity.ok().headers(headers(0, receipt.correlationId()))
+                    .body(receipt);
+        }
+        HrisExperienceCommandReceiptService.ProjectedReceipt projection =
+                receipts.read(receiptId);
+        CommandReceiptV1 receipt = projection.receipt();
+        HttpHeaders headers = headers(0, receipt.correlationId());
+        if (projection.resultLocation() != null) {
+            headers.setLocation(projection.resultLocation());
+        }
+        return ResponseEntity.ok().headers(headers).body(receipt);
     }
 
     @Hidden

@@ -28,6 +28,40 @@ class AuthOpenApiSchemaOwnershipContractTest {
         assertOperationId(auth,
                 "/internal/auth/v2/workforce-policy-governance/evaluate",
                 "evaluateWorkforcePolicyGovernanceAuthorityV1");
+        assertOperationId(auth,
+                "/internal/auth/v1/hris-recipient-authority/resolve",
+                "resolveHrisRecipientAuthority");
+        assertRequestRef(auth,
+                "/internal/auth/v1/hris-recipient-authority/resolve", "post",
+                COMPONENT + "HrisRecipientAuthorityResolveRequest");
+        assertResponseRef(auth,
+                "/internal/auth/v1/hris-recipient-authority/resolve", "post",
+                COMPONENT + "HrisRecipientAuthorityResolveResponse");
+        assertHeader(auth,
+                "/internal/auth/v1/hris-recipient-authority/resolve", "post",
+                "X-DWP-Hris-Recipient-Authority-Token");
+        assertHeader(auth,
+                "/internal/auth/v1/hris-recipient-authority/resolve", "post",
+                "X-DWP-Service-Identity");
+        assertThat(responseSchema(auth,
+                "/internal/auth/v1/hris-recipient-authority/resolve", "post", "404")
+                .path("$ref").asText()).isEqualTo(COMPONENT + "ApiResponseVoid");
+        assertProperties(auth, "HrisRecipientAuthorityResolveRequest",
+                "requestId", "tenantId", "personPublicId", "purpose");
+        assertRequired(auth, "HrisRecipientAuthorityResolveRequest",
+                "requestId", "tenantId", "personPublicId", "purpose");
+        assertProperties(auth, "HrisRecipientAuthorityResolveResponse",
+                "requestId", "tenantId", "personPublicId", "userId",
+                "evidenceRevision", "capturedAt", "validUntil");
+        assertRequired(auth, "HrisRecipientAuthorityResolveResponse",
+                "requestId", "tenantId", "personPublicId", "userId",
+                "evidenceRevision", "capturedAt", "validUntil");
+        assertThat(values(schema(auth, "HrisRecipientAuthorityResolveRequest")
+                .path("properties").path("purpose").path("enum")))
+                .containsExactly("HCM.EMPLOYEE_CHANGE_APPLIED_NOTIFICATION");
+        assertThat(schema(auth, "HrisRecipientAuthorityResolveResponse")
+                .path("properties").path("evidenceRevision").path("pattern").asText())
+                .isEqualTo("^[0-9a-f]{64}$");
 
         assertThat(postResponseSchema(auth,
                 "/internal/approval-workflow/runtime-authority", "application/json")
@@ -268,14 +302,30 @@ class AuthOpenApiSchemaOwnershipContractTest {
                 .isEqualTo(expected);
     }
 
+    private void assertHeader(
+            JsonNode document, String path, String method, String name) {
+        JsonNode parameters = document.path("paths").path(path).path(method)
+                .path("parameters");
+        assertThat(parameters).anySatisfy(parameter -> {
+            assertThat(parameter.path("name").asText()).isEqualTo(name);
+            assertThat(parameter.path("in").asText()).isEqualTo("header");
+            assertThat(parameter.path("required").asBoolean()).isTrue();
+        });
+    }
+
     private JsonNode postResponseSchema(JsonNode document, String path, String mediaType) {
         return document.path("paths").path(path).path("post").path("responses").path("200")
                 .path("content").path(mediaType).path("schema");
     }
 
     private JsonNode responseSchema(JsonNode document, String path, String method) {
+        return responseSchema(document, path, method, "200");
+    }
+
+    private JsonNode responseSchema(
+            JsonNode document, String path, String method, String status) {
         JsonNode content = document.path("paths").path(path).path(method)
-                .path("responses").path("200").path("content");
+                .path("responses").path(status).path("content");
         return content.elements().next().path("schema");
     }
 

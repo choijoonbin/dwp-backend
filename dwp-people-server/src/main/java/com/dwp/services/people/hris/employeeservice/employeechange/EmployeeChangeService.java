@@ -7,6 +7,7 @@ import com.dwp.platform.contracts.hris.command.v1.CommandReceiptV1;
 import com.dwp.services.people.hr.HcmPopulationRepository;
 import com.dwp.services.people.hr.HcmPopulationScopeService;
 import com.dwp.services.people.hris.employeeservice.employeechange.approvalbridge.EmployeeChangeApprovalRequestOutbox;
+import com.dwp.services.people.hris.experience.HrisExperienceNotificationHandoff;
 import com.dwp.services.people.security.HcmHighRiskCommandGuard;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmStepUpHeaders;
@@ -57,6 +58,7 @@ class EmployeeChangeService {
     private final HcmPopulationRepository populations;
     private final HcmHighRiskCommandGuard highRisk;
     private final EmployeeChangeApprovalRequestOutbox approvalOutbox;
+    private final HrisExperienceNotificationHandoff notificationHandoff;
     private final ObjectMapper mapper;
     private final Clock clock;
     private final String workflowKey;
@@ -73,13 +75,15 @@ class EmployeeChangeService {
             HcmPopulationRepository populations,
             HcmHighRiskCommandGuard highRisk,
             EmployeeChangeApprovalRequestOutbox approvalOutbox,
+            HrisExperienceNotificationHandoff notificationHandoff,
             ObjectMapper mapper,
             @Value("${dwp.hris.employee-change.approval-workflow-key:employee-change.standard}")
             String workflowKey,
             @Value("${dwp.hris.employee-change.approval-workflow-version:1}")
             long workflowVersion) {
         this(repository, canonicalizer, protector, authority, projector,
-                populationScopes, populations, highRisk, approvalOutbox, mapper,
+                populationScopes, populations, highRisk, approvalOutbox,
+                notificationHandoff, mapper,
                 Clock.systemUTC(), workflowKey, workflowVersion);
     }
 
@@ -97,6 +101,26 @@ class EmployeeChangeService {
             Clock clock,
             String workflowKey,
             long workflowVersion) {
+        this(repository, canonicalizer, protector, authority, projector,
+                populationScopes, populations, highRisk, approvalOutbox, null,
+                mapper, clock, workflowKey, workflowVersion);
+    }
+
+    EmployeeChangeService(
+            EmployeeChangeRepository repository,
+            EmployeeChangeCanonicalizer canonicalizer,
+            EmployeeChangePatchProtector protector,
+            EmployeeChangeAuthority authority,
+            EmployeeChangeWorkbenchProjector projector,
+            HcmPopulationScopeService populationScopes,
+            HcmPopulationRepository populations,
+            HcmHighRiskCommandGuard highRisk,
+            EmployeeChangeApprovalRequestOutbox approvalOutbox,
+            HrisExperienceNotificationHandoff notificationHandoff,
+            ObjectMapper mapper,
+            Clock clock,
+            String workflowKey,
+            long workflowVersion) {
         this.repository = repository;
         this.canonicalizer = canonicalizer;
         this.protector = protector;
@@ -106,6 +130,7 @@ class EmployeeChangeService {
         this.populations = populations;
         this.highRisk = highRisk;
         this.approvalOutbox = approvalOutbox;
+        this.notificationHandoff = notificationHandoff;
         this.mapper = mapper;
         this.clock = clock;
         if (workflowKey == null
@@ -363,6 +388,10 @@ class EmployeeChangeService {
         repository.appendEvent(
                 actor.tenantId(), eventId, applied.publicId(),
                 "EmployeeChangeApplied.v1", json(event), correlationId, now);
+        if (notificationHandoff != null) {
+            notificationHandoff.onApplied(
+                    event, applied.targetPersonPublicId(), actor.userId());
+        }
         EmployeeChangeRepository.ReceiptRow receipt = repository.completeReceipt(
                 actor.tenantId(), claim.receipt().receiptId(), "APPLIED",
                 Map.of("requestPublicId", applied.publicId().toString(),
@@ -383,7 +412,7 @@ class EmployeeChangeService {
     private ScopeBinding mutationScope(String capability) {
         HcmPepContext.Evidence pep = HcmPepContext.require();
         if ("hcm.personal.profile.update".equals(capability)) {
-            populationScopes.requireSelfScope();
+            populationScopes.requireSelfScope("hcm.operations");
             return new ScopeBinding(
                     null, true, "self:" + pep.scopeKey(),
                     Set.of("DIRECTORY", "PERSON_PROFILE", "CONTACT"));
@@ -392,7 +421,7 @@ class EmployeeChangeService {
             HcmPopulationScopeService.ResolvedPopulation population =
                     populationScopes.requireTeamForMutation();
             populationScopes.requireTrustedScope(
-                    population, "hcm.team", "TARGET_POPULATION",
+                    population, "hcm.operations", "TARGET_POPULATION",
                     "TEAM/ORG_UNIT",
                     "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION");
             return new ScopeBinding(

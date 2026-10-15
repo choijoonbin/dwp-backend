@@ -12,7 +12,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.net.URI;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -156,6 +159,24 @@ class HcmProductSurfacePepFilterTest {
     }
 
     @Test
+    void preservesTheTrustedActiveAccessModeForOwnerRevalidation() throws Exception {
+        AtomicReference<String> observed = new AtomicReference<>();
+        doAnswer(invocation -> {
+            observed.set(HcmPepContext.require().activeAccessMode());
+            return null;
+        }).when(validator).validate(org.mockito.ArgumentMatchers.any());
+
+        mvc.perform(exact(
+                        get("/v1/hr/home"),
+                        "route.hcm.personal.home.page",
+                        "APP.HCM:VIEW", null, "ELEVATED"))
+                .andExpect(status().isOk());
+
+        assertThat(observed.get()).isEqualTo("ELEVATED");
+        assertThat(HcmPepContext.current()).isNull();
+    }
+
+    @Test
     void providerPeopleBindingsRemainForbiddenAfterSupportScopeRetirement()
             throws Exception {
         List<SupportBinding> bindings = List.of(
@@ -207,6 +228,15 @@ class HcmProductSurfacePepFilterTest {
             String route,
             String permissions,
             String resourceRoles) {
+        return exact(request, route, permissions, resourceRoles, "NORMAL");
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder exact(
+            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request,
+            String route,
+            String permissions,
+            String resourceRoles,
+            String activeAccessMode) {
         var builder = identity(request, permissions)
                 .header(HcmProductSurfacePepFilter.ROLLOUT_STATE_HEADER, "110")
                 .header(HcmProductSurfacePepFilter.ROLLOUT_REVISION_HEADER, ROLLOUT_REVISION)
@@ -214,7 +244,7 @@ class HcmProductSurfacePepFilterTest {
                 .header(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER, route)
                 .header(HcmProductSurfacePepFilter.CURRENT_CONTEXT_HEADER, CONTEXT_KEY)
                 .header(HcmProductSurfacePepFilter.CURRENT_SCOPE_HEADER, "hcm-scope-current")
-                .header(HcmProductSurfacePepFilter.ACTIVE_ACCESS_MODE_HEADER, "NORMAL")
+                .header(HcmProductSurfacePepFilter.ACTIVE_ACCESS_MODE_HEADER, activeAccessMode)
                 .header(HcmProductSurfacePepFilter.CURRENT_DECISION_REVISION_HEADER,
                         DECISION_REVISION)
                 .header(HcmProductSurfacePepFilter.CURRENT_DECISION_REVALIDATE_AT_HEADER,

@@ -219,7 +219,95 @@ class ProductAuthorizationHcmAuthorityAdapterTest {
 
         assertThat(assignmentReceipt.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
-        assertThat(assignmentReceipt.requiresProductEligibility()).isTrue();
+        assertThat(assignmentReceipt.requiresProductEligibility()).isFalse();
+        String operationsReceiptScope = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.operations",
+                "ORIGINATING_COMMAND_SCOPE", "TARGET_POPULATION");
+        assertThat(assignmentReceipt.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.key()).isEqualTo(operationsReceiptScope);
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+            assertThat(scope.readOnly()).isTrue();
+        });
+        assertThat(assignmentReceipt.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> {
+                            assertThat(grant.capabilityContractKey())
+                                    .isEqualTo("hcm.command-receipt.view");
+                            assertThat(grant.scopeKeys())
+                                    .containsExactly(operationsReceiptScope);
+                        });
+    }
+
+    @Test
+    void v43EmployeeChangeSelectorChoosesTheExactProfileAndHighRiskMode()
+            throws IOException {
+        useContract("product-surfaces-v1.bundle-v43.generated.json");
+        evidence(Set.of(
+                "DATA.HRIS_WORKFORCE:UPDATE",
+                "ACTION.HRIS_PEOPLE_CHANGE_REQUEST:CREATE",
+                "DATA.HRIS_SELF_PROFILE:UPDATE",
+                "ACTION.HRIS_WORKFORCE_CHANGE_APPROVE:APPROVE"), List.of());
+        String operations = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.operations",
+                "WORKFORCE_TARGET_POPULATION", "TARGET_POPULATION");
+        String team = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.operations",
+                "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION",
+                "TARGET_POPULATION");
+        String self = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.operations", "SELF", "SELF");
+
+        ProductSurfaceAuthorityDtos.AuthorityResult operationsResult = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.employee-change-request-create.action",
+                null, operations, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult teamResult = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.employee-change-request-create.action",
+                null, team, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult selfResult = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.employee-change-request-submit.action",
+                null, self, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult wrongActor = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.employee-change-request-create.action", null,
+                ProductSurfaceScopeKey.key(
+                        10, 21, "hcm", "hcm.operations", "SELF", "SELF"),
+                null, null, List.of());
+
+        assertCapability(operationsResult, "hcm.operations.people.update", operations,
+                ProductSurfaceAuthorityDtos.ActivationState.ACTIVE);
+        assertCapability(teamResult, "hcm.team.people-change.request", team,
+                ProductSurfaceAuthorityDtos.ActivationState.ACTIVE);
+        assertCapability(selfResult, "hcm.personal.profile.update", self,
+                ProductSurfaceAuthorityDtos.ActivationState.ACTIVE);
+        assertThat(wrongActor.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+
+        ProductSurfaceAuthorityDtos.AuthorityResult normalHighRisk = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.assignment-event-publish.action",
+                null, operations, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult elevatedHighRisk = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                "route.hcm.operations.employee-change-request-apply.action",
+                null, operations, null, null, List.of());
+
+        assertThat(normalHighRisk.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        assertThat(normalHighRisk.reasonCode()).isEqualTo("STEP_UP_REQUIRED");
+        assertThat(normalHighRisk.requiredAssurance()).isEqualTo("urn:dwp:acr:mfa");
+        assertThat(normalHighRisk.requestPolicyRef()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertCapability(normalHighRisk, "hcm.operations.people-change.approve", operations,
+                ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE);
+        assertThat(elevatedHighRisk.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(elevatedHighRisk.requiredAssurance()).isNull();
+        assertThat(elevatedHighRisk.requestPolicyRef()).isNull();
+        assertCapability(elevatedHighRisk, "hcm.operations.people-change.approve", operations,
+                ProductSurfaceAuthorityDtos.ActivationState.ACTIVE);
     }
 
     @Test
@@ -417,5 +505,25 @@ class ProductAuthorizationHcmAuthorityAdapterTest {
         return adapter.evaluate(new ProductSurfaceAuthorityDtos.EvaluateRequest(
                 10L, 20L, product, surface, mode, route, context, scope,
                 supportSession, supportRevision, supportScopes));
+    }
+
+    private void assertCapability(
+            ProductSurfaceAuthorityDtos.AuthorityResult result,
+            String capability,
+            String scope,
+            ProductSurfaceAuthorityDtos.ActivationState activationState) {
+        assertThat(result.decision()).isIn(
+                ProductSurfaceAuthorityDtos.Decision.ALLOWED,
+                ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        assertThat(result.scopes()).singleElement().satisfies(value ->
+                assertThat(value.key()).isEqualTo(scope));
+        assertThat(result.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> {
+                            assertThat(grant.capabilityContractKey()).isEqualTo(capability);
+                            assertThat(grant.scopeKeys()).containsExactly(scope);
+                            assertThat(grant.activationState()).isEqualTo(activationState);
+                        });
     }
 }

@@ -66,6 +66,38 @@ class HcmProductSurfaceEligibilityAdapterTest {
     }
 
     @Test
+    void derivesTheExactTeamSelectorOnTheOperationsEmployeeChangeSurface() {
+        PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("MANAGER"), Set.of());
+        HcmPopulationScopeService.ResolvedPopulation population = teamPopulation();
+        when(populations.findTeam()).thenReturn(Optional.of(population));
+        String operationsTeam = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations",
+                "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION",
+                "TARGET_POPULATION");
+        String teamSurfaceReplay = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.team",
+                "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION",
+                "TARGET_POPULATION");
+
+        ProductSurfaceEligibilityDtos.EligibilityResult allowed = adapter.evaluate(
+                request("hcm.operations", operationsTeam, "TARGET_POPULATION", null));
+        ProductSurfaceEligibilityDtos.EligibilityResult denied = adapter.evaluate(
+                request("hcm.operations", teamSurfaceReplay, "TARGET_POPULATION", null));
+
+        assertThat(allowed.decision())
+                .isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(allowed.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.sourceScopeKey()).isEqualTo(operationsTeam);
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+            assertThat(scope.key()).startsWith("hcm-scope-");
+        });
+        assertThat(denied.decision())
+                .isEqualTo(ProductSurfaceEligibilityDtos.Decision.SCOPE_INVALID);
+        assertThat(denied.scopes()).isEmpty();
+        verify(populations).findTeam();
+    }
+
+    @Test
     void derivesASelfScopeFromTheLivePersonBindingWithoutTargetPopulationEvidence() {
         PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("WORKSPACE_MEMBER"), Set.of());
         HcmPopulationRepository.ActorWorkforce actor =

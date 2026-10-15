@@ -17,8 +17,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -310,6 +312,63 @@ class HcmOwnerPepExecutionTest {
         verify(hrService).submitTimeCard(TIME_CARD_ID, 7L, null);
     }
 
+    @Test
+    void exactReceiptProfileDefersItsNeutralScopeButRejectsProfileDrift() {
+        HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
+        HcmScopeSelectionValidator validator = new HcmScopeSelectionValidator(populations);
+        HcmV3PepRegistry.RouteAuthority receipt = authority(
+                "route.hcm.operations.assignment-command-receipt.data",
+                "DATA", "originating-command", true,
+                Set.of("predicate.hcm-originating-command-receipt.v1"),
+                Set.of("OBJECT", "TARGET_POPULATION"),
+                "hcm.command-receipt.view", "GET");
+
+        validator.validate(receipt);
+
+        verifyNoInteractions(populations);
+        assertThatThrownBy(() -> validator.validate(authority(
+                receipt.routeContractKey(), receipt.routeKind(), "full-management",
+                receipt.readOnly(), receipt.predicatePolicyKeys(),
+                receipt.targetBindingKinds(), receipt.capabilityContractKey(),
+                receipt.method())))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void employeeChangeProfilesRevalidateTheirExactOperationsSurfaceScope() {
+        HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
+        HcmPopulationScopeService.ResolvedPopulation team =
+                mock(HcmPopulationScopeService.ResolvedPopulation.class);
+        HcmPopulationScopeService.ResolvedPopulation operations =
+                mock(HcmPopulationScopeService.ResolvedPopulation.class);
+        when(populations.requireTeam()).thenReturn(team);
+        when(populations.requireOperations("READ")).thenReturn(operations);
+        HcmScopeSelectionValidator validator = new HcmScopeSelectionValidator(populations);
+        Set<String> predicate = Set.of("predicate.hcm-employee-change-authority.v1");
+
+        validator.validate(authority(
+                "route.hcm.operations.employee-change-request-create.action",
+                "ACTION", "self-service", false, predicate, Set.of("SELF"),
+                "hcm.personal.profile.update", "POST"));
+        validator.validate(authority(
+                "route.hcm.operations.employee-change-request-submit.action",
+                "ACTION", "team-management", false, predicate,
+                Set.of("RELATIONSHIP", "OBJECT", "TARGET_POPULATION"),
+                "hcm.team.people-change.request", "POST"));
+        validator.validate(authority(
+                "route.hcm.operations.employee-change-request-create.action",
+                "ACTION", "full-management", false, predicate,
+                Set.of("TARGET_POPULATION"), "hcm.operations.people.update", "POST"));
+
+        verify(populations).requireSelfScope("hcm.operations");
+        verify(populations).requireTrustedScope(
+                team, "hcm.operations", "TARGET_POPULATION", "TEAM/ORG_UNIT",
+                "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION");
+        verify(populations).requireTrustedScope(
+                operations, "hcm.operations", "TARGET_POPULATION",
+                "ORG_UNIT/LEGAL_ENTITY", "WORKFORCE_TARGET_POPULATION");
+    }
+
     private MockHttpServletRequestBuilder exact(
             MockHttpServletRequestBuilder request,
             String route,
@@ -371,5 +430,20 @@ class HcmOwnerPepExecutionTest {
                 source,
                 ACTOR_WORKFORCE.revision(),
                 targetRevision);
+    }
+
+    private HcmV3PepRegistry.RouteAuthority authority(
+            String route,
+            String routeKind,
+            String profile,
+            boolean readOnly,
+            Set<String> predicates,
+            Set<String> targets,
+            String capability,
+            String method) {
+        return new HcmV3PepRegistry.RouteAuthority(
+                route, routeKind, profile, readOnly, predicates, targets,
+                route + ".binding.01", capability, null, method,
+                "/v1/test", null, null, null);
     }
 }

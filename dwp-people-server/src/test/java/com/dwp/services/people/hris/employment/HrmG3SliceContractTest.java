@@ -2,6 +2,7 @@ package com.dwp.services.people.hris.employment;
 
 import com.dwp.platform.contracts.hris.command.v1.CommandReceiptV1;
 import com.dwp.services.people.security.HcmStepUpHeaders;
+import com.dwp.services.people.hris.experience.HrisExperienceCommandReceiptService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -71,8 +72,9 @@ class HrmG3SliceContractTest {
 
     @Test
     void usesThePinnedReceiptAndClosedLifecycleVocabulary() throws Exception {
-        assertThat(EmploymentEventService.class.getDeclaredMethod("receipt", UUID.class)
-                .getReturnType()).isEqualTo(CommandReceiptV1.class);
+        assertThat(HrisExperienceCommandReceiptService.class
+                .getDeclaredMethod("read", UUID.class).getReturnType())
+                .isEqualTo(HrisExperienceCommandReceiptService.ProjectedReceipt.class);
         assertThat(EmploymentEventDtos.CreateCommand.class.getRecordComponents())
                 .extracting(component -> component.getName())
                 .containsExactly("context", "eventType", "payload");

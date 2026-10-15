@@ -15,13 +15,17 @@ import java.util.Set;
  */
 final class ProductAuthorizationPeopleEligibility {
 
-    private static final String PLATFORM_RECEIPT_ROUTE =
+    private static final String EXPLORER_RECEIPT_ROUTE =
             "route.hcm.utility.explorer-command-receipt.data";
-    private static final String PLATFORM_RECEIPT_CAPABILITY =
+    private static final String OPERATIONS_RECEIPT_ROUTE =
+            "route.hcm.operations.assignment-command-receipt.data";
+    private static final String RECEIPT_CAPABILITY =
             "hcm.command-receipt.view";
-    private static final String PLATFORM_RECEIPT_PROFILE =
+    private static final String EXPLORER_RECEIPT_PROFILE =
             "platform-originating-command-receipt-reader";
-    private static final String PLATFORM_RECEIPT_SCOPE_RESOLVER =
+    private static final String OPERATIONS_RECEIPT_PROFILE =
+            "originating-command";
+    private static final String RECEIPT_SCOPE_RESOLVER =
             "ORIGINATING_COMMAND_SCOPE";
     private static final Set<String> HCM_SCOPE_KINDS =
             Set.of("SELF", "TARGET_POPULATION", "RESOURCE_SET");
@@ -46,37 +50,52 @@ final class ProductAuthorizationPeopleEligibility {
             ProductSurfaceAuthorityDtos.EvaluateRequest request,
             ProductAuthorizationContractDtos.GovernedRoute route,
             Evaluation result) {
-        if (!PLATFORM_RECEIPT_ROUTE.equals(request.routeContractKey())
-                || !PLATFORM_RECEIPT_ROUTE.equals(route.routeContractKey())
-                || !"hcm".equals(request.productKey())
-                || !"hcm.utility".equals(request.surfaceKey())
+        String expectedProfile;
+        if (EXPLORER_RECEIPT_ROUTE.equals(request.routeContractKey())
+                && EXPLORER_RECEIPT_ROUTE.equals(route.routeContractKey())
+                && "hcm.utility".equals(request.surfaceKey())) {
+            expectedProfile = EXPLORER_RECEIPT_PROFILE;
+        } else if (OPERATIONS_RECEIPT_ROUTE.equals(request.routeContractKey())
+                && OPERATIONS_RECEIPT_ROUTE.equals(route.routeContractKey())
+                && "hcm.operations".equals(request.surfaceKey())) {
+            expectedProfile = OPERATIONS_RECEIPT_PROFILE;
+        } else {
+            return false;
+        }
+        if (!"hcm".equals(request.productKey())
                 || !result.allowed()
+                || !result.effectiveReadOnly()
                 || result.grants().size() != 1
                 || result.scopes().size() != 1
-                || !"TARGET_POPULATION".equals(result.scopes().getFirst().kind())) {
+                || !"TARGET_POPULATION".equals(result.scopes().getFirst().kind())
+                || !result.scopes().getFirst().readOnly()) {
             return false;
         }
         String expectedScopeKey = ProductSurfaceScopeKey.key(
                 request.tenantId(), request.actorId(), request.productKey(),
-                request.surfaceKey(), PLATFORM_RECEIPT_SCOPE_RESOLVER,
+                request.surfaceKey(), RECEIPT_SCOPE_RESOLVER,
                 "TARGET_POPULATION");
         if (!expectedScopeKey.equals(result.scopes().getFirst().key())) return false;
         ProductSurfaceAuthorityDtos.EffectiveGrant grant = result.grants().getFirst();
         if (!(grant instanceof ProductSurfaceAuthorityDtos.CapabilityGrant capability)
-                || !PLATFORM_RECEIPT_CAPABILITY.equals(
+                || !RECEIPT_CAPABILITY.equals(
                         capability.capabilityContractKey())
                 || capability.authorityMode()
                 != ProductSurfaceAuthorityDtos.CapabilityAuthorityMode
                 .PERMISSION_AND_RELATIONSHIP
                 || capability.requiresProductEntitlement()
+                || !capability.readOnly()
+                || capability.activationState()
+                != ProductSurfaceAuthorityDtos.ActivationState.ACTIVE
                 || !capability.scopeKeys().equals(java.util.List.of(expectedScopeKey))) {
             return false;
         }
         return route.accessProfiles().stream().anyMatch(profile ->
-                PLATFORM_RECEIPT_PROFILE.equals(profile.profileKey())
+                expectedProfile.equals(profile.profileKey())
+                        && profile.readOnly()
                         && profile.requiredAccess() != null
                         && "CAPABILITY".equals(profile.requiredAccess().type())
-                        && PLATFORM_RECEIPT_CAPABILITY.equals(
+                        && RECEIPT_CAPABILITY.equals(
                                 profile.requiredAccess().capabilityContractKey()));
     }
 
