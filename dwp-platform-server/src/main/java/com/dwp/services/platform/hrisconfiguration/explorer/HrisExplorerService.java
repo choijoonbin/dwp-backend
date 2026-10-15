@@ -2,6 +2,7 @@ package com.dwp.services.platform.hrisconfiguration.explorer;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -40,6 +41,7 @@ final class HrisExplorerService {
     private final HrisExplorerProviderCoordinator providers;
     private final Clock clock;
 
+    @Autowired
     HrisExplorerService(
             HrisExplorerRepository repository,
             HrisExplorerProviderCoordinator providers) {

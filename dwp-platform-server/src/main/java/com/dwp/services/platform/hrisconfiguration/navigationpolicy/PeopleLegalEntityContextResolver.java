@@ -2,6 +2,7 @@ package com.dwp.services.platform.hrisconfiguration.navigationpolicy;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -23,6 +24,7 @@ public final class PeopleLegalEntityContextResolver implements LegalEntityContex
     private final boolean enabled;
     private final String serviceToken;
 
+    @Autowired
     public PeopleLegalEntityContextResolver(
             RestClient.Builder builder,
             @Value("${dwp.hris.navigation-policy.legal-entity-owner.enabled:false}")

@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.core.security.ProductSurfaceStepUpChallengeVerifier;
 import com.dwp.services.platform.security.HcmPlatformPepRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -38,6 +39,7 @@ public final class NavigationPolicyStepUpEvidenceVerifier
     private final ProductSurfaceStepUpChallengeVerifier verifier;
     private final NavigationPolicyStepUpReplayRepository replay;
 
+    @Autowired
     public NavigationPolicyStepUpEvidenceVerifier(
             ObjectMapper objectMapper,
             NavigationPolicyStepUpReplayRepository replay,

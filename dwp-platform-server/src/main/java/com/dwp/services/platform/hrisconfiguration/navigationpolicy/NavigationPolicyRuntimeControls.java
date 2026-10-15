@@ -2,7 +2,8 @@ package com.dwp.services.platform.hrisconfiguration.navigationpolicy;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.stereotype.Component;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -13,9 +14,28 @@ import java.util.Set;
 
 import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyDtos.RolloutMode;
 
+@Configuration(proxyBeanMethods = false)
+class NavigationPolicyRuntimeControls {
+
+    @Bean
+    @ConditionalOnMissingBean(NavigationPolicyEligibilityProvider.class)
+    NavigationPolicyEligibilityProvider navigationPolicyEligibilityProvider(
+            @Value("${dwp.hris.navigation-policy.installed-nodes:}")
+            String installedNodeIds) {
+        return new ServerNavigationPolicyEligibilityProvider(installedNodeIds);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(NavigationPolicyRolloutProvider.class)
+    NavigationPolicyRolloutProvider navigationPolicyRolloutProvider(
+            @Value("${dwp.hris.navigation-policy.mode:OFF}") RolloutMode mode,
+            @Value("${dwp.hris.navigation-policy.enrolled-tenants:}")
+            String enrolledTenants) {
+        return new ServerNavigationPolicyRolloutProvider(mode, enrolledTenants);
+    }
+}
+
 /** Server-owned installation catalog and exact node-to-PAGE data grant mapping. */
-@Component
-@ConditionalOnMissingBean(NavigationPolicyEligibilityProvider.class)
 final class ServerNavigationPolicyEligibilityProvider
         implements NavigationPolicyEligibilityProvider {
 
@@ -84,8 +104,6 @@ final class ServerNavigationPolicyEligibilityProvider
 }
 
 /** Default OFF and empty enrollment make accidental customer activation impossible. */
-@Component
-@ConditionalOnMissingBean(NavigationPolicyRolloutProvider.class)
 final class ServerNavigationPolicyRolloutProvider implements NavigationPolicyRolloutProvider {
 
     private final RolloutMode mode;
