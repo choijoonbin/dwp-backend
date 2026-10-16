@@ -2,7 +2,7 @@
 
 DWP의 공통 보안·운영 기반과 독립 업무 서비스를 함께 관리하는 백엔드 Workspace입니다.
 인증, 테넌트, RBAC, 요청 추적, Platform Control Plane에 더해 현재 제품 기준선의
-People, Approval, Space, Messaging, Notification 도메인을 포함합니다.
+People, Time, Payroll, Approval, Space, Messaging, Notification 도메인을 포함합니다.
 
 ## Modules
 
@@ -20,12 +20,17 @@ People, Approval, Space, Messaging, Notification 도메인을 포함합니다.
 | `dwp-space-server`       | 8006 | 구성원 Space, 소유자 운영, 템플릿·콘텐츠·수명주기 거버넌스       |
 | `dwp-messaging-server`   | 8007 | Tenant 대화, Thread, 첨부, 회의 연계와 메시징 운영 정책          |
 | `dwp-notification-server`| 8008 | 사용자 Inbox, 설정, 실시간 동기화와 알림 전달 운영 기반          |
+| `dwp-time-server`        | 8011 | 근무제도, 원천 시각 수집, 규칙 해석과 근태 운영 소유 경계       |
+| `dwp-payroll-server`     | 8012 | 급여 기준정보, 급여 구성과 법인 범위 운영 소유 경계             |
 | `dwp-gateway`            | 8080 | 단일 API 진입점, Session 재검증, 내부 Identity Relay, CSRF와 CORS |
 
 인증 서버는 `dwp_auth`, Platform Server는 `dwp_platform`, People Server는
 `dwp_people`, Provider Server는 `dwp_provider`, Approval Server는 `dwp_approval`,
 Space Server는 `dwp_space`, Messaging Server는 `dwp_messaging`, Notification Server는
-`dwp_notification` Database를 각각 소유합니다.
+`dwp_notification`, Time Server는 `dwp_time`, Payroll Server는 `dwp_payroll` Database를
+각각 소유합니다. Time과 Payroll은 runtime, migration, projection publisher 로그인을
+분리하며 로컬에서도 공식 Migration Control이 발급한 0600 receipt 없이는 기존 Database를
+변경하거나 기동하지 않습니다.
 Redis는 Auth의 만료형 OIDC state, nonce와 PKCE verifier를 저장합니다.
 `dwp_people`은 외부 HRIS를 대체하지 않고
 사람·근로관계·유효일 발령·조직·프로필의 DWP 운영 Projection만 보관합니다.
@@ -89,6 +94,11 @@ Agent, Gateway, Frontend를 기동합니다.
 `agent gateway` 프로필로 내부 실행 경로만 재기동할 수 있습니다.
 `contracts` 프로필은 별도 Frontend·Agent 저장소 없이 모든 Backend 데이터 소유 서비스와
 Gateway를 기동하며, Flyway와 시스템 코드·공개 API 계약 감사용으로 사용합니다.
+`hris` 프로필은 HRIS 웹 셸과 People·Time·Payroll을 포함한 의존 서비스를 기동합니다.
+`time`, `payroll` 프로필은 해당 소유 서비스만 표적 기동합니다. 최초 기동은 전용 Database,
+세 개의 strict 로그인과 고정 `btree_gist` 1.7을 준비한 뒤 공식 Migration Control을
+실행합니다. 이후 소스 경계가 같으면 외부 receipt를 재사용하고, 변경되면 이전 native seal을
+검증한 Control upgrade만 허용합니다.
 
 Agent의 로컬 모델 자격 증명은 `dwp_agent/.env.local`에 저장하고 파일 권한을 `600`으로
 설정합니다. Supervisor는 허용된 OpenAI/Azure OpenAI 변수만 Agent에 전달하고 다른
@@ -98,6 +108,8 @@ Backend 서비스의 환경에서는 제거합니다. 같은 변수가 셸에 �
 ./dev doctor
 ./dev up core
 ./dev up contracts
+./dev up hris
+./dev up time payroll
 ./dev up agent gateway
 ./dev status
 ./dev logs gateway --follow

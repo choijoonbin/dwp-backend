@@ -10,6 +10,40 @@ from unittest.mock import patch
 from scripts import devctl
 
 
+def control_receipt(
+    service_name: str,
+    reference: str,
+    *,
+    previous: str = "",
+) -> dict[str, object]:
+    control = devctl.HRIS_CONTROLLED_DATABASES[service_name]
+    receipt: dict[str, object] = {
+        "schemaVersion": "2.0",
+        "mode": "NATIVE_FRESH",
+        "service": service_name,
+        "database": control.database,
+        "migrationPrincipal": control.migration_role,
+        "controlReference": reference,
+        "previousRunReceiptSha256": previous,
+        "postgresVersion": "18.4",
+        "temporaryPrivilegeRevoked": True,
+        "streams": [
+            {
+                "streamKey": control.stream_key,
+                "historyMaxInstalledRank": 9,
+                "historyRowCount": 9,
+                "historySha256": "1" * 64,
+                "inventoryObjectCount": 42,
+                "inventorySha256": "2" * 64,
+                "adoptionReceiptSha256": "",
+            }
+        ],
+        "receiptSha256": "",
+    }
+    receipt["receiptSha256"] = devctl.control_run_receipt_sha256(receipt)
+    return receipt
+
+
 class AgentLocalEnvironmentTest(unittest.TestCase):
     def test_local_home_runtime_enables_all_three_product_modes(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
@@ -204,6 +238,8 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
             devctl.ensure_people_local_legacy_boundary()
 
         self.assertEqual(compose.call_count, 2)
+        for call in compose.call_args_list:
+            self.assertEqual(call.args[:3], ("exec", "-T", "postgres"))
         role_sql = compose.call_args_list[0].args[-1]
         schema_sql = compose.call_args_list[1].args[-1]
         self.assertIn("CREATE ROLE dwp_people_runtime", role_sql)
@@ -221,10 +257,332 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
         )
         self.assertIn("ALTER DEFAULT PRIVILEGES FOR ROLE dwp_user", schema_sql)
 
+    def test_hris_owner_services_are_in_standard_profiles_before_gateway(self) -> None:
+        for profile in ("full", "core", "backend", "contracts", "hris"):
+            with self.subTest(profile=profile):
+                self.assertTrue(
+                    {"time", "payroll"}.issubset(devctl.PROFILES[profile])
+                )
+        self.assertEqual(devctl.PROFILES["time"], {"time"})
+        self.assertEqual(devctl.PROFILES["payroll"], {"payroll"})
+        gateway_phase = next(
+            index
+            for index, phase in enumerate(devctl.START_PHASES)
+            if "gateway" in phase
+        )
+        for owner in ("time", "payroll"):
+            owner_phase = next(
+                index
+                for index, phase in enumerate(devctl.START_PHASES)
+                if owner in phase
+            )
+            self.assertLess(owner_phase, gateway_phase)
+            self.assertLess(devctl.START_ORDER.index(owner), devctl.START_ORDER.index("gateway"))
+
+    def test_time_and_payroll_environment_is_exactly_owner_scoped(self) -> None:
+        receipt_keys = {
+            "time": {"DWP_TIME_MIGRATION_CONTROL_REFERENCE": "time-receipt"},
+            "payroll": {
+                "DWP_PAYROLL_MIGRATION_CONTROL_REFERENCE": "payroll-receipt"
+            },
+        }
+        with patch.object(
+            devctl,
+            "migration_control_application_environment",
+            side_effect=lambda owner: receipt_keys[owner],
+        ):
+            with patch.dict(os.environ, {}, clear=True):
+                environments = {
+                    name: devctl.service_environment(name)
+                    for name in devctl.SERVICES
+                }
+
+        approved = {
+            "time": {
+                "DWP_TIME_WORK_REGIME_API_ENABLED",
+                "DWP_HRIS_TIME_CLOCK_INGESTION_ENABLED",
+                "DWP_HRIS_TIME_CLOCK_INGESTION_CURSOR_SECRET",
+                "DWP_HRIS_TIME_INTERPRETATION_ENABLED",
+                "DWP_HRIS_TIME_INTERPRETATION_CURSOR_SECRET",
+            },
+            "payroll": {
+                "DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED",
+                "DWP_HRIS_PAYROLL_CONFIGURATION_WAVE2_ENABLED",
+            },
+        }
+        for owner, keys in approved.items():
+            for key in keys:
+                self.assertIn(key, environments[owner])
+                self.assertTrue(
+                    all(
+                        key not in environment
+                        for name, environment in environments.items()
+                        if name != owner
+                    )
+                )
+        for owner, shared in devctl.HRIS_SHARED_ENVIRONMENT.items():
+            for key in shared:
+                self.assertTrue(
+                    all(
+                        (key in environment) == (name in {owner, "gateway"})
+                        for name, environment in environments.items()
+                    )
+                )
+        self.assertEqual(
+            environments["time"]["DWP_TIME_MIGRATION_CONTROL_REFERENCE"],
+            "time-receipt",
+        )
+        self.assertEqual(
+            environments["payroll"]["DWP_PAYROLL_MIGRATION_CONTROL_REFERENCE"],
+            "payroll-receipt",
+        )
+        self.assertTrue(
+            all(
+                "DWP_TIME_MIGRATION_CONTROL_REFERENCE" not in environment
+                for name, environment in environments.items()
+                if name != "time"
+            )
+        )
+        self.assertTrue(
+            all(
+                "DWP_PAYROLL_MIGRATION_CONTROL_REFERENCE" not in environment
+                for name, environment in environments.items()
+                if name != "payroll"
+            )
+        )
+        for owner, keys in devctl.HRIS_DARK_FEATURE_ENVIRONMENT.items():
+            for key in keys:
+                self.assertNotIn(key, environments[owner])
+
+
+class HrisMigrationControlTest(unittest.TestCase):
+    REFERENCE = "dwp-migration-control-v2:" + "a" * 64
+
+    def test_receipt_is_canonical_private_and_reusable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "migration-control"
+            receipt = control_receipt("time", self.REFERENCE)
+            with patch.object(devctl, "MIGRATION_CONTROL_RECEIPT_ROOT", root):
+                devctl.save_migration_control_receipt(
+                    "time", receipt, current_reference=self.REFERENCE
+                )
+                path = root / "time.json"
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(root.stat().st_mode & 0o777, 0o700)
+                self.assertEqual(
+                    devctl.load_migration_control_receipt("time"), receipt
+                )
+                with patch.object(
+                    devctl, "migration_control_reference", return_value=self.REFERENCE
+                ):
+                    application = devctl.migration_control_application_environment(
+                        "time"
+                    )
+            self.assertEqual(
+                application["DWP_TIME_MIGRATION_CONTROL_RUN_RECEIPT_SHA256"],
+                receipt["receiptSha256"],
+            )
+
+    def test_existing_database_without_receipt_fails_before_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch.object(
+                    devctl,
+                    "MIGRATION_CONTROL_RECEIPT_ROOT",
+                    Path(directory) / "migration-control",
+                ),
+                patch.object(devctl, "database_exists", return_value=True),
+                patch.object(devctl, "ensure_database") as ensure_database,
+                patch.object(devctl, "ensure_hris_strict_database_boundary") as boundary,
+                patch.object(devctl, "run_hris_migration_control") as control,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "before any role"):
+                    devctl.ensure_hris_controlled_database("time")
+            ensure_database.assert_not_called()
+            boundary.assert_not_called()
+            control.assert_not_called()
+
+    def test_fresh_database_orders_create_boundary_then_official_control(self) -> None:
+        events: list[str] = []
+        receipt = control_receipt("payroll", self.REFERENCE)
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch.object(
+                    devctl,
+                    "MIGRATION_CONTROL_RECEIPT_ROOT",
+                    Path(directory) / "migration-control",
+                ),
+                patch.object(devctl, "database_exists", return_value=False),
+                patch.object(
+                    devctl,
+                    "ensure_database",
+                    side_effect=lambda database: (
+                        events.append(f"database:{database}") or True
+                    ),
+                ),
+                patch.object(
+                    devctl,
+                    "ensure_hris_strict_database_boundary",
+                    side_effect=lambda owner: events.append(f"boundary:{owner}"),
+                ),
+                patch.object(
+                    devctl,
+                    "migration_control_reference",
+                    return_value=self.REFERENCE,
+                ),
+                patch.object(
+                    devctl,
+                    "run_hris_migration_control",
+                    side_effect=lambda owner, previous, **kwargs: (
+                        events.append(f"control:{owner}") or receipt
+                    ),
+                ),
+            ):
+                self.assertEqual(
+                    devctl.ensure_hris_controlled_database("payroll"), receipt
+                )
+        self.assertEqual(
+            events,
+            ["database:dwp_payroll", "boundary:payroll", "control:payroll"],
+        )
+
+    def test_failed_fresh_control_discards_only_the_database_created_by_that_run(self) -> None:
+        events: list[str] = []
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch.object(
+                    devctl,
+                    "MIGRATION_CONTROL_RECEIPT_ROOT",
+                    Path(directory) / "migration-control",
+                ),
+                patch.object(devctl, "database_exists", return_value=False),
+                patch.object(
+                    devctl,
+                    "ensure_database",
+                    side_effect=lambda database: (
+                        events.append(f"database:{database}") or True
+                    ),
+                ),
+                patch.object(
+                    devctl,
+                    "ensure_hris_strict_database_boundary",
+                    side_effect=lambda owner: events.append(f"boundary:{owner}"),
+                ),
+                patch.object(
+                    devctl,
+                    "migration_control_reference",
+                    return_value=self.REFERENCE,
+                ),
+                patch.object(
+                    devctl,
+                    "run_hris_migration_control",
+                    side_effect=RuntimeError("control rejected the fresh boundary"),
+                ),
+                patch.object(
+                    devctl,
+                    "discard_fresh_database",
+                    side_effect=lambda database: events.append(f"discard:{database}"),
+                ),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "control rejected"):
+                    devctl.ensure_hris_controlled_database("time")
+        self.assertEqual(
+            events,
+            ["database:dwp_time", "boundary:time", "discard:dwp_time"],
+        )
+
+    def test_fresh_bootstrap_never_discards_database_created_by_another_process(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch.object(
+                    devctl,
+                    "MIGRATION_CONTROL_RECEIPT_ROOT",
+                    Path(directory) / "migration-control",
+                ),
+                patch.object(devctl, "database_exists", return_value=False),
+                patch.object(devctl, "ensure_database", return_value=False),
+                patch.object(devctl, "ensure_hris_strict_database_boundary") as boundary,
+                patch.object(devctl, "discard_fresh_database") as discard,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "another process"):
+                    devctl.ensure_hris_controlled_database("payroll")
+            boundary.assert_not_called()
+            discard.assert_not_called()
+
+    def test_changed_reference_passes_native_predecessor_to_upgrade(self) -> None:
+        old_reference = "dwp-migration-control-v2:" + "b" * 64
+        previous = control_receipt("time", old_reference)
+        upgraded = control_receipt(
+            "time", self.REFERENCE, previous=str(previous["receiptSha256"])
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            receipt_path = Path(directory) / "migration-control" / "time.json"
+            receipt_path.parent.mkdir(mode=0o700)
+            receipt_path.write_text("{}", encoding="utf-8")
+            receipt_path.chmod(0o600)
+            with (
+                patch.object(
+                    devctl,
+                    "MIGRATION_CONTROL_RECEIPT_ROOT",
+                    receipt_path.parent,
+                ),
+                patch.object(devctl, "database_exists", return_value=True),
+                patch.object(
+                    devctl, "load_migration_control_receipt", return_value=previous
+                ),
+                patch.object(
+                    devctl,
+                    "migration_control_reference",
+                    return_value=self.REFERENCE,
+                ),
+                patch.object(
+                    devctl,
+                    "run_hris_migration_control",
+                    return_value=upgraded,
+                ) as control,
+            ):
+                self.assertEqual(
+                    devctl.ensure_hris_controlled_database("time"), upgraded
+                )
+            control.assert_called_once_with(
+                "time", previous, current_reference=self.REFERENCE
+            )
+
+    def test_strict_boundary_provisions_three_roles_and_pinned_extension(self) -> None:
+        with patch.object(devctl, "docker_compose") as compose:
+            with patch.dict(os.environ, {}, clear=True):
+                devctl.ensure_hris_strict_database_boundary("time")
+        self.assertEqual(compose.call_count, 2)
+        for call in compose.call_args_list:
+            self.assertEqual(call.args[:3], ("exec", "-T", "postgres"))
+        role_sql = compose.call_args_list[0].args[-1]
+        schema_sql = compose.call_args_list[1].args[-1]
+        for role in (
+            "dwp_time_runtime",
+            "dwp_time_migration",
+            "dwp_time_projection_publisher",
+        ):
+            self.assertIn(f"CREATE ROLE {role}", role_sql)
+            self.assertIn("NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT", role_sql)
+        self.assertIn(
+            "CREATE SCHEMA public AUTHORIZATION dwp_time_migration", schema_sql
+        )
+        self.assertIn(
+            "CREATE EXTENSION btree_gist WITH SCHEMA public VERSION '1.7'",
+            schema_sql,
+        )
+
     def test_core006_bootstrap_settings_are_injected_only_into_exact_services(
         self,
     ) -> None:
-        with patch.dict(os.environ, {}, clear=True):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(
+                devctl,
+                "migration_control_application_environment",
+                return_value={},
+            ),
+        ):
             environments = {
                 name: devctl.service_environment(name) for name in devctl.SERVICES
             }

@@ -47,6 +47,8 @@ docker compose up -d postgres redis
 | `PlatformServerApplication` | `com.dwp.services.platform.PlatformServerApplication` | `dwp-backend.dwp-platform-server.main` | 8002 |
 | `PeopleServerApplication` | `com.dwp.services.people.PeopleServerApplication` | `dwp-backend.dwp-people-server.main` | 8003 |
 | `ProviderServerApplication` | `com.dwp.services.provider.ProviderServerApplication` | `dwp-backend.dwp-provider-server.main` | 8004 |
+| `TimeServerApplication` | `com.dwp.services.time.TimeServerApplication` | `dwp-backend.dwp-time-server.main` | 8011 |
+| `PayrollServerApplication` | `com.dwp.services.payroll.PayrollServerApplication` | `dwp-backend.dwp-payroll-server.main` | 8012 |
 | `GatewayApplication` | `com.dwp.gateway.GatewayApplication` | `dwp-backend.dwp-gateway.main` | 8080 |
 
 공통 설정은 다음과 같습니다.
@@ -78,6 +80,8 @@ DB_HOST=localhost;DB_PORT=5432;DB_USERNAME=dwp_user;DB_PASSWORD=dwp_password;RED
 | Gateway | `SERVICE_AUTH_URL`, `SERVICE_PLATFORM_URL`, `SERVICE_PEOPLE_URL`, `SERVICE_PROVIDER_URL`, 각 서비스 Token |
 | Platform | `DWP_PLATFORM_SERVICE_TOKEN`, `DWP_PLATFORM_RUNTIME_SERVICE_TOKEN`, `DWP_WIDGET_REGISTRY_PROVIDER_TOKEN`, 감사·API 이력 수집 설정 |
 | People | `DWP_PEOPLE_SERVICE_TOKEN`, `DWP_PEOPLE_CURSOR_SECRET`, Identity Sync 설정, 아래의 로컬 DB 경계 설정 |
+| Time | `DWP_TIME_SERVICE_TOKEN`, 전용 runtime/migration/publisher DB 자격 증명, 공식 Control receipt, 근무제도·원천 시각·해석 활성 설정 |
+| Payroll | `DWP_PAYROLL_SERVICE_TOKEN`, 전용 runtime/migration/publisher DB 자격 증명, 공식 Control receipt, 급여 기반·구성 활성 설정 |
 | Provider | `DWP_PROVIDER_SERVICE_TOKEN`, `DWP_WIDGET_REGISTRY_PROVIDER_TOKEN`, `DWP_PROVIDER_PROVISIONING_TOKEN`, `DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN`, `DWP_PROVIDER_SUPPORT_COOKIE_SECURE=false` |
 | Auth | Redis 설정, `DWP_PROVIDER_PROVISIONING_TOKEN`, Identity Sync 설정 |
 
@@ -107,6 +111,28 @@ strict 기동이나 검증·acceptance 환경의 Migration Control을 대체하�
 환경에서는 `LOCAL_LEGACY`를 사용하거나 receipt를 수동으로 만들지 말고, 공식 Migration
 Control이 발급한 receipt, digest와 Control reference를 주입해야 합니다.
 
+### Time·Payroll 수동 실행의 strict DB 경계
+
+Time 또는 Payroll을 IntelliJ에서 직접 실행하기 전에 Supervisor로 대상 소유 경계만 한 번
+준비합니다.
+
+```bash
+./dev up time payroll
+./dev stop
+```
+
+Supervisor는 신규 `dwp_time`·`dwp_payroll`에 runtime, migration, projection publisher
+로그인을 분리하고 `public` schema를 migration 소유로 고정하며 `btree_gist` 1.7을 설치한
+뒤 `runTimeMigrationControl`·`runPayrollMigrationControl`을 실행합니다. 정규 receipt는
+`.dev-runtime/migration-control/{time,payroll}.json`에 권한 `0600`으로 저장됩니다.
+기존 Database에 유효한 외부 receipt가 없으면 역할, ACL, owner, extension을 변경하기 전에
+실패합니다. receipt JSON·digest·Control reference와 DB 자격 증명은
+`scripts/devctl.py`의 해당 owner 환경을 그대로 사용해야 하며 수동 생성하면 안 됩니다.
+
+표준 로컬 활성 범위는 Time의 근무제도·원천 시각 수집·규칙 해석과 Payroll의 기반·구성까지입니다.
+Timecard, 급여 계산, 보상계획 입력 consumer, synthetic payroll bootstrap은 기본 비활성 상태를
+유지합니다.
+
 ## 5. 실행 순서
 
 다음 순서로 실행하면 의존 서비스 오류를 가장 쉽게 구분할 수 있습니다.
@@ -115,7 +141,8 @@ Control이 발급한 receipt, digest와 Control reference를 주입해야 합니
 2. `PlatformServerApplication`
 3. `PeopleServerApplication`
 4. `ProviderServerApplication`
-5. `GatewayApplication`
+5. `TimeServerApplication`, `PayrollServerApplication`
+6. `GatewayApplication`
 
 모두 한 번에 실행하려면 위 구성을 포함한 IntelliJ Compound Configuration을 추가할 수
 있습니다. Agent는 Java 모듈이 아니라 인접 저장소 `../dwp_agent`의 Python 서비스이며
@@ -130,6 +157,8 @@ curl -fsS http://localhost:8001/actuator/health
 curl -fsS http://localhost:8002/actuator/health
 curl -fsS http://localhost:8003/actuator/health
 curl -fsS http://localhost:8004/actuator/health
+curl -fsS http://localhost:8011/actuator/health
+curl -fsS http://localhost:8012/actuator/health
 curl -fsS http://localhost:8080/actuator/health
 ```
 
@@ -151,6 +180,8 @@ Gateway 8080을 통해 요청하고, 서비스 포트 직접 호출은 장애 �
 ./gradlew :dwp-platform-server:test --no-daemon
 ./gradlew :dwp-people-server:test --no-daemon
 ./gradlew :dwp-provider-server:test --no-daemon
+./gradlew :dwp-time-server:test --no-daemon
+./gradlew :dwp-payroll-server:test --no-daemon
 ./gradlew :dwp-gateway:test --no-daemon
 ```
 
@@ -167,7 +198,7 @@ task, JDK, 의존성 해석을 적용할 수 있습니다.
 | Flyway 검증 실패 | 임의로 Migration을 수정하지 말고 실패한 버전과 DB 상태 확인. 초기화는 로컬 데이터 삭제 승인을 받은 경우만 수행 |
 | 서비스 간 401/403 | `scripts/devctl.py` 기준의 서비스 Token이 호출자와 수신자 양쪽에 동일한지 확인 |
 | Provider 지원 세션이 유지되지 않음 | 로컬 HTTP에서는 `DWP_PROVIDER_SUPPORT_COOKIE_SECURE=false` 확인 |
-| Gateway는 UP이나 일부 메뉴가 실패 | Auth·Platform·People·Provider Health와 Gateway route 대상 URL을 각각 확인 |
+| Gateway는 UP이나 일부 메뉴가 실패 | Auth·Platform·People·Provider·Time·Payroll Health와 Gateway route 대상 URL을 각각 확인 |
 
 `.idea/workspace.xml`은 사용자별 상태 파일이므로 실행 구성의 기준 문서로 사용하지 않습니다.
 모듈 추가·삭제 또는 포트 변경 시 이 문서, 루트 `README.md`, `scripts/devctl.py`를 함께

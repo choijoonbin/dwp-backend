@@ -321,15 +321,22 @@ class MigrationControlMainTest {
     }
 
     @Test
-    void timeControlAdmitsOnlyTheClockOutboxPublisherSurface() {
+    void timeControlAdmitsOnlyTheDeclaredOutboxPublisherSurfaces() {
         assertEquals(
                 Set.of(
                         "COLUMN:public.tme_clock_outbox_events.publish_attempts:UPDATE",
                         "COLUMN:public.tme_clock_outbox_events.published_at:UPDATE",
-                        "RELATION:public.tme_clock_outbox_events:SELECT"),
+                        "RELATION:public.tme_clock_outbox_events:SELECT",
+                        "COLUMN:public.tme_interpretation_outbox_events.publish_attempts:UPDATE",
+                        "COLUMN:public.tme_interpretation_outbox_events.published_at:UPDATE",
+                        "RELATION:public.tme_interpretation_outbox_events:SELECT",
+                        "COLUMN:public.tme_timecard_outbox_events.publish_attempts:UPDATE",
+                        "COLUMN:public.tme_timecard_outbox_events.published_at:UPDATE",
+                        "RELATION:public.tme_timecard_outbox_events:SELECT"),
                 ControlPlan.forService("time").auxiliaryAclPrivileges().stream()
                         .filter(privilege -> privilege.objectIdentity()
-                                .startsWith("public.tme_clock_outbox_events"))
+                                .startsWith("public.tme_")
+                                && privilege.objectIdentity().contains("_outbox_events"))
                         .map(privilege -> privilege.objectClass() + ":"
                                 + privilege.objectIdentity() + ":" + privilege.privilege())
                         .collect(java.util.stream.Collectors.toSet()));

@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.AnnotationTransactionAttribute
 import org.springframework.transaction.interceptor.TransactionInterceptor;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.core.database.OwnerTriggerExecutionBoundaryGuard;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.payroll.security.PayrollCalculationAuthority;
 import com.dwp.services.payroll.security.PayrollHighRiskCommandGuard;
@@ -185,6 +186,41 @@ class PayrollMigrationCleanUpgradeTest {
                 "SELECT has_function_privilege(?, "
                         + "'pay_v50_claim_attempts(bigint,text,integer,bigint)', 'EXECUTE')",
                 Boolean.class, RUNTIME_USER)).isTrue();
+    }
+
+    @Test
+    void v51HardensEveryV49AndV50OwnerTriggerFunction() {
+        OwnerTriggerExecutionBoundaryGuard.verify(
+                "Payroll", runtimeDataSource, List.of("public"), POSTGRES.getUsername());
+        assertThat(admin.queryForObject("""
+                SELECT COUNT(DISTINCT routine.oid)
+                  FROM pg_trigger trigger_object
+                  JOIN pg_class target ON target.oid=trigger_object.tgrelid
+                  JOIN pg_namespace target_namespace
+                    ON target_namespace.oid=target.relnamespace
+                  JOIN pg_proc routine ON routine.oid=trigger_object.tgfoid
+                 WHERE NOT trigger_object.tgisinternal
+                   AND target_namespace.nspname='public'
+                   AND routine.proname IN (
+                       'pay_compensation_plan_input_reject_mutation',
+                       'pay_v50_reject_mutation',
+                       'pay_v50_guard_run_revision',
+                       'pay_v50_guard_attempt_transition',
+                       'pay_v50_guard_snapshot_insert',
+                       'pay_v50_guard_snapshot_ref_insert',
+                       'pay_v50_guard_worker_record',
+                       'pay_v50_guard_receipt_record',
+                       'pay_v50_guard_calculation_fact_insert',
+                       'pay_v50_guard_outbox_event')
+                   AND routine.prosecdef
+                   AND routine.proconfig =
+                       ARRAY['search_path=pg_catalog, public, pg_temp']::text[]
+                   AND NOT has_function_privilege(?, routine.oid, 'EXECUTE')
+                """, Long.class, RUNTIME_USER)).isEqualTo(10L);
+        assertThat(admin.queryForObject("""
+                SELECT COUNT(*) FROM flyway_schema_history
+                 WHERE version='51' AND success
+                """, Long.class)).isEqualTo(1L);
     }
 
     @Test

@@ -18,3 +18,7 @@ People-derived `hcm-scope-*` eligibility key returned by Gateway.
 
 `V5` makes each migration-owned trigger function `SECURITY DEFINER`, pins its search path,
 and revokes direct execution while preserving trigger-only enforcement for runtime and publisher DML.
+
+`V51` applies the same trigger-only execution boundary to the owner functions introduced by
+`V49` and `V50`; their immutable ledgers remain usable through DML triggers but never through
+direct runtime or projection-publisher execution.

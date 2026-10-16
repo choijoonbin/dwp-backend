@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import re
@@ -15,6 +16,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -87,6 +89,104 @@ class Service:
     command: tuple[str, ...]
     port: int
     health_path: str
+
+
+@dataclass(frozen=True)
+class HrisControlledDatabase:
+    service: str
+    module: str
+    database: str
+    runtime_role: str
+    runtime_password_key: str
+    migration_role: str
+    migration_password_key: str
+    publisher_role: str
+    publisher_password_key: str
+    control_task: str
+    stream_key: str
+
+
+HRIS_CONTROLLED_DATABASES = {
+    "time": HrisControlledDatabase(
+        "time",
+        "dwp-time-server",
+        "dwp_time",
+        "dwp_time_runtime",
+        "TIME_DB_PASSWORD",
+        "dwp_time_migration",
+        "TIME_MIGRATION_DB_PASSWORD",
+        "dwp_time_projection_publisher",
+        "TIME_PROJECTION_PUBLISHER_DB_PASSWORD",
+        ":dwp-migration-control:runTimeMigrationControl",
+        "time-main",
+    ),
+    "payroll": HrisControlledDatabase(
+        "payroll",
+        "dwp-payroll-server",
+        "dwp_payroll",
+        "dwp_payroll_runtime",
+        "PAYROLL_DB_PASSWORD",
+        "dwp_payroll_migration",
+        "PAYROLL_MIGRATION_DB_PASSWORD",
+        "dwp_payroll_projection_publisher",
+        "PAYROLL_PROJECTION_PUBLISHER_DB_PASSWORD",
+        ":dwp-migration-control:runPayrollMigrationControl",
+        "payroll-main",
+    ),
+}
+MIGRATION_CONTROL_RECEIPT_ROOT = RUNTIME_ROOT / "migration-control"
+MIGRATION_CONTROL_OUTPUT_PREFIX = "DWP_MIGRATION_CONTROL_RECEIPT="
+HRIS_SHARED_ENVIRONMENT = {
+    "time": {"SERVICE_TIME_URL", "DWP_TIME_SERVICE_TOKEN"},
+    "payroll": {"SERVICE_PAYROLL_URL", "DWP_PAYROLL_SERVICE_TOKEN"},
+}
+HRIS_OWNER_ENVIRONMENT = {
+    "time": {
+        "TIME_DB_NAME",
+        "TIME_DB_USERNAME",
+        "TIME_DB_PASSWORD",
+        "TIME_MIGRATION_DB_USERNAME",
+        "TIME_MIGRATION_DB_PASSWORD",
+        "TIME_PROJECTION_PUBLISHER_DB_USERNAME",
+        "TIME_PROJECTION_PUBLISHER_DB_PASSWORD",
+        "DWP_TIME_DB_POOL_SIZE",
+        "DWP_TIME_WORK_REGIME_API_ENABLED",
+        "DWP_HRIS_TIME_CLOCK_INGESTION_ENABLED",
+        "DWP_HRIS_TIME_CLOCK_INGESTION_CURSOR_SECRET",
+        "DWP_HRIS_TIME_INTERPRETATION_ENABLED",
+        "DWP_HRIS_TIME_INTERPRETATION_CURSOR_SECRET",
+    },
+    "payroll": {
+        "PAYROLL_DB_NAME",
+        "PAYROLL_DB_USERNAME",
+        "PAYROLL_DB_PASSWORD",
+        "PAYROLL_MIGRATION_DB_USERNAME",
+        "PAYROLL_MIGRATION_DB_PASSWORD",
+        "PAYROLL_PROJECTION_PUBLISHER_DB_USERNAME",
+        "PAYROLL_PROJECTION_PUBLISHER_DB_PASSWORD",
+        "DWP_PAYROLL_DB_POOL_SIZE",
+        "DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED",
+        "DWP_HRIS_PAYROLL_CONFIGURATION_WAVE2_ENABLED",
+    },
+}
+HRIS_RECEIPT_ENVIRONMENT = {
+    service_name: {
+        f"DWP_{service_name.upper()}_MIGRATION_CONTROL_RUN_RECEIPT_JSON",
+        f"DWP_{service_name.upper()}_MIGRATION_CONTROL_RUN_RECEIPT_SHA256",
+        f"DWP_{service_name.upper()}_MIGRATION_CONTROL_REFERENCE",
+    }
+    for service_name in HRIS_CONTROLLED_DATABASES
+}
+HRIS_DARK_FEATURE_ENVIRONMENT = {
+    "time": {"DWP_HRIS_TIME_TIMECARD_ENABLED"},
+    "payroll": {
+        "DWP_HRIS_PAYROLL_CALCULATION_ENABLED",
+        "DWP_HRIS_PAYROLL_COMPENSATION_PLAN_INPUT_ENABLED",
+        "DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_ENABLED",
+        "DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_TOKEN",
+        "DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_RUN_ID",
+    },
+}
 
 
 def agent_python() -> str:
@@ -215,6 +315,20 @@ SERVICES = {
         8010,
         "/health",
     ),
+    "time": Service(
+        "time",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-time-server:bootRun"),
+        8011,
+        SPRING_READINESS_PATH,
+    ),
+    "payroll": Service(
+        "payroll",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-payroll-server:bootRun"),
+        8012,
+        SPRING_READINESS_PATH,
+    ),
     "gateway": Service(
         "gateway",
         BACKEND_ROOT,
@@ -232,6 +346,7 @@ SERVICES = {
 }
 
 CORE_SERVICES = {"auth", "platform", "people", "provider", "approval", "space"}
+HRIS_RUNTIME_SERVICES = {"time", "payroll"}
 OPTIONAL_RUNTIME_SERVICES = {
     service_name
     for service_name, module_name in {
@@ -243,10 +358,16 @@ OPTIONAL_RUNTIME_SERVICES = {
 }
 
 PROFILES = {
-    "full": CORE_SERVICES | OPTIONAL_RUNTIME_SERVICES | {"agent", "gateway", "frontend"},
-    "core": CORE_SERVICES | OPTIONAL_RUNTIME_SERVICES | {"gateway", "frontend"},
-    "backend": CORE_SERVICES | OPTIONAL_RUNTIME_SERVICES | {"agent", "gateway"},
-    "contracts": CORE_SERVICES | OPTIONAL_RUNTIME_SERVICES | {"gateway"},
+    "full": CORE_SERVICES | HRIS_RUNTIME_SERVICES | OPTIONAL_RUNTIME_SERVICES
+    | {"agent", "gateway", "frontend"},
+    "core": CORE_SERVICES | HRIS_RUNTIME_SERVICES | OPTIONAL_RUNTIME_SERVICES
+    | {"gateway", "frontend"},
+    "backend": CORE_SERVICES | HRIS_RUNTIME_SERVICES | OPTIONAL_RUNTIME_SERVICES
+    | {"agent", "gateway"},
+    "contracts": CORE_SERVICES | HRIS_RUNTIME_SERVICES | OPTIONAL_RUNTIME_SERVICES
+    | {"gateway"},
+    "hris": CORE_SERVICES | HRIS_RUNTIME_SERVICES | OPTIONAL_RUNTIME_SERVICES
+    | {"gateway", "frontend"},
     "auth": {"auth"},
     "platform": {"platform"},
     "people": {"people"},
@@ -255,6 +376,8 @@ PROFILES = {
     "gateway": {"gateway"},
     "approval": {"approval"},
     "space": {"space"},
+    "time": {"time"},
+    "payroll": {"payroll"},
     "web": {"frontend"},
 }
 for optional_service in OPTIONAL_RUNTIME_SERVICES:
@@ -273,6 +396,8 @@ START_ORDER = (
     "notification",
     "meeting",
     "agent",
+    "time",
+    "payroll",
     "gateway",
     "frontend",
 )
@@ -280,6 +405,7 @@ START_PHASES = (
     ("platform",),
     ("auth", "people", "provider", "approval", "space", "messaging", "notification", "agent"),
     ("meeting",),
+    ("time", "payroll"),
     ("gateway",),
     ("frontend",),
 )
@@ -636,6 +762,8 @@ def local_environment() -> dict[str, str]:
         "SERVICE_MESSAGING_URL": "http://localhost:8007",
         "SERVICE_NOTIFICATION_URL": "http://localhost:8008",
         "SERVICE_MEETING_URL": "http://localhost:8009",
+        "SERVICE_TIME_URL": "http://localhost:8011",
+        "SERVICE_PAYROLL_URL": "http://localhost:8012",
         "DWP_PRODUCT_SURFACE_TOKEN": (
             "dwp-local-product-surface-token-change-outside-local"
         ),
@@ -713,6 +841,43 @@ def local_environment() -> dict[str, str]:
             "classpath:db/migration,classpath:db/local-seed"
         ),
         "DWP_PEOPLE_LOCAL_SEED_ENABLED": "true",
+        "DWP_TIME_SERVICE_TOKEN": "dwp-local-time-service-token",
+        "TIME_DB_NAME": "dwp_time",
+        "TIME_DB_USERNAME": "dwp_time_runtime",
+        "TIME_DB_PASSWORD": "dwp_time_runtime_password",
+        "TIME_MIGRATION_DB_USERNAME": "dwp_time_migration",
+        "TIME_MIGRATION_DB_PASSWORD": "dwp_time_migration_password",
+        "TIME_PROJECTION_PUBLISHER_DB_USERNAME": (
+            "dwp_time_projection_publisher"
+        ),
+        "TIME_PROJECTION_PUBLISHER_DB_PASSWORD": (
+            "dwp_time_projection_publisher_password"
+        ),
+        "DWP_TIME_DB_POOL_SIZE": "3",
+        "DWP_TIME_WORK_REGIME_API_ENABLED": "true",
+        "DWP_HRIS_TIME_CLOCK_INGESTION_ENABLED": "true",
+        "DWP_HRIS_TIME_CLOCK_INGESTION_CURSOR_SECRET": (
+            "dwp-local-time-clock-ingestion-cursor-secret-change-outside-local"
+        ),
+        "DWP_HRIS_TIME_INTERPRETATION_ENABLED": "true",
+        "DWP_HRIS_TIME_INTERPRETATION_CURSOR_SECRET": (
+            "dwp-local-time-interpretation-cursor-secret-change-outside-local"
+        ),
+        "DWP_PAYROLL_SERVICE_TOKEN": "dwp-local-payroll-service-token",
+        "PAYROLL_DB_NAME": "dwp_payroll",
+        "PAYROLL_DB_USERNAME": "dwp_payroll_runtime",
+        "PAYROLL_DB_PASSWORD": "dwp_payroll_runtime_password",
+        "PAYROLL_MIGRATION_DB_USERNAME": "dwp_payroll_migration",
+        "PAYROLL_MIGRATION_DB_PASSWORD": "dwp_payroll_migration_password",
+        "PAYROLL_PROJECTION_PUBLISHER_DB_USERNAME": (
+            "dwp_payroll_projection_publisher"
+        ),
+        "PAYROLL_PROJECTION_PUBLISHER_DB_PASSWORD": (
+            "dwp_payroll_projection_publisher_password"
+        ),
+        "DWP_PAYROLL_DB_POOL_SIZE": "3",
+        "DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED": "true",
+        "DWP_HRIS_PAYROLL_CONFIGURATION_WAVE2_ENABLED": "true",
         "DWP_PROVIDER_SERVICE_TOKEN": "dwp-local-provider-service-token",
         "DWP_PROVIDER_FLYWAY_LOCATIONS": (
             "classpath:db/migration,classpath:db/local-seed"
@@ -849,6 +1014,20 @@ def service_environment(service_name: str) -> dict[str, str]:
     else:
         for key in AGENT_MODEL_ENVIRONMENT:
             environment.pop(key, None)
+    for owner, shared_keys in HRIS_SHARED_ENVIRONMENT.items():
+        if service_name not in {"gateway", owner}:
+            for key in shared_keys:
+                environment.pop(key, None)
+    for owner, owner_keys in HRIS_OWNER_ENVIRONMENT.items():
+        if service_name != owner:
+            for key in owner_keys:
+                environment.pop(key, None)
+        for key in HRIS_RECEIPT_ENVIRONMENT[owner]:
+            environment.pop(key, None)
+        for key in HRIS_DARK_FEATURE_ENVIRONMENT[owner]:
+            environment.pop(key, None)
+    if service_name in HRIS_CONTROLLED_DATABASES:
+        environment.update(migration_control_application_environment(service_name))
     if service_name not in {"auth", "gateway"}:
         environment.pop("DWP_PRODUCT_SURFACE_TOKEN", None)
     if service_name not in {"auth", "meeting"}:
@@ -1000,6 +1179,293 @@ def service_environment(service_name: str) -> dict[str, str]:
     return environment
 
 
+def migration_control_file(service_name: str) -> Path:
+    if service_name not in HRIS_CONTROLLED_DATABASES:
+        raise RuntimeError(f"Unsupported HRIS Migration Control service: {service_name}")
+    return MIGRATION_CONTROL_RECEIPT_ROOT / f"{service_name}.json"
+
+
+def _read_private_json(path: Path, *, description: str) -> object:
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError as error:
+        raise RuntimeError(f"{description} is missing: {path}") from error
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or metadata.st_mode & 0o077
+    ):
+        raise RuntimeError(f"{description} must be an owner-only 0600 regular file: {path}")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_strict_json_object)
+    except (json.JSONDecodeError, OSError) as error:
+        raise RuntimeError(f"{description} is unreadable: {path}") from error
+
+
+def _write_private_json(path: Path, value: object) -> None:
+    parent = path.parent
+    if parent.exists() or parent.is_symlink():
+        metadata = parent.lstat()
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or metadata.st_mode & 0o077
+        ):
+            raise RuntimeError(
+                f"Migration Control receipt directory must be owner-only: {parent}"
+            )
+    else:
+        parent.mkdir(parents=True, mode=0o700)
+    if path.exists() or path.is_symlink():
+        _read_private_json(path, description="Migration Control predecessor receipt")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=parent
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as target:
+            json.dump(value, target, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+            target.write("\n")
+            target.flush()
+            os.fsync(target.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        temporary_path.unlink(missing_ok=True)
+
+
+def _canonical_control_field(digest: object, value: object) -> None:
+    canonical = "true" if value is True else "false" if value is False else str(value)
+    encoded = canonical.encode("utf-8")
+    digest.update(str(len(encoded)).encode("ascii"))
+    digest.update(b":")
+    digest.update(encoded)
+
+
+def control_run_receipt_sha256(receipt: dict[str, object]) -> str:
+    digest = hashlib.sha256()
+    for value in (
+        "migration-control-run-receipt-v2",
+        receipt["mode"],
+        receipt["service"],
+        receipt["database"],
+        receipt["migrationPrincipal"],
+        receipt["controlReference"],
+        receipt["previousRunReceiptSha256"],
+        receipt["postgresVersion"],
+        receipt["temporaryPrivilegeRevoked"],
+    ):
+        _canonical_control_field(digest, value)
+    streams = receipt["streams"]
+    if not isinstance(streams, list):
+        raise RuntimeError("Migration Control receipt streams must be a list.")
+    for stream in streams:
+        for field in (
+            "streamKey",
+            "historyMaxInstalledRank",
+            "historyRowCount",
+            "historySha256",
+            "inventoryObjectCount",
+            "inventorySha256",
+            "adoptionReceiptSha256",
+        ):
+            _canonical_control_field(digest, stream[field])
+    return digest.hexdigest()
+
+
+def migration_control_attestation_files() -> tuple[Path, ...]:
+    files = {
+        Path(__file__).resolve(),
+        BACKEND_ROOT / "build.gradle",
+        BACKEND_ROOT / "settings.gradle",
+        BACKEND_ROOT / "gradlew",
+        BACKEND_ROOT / "gradle" / "wrapper" / "gradle-wrapper.jar",
+        BACKEND_ROOT / "gradle" / "wrapper" / "gradle-wrapper.properties",
+        BACKEND_ROOT / "gradle" / "verification-metadata.xml",
+        BACKEND_ROOT / "dwp-core" / "build.gradle",
+        BACKEND_ROOT / "dwp-migration-control" / "build.gradle",
+        BACKEND_ROOT / "dwp-migration-control" / "README.md",
+    }
+    for directory in (
+        BACKEND_ROOT / "dwp-migration-control" / "src" / "main" / "java",
+        BACKEND_ROOT / "dwp-core" / "src" / "main" / "java",
+        BACKEND_ROOT / "dwp-core" / "src" / "main" / "resources",
+    ):
+        files.update(path for path in directory.rglob("*") if path.is_file())
+    for control in HRIS_CONTROLLED_DATABASES.values():
+        module = BACKEND_ROOT / control.module
+        files.add(module / "build.gradle")
+        files.add(module / "src" / "main" / "resources" / "application.yml")
+        files.update(
+            path
+            for path in (module / "src" / "main" / "resources").rglob("*.sql")
+            if path.is_file()
+        )
+        guards = tuple(
+            path
+            for path in (module / "src" / "main" / "java").rglob(
+                "*DatabaseMigrationConfiguration.java"
+            )
+            if path.is_file()
+        )
+        if not guards:
+            raise RuntimeError(
+                f"Migration Control application guard is missing: {control.module}"
+            )
+        files.update(guards)
+    ordered = tuple(sorted(files, key=lambda path: path.relative_to(BACKEND_ROOT).as_posix()))
+    for path in ordered:
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f"Migration Control attestation input is not regular: {path}")
+    return ordered
+
+
+def migration_control_reference() -> str:
+    digest = hashlib.sha256()
+    _canonical_control_field(digest, "dwp-migration-control-attestation-v2")
+    for path in migration_control_attestation_files():
+        _canonical_control_field(digest, path.relative_to(BACKEND_ROOT).as_posix())
+        _canonical_control_field(digest, path.read_bytes().hex())
+    return "dwp-migration-control-v2:" + digest.hexdigest()
+
+
+def validate_control_run_receipt(
+    service_name: str,
+    receipt: object,
+    *,
+    require_current_reference: bool = True,
+    current_reference: str | None = None,
+) -> dict[str, object]:
+    control = HRIS_CONTROLLED_DATABASES.get(service_name)
+    if control is None:
+        raise RuntimeError(f"Unsupported HRIS Migration Control service: {service_name}")
+    top_fields = {
+        "schemaVersion",
+        "mode",
+        "service",
+        "database",
+        "migrationPrincipal",
+        "controlReference",
+        "previousRunReceiptSha256",
+        "postgresVersion",
+        "temporaryPrivilegeRevoked",
+        "streams",
+        "receiptSha256",
+    }
+    stream_fields = {
+        "streamKey",
+        "historyMaxInstalledRank",
+        "historyRowCount",
+        "historySha256",
+        "inventoryObjectCount",
+        "inventorySha256",
+        "adoptionReceiptSha256",
+    }
+    if not isinstance(receipt, dict) or set(receipt) != top_fields:
+        raise RuntimeError("Migration Control run receipt shape is invalid.")
+    reference = str(receipt.get("controlReference", ""))
+    if (
+        receipt.get("schemaVersion") != "2.0"
+        or receipt.get("mode") != "NATIVE_FRESH"
+        or receipt.get("service") != service_name
+        or receipt.get("database") != control.database
+        or receipt.get("migrationPrincipal") != control.migration_role
+        or re.fullmatch(r"dwp-migration-control-v2:[0-9a-f]{64}", reference) is None
+        or (
+            require_current_reference
+            and reference != (current_reference or migration_control_reference())
+        )
+        or re.fullmatch(
+            r"[0-9]+(?:\.[0-9]+){1,2}", str(receipt.get("postgresVersion", ""))
+        ) is None
+        or receipt.get("temporaryPrivilegeRevoked") is not True
+        or re.fullmatch(r"[0-9a-f]{64}", str(receipt.get("receiptSha256", ""))) is None
+        or (
+            receipt.get("previousRunReceiptSha256") != ""
+            and re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(receipt.get("previousRunReceiptSha256", "")),
+            ) is None
+        )
+    ):
+        raise RuntimeError("Migration Control run receipt identity is invalid.")
+    streams = receipt.get("streams")
+    if not isinstance(streams, list) or len(streams) != 1:
+        raise RuntimeError("Migration Control run receipt stream is incomplete.")
+    stream = streams[0]
+    if (
+        not isinstance(stream, dict)
+        or set(stream) != stream_fields
+        or stream.get("streamKey") != control.stream_key
+        or type(stream.get("historyMaxInstalledRank")) is not int
+        or stream["historyMaxInstalledRank"] < 0
+        or type(stream.get("historyRowCount")) is not int
+        or stream["historyRowCount"] < 0
+        or type(stream.get("inventoryObjectCount")) is not int
+        or stream["inventoryObjectCount"] < 1
+        or re.fullmatch(r"[0-9a-f]{64}", str(stream.get("historySha256", ""))) is None
+        or re.fullmatch(r"[0-9a-f]{64}", str(stream.get("inventorySha256", ""))) is None
+        or stream.get("adoptionReceiptSha256") != ""
+    ):
+        raise RuntimeError("Migration Control stream receipt is invalid.")
+    if receipt["receiptSha256"] != control_run_receipt_sha256(receipt):
+        raise RuntimeError("Migration Control run receipt digest is invalid.")
+    return receipt
+
+
+def load_migration_control_receipt(service_name: str) -> dict[str, object]:
+    receipt = _read_private_json(
+        migration_control_file(service_name),
+        description=f"Migration Control receipt for {service_name}",
+    )
+    return validate_control_run_receipt(
+        service_name, receipt, require_current_reference=False
+    )
+
+
+def save_migration_control_receipt(
+    service_name: str,
+    receipt: dict[str, object],
+    *,
+    current_reference: str,
+) -> None:
+    validated = validate_control_run_receipt(
+        service_name,
+        receipt,
+        current_reference=current_reference,
+    )
+    path = migration_control_file(service_name)
+    predecessor = ""
+    if path.exists() or path.is_symlink():
+        predecessor = str(load_migration_control_receipt(service_name)["receiptSha256"])
+    if validated["previousRunReceiptSha256"] != predecessor:
+        raise RuntimeError(
+            "Migration Control run receipt predecessor does not match external state."
+        )
+    _write_private_json(path, validated)
+
+
+def migration_control_application_environment(service_name: str) -> dict[str, str]:
+    path = migration_control_file(service_name)
+    if not path.exists() and not path.is_symlink():
+        return {}
+    receipt = validate_control_run_receipt(service_name, load_migration_control_receipt(service_name))
+    prefix = f"DWP_{service_name.upper()}_MIGRATION_CONTROL"
+    return {
+        f"{prefix}_RUN_RECEIPT_JSON": json.dumps(
+            receipt, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        ),
+        f"{prefix}_RUN_RECEIPT_SHA256": str(receipt["receiptSha256"]),
+        f"{prefix}_REFERENCE": str(receipt["controlReference"]),
+    }
+
+
 def docker_compose(
     *arguments: str,
     check: bool = True,
@@ -1026,7 +1492,7 @@ def doctor(required_services: Iterable[Service] | None = None) -> None:
         else {service.name for service in required_services}
     )
     commands = {"docker", "python3"}
-    if selected.intersection({"auth", "platform", "people", "provider", "approval", "space", "messaging", "notification", "meeting", "gateway"}):
+    if selected.intersection({"auth", "platform", "people", "provider", "approval", "space", "messaging", "notification", "meeting", "time", "payroll", "gateway"}):
         commands.add("java")
     if "frontend" in selected:
         commands.add("corepack")
@@ -1092,6 +1558,8 @@ def start_infrastructure(
     include_events: bool = False,
     include_media: bool = False,
     include_people: bool = False,
+    include_time: bool = False,
+    include_payroll: bool = False,
 ) -> None:
     profile_arguments: list[str] = []
     services = ["postgres", "redis"]
@@ -1140,6 +1608,10 @@ def start_infrastructure(
             if include_people:
                 ensure_people_local_legacy_boundary()
             ensure_database("dwp_agent")
+            if include_time:
+                ensure_hris_controlled_database("time")
+            if include_payroll:
+                ensure_hris_controlled_database("payroll")
             print("postgres   ready at localhost:5432")
             print("redis      ready at localhost:6379")
             if include_events:
@@ -1175,7 +1647,9 @@ def start_infrastructure(
     raise RuntimeError("PostgreSQL and Redis did not become ready within 60 seconds.")
 
 
-def ensure_database(database_name: str) -> None:
+def database_exists(database_name: str) -> bool:
+    if re.fullmatch(r"[a-z][a-z0-9_]{1,62}", database_name) is None:
+        raise RuntimeError(f"Invalid database name: {database_name}")
     result = docker_compose(
         "exec",
         "-T",
@@ -1189,8 +1663,15 @@ def ensure_database(database_name: str) -> None:
         f"SELECT 1 FROM pg_database WHERE datname = '{database_name}'",
         capture_output=True,
     )
-    if result.stdout.strip() == "1":
-        return
+    answer = result.stdout.strip()
+    if answer not in {"", "1"}:
+        raise RuntimeError(f"Database existence probe was not canonical: {database_name}")
+    return answer == "1"
+
+
+def ensure_database(database_name: str) -> bool:
+    if database_exists(database_name):
+        return False
     docker_compose(
         "exec",
         "-T",
@@ -1200,6 +1681,330 @@ def ensure_database(database_name: str) -> None:
         "dwp_user",
         database_name,
     )
+    return True
+
+
+def discard_fresh_database(database_name: str) -> None:
+    """Remove only a database created by the current failed bootstrap attempt."""
+    if re.fullmatch(r"[a-z][a-z0-9_]{1,62}", database_name) is None:
+        raise RuntimeError(f"Invalid database name: {database_name}")
+    docker_compose(
+        "exec",
+        "-T",
+        "postgres",
+        "dropdb",
+        "--force",
+        "--if-exists",
+        "-U",
+        "dwp_user",
+        database_name,
+    )
+
+
+def ensure_hris_strict_database_boundary(service_name: str) -> None:
+    """Provision a pristine TIM/PAY database for the official Control runner."""
+    control = HRIS_CONTROLLED_DATABASES.get(service_name)
+    if control is None:
+        raise RuntimeError(f"Unsupported HRIS Migration Control service: {service_name}")
+    environment = local_environment()
+    role_passwords = {
+        control.runtime_role: environment[control.runtime_password_key],
+        control.migration_role: environment[control.migration_password_key],
+        control.publisher_role: environment[control.publisher_password_key],
+    }
+    if any(
+        re.fullmatch(r"[A-Za-z0-9_-]{16,128}", password) is None
+        for password in role_passwords.values()
+    ):
+        raise RuntimeError("HRIS strict development role password is invalid.")
+
+    role_ddl = "\n".join(
+        f"""
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+        CREATE ROLE {role} LOGIN PASSWORD '{password}'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+    END IF;
+    ALTER ROLE {role} LOGIN PASSWORD '{password}'
+        NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+    ALTER ROLE {role} RESET ALL;
+    FOR database_record IN SELECT datname FROM pg_database WHERE datallowconn LOOP
+        EXECUTE format('ALTER ROLE %I IN DATABASE %I RESET ALL',
+            '{role}', database_record.datname);
+        EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM %I',
+            database_record.datname, '{role}');
+    END LOOP;
+    FOR related_role IN
+        SELECT parent_role.rolname
+          FROM pg_auth_members membership
+          JOIN pg_roles parent_role ON parent_role.oid=membership.roleid
+          JOIN pg_roles member_role ON member_role.oid=membership.member
+         WHERE member_role.rolname='{role}'
+    LOOP
+        EXECUTE format('REVOKE %I FROM %I', related_role, '{role}');
+    END LOOP;
+    FOR related_role IN
+        SELECT member_role.rolname
+          FROM pg_auth_members membership
+          JOIN pg_roles parent_role ON parent_role.oid=membership.roleid
+          JOIN pg_roles member_role ON member_role.oid=membership.member
+         WHERE parent_role.rolname='{role}'
+    LOOP
+        EXECUTE format('REVOKE %I FROM %I', '{role}', related_role);
+    END LOOP;
+"""
+        for role, password in role_passwords.items()
+    )
+    docker_compose(
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-U",
+        "dwp_user",
+        "-d",
+        "postgres",
+        "-c",
+        f"""
+DO $roles$
+DECLARE
+    database_record RECORD;
+    related_role TEXT;
+BEGIN
+    FOR database_record IN SELECT datname FROM pg_database WHERE datallowconn LOOP
+        EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC',
+            database_record.datname);
+    END LOOP;
+{role_ddl}
+END
+$roles$;
+REVOKE ALL PRIVILEGES ON PARAMETER session_replication_role
+    FROM PUBLIC, {control.runtime_role}, {control.migration_role}, {control.publisher_role};
+REVOKE CONNECT, TEMPORARY, CREATE ON DATABASE {control.database} FROM PUBLIC;
+REVOKE TEMPORARY, CREATE ON DATABASE {control.database}
+    FROM {control.runtime_role}, {control.migration_role}, {control.publisher_role};
+GRANT CONNECT ON DATABASE {control.database}
+    TO {control.runtime_role}, {control.migration_role}, {control.publisher_role};
+ALTER ROLE {control.runtime_role} IN DATABASE {control.database}
+    SET search_path TO pg_catalog, public;
+ALTER ROLE {control.migration_role} IN DATABASE {control.database}
+    SET search_path TO pg_catalog, public;
+ALTER ROLE {control.publisher_role} IN DATABASE {control.database}
+    SET search_path TO pg_catalog, public;
+""",
+    )
+    docker_compose(
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-U",
+        "dwp_user",
+        "-d",
+        control.database,
+        "-c",
+        f"""
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public AUTHORIZATION {control.migration_role};
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE, CREATE ON SCHEMA public TO {control.migration_role};
+GRANT USAGE ON SCHEMA public TO {control.runtime_role}, {control.publisher_role};
+CREATE EXTENSION btree_gist WITH SCHEMA public VERSION '1.7';
+DO $extension_inventory$
+BEGIN
+    IF (
+        SELECT COUNT(*)
+          FROM pg_extension extension
+          JOIN pg_namespace namespace ON namespace.oid=extension.extnamespace
+         WHERE extension.extname='btree_gist'
+           AND extension.extversion='1.7'
+           AND namespace.nspname='public'
+           AND pg_get_userbyid(extension.extowner)='dwp_user'
+    ) <> 1 OR EXISTS (
+        SELECT 1 FROM pg_extension WHERE extname NOT IN ('plpgsql', 'btree_gist')
+    ) THEN
+        RAISE EXCEPTION 'HRIS strict extension inventory is not exact';
+    END IF;
+END
+$extension_inventory$;
+""",
+    )
+
+
+def run_hris_migration_control(
+    service_name: str,
+    previous: dict[str, object] | None,
+    *,
+    current_reference: str,
+) -> dict[str, object]:
+    control = HRIS_CONTROLLED_DATABASES.get(service_name)
+    if control is None:
+        raise RuntimeError(f"Unsupported HRIS Migration Control service: {service_name}")
+    values = local_environment()
+    expected_identities = {
+        f"{service_name.upper()}_DB_USERNAME": control.runtime_role,
+        f"{service_name.upper()}_MIGRATION_DB_USERNAME": control.migration_role,
+        f"{service_name.upper()}_PROJECTION_PUBLISHER_DB_USERNAME": (
+            control.publisher_role
+        ),
+    }
+    for key, expected in expected_identities.items():
+        if values.get(key) != expected:
+            raise RuntimeError(f"HRIS strict role identity is not canonical: {key}")
+    environment = os.environ.copy()
+    for key in tuple(environment):
+        if key.startswith("DWP_MIGRATION_CONTROL_"):
+            environment.pop(key, None)
+    environment.update(
+        {
+            "DWP_MIGRATION_CONTROL_MODE": "STRICT_FRESH",
+            "DWP_MIGRATION_CONTROL_SERVICE": service_name,
+            "DWP_MIGRATION_CONTROL_JDBC_URL": (
+                f"jdbc:postgresql://localhost:5432/{control.database}"
+            ),
+            "DWP_MIGRATION_CONTROL_DATABASE": control.database,
+            "DWP_MIGRATION_CONTROL_BOOTSTRAP_PRINCIPAL": "dwp_user",
+            "DWP_MIGRATION_CONTROL_BOOTSTRAP_PASSWORD": "dwp_password",
+            "DWP_MIGRATION_CONTROL_RUNTIME_PRINCIPAL": control.runtime_role,
+            "DWP_MIGRATION_CONTROL_RUNTIME_PASSWORD": values[control.runtime_password_key],
+            "DWP_MIGRATION_CONTROL_MIGRATION_PRINCIPAL": control.migration_role,
+            "DWP_MIGRATION_CONTROL_MIGRATION_PASSWORD": values[
+                control.migration_password_key
+            ],
+            "DWP_MIGRATION_CONTROL_PROJECTION_PUBLISHER_PRINCIPAL": (
+                control.publisher_role
+            ),
+            "DWP_MIGRATION_CONTROL_PROJECTION_PUBLISHER_PASSWORD": values[
+                control.publisher_password_key
+            ],
+            "DWP_MIGRATION_CONTROL_REFERENCE": current_reference,
+        }
+    )
+    if previous is not None:
+        stream = previous["streams"][0]
+        environment["DWP_MIGRATION_CONTROL_PREVIOUS_NATIVE_SEALS"] = (
+            f'{stream["streamKey"]}:{stream["historyMaxInstalledRank"]}:'
+            f'{stream["historyRowCount"]}:{stream["historySha256"]}:'
+            f'{stream["inventoryObjectCount"]}:{stream["inventorySha256"]}'
+        )
+        environment["DWP_MIGRATION_CONTROL_PREVIOUS_RUN_RECEIPT_SHA256"] = str(
+            previous["receiptSha256"]
+        )
+    try:
+        result = subprocess.run(
+            (
+                "./gradlew",
+                "--no-daemon",
+                "--console=plain",
+                control.control_task,
+            ),
+            cwd=BACKEND_ROOT,
+            env=environment,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as error:
+        diagnostic = "\n".join(
+            (error.stderr or error.stdout or "Migration Control failed").splitlines()[-40:]
+        )
+        for secret_key in (
+            "DWP_MIGRATION_CONTROL_BOOTSTRAP_PASSWORD",
+            "DWP_MIGRATION_CONTROL_RUNTIME_PASSWORD",
+            "DWP_MIGRATION_CONTROL_MIGRATION_PASSWORD",
+            "DWP_MIGRATION_CONTROL_PROJECTION_PUBLISHER_PASSWORD",
+        ):
+            diagnostic = diagnostic.replace(environment[secret_key], "[REDACTED]")
+        raise RuntimeError(
+            f"Migration Control failed for {service_name}:\n{diagnostic}"
+        ) from error
+    receipt_lines = [
+        line.removeprefix(MIGRATION_CONTROL_OUTPUT_PREFIX)
+        for line in result.stdout.splitlines()
+        if line.startswith(MIGRATION_CONTROL_OUTPUT_PREFIX)
+    ]
+    if len(receipt_lines) != 1:
+        raise RuntimeError(
+            f"Migration Control emitted {len(receipt_lines)} canonical receipts."
+        )
+    try:
+        receipt = json.loads(receipt_lines[0], object_pairs_hook=_strict_json_object)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("Migration Control emitted invalid receipt JSON.") from error
+    validated = validate_control_run_receipt(
+        service_name,
+        receipt,
+        current_reference=current_reference,
+    )
+    expected_predecessor = "" if previous is None else previous["receiptSha256"]
+    if validated["previousRunReceiptSha256"] != expected_predecessor:
+        raise RuntimeError(
+            "Migration Control receipt predecessor does not match the invoked state."
+        )
+    save_migration_control_receipt(
+        service_name,
+        validated,
+        current_reference=current_reference,
+    )
+    return validated
+
+
+def ensure_hris_controlled_database(service_name: str) -> dict[str, object]:
+    """Prepare fresh state or upgrade only through a sealed native predecessor."""
+    control = HRIS_CONTROLLED_DATABASES.get(service_name)
+    if control is None:
+        raise RuntimeError(f"Unsupported HRIS Migration Control service: {service_name}")
+    receipt_path = migration_control_file(service_name)
+    exists = database_exists(control.database)
+    if exists:
+        if not receipt_path.exists() and not receipt_path.is_symlink():
+            raise RuntimeError(
+                f"{service_name} existing database requires a valid external Control "
+                "receipt before any role, ACL, owner or extension mutation."
+            )
+        previous = load_migration_control_receipt(service_name)
+        current_reference = migration_control_reference()
+        if previous["controlReference"] == current_reference:
+            return validate_control_run_receipt(
+                service_name,
+                previous,
+                current_reference=current_reference,
+            )
+        return run_hris_migration_control(
+            service_name,
+            previous,
+            current_reference=current_reference,
+        )
+
+    if receipt_path.exists() or receipt_path.is_symlink():
+        raise RuntimeError(
+            f"{service_name} missing database has a stale external Control receipt."
+        )
+    created_by_this_run = ensure_database(control.database)
+    if not created_by_this_run:
+        raise RuntimeError(
+            f"{service_name} database appeared during fresh bootstrap; refusing "
+            "to mutate or discard state created by another process."
+        )
+    try:
+        ensure_hris_strict_database_boundary(service_name)
+        return run_hris_migration_control(
+            service_name,
+            None,
+            current_reference=migration_control_reference(),
+        )
+    except BaseException as failure:
+        try:
+            discard_fresh_database(control.database)
+        except Exception as cleanup_error:
+            raise RuntimeError(
+                f"{service_name} fresh bootstrap failed and its newly created "
+                f"database could not be discarded: {failure}"
+            ) from cleanup_error
+        raise
 
 
 def ensure_notification_runtime_role() -> None:
@@ -1505,6 +2310,8 @@ def main() -> None:
                 service.name in {"messaging", "meeting"} for service in services
             ),
             include_people=any(service.name == "people" for service in services),
+            include_time=any(service.name == "time" for service in services),
+            include_payroll=any(service.name == "payroll" for service in services),
         )
         state = load_state()
         selected = {service.name: service for service in services}

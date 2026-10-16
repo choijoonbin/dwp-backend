@@ -105,7 +105,7 @@ dwp:
     payroll:
       calculation:
         # BASE-TFR-PAY-011 is delivered dark. Activation requires a separate
-        # control decision after V50 and the owner-runtime evidence are accepted.
+        # control decision after V51 and the owner-runtime evidence are accepted.
         enabled: ${DWP_HRIS_PAYROLL_CALCULATION_ENABLED:false}
         worker:
           tenant-ids: ${DWP_HRIS_PAYROLL_CALCULATION_TENANT_IDS:}
