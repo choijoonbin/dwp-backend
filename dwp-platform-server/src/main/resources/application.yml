@@ -50,6 +50,17 @@ spring:
 
 dwp:
   hris:
+    controlled-transfer:
+      # SYS-009 is dark by default. Enabling the route still requires exact PEP,
+      # a private HMAC cursor secret and all three fresh internal authorities.
+      enabled: ${DWP_HRIS_CONTROLLED_TRANSFER_ENABLED:false}
+      cursor-secret: ${DWP_HRIS_CONTROLLED_TRANSFER_CURSOR_SECRET:}
+      cursor-ttl: ${DWP_HRIS_CONTROLLED_TRANSFER_CURSOR_TTL:PT5M}
+      authority:
+        enabled: ${DWP_HRIS_CONTROLLED_TRANSFER_AUTHORITY_ENABLED:false}
+        base-url: ${DWP_HRIS_CONTROLLED_TRANSFER_AUTHORITY_BASE_URL:}
+        service-token: ${DWP_HRIS_CONTROLLED_TRANSFER_AUTHORITY_SERVICE_TOKEN:}
+        timeout: ${DWP_HRIS_CONTROLLED_TRANSFER_AUTHORITY_TIMEOUT:PT2S}
     explorer:
       enabled: ${DWP_HRIS_EXPLORER_ENABLED:false}
       auth-url: ${DWP_HRIS_EXPLORER_AUTH_URL:http://localhost:8001}
