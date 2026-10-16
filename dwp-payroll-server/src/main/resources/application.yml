@@ -103,6 +103,17 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   hris:
     payroll:
+      home-producer:
+        # PAY-015 remains dark until the Platform workload trust, current owner
+        # authority adapter, replay ledger and tenant activation are installed.
+        enabled: ${DWP_HRIS_PAYROLL_HOME_PRODUCER_ENABLED:false}
+        event-publication-enabled: ${DWP_HRIS_PAYROLL_HOME_EVENT_PUBLICATION_ENABLED:false}
+        payload-reference-secret: ${DWP_HRIS_PAYROLL_HOME_PAYLOAD_REFERENCE_SECRET:}
+        signing-key-id: ${DWP_HRIS_PAYROLL_HOME_SIGNING_KEY_ID:}
+        signing-public-key-pem: ${DWP_HRIS_PAYROLL_HOME_SIGNING_PUBLIC_KEY_PEM:}
+        workload-authentication: ${DWP_HRIS_PAYROLL_HOME_WORKLOAD_AUTHENTICATION:CLIENT_CREDENTIAL_JWT}
+        fresh-for: ${DWP_HRIS_PAYROLL_HOME_FRESH_FOR:PT2M}
+        stale-after: ${DWP_HRIS_PAYROLL_HOME_STALE_AFTER:PT10M}
       calculation:
         # BASE-TFR-PAY-011 is delivered dark. Activation requires a separate
         # control decision after V51 and the owner-runtime evidence are accepted.
