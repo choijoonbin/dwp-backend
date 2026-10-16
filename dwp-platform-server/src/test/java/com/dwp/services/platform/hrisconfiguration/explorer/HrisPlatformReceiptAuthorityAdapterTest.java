@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class HrisPlatformReceiptAuthorityAdapterTest {
@@ -240,6 +241,37 @@ class HrisPlatformReceiptAuthorityAdapterTest {
         assertThat(request.getAttribute(
                 com.dwp.services.platform.security.HcmPlatformPepRegistry
                         .EXPLORER_OWNER_EVIDENCE_ATTRIBUTE)).isNull();
+    }
+
+    @Test
+    void controlledTransferOnlyModeSkipsExplorerRoutesAndExplorerResolution()
+            throws Exception {
+        HrisExplorerRepository repository = repository();
+        HrisExplorerOwnerEvidenceAdapter explorer =
+                mock(HrisExplorerOwnerEvidenceAdapter.class);
+        HrisExplorerOwnerEvidenceFilter filter = new HrisExplorerOwnerEvidenceFilter(
+                "trusted-explorer-token", explorer,
+                adapter(current(ACTION, AUTHORITY_POPULATION,
+                                AUTHORITY_FIELD_REVISION, PURPOSE,
+                                AUTHORITY_AUTHORIZATION_REVISION), repository),
+                new HcmPlatformPepRegistry(new ObjectMapper()), false);
+        MockHttpServletRequest explorerRequest = new MockHttpServletRequest(
+                "GET", "/v1/hris/explorer");
+        MockHttpServletRequest request = receiptRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        assertThat(filter.shouldNotFilter(explorerRequest)).isTrue();
+        assertThat(filter.shouldNotFilter(request)).isFalse();
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(chain.getRequest()).isSameAs(request);
+        assertThat(request.getAttribute(
+                HrisPlatformReceiptAuthorityAdapter.VERIFIED_ATTRIBUTE))
+                .isInstanceOf(
+                        HrisPlatformReceiptAuthorityAdapter.VerifiedReceiptAuthority.class);
+        verifyNoInteractions(explorer);
     }
 
     @Test

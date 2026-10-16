@@ -28,7 +28,8 @@ class HrisExplorerReceiptControllerTest {
                 JdbcHrisExplorerRepository.RECENT_ACTION,
                 "HRIS_APP_DISCOVERY");
         when(service.explorerReceipt(snapshot(), RECEIPT_ID)).thenReturn(expected);
-        HrisExplorerController controller = new HrisExplorerController(service);
+        HrisCommandReceiptController controller =
+                new HrisCommandReceiptController(service);
         MockHttpServletRequest request = request(
                 "explorer-originating-receipt-reader");
         request.setAttribute(
@@ -46,7 +47,8 @@ class HrisExplorerReceiptControllerTest {
         HrisExplorerReceipt expected = receipt(
                 "HRIS_CONFIGURATION_PUBLISH", "HRIS_CONFIGURATION_CHANGE");
         when(service.platformReceipt(42, SUBJECT, RECEIPT_ID)).thenReturn(expected);
-        HrisExplorerController controller = new HrisExplorerController(service);
+        HrisCommandReceiptController controller =
+                new HrisCommandReceiptController(service);
         MockHttpServletRequest request = request(
                 "platform-originating-command-receipt-reader");
         request.setAttribute(
@@ -67,7 +69,7 @@ class HrisExplorerReceiptControllerTest {
 
     @Test
     void genericProfileWithoutTypedOriginatingAuthorityIsOpaqueNotFound() {
-        HrisExplorerController controller = new HrisExplorerController(
+        HrisCommandReceiptController controller = new HrisCommandReceiptController(
                 mock(HrisExplorerService.class));
         MockHttpServletRequest request = request(
                 "platform-originating-command-receipt-reader");

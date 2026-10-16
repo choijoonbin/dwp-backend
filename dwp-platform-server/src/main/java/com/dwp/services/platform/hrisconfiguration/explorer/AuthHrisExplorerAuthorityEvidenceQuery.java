@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -43,7 +43,9 @@ import static com.dwp.services.platform.hrisconfiguration.explorer.HrisPlatformR
 
 /** Reproduces current Gateway Auth/People authority for Explorer and shared receipts. */
 @Component
-@ConditionalOnProperty(name = "dwp.hris.explorer.enabled", havingValue = "true")
+@ConditionalOnExpression(
+        "'${dwp.hris.explorer.enabled:false}' == 'true' || "
+                + "'${dwp.hris.controlled-transfer.enabled:false}' == 'true'")
 final class AuthHrisExplorerAuthorityEvidenceQuery
         implements HrisExplorerAuthorityEvidenceQuery,
         HrisExplorerReceiptAuthoritySource,
@@ -55,6 +57,10 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
     static final String EXPLORER_PURPOSE = "HRIS_APP_DISCOVERY";
     static final String RECEIPT_PURPOSE = "COMMAND_STATUS";
     static final String PLATFORM_ORIGIN_PURPOSE = "HRIS_SYSTEM_ADMIN";
+    static final String CONTROLLED_TRANSFER_ORIGIN_PURPOSE =
+            "HRIS_INTEGRATION_ADMIN";
+    static final String CONTROLLED_TRANSFER_ACTION =
+            "CONTROLLED_TRANSFER_CREATE";
 
     private static final String AUTHORITY_PATH =
             "/internal/auth/v1/product-surface-authority/evaluate";
@@ -75,6 +81,8 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
     private static final String MANAGEMENT_SURFACE = "hcm.management";
     private static final String SHELL_CAPABILITY = "hcm.app.shell.view";
     private static final String RECEIPT_CAPABILITY = "hcm.command-receipt.view";
+    private static final String CONTROLLED_TRANSFER_CREATE_CAPABILITY =
+            "hcm.integration.transfer.create";
     private static final long MAX_TIMEOUT_MILLIS = 5_000L;
     private static final Set<String> TERMINAL_AUTH_DECISIONS = Set.of(
             "ALLOWED", "APP_DENIED", "SURFACE_DENIED", "ROUTE_DENIED",
@@ -121,7 +129,9 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
             Map.entry("PUBLISH",
                     "route.hcm.configuration.navigation-policy-revision-publish.action"),
             Map.entry("RESTORE",
-                    "route.hcm.configuration.navigation-policy-revision-restore.action"));
+                    "route.hcm.configuration.navigation-policy-revision-restore.action"),
+            Map.entry(CONTROLLED_TRANSFER_ACTION,
+                    "route.hcm.management.controlled-transfer-create.action"));
 
     private final RestClient auth;
     private final RestClient people;
@@ -389,6 +399,8 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
                 stored.originRouteContractKey(), stored.originContextKey(),
                 stored.originContextScopeKey(), null);
         if (!origin.allowed() || !origin.peopleIntersected()
+                || (CONTROLLED_TRANSFER_ACTION.equals(stored.originatingAction())
+                && !hasCapability(origin, CONTROLLED_TRANSFER_CREATE_CAPABILITY))
                 || !stored.originDecisionRevision().equals(origin.decisionRevision())
                 || authorityRevision("field-policy", origin.policyRevision())
                 != stored.authorityFieldPolicyRevision()
@@ -875,9 +887,19 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
     }
 
     private boolean platformOrigin(HrisExplorerRepository.ReceiptAuthority stored) {
-        return PLATFORM_ORIGIN_PURPOSE.equals(stored.purposeCode())
+        return exactPlatformOriginPurpose(
+                stored.originatingAction(), stored.purposeCode())
                 && exactPlatformOrigin(stored.originatingAction(),
                 stored.originRouteContractKey()) && validStoredOrigin(stored);
+    }
+
+    static boolean exactPlatformOriginPurpose(String action, String purposeCode) {
+        if (action == null || purposeCode == null) return false;
+        if (CONTROLLED_TRANSFER_ACTION.equals(action)) {
+            return CONTROLLED_TRANSFER_ORIGIN_PURPOSE.equals(purposeCode);
+        }
+        return PLATFORM_ORIGIN_ROUTES_BY_ACTION.containsKey(action)
+                && PLATFORM_ORIGIN_PURPOSE.equals(purposeCode);
     }
 
     private boolean explorerOrigin(HrisExplorerRepository.ReceiptAuthority stored) {
@@ -931,7 +953,7 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
     }
 
     static boolean exactPlatformOrigin(String action, String routeContractKey) {
-        return routeContractKey != null
+        return action != null && routeContractKey != null
                 && routeContractKey.equals(PLATFORM_ORIGIN_ROUTES_BY_ACTION.get(action));
     }
 

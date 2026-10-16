@@ -6,8 +6,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -28,7 +29,9 @@ import java.util.regex.Pattern;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 19)
-@ConditionalOnProperty(name = "dwp.hris.explorer.enabled", havingValue = "true")
+@ConditionalOnExpression(
+        "'${dwp.hris.explorer.enabled:false}' == 'true' || "
+                + "'${dwp.hris.controlled-transfer.enabled:false}' == 'true'")
 final class HrisExplorerOwnerEvidenceFilter extends OncePerRequestFilter {
 
     private static final String SERVICE_TOKEN = "X-DWP-Service-Token";
@@ -48,26 +51,40 @@ final class HrisExplorerOwnerEvidenceFilter extends OncePerRequestFilter {
     private final HrisExplorerOwnerEvidenceAdapter adapter;
     private final HrisPlatformReceiptAuthorityAdapter platformReceiptAuthority;
     private final HcmPlatformPepRegistry hcmPlatformPepRegistry;
+    private final boolean explorerEnabled;
 
+    @Autowired
     HrisExplorerOwnerEvidenceFilter(
             @Value("${dwp.platform.service-token:}") String configuredServiceToken,
             HrisExplorerOwnerEvidenceAdapter adapter,
             HrisPlatformReceiptAuthorityAdapter platformReceiptAuthority,
-            HcmPlatformPepRegistry hcmPlatformPepRegistry) {
+            HcmPlatformPepRegistry hcmPlatformPepRegistry,
+            @Value("${dwp.hris.explorer.enabled:false}") boolean explorerEnabled) {
         this.configuredServiceToken = configuredServiceToken == null
                 ? "" : configuredServiceToken.strip();
         this.adapter = adapter;
         this.platformReceiptAuthority = platformReceiptAuthority;
         this.hcmPlatformPepRegistry = hcmPlatformPepRegistry;
+        this.explorerEnabled = explorerEnabled;
+    }
+
+    HrisExplorerOwnerEvidenceFilter(
+            String configuredServiceToken,
+            HrisExplorerOwnerEvidenceAdapter adapter,
+            HrisPlatformReceiptAuthorityAdapter platformReceiptAuthority,
+            HcmPlatformPepRegistry hcmPlatformPepRegistry) {
+        this(configuredServiceToken, adapter, platformReceiptAuthority,
+                hcmPlatformPepRegistry, true);
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return !(path.equals("/v1/hris/explorer")
+        if (RECEIPT_PATH.matcher(path).matches()) return false;
+        return !explorerEnabled
+                || !(path.equals("/v1/hris/explorer")
                 || path.equals("/v1/hris/explorer/preferences")
-                || path.equals("/v1/hris/explorer/recents")
-                || RECEIPT_PATH.matcher(path).matches());
+                || path.equals("/v1/hris/explorer/recents"));
     }
 
     @Override
@@ -110,18 +127,21 @@ final class HrisExplorerOwnerEvidenceFilter extends OncePerRequestFilter {
                 new HrisExplorerAuthoritySource.AuthorityRequest(
                         tenantId, actorId, subject, activeMode, decision,
                         trustedRoute, context, contextScope, requestPurpose, revalidateAt);
-        Optional<HrisExplorerOwnerEvidenceAdapter.ResolvedEvidence> requestEvidence;
-        try {
-            requestEvidence = adapter.resolveRequest(authorityRequest);
-        } catch (RuntimeException unavailable) {
-            if (receiptId == null) {
-                response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                return;
+        Optional<HrisExplorerOwnerEvidenceAdapter.ResolvedEvidence> requestEvidence =
+                Optional.empty();
+        if (explorerEnabled) {
+            try {
+                requestEvidence = adapter.resolveRequest(authorityRequest);
+            } catch (RuntimeException unavailable) {
+                if (receiptId == null) {
+                    response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                    return;
+                }
+                // Receipt profiles are independent. An unavailable Explorer-origin
+                // proof must not suppress the typed Platform-origin proof; the latter
+                // still rejects Explorer actions and every origin-seal mismatch.
+                requestEvidence = Optional.empty();
             }
-            // Receipt profiles are independent. An unavailable Explorer-origin
-            // proof must not suppress the typed Platform-origin proof; the latter
-            // still rejects Explorer actions and every origin-seal mismatch.
-            requestEvidence = Optional.empty();
         }
         if (receiptId == null) {
             if (requestEvidence.isEmpty()) {
