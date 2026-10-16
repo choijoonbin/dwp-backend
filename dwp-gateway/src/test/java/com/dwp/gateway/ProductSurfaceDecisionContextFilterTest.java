@@ -393,6 +393,123 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void controlledTransferRoutesReceiveOnlyExactTrustedOwnerEvidence() {
+        String subject = "10000000-0000-4000-8000-000000000041";
+        String context = "psc-" + "d".repeat(64);
+        record Case(
+                String method,
+                String routeKey,
+                String populationKind,
+                boolean command) {}
+        List<Case> cases = List.of(
+                new Case("GET", "route.hcm.management.controlled-transfer.data",
+                        "CONNECTOR_SET", false),
+                new Case("POST", "route.hcm.management.controlled-transfer-create.action",
+                        "LEGAL_ENTITY", true));
+
+        for (Case requestCase : cases) {
+            ProductSurfaceDecisionContextFilter filter = filter(authority(
+                    allowedWave2(requestCase.populationKind())));
+            MockServerHttpRequest.BaseBuilder<?> builder = MockServerHttpRequest.method(
+                            HttpMethod.valueOf(requestCase.method()),
+                            "/api/platform/v1/admin/hris/file-transfers")
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER, subject)
+                    .header(ProductSurfaceDecisionContextFilter.ROUTE_HEADER, "client-route")
+                    .header(ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER,
+                            "client-revision")
+                    .header(ProductSurfaceDecisionContextFilter.CURRENT_REVALIDATE_AT_HEADER,
+                            "2099-01-01T00:00:00Z")
+                    .header(ProductSurfaceDecisionContextFilter.CONTEXT_HEADER, "client-context")
+                    .header(ProductSurfaceDecisionContextFilter.SCOPE_HEADER, "client-scope")
+                    .header(ProductSurfaceDecisionContextFilter.SUBJECT_PRINCIPAL_HEADER,
+                            "client-subject")
+                    .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_REVISION_HEADER,
+                            "999")
+                    .header(ProductSurfaceDecisionContextFilter.AUTHORIZATION_REVISION_HEADER,
+                            "888")
+                    .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                            "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.MASKED_FIELD_GROUPS_HEADER,
+                            "TRANSFER_METADATA")
+                    .header(ProductSurfaceDecisionContextFilter.OMITTED_FIELD_GROUPS_HEADER,
+                            "TRANSFER_METADATA");
+            if (requestCase.command()) {
+                builder.header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                        REVISION);
+            }
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange(builder), filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(requestCase.method()).isNotNull();
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                    .containsExactly(requestCase.routeKey());
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER))
+                    .containsExactly(REVISION);
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.CURRENT_REVALIDATE_AT_HEADER))
+                    .containsExactly(REVALIDATE_AT.toString());
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.CONTEXT_HEADER))
+                    .containsExactly(context);
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.SCOPE_HEADER))
+                    .containsExactly(HCM_DERIVED_SCOPE);
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.SUBJECT_PRINCIPAL_HEADER))
+                    .containsExactly(subject);
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.FIELD_POLICY_REVISION_HEADER))
+                    .containsExactly("4663670355146917040");
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.AUTHORIZATION_REVISION_HEADER))
+                    .containsExactly("1991387878219104048");
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                    .containsExactly(requestCase.populationKind());
+            assertThat(forwarded.get().getHeaders().get(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                    .containsExactly("HRIS_INTEGRATION_ADMIN");
+            assertThat(forwarded.get().getHeaders().getFirst("X-Correlation-ID"))
+                    .isEqualTo("corr-1");
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.MASKED_FIELD_GROUPS_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.OMITTED_FIELD_GROUPS_HEADER)).isFalse();
+        }
+
+        for (String rejectedKind : List.of("TARGET_POPULATION", "SELF")) {
+            MockServerWebExchange rejected = exchange(MockServerHttpRequest.get(
+                            "/api/platform/v1/admin/hris/file-transfers")
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER, subject));
+            AtomicReference<Boolean> rejectedForwarded = new AtomicReference<>(false);
+
+            filter(authority(allowedWave2(rejectedKind))).filter(rejected, ignored -> {
+                rejectedForwarded.set(true);
+                return Mono.empty();
+            }).block();
+
+            assertThat(rejectedForwarded.get()).as(rejectedKind).isFalse();
+            assertThat(rejected.getResponse().getStatusCode())
+                    .as(rejectedKind).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            assertThat(body(rejected)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
+        }
+    }
+
+    @Test
     void normalHcmAuditChallengeNeverReceivesOwnerForwardingEvidence() {
         ProductSurfaceDecisionContextFilter filter = filter(authority(
                 stepUpWave2("RESOURCE_SET")));

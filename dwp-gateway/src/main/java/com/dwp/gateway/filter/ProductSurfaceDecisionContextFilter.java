@@ -90,6 +90,11 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.operations.payroll-run-approve.action",
             "route.hcm.operations.payroll-run-finalize.action",
             "route.hcm.operations.payroll-command-receipt.data");
+    private static final Set<String> CONTROLLED_TRANSFER_OWNER_ROUTE_KEYS = Set.of(
+            "route.hcm.management.controlled-transfer.data",
+            "route.hcm.management.controlled-transfer-create.action");
+    private static final Set<String> CONTROLLED_TRANSFER_POPULATION_KINDS = Set.of(
+            "CONNECTOR_SET", "LEGAL_ENTITY");
     private static final Map<String, String> WAVE2_OWNER_PURPOSE_BY_ROUTE = Map.ofEntries(
             Map.entry("route.hcm.personal.employment-documents.page", "HR_LIFECYCLE"),
             Map.entry("route.hcm.operations.employment-assignments.page", "HR_LIFECYCLE"),
@@ -176,7 +181,11 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             Map.entry("route.hcm.time.timecard-correction.action", "TIME_TIMECARD"),
             Map.entry("route.hcm.time.timecard-submit.action", "TIME_TIMECARD"),
             Map.entry("route.hcm.time.timecard-decision.action", "TIME_TIMECARD"),
-            Map.entry("route.hcm.time.command-receipt.data", "COMMAND_STATUS"));
+            Map.entry("route.hcm.time.command-receipt.data", "COMMAND_STATUS"),
+            Map.entry("route.hcm.management.controlled-transfer.data",
+                    "HRIS_INTEGRATION_ADMIN"),
+            Map.entry("route.hcm.management.controlled-transfer-create.action",
+                    "HRIS_INTEGRATION_ADMIN"));
     private static final List<String> INTERNAL_HEADERS = List.of(
             ROUTE_HEADER, CURRENT_REVISION_HEADER, CURRENT_REVALIDATE_AT_HEADER,
             RESPONSE_REVISION_HEADER, CONTEXT_HEADER, SCOPE_HEADER, ACTIVE_ACCESS_MODE_HEADER,
@@ -455,10 +464,16 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         }
         boolean requiresPopulationKind = TIM_WAVE2_ROUTE_KEYS.contains(route.routeContractKey())
                 || PAYROLL_OWNER_POPULATION_ROUTE_KEYS.contains(route.routeContractKey())
-                || PER_TIM_WAVE5_POPULATION_ROUTE_KEYS.contains(route.routeContractKey());
+                || PER_TIM_WAVE5_POPULATION_ROUTE_KEYS.contains(route.routeContractKey())
+                || CONTROLLED_TRANSFER_OWNER_ROUTE_KEYS.contains(route.routeContractKey());
         String populationKind = requiresPopulationKind && trustedResult.scope() != null
                 ? trustedResult.scope().kind() : null;
         if (requiresPopulationKind && blank(populationKind)) {
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+        }
+        if (CONTROLLED_TRANSFER_OWNER_ROUTE_KEYS.contains(route.routeContractKey())
+                && !CONTROLLED_TRANSFER_POPULATION_KINDS.contains(populationKind)) {
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
