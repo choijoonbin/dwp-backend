@@ -422,9 +422,11 @@ public class HrService {
     @Transactional(readOnly = true)
     public HrDtos.PayWorkspace pay() {
         Context context = context();
+        HrDtos.PayCycle nextCycle = HrPayApiProjection.canonicalCycle(
+                repository.nextPayCycle(
+                        context.actor().tenantId(), context.worker().workerId()));
         return new HrDtos.PayWorkspace(
-                employee(context.worker()), repository.nextPayCycle(
-                        context.actor().tenantId(), context.worker().workerId()),
+                employee(context.worker()), nextCycle,
                 repository.payStatements(context.actor().tenantId(), context.worker().workerId()),
                 true);
     }

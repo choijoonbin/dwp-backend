@@ -144,7 +144,33 @@ class HrServiceTest {
                 .isEqualTo(HrDtos.HomeAvailability.AVAILABLE);
         assertThat(home.domainStates().get("PAY").dataOrigin())
                 .isEqualTo(HrDtos.HomeDataOrigin.REFERENCE);
+        assertThat(home.pay().dataOrigin()).isEqualTo("REFERENCE");
         assertThat(home.referenceDataPresent()).isTrue();
+    }
+
+    @Test
+    void payCanonicalizesLocalSeedOriginAtThePeopleApiBoundary() {
+        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"), Set.of());
+        stubWorker(WORKER_ID);
+        when(repository.workerSchedule(eq(TENANT_ID), eq(WORKER_ID), any(LocalDate.class)))
+                .thenReturn(Optional.empty());
+        HrDtos.PayCycle internalCycle = new HrDtos.PayCycle(
+                UUID.randomUUID(), "2026-10 payroll",
+                LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31),
+                LocalDate.of(2026, 10, 25), "COLLECTING",
+                false, false, false, "LOCAL_SEED");
+        when(repository.nextPayCycle(TENANT_ID, WORKER_ID)).thenReturn(internalCycle);
+        when(repository.payStatements(TENANT_ID, WORKER_ID)).thenReturn(List.of());
+
+        HrDtos.PayWorkspace result = service.pay();
+
+        assertThat(result.nextCycle())
+                .usingRecursiveComparison()
+                .ignoringFields("dataOrigin")
+                .isEqualTo(internalCycle);
+        assertThat(result.nextCycle().dataOrigin()).isEqualTo("REFERENCE");
+        assertThat(internalCycle.dataOrigin()).isEqualTo("LOCAL_SEED");
+        assertThat(result.monetaryDataRedacted()).isTrue();
     }
 
     @Test

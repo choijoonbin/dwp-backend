@@ -54,7 +54,8 @@ final class HrHomeOverviewAssembler {
                         ? HrDtos.HomeDataOrigin.NONE : HrDtos.HomeDataOrigin.UNKNOWN);
         HomeLoad<HrDtos.PayCycle> pay = loadAuthorized(
                 actor, "PAY", null,
-                () -> repository.nextPayCycle(tenantId, workerId),
+                () -> HrPayApiProjection.canonicalCycle(
+                        repository.nextPayCycle(tenantId, workerId)),
                 cycle -> cycle == null ? HrDtos.HomeDataOrigin.NONE : origin(cycle.dataOrigin()));
         HomeLoad<TalentHome> talent = loadAuthorized(
                 actor, "TALENT", new TalentHome(List.of(), 0, 0),
