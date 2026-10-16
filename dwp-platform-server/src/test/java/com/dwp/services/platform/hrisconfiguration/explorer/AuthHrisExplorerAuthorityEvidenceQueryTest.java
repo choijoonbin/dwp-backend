@@ -63,6 +63,8 @@ class AuthHrisExplorerAuthorityEvidenceQueryTest {
     private static final String ORIGIN_CONTEXT = "psc-" + "5".repeat(64);
     private static final String ORIGIN_ROUTE =
             "route.hcm.configuration.configuration-version-publish.action";
+    private static final String CONTROLLED_TRANSFER_ROUTE =
+            "route.hcm.management.controlled-transfer-create.action";
     private static final String ORIGIN_DECISION =
             AuthHrisExplorerAuthorityEvidenceQuery.decisionRevision(
                     42, 84, "NORMAL", "auth-origin-v1", "policy-origin-v1",
@@ -101,10 +103,11 @@ class AuthHrisExplorerAuthorityEvidenceQueryTest {
             Map.entry("PUBLISH",
                     "route.hcm.configuration.navigation-policy-revision-publish.action"),
             Map.entry("RESTORE",
-                    "route.hcm.configuration.navigation-policy-revision-restore.action"));
+                    "route.hcm.configuration.navigation-policy-revision-restore.action"),
+            Map.entry("CONTROLLED_TRANSFER_CREATE", CONTROLLED_TRANSFER_ROUTE));
 
     @Test
-    void acceptsExactlyTheSixteenProducerActionRoutePairs() {
+    void acceptsExactlyTheSeventeenProducerActionRoutePairs() {
         assertThat(AuthHrisExplorerAuthorityEvidenceQuery
                 .PLATFORM_ORIGIN_ROUTES_BY_ACTION)
                 .containsExactlyInAnyOrderEntriesOf(EXPECTED_ORIGINS);
@@ -124,6 +127,22 @@ class AuthHrisExplorerAuthorityEvidenceQueryTest {
                 "UNKNOWN", EXPECTED_ORIGINS.get("PUBLISH"))).isFalse();
         assertThat(AuthHrisExplorerAuthorityEvidenceQuery.exactPlatformOrigin(
                 "PUBLISH", null)).isFalse();
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery.exactPlatformOrigin(
+                null, CONTROLLED_TRANSFER_ROUTE)).isFalse();
+    }
+
+    @Test
+    void controlledTransferHasItsOwnClosedPurposeWhileLegacyOriginsStaySystemAdmin() {
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery.exactPlatformOriginPurpose(
+                "CONTROLLED_TRANSFER_CREATE", "HRIS_INTEGRATION_ADMIN")).isTrue();
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery.exactPlatformOriginPurpose(
+                "CONTROLLED_TRANSFER_CREATE", "HRIS_SYSTEM_ADMIN")).isFalse();
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery.exactPlatformOriginPurpose(
+                "configuration.version.publish", "HRIS_SYSTEM_ADMIN")).isTrue();
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery.exactPlatformOriginPurpose(
+                "configuration.version.publish", "HRIS_INTEGRATION_ADMIN")).isFalse();
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery.exactPlatformOriginPurpose(
+                null, "HRIS_INTEGRATION_ADMIN")).isFalse();
     }
 
     @Test
@@ -277,6 +296,89 @@ class AuthHrisExplorerAuthorityEvidenceQueryTest {
             assertThat(value.fieldPolicyRevision()).isEqualTo(exactField);
             assertThat(value.authorizationRevision()).isEqualTo(exactAuthorization);
         });
+        authServer.verify();
+        peopleServer.verify();
+    }
+
+    @Test
+    void controlledTransferReceiptIntersectsCurrentReaderAndCurrentOriginAuthority() {
+        RestClient.Builder authBuilder = RestClient.builder().baseUrl(AUTH_URL);
+        RestClient.Builder peopleBuilder = RestClient.builder().baseUrl(PEOPLE_URL);
+        MockRestServiceServer authServer =
+                MockRestServiceServer.bindTo(authBuilder).build();
+        MockRestServiceServer peopleServer =
+                MockRestServiceServer.bindTo(peopleBuilder).build();
+        AuthHrisExplorerAuthorityEvidenceQuery query = query(
+                authBuilder.build(), peopleBuilder.build());
+        expectIdentity(authServer);
+        authServer.expect(requestTo(AUTH_URL
+                        + "/internal/auth/v1/product-surface-authority/evaluate"))
+                .andExpect(jsonPath("$.routeContractKey").value(
+                        AuthHrisExplorerAuthorityEvidenceQuery.RECEIPT_ROUTE))
+                .andRespond(withSuccess(
+                        allowedPlatformReceipt(), MediaType.APPLICATION_JSON));
+        authServer.expect(requestTo(AUTH_URL
+                        + "/internal/auth/v1/product-surface-authority/evaluate"))
+                .andExpect(jsonPath("$.routeContractKey").value(
+                        CONTROLLED_TRANSFER_ROUTE))
+                .andRespond(withSuccess(
+                        allowedControlledTransferOrigin(),
+                        MediaType.APPLICATION_JSON));
+        peopleServer.expect(requestTo(PEOPLE_URL
+                        + "/internal/people/v1/product-surface-eligibility/evaluate"))
+                .andRespond(withSuccess(
+                        allowedManagementPeople(), MediaType.APPLICATION_JSON));
+
+        Optional<HrisPlatformReceiptAuthoritySource.CurrentReceiptAuthority> resolved =
+                query.resolve(
+                        platformReceiptRequest(),
+                        UUID.fromString("00000000-0000-4000-8000-000000000943"),
+                        controlledTransferStored());
+
+        assertThat(resolved).isPresent().get().satisfies(value -> {
+            assertThat(value.originatingAction())
+                    .isEqualTo("CONTROLLED_TRANSFER_CREATE");
+            assertThat(value.purposeCode()).isEqualTo("HRIS_INTEGRATION_ADMIN");
+            assertThat(value.originRouteContractKey())
+                    .isEqualTo(CONTROLLED_TRANSFER_ROUTE);
+            assertThat(value.freshUntil()).isEqualTo(NOW.plusMinutes(5));
+        });
+        authServer.verify();
+        peopleServer.verify();
+    }
+
+    @Test
+    void controlledTransferReceiptFailsClosedWhenOriginIsRevoked() {
+        RestClient.Builder authBuilder = RestClient.builder().baseUrl(AUTH_URL);
+        RestClient.Builder peopleBuilder = RestClient.builder().baseUrl(PEOPLE_URL);
+        MockRestServiceServer authServer =
+                MockRestServiceServer.bindTo(authBuilder).build();
+        MockRestServiceServer peopleServer =
+                MockRestServiceServer.bindTo(peopleBuilder).build();
+        AuthHrisExplorerAuthorityEvidenceQuery query = query(
+                authBuilder.build(), peopleBuilder.build());
+        expectIdentity(authServer);
+        authServer.expect(requestTo(AUTH_URL
+                        + "/internal/auth/v1/product-surface-authority/evaluate"))
+                .andExpect(jsonPath("$.routeContractKey").value(
+                        AuthHrisExplorerAuthorityEvidenceQuery.RECEIPT_ROUTE))
+                .andRespond(withSuccess(
+                        allowedPlatformReceipt(), MediaType.APPLICATION_JSON));
+        authServer.expect(requestTo(AUTH_URL
+                        + "/internal/auth/v1/product-surface-authority/evaluate"))
+                .andExpect(jsonPath("$.routeContractKey").value(
+                        CONTROLLED_TRANSFER_ROUTE))
+                .andRespond(withSuccess(
+                        denied("auth-origin-v1", "policy-origin-v1"),
+                        MediaType.APPLICATION_JSON));
+
+        Optional<HrisPlatformReceiptAuthoritySource.CurrentReceiptAuthority> resolved =
+                query.resolve(
+                        platformReceiptRequest(),
+                        UUID.fromString("00000000-0000-4000-8000-000000000944"),
+                        controlledTransferStored());
+
+        assertThat(resolved).isEmpty();
         authServer.verify();
         peopleServer.verify();
     }
@@ -712,6 +814,40 @@ class AuthHrisExplorerAuthorityEvidenceQueryTest {
                   "revalidateAt": "2026-10-15T04:20:00Z"
                 }
                 """.formatted(ORIGIN_CONTEXT, ORIGIN_RAW_SCOPE, ORIGIN_RAW_SCOPE);
+    }
+
+    private static String allowedControlledTransferOrigin() {
+        return allowedManagementOrigin()
+                .replace("hcm.reference-configuration.manage",
+                        "hcm.integration.transfer.create")
+                .replace("CONFIG.HRIS_POLICY:UPDATE",
+                        "ACTION.HRIS_CONTROLLED_TRANSFER:CREATE")
+                .replace("route-grant:configuration-publish",
+                        "route-grant:controlled-transfer-create");
+    }
+
+    private static HrisExplorerRepository.ReceiptAuthority
+            controlledTransferStored() {
+        long exactField = AuthHrisExplorerAuthorityEvidenceQuery.authorityRevision(
+                "field-policy", "policy-origin-v1");
+        long exactAuthorization =
+                AuthHrisExplorerAuthorityEvidenceQuery.authorityRevision(
+                        "authorization", "auth-origin-v1");
+        String originDecision =
+                AuthHrisExplorerAuthorityEvidenceQuery.decisionRevision(
+                        42, 84, "NORMAL", "auth-origin-v1", "policy-origin-v1",
+                        RELATIONSHIP_REVISION, POPULATION_REVISION, "hcm.management",
+                        CONTROLLED_TRANSFER_ROUTE,
+                        "route-grant:controlled-transfer-create");
+        return new HrisExplorerRepository.ReceiptAuthority(
+                SUBJECT, "CONTROLLED_TRANSFER_CREATE", "b".repeat(64),
+                HrisExplorerAuthoritySeals.populationScopeDigest(
+                        ORIGIN_DERIVED_SCOPE),
+                HrisExplorerAuthoritySeals.publicRevision(exactField), exactField,
+                "HRIS_INTEGRATION_ADMIN",
+                HrisExplorerAuthoritySeals.publicRevision(exactAuthorization),
+                exactAuthorization, CONTROLLED_TRANSFER_ROUTE, ORIGIN_CONTEXT,
+                ORIGIN_DERIVED_SCOPE, originDecision);
     }
 
     private static String allowedManagementPeople() {
