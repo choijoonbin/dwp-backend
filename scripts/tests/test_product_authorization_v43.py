@@ -137,14 +137,12 @@ class ProductAuthorizationV43Test(unittest.TestCase):
         with self.assertRaises(generator.ContractError):
             generator.build_snapshots(source)
 
-    def test_latest_alias_index_seed_and_platform_projection_are_v43(self) -> None:
-        alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
-        seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text())
-        index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
+    def test_immutable_versioned_seed_and_platform_projection_are_v43(self) -> None:
+        alias = json.loads((CONTRACTS / "product-surfaces-v1.bundle-v43.json").read_text())
+        seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.bundle-v43.generated.json").read_text())
         projection = json.loads(PLATFORM_PEP.read_text())
         self.assertEqual(self.v43, alias)
         self.assertEqual(self.v43, seed)
-        self.assertEqual((43, V43_SHA256), (index["latestVersion"], index["latestChecksum"]))
         self.assertEqual({
             "bundleKey": "product-surfaces", "version": 43, "sha256": V43_SHA256,
         }, projection["registryRef"])

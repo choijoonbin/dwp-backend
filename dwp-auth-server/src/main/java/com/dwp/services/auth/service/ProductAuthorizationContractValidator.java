@@ -245,6 +245,16 @@ public class ProductAuthorizationContractValidator {
                     value.requiredResponsibilityCode())
                     && "SELF".equals(value.scopeResolver());
         }
+        if ("hcm.integration.transfer.view".equals(value.contractKey())) {
+            return "HRIS_DUTY_CONTROLLED_TRANSFER_READER".equals(
+                    value.requiredResponsibilityCode())
+                    && "CONNECTOR_OR_LEGAL_ENTITY_SCOPE".equals(value.scopeResolver());
+        }
+        if ("hcm.integration.transfer.create".equals(value.contractKey())) {
+            return "HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR".equals(
+                    value.requiredResponsibilityCode())
+                    && "CONNECTOR_OR_LEGAL_ENTITY_SCOPE".equals(value.scopeResolver());
+        }
         return "APP_CONFIG_ADMIN".equals(value.requiredResponsibilityCode());
     }
 

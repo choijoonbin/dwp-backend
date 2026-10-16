@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: DWP Domain Events
-  version: 1.1.0
+  version: 1.2.0
   description: Versioned CloudEvents-aligned contracts published from transactional outboxes.
 defaultContentType: application/json
 servers:
@@ -26,6 +26,8 @@ channels:
         $ref: '#/components/messages/performanceReviewSubmitted'
       timecardDecisionRecorded:
         $ref: '#/components/messages/timecardDecisionRecorded'
+      controlledTransferStateChanged:
+        $ref: '#/components/messages/controlledTransferStateChanged'
   workplaceOccupancySignals:
     address: dwp.workplace.occupancy-signals.v1
     messages:
@@ -44,6 +46,7 @@ operations:
       - $ref: '#/channels/domainEvents/messages/employeeChangeApplied'
       - $ref: '#/channels/domainEvents/messages/performanceReviewSubmitted'
       - $ref: '#/channels/domainEvents/messages/timecardDecisionRecorded'
+      - $ref: '#/channels/domainEvents/messages/controlledTransferStateChanged'
   receiveWorkplaceOccupancySignal:
     action: receive
     channel:
@@ -87,6 +90,11 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/TimecardDecisionRecordedEnvelope'
+    controlledTransferStateChanged:
+      name: dwp.hris.controlled-transfer.state-changed.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ControlledTransferStateChangedEnvelope'
     workplaceOccupancySignal:
       name: WorkplaceOccupancySignal
       contentType: application/json
@@ -431,6 +439,104 @@ components:
           type: integer
           minimum: 1
         decisionAt:
+          type: string
+          format: date-time
+    ControlledTransferStateChangedEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - aggregateType
+            - data
+          properties:
+            type:
+              const: dwp.hris.controlled-transfer.state-changed.v1
+            schemaVersion:
+              const: 1
+            aggregateType:
+              const: CONTROLLED_TRANSFER
+            data:
+              $ref: '#/components/schemas/ControlledTransferStateChangedData'
+    ControlledTransferStateChangedData:
+      type: object
+      additionalProperties: false
+      allOf:
+        - if:
+            properties:
+              transferKind:
+                const: INGEST
+            required: [transferKind]
+          then:
+            properties:
+              egressPolicyRevision:
+                type: 'null'
+          else:
+            properties:
+              egressPolicyRevision:
+                type: integer
+                minimum: 1
+        - if:
+            properties:
+              state:
+                const: COMPLETED
+            required: [state]
+          then:
+            properties:
+              receiptDigest:
+                type: string
+                pattern: '^[0-9a-f]{64}$'
+      required:
+        - transferPublicId
+        - ownerModule
+        - transferKind
+        - purposeCode
+        - state
+        - objectVersion
+        - objectDigest
+        - byteSize
+        - mediaType
+        - metadataSnapshotDigest
+        - egressPolicyRevision
+        - receiptDigest
+        - occurredAt
+      properties:
+        transferPublicId:
+          type: string
+          format: uuid
+        ownerModule:
+          enum: [HRM, PER, TIM, PAY, SYS]
+        transferKind:
+          enum: [INGEST, EXPORT, DELIVERY, EXCHANGE]
+        purposeCode:
+          type: string
+          pattern: '^[A-Z][A-Z0-9_]{2,63}$'
+        state:
+          enum: [REQUESTED, SCANNING, READY, IN_PROGRESS, COMPLETED, QUARANTINED, FAILED, EXPIRED, CANCELLED]
+        objectVersion:
+          type: string
+          minLength: 1
+          maxLength: 128
+        objectDigest:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        byteSize:
+          type: integer
+          minimum: 1
+          maximum: 5368709120
+        mediaType:
+          enum: [text/csv, application/json, application/pdf, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet]
+        metadataSnapshotDigest:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        egressPolicyRevision:
+          type: [integer, 'null']
+          minimum: 1
+        receiptDigest:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{64}$'
+        occurredAt:
           type: string
           format: date-time
     WorkplaceOccupancySignal:

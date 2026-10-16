@@ -23,9 +23,9 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v43.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v44.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 43
+PRODUCT_AUTHORIZATION_VERSION = 44
 HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY = (
     ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v38.json"
 )
@@ -419,6 +419,31 @@ SYS012_WORK_EXPLORER_SCHEMA_NAMES = (
 )
 SYS012_WORK_EXPLORER_SCHEMA_SHA256 = (
     "c7ae98dd1bf72b7ce5fa9f0f5c82127514e827a4ce59f2da083e757c4eb1e07b"
+)
+SYS009_CONTROLLED_TRANSFER_OPERATIONS = {
+    "route.hcm.management.controlled-transfer.data": (
+        "get", "/v1/admin/hris/file-transfers", "getControlledFileTransfers",
+        "SYS-API-033", None, "ControlledTransferCatalogV1",
+        ("controlled-transfer-reader",),
+    ),
+    "route.hcm.management.controlled-transfer-create.action": (
+        "post", "/v1/admin/hris/file-transfers", "requestControlledFileTransfer",
+        "SYS-API-034", "ControlledTransferCreateCommandV1", "HrisCommandReceiptV1",
+        ("controlled-transfer-creator",),
+    ),
+}
+SYS009_CONTROLLED_TRANSFER_ROUTE_KEYS = frozenset(
+    SYS009_CONTROLLED_TRANSFER_OPERATIONS
+)
+SYS009_CONTROLLED_TRANSFER_SCHEMA_NAMES = (
+    "Instant", "Uuid", "Digest", "Cursor", "ControlledTransferCatalogItemV1",
+    "ControlledTransferCatalogV1", "ControlledTransferCatalogQueryV1",
+    "ControlledTransferMalwareScanV1", "ControlledTransferToctouBindingV1",
+    "ControlledTransferCreateCommandV1", "HrisCommandReceiptV1",
+    "ControlledTransferProblemV1",
+)
+SYS009_CONTROLLED_TRANSFER_SCHEMA_SHA256 = (
+    "ae66e232413413d67dce4a145068c75c2a63b5ff840d38999be12dc2211be1c1"
 )
 HRM_EMPLOYEE_CHANGE_INTERNAL_OPERATION = (
     "post",
@@ -2399,14 +2424,14 @@ def validate_sys012_work_explorer_contract(
     """Seal SYS-012's exact default-off owner and browser transport carrier."""
     registry = load_product_authorization_registry()
     if (
-        registry.get("version") != 43
-        or len(registry.get("capabilities", [])) != 256
+        registry.get("version") != 44
+        or len(registry.get("capabilities", [])) != 258
         or len(registry.get("accessPolicies", [])) != 24
         or len(registry.get("entitlementExpressions", [])) != 17
-        or len(registry.get("predicatePolicies", [])) != 71
-        or len(registry.get("routes", [])) != 1032
+        or len(registry.get("predicatePolicies", [])) != 73
+        or len(registry.get("routes", [])) != 1034
     ):
-        raise RuntimeError("SYS-012 product authorization v43 totals drift")
+        raise RuntimeError("SYS-012 carrier is not preserved in v44 authorization lineage")
     routes = {
         route.get("routeContractKey"): route
         for route in registry["routes"]
@@ -2636,6 +2661,235 @@ def validate_sys012_work_explorer_contract(
         raise RuntimeError("SYS-012 sealed transport schema drift")
     if owner_graph != source_graph or gateway_graph != source_graph:
         raise RuntimeError("SYS-012 generated transport schema projection drift")
+
+
+def validate_sys009_controlled_transfer_contract(
+        platform_document: dict[str, Any],
+        gateway_document: dict[str, Any]) -> None:
+    """Seal SYS-009's exact default-off transfer transport and v44 authority."""
+    registry = load_product_authorization_registry()
+    if (
+        registry.get("version") != 44
+        or len(registry.get("capabilities", [])) != 258
+        or len(registry.get("predicatePolicies", [])) != 73
+        or len(registry.get("routes", [])) != 1034
+    ):
+        raise RuntimeError("SYS-009 product authorization v44 totals drift")
+    routes = {
+        route.get("routeContractKey"): route
+        for route in registry["routes"]
+        if route.get("routeContractKey") in SYS009_CONTROLLED_TRANSFER_ROUTE_KEYS
+    }
+    if set(routes) != SYS009_CONTROLLED_TRANSFER_ROUTE_KEYS:
+        raise RuntimeError("SYS-009 authorization route set is not exact")
+
+    overlay = load_design_time_overlays()["platform"]
+    source_path = overlay["paths"].get("/v1/admin/hris/file-transfers", {})
+    if {method for method in source_path if method in HTTP_METHODS} != {"get", "post"}:
+        raise RuntimeError("SYS-009 design-time operation set is not exact")
+
+    def parameters(operation: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+        return {
+            parameter_identity(parameter): parameter
+            for parameter in operation.get("parameters", [])
+            if isinstance(parameter, dict) and all(parameter_identity(parameter))
+        }
+
+    def profiles(route: dict[str, Any]) -> list[dict[str, Any]]:
+        values: list[dict[str, Any]] = []
+        for profile in route["accessProfiles"]:
+            value = {
+                "capabilityContractKey": profile["requiredAccess"][
+                    "capabilityContractKey"
+                ],
+                "predicatePolicyKeys": profile["predicatePolicyKeys"],
+                "profileKey": profile["profileKey"],
+            }
+            projections = profile.get("responseProjectionBindings", [])
+            if projections:
+                if len(projections) != 1:
+                    raise RuntimeError("SYS-009 response projection is ambiguous")
+                value["responseSchemaKey"] = projections[0]["responseSchemaKey"]
+            values.append(value)
+        return values
+
+    for route_key, contract in SYS009_CONTROLLED_TRANSFER_OPERATIONS.items():
+        method, owner_path, operation_id, contract_id, request_schema, response_schema, profile_keys = contract
+        browser_path = platform_path(owner_path)
+        route = routes[route_key]
+        owner_bindings = route.get("servicePepBindings")
+        browser_bindings = route.get("gatewayApiBindings")
+        is_create = method == "post"
+        expected_step_up = [{
+            "audience": "dwp-platform-server",
+            "bindingKey": "route.hcm.management.controlled-transfer-create.action.binding.01",
+            "expectedObjectVersionName": "objectVersion",
+            "expectedObjectVersionSource": "COMMAND_BODY",
+            "ownerServiceKey": "platform",
+            "targetIdBodyFields": ["objectRef", "objectVersion"],
+            "targetType": "CONTROLLED_TRANSFER_OBJECT",
+        }] if is_create else None
+        if (
+            route.get("lifecycleState") != "ACTIVE"
+            or route.get("navigationContextId") != "hcm.management"
+            or route.get("subject") != {
+                "productKey": "hcm", "surfaceKey": "hcm.management",
+                "type": "PRODUCT",
+            }
+            or tuple(value["profileKey"] for value in route["accessProfiles"])
+            != profile_keys
+            or not isinstance(owner_bindings, list) or len(owner_bindings) != 1
+            or not isinstance(browser_bindings, list) or len(browser_bindings) != 1
+            or owner_bindings[0] != {
+                "bindingKey": browser_bindings[0].get("bindingKey"),
+                "method": method.upper(), "path": owner_path,
+                "pathParameterConstraints": {}, "serviceKey": "platform",
+            }
+            or browser_bindings[0].get("method") != method.upper()
+            or browser_bindings[0].get("path") != browser_path
+            or route.get("stepUpCommandBindings") != expected_step_up
+        ):
+            raise RuntimeError(f"SYS-009 route topology drift: {route_key}")
+
+        source = source_path.get(method)
+        owner = platform_document.get("paths", {}).get(owner_path, {}).get(method)
+        browser = gateway_document.get("paths", {}).get(browser_path, {}).get(method)
+        if not all(isinstance(value, dict) for value in (source, owner, browser)):
+            raise RuntimeError(f"SYS-009 operation missing: {route_key}")
+        assert isinstance(source, dict) and isinstance(owner, dict) and isinstance(browser, dict)
+        expected_profiles = profiles(route)
+        for label, operation, expected_id in (
+            ("source", source, operation_id),
+            ("owner", owner, operation_id),
+            ("Gateway", browser, f"platform_{operation_id}"),
+        ):
+            if (
+                operation.get("operationId") != expected_id
+                or operation.get("x-dwp-runtime-default") != "OFF"
+                or operation.get("x-dwp-contract-id") != contract_id
+                or operation.get("x-dwp-purpose-code") != "HRIS_INTEGRATION_ADMIN"
+                or operation.get("x-dwp-access-profiles") != expected_profiles
+                or operation.get("security", object()) == []
+            ):
+                raise RuntimeError(
+                    f"SYS-009 operation metadata/profile drift: {label} {route_key}"
+                )
+
+        source_parameters = parameters(source)
+        owner_parameters = parameters(owner)
+        browser_parameters = parameters(browser)
+        expected_source_parameters = ({
+            ("header", "authorization"), ("header", "x-correlation-id"),
+            ("header", "x-purpose-code"),
+            ("query", "cursor"), ("query", "asof"), ("query", "filter"),
+            ("query", "fields"), ("query", "freshness"), ("query", "limit"),
+        } if not is_create else {
+            ("header", "authorization"), ("header", "x-correlation-id"),
+            ("header", "x-purpose-code"),
+            ("header", "idempotency-key"),
+            ("header", "x-dwp-step-up-challenge"),
+            ("header", "x-dwp-expected-decision-revision"),
+        })
+        if set(source_parameters) != expected_source_parameters \
+                or set(owner_parameters) != expected_source_parameters:
+            raise RuntimeError(f"SYS-009 owner parameter boundary drift: {route_key}")
+        if set(browser_parameters) != expected_source_parameters | {
+            ("query", "contextscopekey")
+        } or browser_parameters.get(
+            ("query", "contextscopekey")
+        ) != SCOPE_SELECTION_PARAMETER:
+            raise RuntimeError(f"SYS-009 Gateway governance drift: {route_key}")
+        common_required = {
+            ("header", "authorization"), ("header", "x-correlation-id"),
+            ("header", "x-purpose-code"),
+        }
+        required = (common_required | {("query", "asof"), ("query", "fields"),
+                     ("query", "freshness")} if not is_create
+                    else expected_source_parameters)
+        if any(
+            values[key].get("required") is not True
+            for values in (source_parameters, owner_parameters, browser_parameters)
+            for key in required
+        ):
+            raise RuntimeError(f"SYS-009 required parameter drift: {route_key}")
+        for values, uuid_ref in (
+            (source_parameters, "#/components/schemas/Uuid"),
+            (owner_parameters, "#/components/schemas/Uuid"),
+            (browser_parameters, "#/components/schemas/platform_Uuid"),
+        ):
+            if (
+                values[("header", "authorization")].get("schema") != {
+                    "type": "string", "pattern": "^Bearer .+$",
+                }
+                or values[("header", "x-correlation-id")].get("schema") != {
+                    "$ref": uuid_ref,
+                }
+                or values[("header", "x-purpose-code")].get("schema") != {
+                    "type": "string", "const": "HRIS_INTEGRATION_ADMIN",
+                }
+            ):
+                raise RuntimeError(f"SYS-009 required header schema drift: {route_key}")
+
+        expected_statuses = (
+            {"202", "400", "401", "403", "404", "409", "422", "429", "503"}
+            if is_create else {"200", "400", "401", "403", "429", "503"}
+        )
+        if any(set(operation.get("responses", {})) != expected_statuses
+               for operation in (source, owner, browser)):
+            raise RuntimeError(f"SYS-009 response set drift: {route_key}")
+        if request_schema is not None:
+            for operation, prefix in ((source, ""), (owner, ""), (browser, "platform_")):
+                if operation.get("requestBody", {}).get("content", {}).get(
+                        "application/json", {}).get("schema") != {
+                    "$ref": f"#/components/schemas/{prefix}{request_schema}"
+                }:
+                    raise RuntimeError("SYS-009 command schema drift")
+            if any(operation.get("x-dwp-command-proof-required") is not True
+                   for operation in (source, owner, browser)):
+                raise RuntimeError("SYS-009 command proof default drift")
+        success_status = "202" if is_create else "200"
+        for operation, prefix in ((source, ""), (owner, ""), (browser, "platform_")):
+            if operation.get("responses", {}).get(success_status, {}).get(
+                    "content", {}).get("application/json", {}).get("schema") != {
+                "$ref": f"#/components/schemas/{prefix}{response_schema}"
+            }:
+                raise RuntimeError(f"SYS-009 success schema drift: {route_key}")
+
+    source_schemas = overlay["components"]["schemas"]
+    source_graph = {
+        name: source_schemas.get(name)
+        for name in SYS009_CONTROLLED_TRANSFER_SCHEMA_NAMES
+    }
+    owner_schemas = platform_document.get("components", {}).get("schemas", {})
+    owner_graph = {
+        name: owner_schemas.get(name)
+        for name in SYS009_CONTROLLED_TRANSFER_SCHEMA_NAMES
+    }
+
+    def normalize_gateway_refs(value: Any) -> Any:
+        if isinstance(value, list):
+            return [normalize_gateway_refs(item) for item in value]
+        if isinstance(value, str) and value.startswith(
+                "#/components/schemas/platform_"):
+            return value.replace(
+                "#/components/schemas/platform_", "#/components/schemas/", 1
+            )
+        if isinstance(value, dict):
+            return {key: normalize_gateway_refs(item) for key, item in value.items()}
+        return value
+
+    gateway_graph = {
+        name: normalize_gateway_refs(
+            gateway_document.get("components", {}).get("schemas", {}).get(
+                f"platform_{name}"
+            )
+        )
+        for name in SYS009_CONTROLLED_TRANSFER_SCHEMA_NAMES
+    }
+    if canonical_contract_hash(source_graph) != SYS009_CONTROLLED_TRANSFER_SCHEMA_SHA256:
+        raise RuntimeError("SYS-009 sealed transport schema drift")
+    if owner_graph != source_graph or gateway_graph != source_graph:
+        raise RuntimeError("SYS-009 generated transport schema projection drift")
 
 
 def canonical_contract_hash(value: Any) -> str:
@@ -3862,6 +4116,9 @@ def main() -> int:
         outputs["gateway-public.json"],
     )
     validate_sys012_work_explorer_contract(
+        outputs["platform.json"], outputs["gateway-public.json"]
+    )
+    validate_sys009_controlled_transfer_contract(
         outputs["platform.json"], outputs["gateway-public.json"]
     )
     validate_platform_device_identity(outputs["platform.json"])

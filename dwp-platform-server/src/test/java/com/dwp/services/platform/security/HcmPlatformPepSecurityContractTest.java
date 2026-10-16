@@ -35,8 +35,8 @@ class HcmPlatformPepSecurityContractTest {
             registry);
 
     @Test
-    void loadsOnlyTheTwentySevenExactSysCarrierBindings() {
-        assertThat(registry.bindingContracts()).hasSize(27)
+    void loadsOnlyTheTwentyNineExactSysCarrierBindings() {
+        assertThat(registry.bindingContracts()).hasSize(29)
                 .extracting(HcmPlatformPepRegistry.BindingContract::routeContractKey)
                 .contains(
                         "route.hcm.configuration.settings-reference.page",
@@ -50,7 +50,9 @@ class HcmPlatformPepSecurityContractTest {
                         "route.hcm.utility.explorer.page",
                         "route.hcm.utility.explorer-preferences-update.action",
                         "route.hcm.utility.explorer-recent-create.action",
-                        "route.hcm.utility.explorer-command-receipt.data");
+                        "route.hcm.utility.explorer-command-receipt.data",
+                        "route.hcm.management.controlled-transfer.data",
+                        "route.hcm.management.controlled-transfer-create.action");
         assertThat(registry.governsPathFamily(
                 "/v1/admin/hris/configurations/c1/versions/2/publish")).isTrue();
         assertThat(registry.governsPathFamily("/v1/admin/users")).isFalse();
@@ -78,6 +80,91 @@ class HcmPlatformPepSecurityContractTest {
         assertThat(registry.governsPathFamily(
                 "/v1/admin/hris/command-receipts/10000000-0000-4000-8000-000000000043"))
                 .isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v1/admin/hris/file-transfers")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v1/admin/hris/file-transfers/nearby")).isTrue();
+    }
+
+    @Test
+    void controlledTransferRegistryRequiresExactPackageDutyPurposeAndCapability() {
+        HcmPlatformPepRegistry.Decision read = registry.authorize(transferRequest(
+                "GET", Set.of("APP.HCM:VIEW", "DATA.HRIS_CONTROLLED_TRANSFER:VIEW"),
+                Set.of("HRIS_INTEGRATION_AUTHOR"),
+                Set.of("HRIS_DUTY_CONTROLLED_TRANSFER_READER@RS_HCM_CONFIG"),
+                "HRIS_INTEGRATION_ADMIN",
+                "route.hcm.management.controlled-transfer.data"));
+        assertThat(read.allowed()).isTrue();
+        assertThat(read.authority().capabilityContractKey())
+                .isEqualTo("hcm.integration.transfer.view");
+        assertThat(read.authority().highRisk()).isFalse();
+
+        HcmPlatformPepRegistry.Decision create = registry.authorize(transferRequest(
+                "POST", Set.of("APP.HCM:VIEW", "ACTION.HRIS_CONTROLLED_TRANSFER:CREATE"),
+                Set.of("HRIS_INTEGRATION_EXECUTOR"),
+                Set.of("HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR@RS_HCM_CONFIG"),
+                "HRIS_INTEGRATION_ADMIN",
+                "route.hcm.management.controlled-transfer-create.action"));
+        assertThat(create.allowed()).isTrue();
+        assertThat(create.authority().capabilityContractKey())
+                .isEqualTo("hcm.integration.transfer.create");
+        assertThat(create.authority().highRisk()).isTrue();
+        assertThat(create.authority().activationPolicy())
+                .isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertThat(create.authority().stepUpCommandBinding())
+                .satisfies(binding -> {
+                    assertThat(binding.targetType())
+                            .isEqualTo("CONTROLLED_TRANSFER_OBJECT");
+                    assertThat(binding.targetIdPathParameter()).isNull();
+                    assertThat(binding.targetIdBodyFields())
+                            .containsExactly("objectRef", "objectVersion");
+                    assertThat(binding.expectedObjectVersionSource())
+                            .isEqualTo("COMMAND_BODY");
+                });
+
+        for (HcmPlatformPepRegistry.RequestEvidence denied : Set.of(
+                transferRequest("GET", Set.of("DATA.HRIS_CONTROLLED_TRANSFER:VIEW"),
+                        Set.of("HRIS_INTEGRATION_AUTHOR"),
+                        Set.of("HRIS_DUTY_CONTROLLED_TRANSFER_READER@RS_HCM_CONFIG"),
+                        "HRIS_INTEGRATION_ADMIN",
+                        "route.hcm.management.controlled-transfer.data"),
+                transferRequest("GET", Set.of("APP.HCM:VIEW", "DATA.HRIS_CONTROLLED_TRANSFER:VIEW"),
+                        Set.of("TENANT_ADMIN"),
+                        Set.of("HRIS_DUTY_CONTROLLED_TRANSFER_READER@RS_HCM_CONFIG"),
+                        "HRIS_INTEGRATION_ADMIN",
+                        "route.hcm.management.controlled-transfer.data"),
+                transferRequest("GET", Set.of("APP.HCM:VIEW", "DATA.HRIS_CONTROLLED_TRANSFER:VIEW"),
+                        Set.of("HRIS_INTEGRATION_AUTHOR"), Set.of(),
+                        "HRIS_INTEGRATION_ADMIN",
+                        "route.hcm.management.controlled-transfer.data"),
+                transferRequest("GET", Set.of("APP.HCM:VIEW", "DATA.HRIS_CONTROLLED_TRANSFER:VIEW"),
+                        Set.of("HRIS_INTEGRATION_AUTHOR"),
+                        Set.of("HRIS_DUTY_CONTROLLED_TRANSFER_READER@RS_HCM_CONFIG"),
+                        "ARBITRARY_PURPOSE",
+                        "route.hcm.management.controlled-transfer.data"),
+                transferRequest("POST", Set.of("APP.HCM:VIEW", "ACTION.HRIS_CONTROLLED_TRANSFER:CREATE"),
+                        Set.of("HRIS_INTEGRATION_AUTHOR"),
+                        Set.of("HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR@RS_HCM_CONFIG"),
+                        "HRIS_INTEGRATION_ADMIN",
+                        "route.hcm.management.controlled-transfer-create.action"))) {
+            assertThat(registry.authorize(denied).allowed()).isFalse();
+        }
+    }
+
+    @Test
+    void controlledTransferFilterRequiresElevatedCurrentCreateAuthority() throws Exception {
+        assertThat(invokeControlledTransfer("GET", true, true, true, true)
+                .getStatus()).isEqualTo(200);
+        assertThat(invokeControlledTransfer("POST", true, true, true, true)
+                .getStatus()).isEqualTo(200);
+        assertThat(invokeControlledTransfer("POST", true, true, true, false)
+                .getStatus()).isEqualTo(403);
+        assertThat(invokeControlledTransfer("POST", true, true, false, true)
+                .getStatus()).isEqualTo(403);
+        assertThat(invokeControlledTransfer("GET", false, true, true, false)
+                .getStatus()).isEqualTo(403);
+        assertThat(invokeControlledTransfer("GET", true, false, true, false)
+                .getStatus()).isEqualTo(403);
     }
 
     @Test
@@ -572,6 +659,56 @@ class HcmPlatformPepSecurityContractTest {
         request.removeHeader(PlatformSecurityFilter.CONTEXT_HEADER);
         request.addHeader(PlatformSecurityFilter.CONTEXT_HEADER, EXPLORER_CONTEXT);
         return request;
+    }
+
+    private HcmPlatformPepRegistry.RequestEvidence transferRequest(
+            String method,
+            Set<String> permissions,
+            Set<String> roles,
+            Set<String> resourceRoles,
+            String purpose,
+            String route) {
+        return new HcmPlatformPepRegistry.RequestEvidence(
+                method, "/v1/admin/hris/file-transfers", permissions,
+                roles, resourceRoles, DECISION_REVISION,
+                "psc-" + "1".repeat(64), "tenant-7", purpose,
+                null, route);
+    }
+
+    private MockHttpServletResponse invokeControlledTransfer(
+            String method,
+            boolean appEntitlement,
+            boolean scopedDuty,
+            boolean purpose,
+            boolean elevated) throws Exception {
+        boolean create = "POST".equals(method);
+        MockHttpServletRequest request = base(
+                method, "/v1/admin/hris/file-transfers");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER,
+                create ? "HRIS_INTEGRATION_EXECUTOR" : "HRIS_INTEGRATION_AUTHOR");
+        String capability = create
+                ? "ACTION.HRIS_CONTROLLED_TRANSFER:CREATE"
+                : "DATA.HRIS_CONTROLLED_TRANSFER:VIEW";
+        request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                appEntitlement ? "APP.HCM:VIEW," + capability : capability);
+        if (scopedDuty) {
+            request.addHeader(PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                    (create ? "HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR"
+                            : "HRIS_DUTY_CONTROLLED_TRANSFER_READER")
+                            + "@RS_HCM_CONFIG");
+        }
+        if (purpose) request.addHeader(
+                PlatformSecurityHeaders.PURPOSE, "HRIS_INTEGRATION_ADMIN");
+        if (elevated) request.addHeader(
+                "X-DWP-Active-Access-Mode", "ELEVATED");
+        trustedEvidence(request,
+                create
+                        ? "route.hcm.management.controlled-transfer-create.action"
+                        : "route.hcm.management.controlled-transfer.data",
+                create);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        return response;
     }
 
     private MockHttpServletResponse invoke(

@@ -23,16 +23,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/** Closed Platform-owned HCM PEP projection for the append-only SYS-012 v43 carrier. */
+/** Closed Platform-owned HCM PEP projection for the append-only SYS-009 v44 carrier. */
 @Component
 public final class HcmPlatformPepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-platform-pep-v43.generated.json";
-    static final String REGISTRY_V43_CHECKSUM =
-            "2222319502c362caf247a7a47fdacfc63c774dbf156f6272cafae797627e2400";
-    static final String PROJECTION_V43_CHECKSUM =
-            "e7f8c474f7329c34c75da9a3135c744c4284e21171b9eb254a5f1d62ec8137c3";
+            "product-authorization/hcm-platform-pep-v44.generated.json";
+    static final String REGISTRY_V44_CHECKSUM =
+            "8b4e05e5974a8a25fb9edf318bb3cd609105f2e6353677b69c2eab1cd7038a1b";
+    static final String PROJECTION_V44_CHECKSUM =
+            "8073b7f44a90247fe30351a192a48a8e1655edf93166b0a71cb466295db19423";
     private static final String CONFIGURATION_ROOT = "/v1/admin/hris/configurations";
     private static final String WORKBENCH_PATH = "/v1/hris/workbench/settings-reference";
     private static final String NAVIGATION_POLICY_ROOT =
@@ -48,6 +48,18 @@ public final class HcmPlatformPepRegistry {
             "/v1/hris/explorer/recents";
     private static final String HRIS_COMMAND_RECEIPT_ROOT =
             "/v1/admin/hris/command-receipts";
+    private static final String CONTROLLED_TRANSFER_PATH =
+            "/v1/admin/hris/file-transfers";
+    private static final String CONTROLLED_TRANSFER_ROUTE_PREFIX =
+            "route.hcm.management.controlled-transfer";
+    private static final String CONTROLLED_TRANSFER_PURPOSE =
+            "HRIS_INTEGRATION_ADMIN";
+    private static final String CONTROLLED_TRANSFER_READER_DUTY =
+            "HRIS_DUTY_CONTROLLED_TRANSFER_READER";
+    private static final String CONTROLLED_TRANSFER_CREATOR_DUTY =
+            "HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR";
+    private static final Set<String> CONTROLLED_TRANSFER_READER_PACKAGES = Set.of(
+            "HRIS_INTEGRATION_AUTHOR", "HRIS_INTEGRATION_EXECUTOR");
     private static final String EXPLORER_ROUTE_PREFIX = "route.hcm.utility.explorer";
     private static final Set<String> EXPLORER_PACKAGES = Set.of(
             "HRIS_EMPLOYEE",
@@ -110,6 +122,10 @@ public final class HcmPlatformPepRegistry {
                 || path.startsWith(HRIS_COMMAND_RECEIPT_ROOT + "/")
                 || path.startsWith(HRIS_COMMAND_RECEIPT_ROOT + ";")
                 || path.startsWith(HRIS_COMMAND_RECEIPT_ROOT + "%")
+                || path.equals(CONTROLLED_TRANSFER_PATH)
+                || path.startsWith(CONTROLLED_TRANSFER_PATH + "/")
+                || path.startsWith(CONTROLLED_TRANSFER_PATH + ";")
+                || path.startsWith(CONTROLLED_TRANSFER_PATH + "%")
                 || path.equals(CONFIGURATION_ROOT)
                 || path.startsWith(CONFIGURATION_ROOT + "/")
                 || path.startsWith(CONFIGURATION_ROOT + ";")
@@ -145,6 +161,9 @@ public final class HcmPlatformPepRegistry {
                 .filter(value -> !binding.routeContractKey().startsWith(
                         EXPLORER_ROUTE_PREFIX)
                         || allowsExplorerProfile(value, evidence))
+                .filter(value -> !binding.routeContractKey().startsWith(
+                        CONTROLLED_TRANSFER_ROUTE_PREFIX)
+                        || allowsControlledTransferProfile(binding, value, evidence))
                 .findFirst().orElse(null);
         if (profile == null) return Decision.denied("EXACT_ROUTE_AUTHORITY_REQUIRED");
         String capabilityKey = profile.requiredAccess().path(
@@ -200,6 +219,31 @@ public final class HcmPlatformPepRegistry {
                 && evidence.contextScopeKey().equals(receipt.contextScopeKey());
     }
 
+    private boolean allowsControlledTransferProfile(
+            Binding binding, Profile profile, RequestEvidence evidence) {
+        if (!CONTROLLED_TRANSFER_PURPOSE.equals(evidence.purposeCode())
+                || !evidence.permissions().contains("APP.HCM:VIEW")
+                || evidence.contextKey() == null
+                || evidence.contextScopeKey() == null) {
+            return false;
+        }
+        boolean create = "POST".equals(binding.method());
+        String requiredDuty = create
+                ? CONTROLLED_TRANSFER_CREATOR_DUTY
+                : CONTROLLED_TRANSFER_READER_DUTY;
+        boolean scopedDuty = evidence.resourceRoles().stream().anyMatch(value ->
+                value.startsWith(requiredDuty + "@")
+                        && value.length() > requiredDuty.length() + 1);
+        if (!scopedDuty) return false;
+        if (create) {
+            return "controlled-transfer-creator".equals(profile.profileKey())
+                    && evidence.roles().contains("HRIS_INTEGRATION_EXECUTOR");
+        }
+        return "controlled-transfer-reader".equals(profile.profileKey())
+                && evidence.roles().stream().anyMatch(
+                CONTROLLED_TRANSFER_READER_PACKAGES::contains);
+    }
+
     private static boolean isDescendantPageRoute(String routeKey) {
         return routeKey != null
                 && routeKey.length() <= 200
@@ -243,7 +287,7 @@ public final class HcmPlatformPepRegistry {
                         stepUp));
             }
         }
-        require(result.size() == 27, "HCM Platform SYS binding count changed");
+        require(result.size() == 29, "HCM Platform SYS binding count changed");
         return List.copyOf(result);
     }
 
@@ -266,9 +310,13 @@ public final class HcmPlatformPepRegistry {
         require(matches.size() <= 1, bindingKey + ": ambiguous step-up binding");
         if (matches.isEmpty()) return null;
         JsonNode value = matches.getFirst();
+        List<String> targetIdBodyFields = new ArrayList<>();
+        value.path("targetIdBodyFields").forEach(field ->
+                targetIdBodyFields.add(field.asText()));
         return new StepUpCommandBinding(
                 value.path("targetType").asText(),
                 value.path("targetIdPathParameter").asText(null),
+                List.copyOf(targetIdBodyFields),
                 value.path("expectedObjectVersionSource").asText(),
                 value.path("expectedObjectVersionName").asText(),
                 value.path("ownerServiceKey").asText(),
@@ -278,25 +326,25 @@ public final class HcmPlatformPepRegistry {
     private void validateEnvelope(ObjectNode projection) {
         JsonNode registry = projection.path("registryRef");
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-platform-pep-v43".equals(
+                        && "hcm-platform-pep-v44".equals(
                         projection.path("projectionKey").asText())
                         && "platform".equals(projection.path("ownerServiceKey").asText())
                         && "product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 43
-                        && REGISTRY_V43_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 44
+                        && REGISTRY_V44_CHECKSUM.equals(registry.path("sha256").asText()),
                 "Unexpected HCM Platform PEP envelope");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 1032
-                        && projection.path("projectedRouteContractCount").asInt() == 34
-                        && projection.path("bindingPairCount").asInt() == 35
-                        && requiredArray(projection, "capabilities").size() == 18
+        require(projection.path("sourceRegistryRouteCount").asInt() == 1034
+                        && projection.path("projectedRouteContractCount").asInt() == 36
+                        && projection.path("bindingPairCount").asInt() == 37
+                        && requiredArray(projection, "capabilities").size() == 20
                         && requiredArray(projection, "accessPolicies").size() == 4
                         && requiredArray(projection, "entitlementExpressions").size() == 3
-                        && requiredArray(projection, "predicatePolicies").size() == 7,
+                        && requiredArray(projection, "predicatePolicies").size() == 9,
                 "HCM Platform projection closure count changed");
         ObjectNode payload = projection.deepCopy();
         JsonNode checksum = payload.remove("projectionChecksum");
         require(checksum != null
-                        && PROJECTION_V43_CHECKSUM.equals(checksum.asText())
+                        && PROJECTION_V44_CHECKSUM.equals(checksum.asText())
                         && checksum.asText().equals(sha256(payload)),
                 "HCM Platform projection checksum mismatch");
     }
@@ -310,6 +358,8 @@ public final class HcmPlatformPepRegistry {
                             HcmAuditEvidenceSecurityPolicy.PAGE_ROUTE)
                             || binding.routeContractKey().equals(
                             HcmAuditEvidenceSecurityPolicy.DETAIL_ROUTE)
+                            || binding.routeContractKey().startsWith(
+                            CONTROLLED_TRANSFER_ROUTE_PREFIX)
                             || binding.routeContractKey().startsWith(
                             "route.hcm.utility.explorer"),
                     "Non-configuration route entered the SYS handoff");
@@ -336,7 +386,7 @@ public final class HcmPlatformPepRegistry {
         }
         Set<String> routeKeys = bindings.stream()
                 .map(Binding::routeContractKey).collect(Collectors.toUnmodifiableSet());
-        require(routeKeys.size() == 27
+        require(routeKeys.size() == 29
                         && routeKeys.contains("route.hcm.configuration.settings-reference.page")
                         && routeKeys.contains(
                         "route.hcm.configuration.configuration-version-publish.action")
@@ -352,9 +402,69 @@ public final class HcmPlatformPepRegistry {
                         && routeKeys.contains(
                         "route.hcm.utility.explorer-recent-create.action")
                         && routeKeys.contains(
-                        "route.hcm.utility.explorer-command-receipt.data"),
+                        "route.hcm.utility.explorer-command-receipt.data")
+                        && routeKeys.contains(
+                        "route.hcm.management.controlled-transfer.data")
+                        && routeKeys.contains(
+                        "route.hcm.management.controlled-transfer-create.action"),
                 "HCM Platform SYS route closure changed");
         validateAuditClosure(projection);
+        validateControlledTransferClosure(projection);
+    }
+
+    private void validateControlledTransferClosure(ObjectNode projection) {
+        JsonNode reader = capabilities.get("hcm.integration.transfer.view");
+        JsonNode creator = capabilities.get("hcm.integration.transfer.create");
+        require(reader != null
+                        && "DATA.HRIS_CONTROLLED_TRANSFER:VIEW".equals(
+                        reader.path("resolvedCapabilityCode").asText())
+                        && "HRIS_DUTY_CONTROLLED_TRANSFER_READER".equals(
+                        reader.path("requiredResponsibilityCode").asText())
+                        && "CONNECTOR_OR_LEGAL_ENTITY_SCOPE".equals(
+                        reader.path("scopeResolver").asText())
+                        && "HIGH".equals(reader.path("riskTier").asText())
+                        && creator != null
+                        && "ACTION.HRIS_CONTROLLED_TRANSFER:CREATE".equals(
+                        creator.path("resolvedCapabilityCode").asText())
+                        && "HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR".equals(
+                        creator.path("requiredResponsibilityCode").asText())
+                        && "CRITICAL".equals(creator.path("riskTier").asText())
+                        && "STEPUP-MGMT-HIGH-V1".equals(
+                        creator.path("activationPolicy").asText())
+                        && "NO_EXPORT_OWN_APPROVAL".equals(
+                        creator.path("sodPolicyId").asText()),
+                "Controlled-transfer capability authority drifted");
+        List<JsonNode> routes = new ArrayList<>();
+        requiredArray(projection, "routes").forEach(route -> {
+            if (route.path("routeContractKey").asText()
+                    .startsWith(CONTROLLED_TRANSFER_ROUTE_PREFIX)) {
+                routes.add(route);
+            }
+        });
+        require(routes.size() == 2, "Exact controlled-transfer route pair is required");
+        for (JsonNode route : routes) {
+            boolean create = route.path("routeContractKey").asText()
+                    .endsWith("-create.action");
+            JsonNode profile = requiredArray(route, "accessProfiles").get(0);
+            JsonNode service = requiredArray(route, "servicePepBindings").get(0);
+            require(requiredArray(route, "accessProfiles").size() == 1
+                            && requiredArray(route, "servicePepBindings").size() == 1
+                            && CONTROLLED_TRANSFER_PATH.equals(service.path("path").asText())
+                            && "platform".equals(service.path("serviceKey").asText())
+                            && (create ? "POST" : "GET").equals(
+                            service.path("method").asText())
+                            && (create ? "ACTION" : "DATA").equals(
+                            route.path("routeKind").asText())
+                            && (create ? "controlled-transfer-creator"
+                            : "controlled-transfer-reader").equals(
+                            profile.path("profileKey").asText())
+                            && (create ? "hcm.integration.transfer.create"
+                            : "hcm.integration.transfer.view").equals(
+                            profile.path("requiredAccess")
+                                    .path("capabilityContractKey").asText()),
+                    route.path("routeContractKey").asText()
+                            + ": invalid controlled-transfer PEP closure");
+        }
     }
 
     private void validateAuditClosure(ObjectNode projection) {
@@ -547,6 +657,7 @@ public final class HcmPlatformPepRegistry {
             String currentDecisionRevision,
             String contextKey,
             String contextScopeKey,
+            String purposeCode,
             ExplorerOwnerEvidence explorerOwnerEvidence,
             String trustedRouteContractKey) {
         public RequestEvidence {
@@ -561,7 +672,24 @@ public final class HcmPlatformPepRegistry {
             currentDecisionRevision = normalizedText(currentDecisionRevision);
             contextKey = normalizedText(contextKey);
             contextScopeKey = normalizedText(contextScopeKey);
+            purposeCode = normalizedText(purposeCode);
             trustedRouteContractKey = normalizedText(trustedRouteContractKey);
+        }
+
+        public RequestEvidence(
+                String method,
+                String path,
+                Set<String> permissions,
+                Set<String> roles,
+                Set<String> resourceRoles,
+                String currentDecisionRevision,
+                String contextKey,
+                String contextScopeKey,
+                ExplorerOwnerEvidence explorerOwnerEvidence,
+                String trustedRouteContractKey) {
+            this(method, path, permissions, roles, resourceRoles,
+                    currentDecisionRevision, contextKey, contextScopeKey, null,
+                    explorerOwnerEvidence, trustedRouteContractKey);
         }
 
         public RequestEvidence(
@@ -570,7 +698,7 @@ public final class HcmPlatformPepRegistry {
                 Set<String> permissions,
                 String trustedRouteContractKey) {
             this(method, path, permissions, Set.of(), Set.of(),
-                    null, null, null, null, trustedRouteContractKey);
+                    null, null, null, null, null, trustedRouteContractKey);
         }
 
         private static Set<String> normalized(Set<String> values) {
@@ -658,10 +786,22 @@ public final class HcmPlatformPepRegistry {
     public record StepUpCommandBinding(
             String targetType,
             String targetIdPathParameter,
+            List<String> targetIdBodyFields,
             String expectedObjectVersionSource,
             String expectedObjectVersionName,
             String ownerServiceKey,
             String audience) {
+        public StepUpCommandBinding(
+                String targetType,
+                String targetIdPathParameter,
+                String expectedObjectVersionSource,
+                String expectedObjectVersionName,
+                String ownerServiceKey,
+                String audience) {
+            this(targetType, targetIdPathParameter, List.of(),
+                    expectedObjectVersionSource, expectedObjectVersionName,
+                    ownerServiceKey, audience);
+        }
     }
 
     public record BindingContract(

@@ -447,7 +447,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_latest_v43_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_latest_v44_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -456,8 +456,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 43)
-        self.assertEqual(registry["version"], 43)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 44)
+        self.assertEqual(registry["version"], 44)
         self.assertEqual(EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_VERSION"], 38)
         self.assertTrue(str(
             EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY"]
@@ -888,6 +888,89 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "receipt profile projection drift"):
             EXPORTER["validate_sys012_work_explorer_contract"](
                 overlapping_receipt, gateway
+            )
+
+    def test_sys009_v44_exports_exact_default_off_controlled_transfer_carrier(self) -> None:
+        platform = json.loads(
+            (ROOT / "contracts/openapi/platform.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        EXPORTER["validate_sys009_controlled_transfer_contract"](
+            platform, gateway
+        )
+        owner = platform["paths"]["/v1/admin/hris/file-transfers"]
+        browser = gateway["paths"][
+            "/api/platform/v1/admin/hris/file-transfers"
+        ]
+        self.assertEqual({"get", "post"}, set(owner))
+        self.assertEqual({"get", "post"}, set(browser))
+        catalog = platform["components"]["schemas"][
+            "ControlledTransferCatalogV1"
+        ]
+        catalog_item = platform["components"]["schemas"][
+            "ControlledTransferCatalogItemV1"
+        ]
+        self.assertEqual(
+            {"asOf", "items", "freshUntil", "staleAfter"},
+            set(catalog["required"]),
+        )
+        self.assertEqual(
+            {"$ref": "#/components/schemas/Cursor"},
+            catalog["properties"]["nextCursor"],
+        )
+        self.assertEqual({"type": "string"}, catalog_item["properties"]["key"])
+        self.assertEqual({"type": "string"}, catalog_item["properties"]["type"])
+        self.assertEqual({"type": "string"}, catalog_item["properties"]["state"])
+        self.assertNotIn("maxItems", catalog["properties"]["items"])
+        for operation in (*owner.values(), *browser.values()):
+            self.assertEqual("OFF", operation["x-dwp-runtime-default"])
+            self.assertEqual(
+                "HRIS_INTEGRATION_ADMIN", operation["x-dwp-purpose-code"]
+            )
+        post_parameters = {
+            (parameter["in"], parameter["name"]): parameter
+            for parameter in browser["post"]["parameters"]
+        }
+        for identity in (
+            ("header", "Authorization"),
+            ("header", "X-Correlation-Id"),
+            ("header", "X-Purpose-Code"),
+            ("header", "Idempotency-Key"),
+            ("header", "X-DWP-Step-Up-Challenge"),
+            ("header", "X-DWP-Expected-Decision-Revision"),
+        ):
+            self.assertTrue(post_parameters[identity]["required"])
+        self.assertEqual(
+            EXPORTER["SCOPE_SELECTION_PARAMETER"],
+            post_parameters[("query", "contextScopeKey")],
+        )
+
+        open_command = copy.deepcopy(platform)
+        open_command["components"]["schemas"][
+            "ControlledTransferCreateCommandV1"
+        ]["additionalProperties"] = True
+        with self.assertRaisesRegex(RuntimeError, "transport schema projection drift"):
+            EXPORTER["validate_sys009_controlled_transfer_contract"](
+                open_command, gateway
+            )
+
+        missing_proof = copy.deepcopy(gateway)
+        missing_proof["paths"][
+            "/api/platform/v1/admin/hris/file-transfers"
+        ]["post"]["parameters"] = [
+            parameter
+            for parameter in missing_proof["paths"][
+                "/api/platform/v1/admin/hris/file-transfers"
+            ]["post"]["parameters"]
+            if parameter.get("name") != "X-DWP-Step-Up-Challenge"
+        ]
+        with self.assertRaisesRegex(RuntimeError, "Gateway governance drift"):
+            EXPORTER["validate_sys009_controlled_transfer_contract"](
+                platform, missing_proof
             )
 
     def test_compensation_planning_validator_rejects_payload_graph_drift(self) -> None:

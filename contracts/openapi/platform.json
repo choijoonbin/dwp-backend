@@ -20367,6 +20367,366 @@
         ],
         "type": "object"
       },
+      "ControlledTransferCatalogItemV1": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "publicId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "version": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "publicId",
+          "key",
+          "type",
+          "state",
+          "version",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "ControlledTransferCatalogQueryV1": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "fields": {
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9.]{0,63}$",
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "filter": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH_ONLY",
+              "ALLOW_STALE"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asOf",
+          "fields",
+          "freshness"
+        ],
+        "type": "object"
+      },
+      "ControlledTransferCatalogV1": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "freshUntil": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ControlledTransferCatalogItemV1"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "staleAfter": {
+            "$ref": "#/components/schemas/Instant"
+          }
+        },
+        "required": [
+          "asOf",
+          "items",
+          "freshUntil",
+          "staleAfter"
+        ],
+        "type": "object"
+      },
+      "ControlledTransferCreateCommandV1": {
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "transferKind": {
+              "enum": [
+                "EXPORT",
+                "DELIVERY",
+                "EXCHANGE"
+              ]
+            }
+          },
+          "required": [
+            "transferKind"
+          ]
+        },
+        "properties": {
+          "byteSize": {
+            "maximum": 5368709120,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "classification": {
+            "enum": [
+              "CONFIDENTIAL",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
+          "egressPolicyRevision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "malwareScanSnapshot": {
+            "$ref": "#/components/schemas/ControlledTransferMalwareScanV1"
+          },
+          "mediaType": {
+            "enum": [
+              "text/csv",
+              "application/json",
+              "application/pdf",
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ],
+            "type": "string"
+          },
+          "objectDigest": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "objectRef": {
+            "pattern": "^obj_[A-Za-z0-9_-]{16,128}$",
+            "type": "string"
+          },
+          "objectVersion": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerModule": {
+            "enum": [
+              "HRM",
+              "PER",
+              "TIM",
+              "PAY",
+              "SYS"
+            ],
+            "type": "string"
+          },
+          "purposeCode": {
+            "const": "HRIS_INTEGRATION_ADMIN"
+          },
+          "recipientPolicyRef": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "toctouBinding": {
+            "$ref": "#/components/schemas/ControlledTransferToctouBindingV1"
+          },
+          "transferKind": {
+            "enum": [
+              "INGEST",
+              "EXPORT",
+              "DELIVERY",
+              "EXCHANGE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "ownerModule",
+          "transferKind",
+          "objectRef",
+          "objectVersion",
+          "objectDigest",
+          "byteSize",
+          "mediaType",
+          "malwareScanSnapshot",
+          "toctouBinding",
+          "classification",
+          "purposeCode",
+          "expiresAt"
+        ],
+        "then": {
+          "required": [
+            "recipientPolicyRef",
+            "egressPolicyRevision"
+          ]
+        },
+        "type": "object",
+        "x-directionByTransferKind": {
+          "DELIVERY": "OUTBOUND",
+          "EXCHANGE": "OUTBOUND",
+          "EXPORT": "OUTBOUND",
+          "INGEST": "INBOUND"
+        }
+      },
+      "ControlledTransferMalwareScanV1": {
+        "additionalProperties": false,
+        "properties": {
+          "byteSize": {
+            "maximum": 5368709120,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "objectDigest": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "scannedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "scannerKey": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "scannerVersion": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "verdict": {
+            "const": "CLEAN"
+          }
+        },
+        "required": [
+          "scannerKey",
+          "scannerVersion",
+          "verdict",
+          "scannedAt",
+          "objectDigest",
+          "byteSize"
+        ],
+        "type": "object"
+      },
+      "ControlledTransferProblemV1": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "SCHEMA_INVALID",
+              "AUTHENTICATION_REQUIRED",
+              "AUTHORIZATION_DENIED",
+              "TARGET_NOT_DISCLOSED",
+              "STALE_OR_STATE_CONFLICT",
+              "DOMAIN_RULE_REJECTED",
+              "RATE_LIMITED",
+              "RESULT_UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "correlationId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "currentVersion": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "receiptId": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              400,
+              401,
+              403,
+              404,
+              409,
+              422,
+              429,
+              503
+            ],
+            "type": "integer"
+          },
+          "title": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "format": "uri-reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "correlationId",
+          "retryable"
+        ],
+        "type": "object"
+      },
+      "ControlledTransferToctouBindingV1": {
+        "additionalProperties": false,
+        "properties": {
+          "boundByteSize": {
+            "maximum": 5368709120,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "boundDigest": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "boundObjectVersion": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "snapshotDigest": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "storageETag": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "uploadSessionId": {
+            "$ref": "#/components/schemas/Uuid"
+          }
+        },
+        "required": [
+          "uploadSessionId",
+          "storageETag",
+          "boundObjectVersion",
+          "boundDigest",
+          "boundByteSize",
+          "snapshotDigest"
+        ],
+        "type": "object"
+      },
       "Correlation": {
         "properties": {
           "attentionRequired": {
@@ -56230,6 +56590,368 @@
         ],
         "x-dwp-controller-method": "validate",
         "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/admin/hris/file-transfers": {
+      "get": {
+        "operationId": "getControlledFileTransfers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Instant"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fields",
+            "required": true,
+            "schema": {
+              "items": {
+                "pattern": "^[A-Za-z][A-Za-z0-9.]{0,63}$",
+                "type": "string"
+              },
+              "maxItems": 64,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          {
+            "in": "query",
+            "name": "freshness",
+            "required": true,
+            "schema": {
+              "enum": [
+                "FRESH_ONLY",
+                "ALLOW_STALE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "schema": {
+              "pattern": "^Bearer .+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "HRIS_INTEGRATION_ADMIN",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferCatalogV1"
+                }
+              }
+            },
+            "description": "Metadata-only controlled transfer catalog"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Schema invalid"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Authorization denied"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Rate limited"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Result unknown"
+          }
+        },
+        "tags": [
+          "hris-controlled-transfer-controller"
+        ],
+        "x-dwp-access-profiles": [
+          {
+            "capabilityContractKey": "hcm.integration.transfer.view",
+            "predicatePolicyKeys": [
+              "predicate.hcm-controlled-transfer-authority.v1"
+            ],
+            "profileKey": "controlled-transfer-reader",
+            "responseSchemaKey": "ControlledTransferCatalogV1"
+          }
+        ],
+        "x-dwp-contract-id": "SYS-API-033",
+        "x-dwp-controller-method": "catalog",
+        "x-dwp-purpose-code": "HRIS_INTEGRATION_ADMIN",
+        "x-dwp-query-schema": {
+          "$ref": "#/components/schemas/ControlledTransferCatalogQueryV1"
+        },
+        "x-dwp-reviewed-design-time-contract": "SYS-009-CONTROLLED-TRANSFER-R1",
+        "x-dwp-runtime-default": "OFF",
+        "x-dwp-source-authorization-alias": "DWP_CONTROLLED_TRANSFER_READ"
+      },
+      "post": {
+        "operationId": "requestControlledFileTransfer",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 16,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "maxLength": 16384,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "schema": {
+              "pattern": "^Bearer .+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "HRIS_INTEGRATION_ADMIN",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlledTransferCreateCommandV1"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HrisCommandReceiptV1"
+                }
+              }
+            },
+            "description": "Controlled transfer request accepted"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Schema invalid"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Authorization, purpose, step-up, or separation-of-duties denied"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Object target not disclosed"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Object snapshot or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Transfer policy rejected"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Rate limited"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledTransferProblemV1"
+                }
+              }
+            },
+            "description": "Result unknown; reconcile using the receipt"
+          }
+        },
+        "tags": [
+          "hris-controlled-transfer-controller"
+        ],
+        "x-dwp-access-profiles": [
+          {
+            "capabilityContractKey": "hcm.integration.transfer.create",
+            "predicatePolicyKeys": [
+              "predicate.hcm-controlled-transfer-authority.v1",
+              "predicate.hcm-controlled-transfer-create-sod.v1"
+            ],
+            "profileKey": "controlled-transfer-creator"
+          }
+        ],
+        "x-dwp-command-proof-required": true,
+        "x-dwp-contract-id": "SYS-API-034",
+        "x-dwp-controller-method": "request",
+        "x-dwp-purpose-code": "HRIS_INTEGRATION_ADMIN",
+        "x-dwp-reviewed-design-time-contract": "SYS-009-CONTROLLED-TRANSFER-R1",
+        "x-dwp-runtime-default": "OFF",
+        "x-dwp-source-authorization-alias": "DWP_CONTROLLED_TRANSFER_CREATE"
       }
     },
     "/v1/admin/hris/navigation-policies/drafts": {

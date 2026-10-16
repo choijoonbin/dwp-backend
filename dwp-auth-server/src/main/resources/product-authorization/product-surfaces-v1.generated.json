@@ -3924,6 +3924,56 @@
       "surfaceKey": "hcm.management"
     },
     {
+      "action": "CREATE",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.integration.transfer.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiredResponsibilityCode": "HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.HRIS_CONTROLLED_TRANSFER:CREATE",
+      "resourceKey": "ACTION.HRIS_CONTROLLED_TRANSFER",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "CRITICAL",
+      "routeContractKeys": [
+        "route.hcm.management.controlled-transfer-create.action"
+      ],
+      "scopeResolver": "CONNECTOR_OR_LEGAL_ENTITY_SCOPE",
+      "sodPolicyId": "NO_EXPORT_OWN_APPROVAL",
+      "sunsetAt": null,
+      "surfaceKey": "hcm.management"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.integration.transfer.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiredResponsibilityCode": "HRIS_DUTY_CONTROLLED_TRANSFER_READER",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "DATA.HRIS_CONTROLLED_TRANSFER:VIEW",
+      "resourceKey": "DATA.HRIS_CONTROLLED_TRANSFER",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.management.controlled-transfer.data"
+      ],
+      "scopeResolver": "CONNECTOR_OR_LEGAL_ENTITY_SCOPE",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.management"
+    },
+    {
       "action": "UPDATE",
       "activationPolicy": null,
       "authorityMode": "PERMISSION",
@@ -7723,7 +7773,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "2222319502c362caf247a7a47fdacfc63c774dbf156f6272cafae797627e2400",
+  "checksum": "8b4e05e5974a8a25fb9edf318bb3cd609105f2e6353677b69c2eab1cd7038a1b",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -8873,6 +8923,49 @@
       ],
       "targetBindingKinds": [
         "CONFIG_SCOPE"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmControlledTransferAuthorityV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + HCM + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-controlled-transfer-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-controlled-transfer-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.management.controlled-transfer-create.action",
+        "route.hcm.management.controlled-transfer.data"
+      ],
+      "targetBindingKinds": [
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmControlledTransferCreateSodEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + HCM + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-controlled-transfer-create-sod.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-controlled-transfer-create-sod.v1",
+      "routeContractKeys": [
+        "route.hcm.management.controlled-transfer-create.action"
+      ],
+      "targetBindingKinds": [
+        "OBJECT",
+        "TARGET_POPULATION"
       ]
     },
     {
@@ -40528,6 +40621,137 @@
       },
       "uiRouteId": "hcm.management.controlled-export",
       "uiRoutePattern": "/hr/data/exports"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-controlled-transfer-authority.v1",
+            "predicate.hcm-controlled-transfer-create-sod.v1"
+          ],
+          "profileKey": "controlled-transfer-creator",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.integration.transfer.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.management.controlled-transfer-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/admin/hris/file-transfers",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.management.controlled-transfer-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.management.controlled-transfer-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/hris/file-transfers",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-platform-server",
+          "bindingKey": "route.hcm.management.controlled-transfer-create.action.binding.01",
+          "expectedObjectVersionName": "objectVersion",
+          "expectedObjectVersionSource": "COMMAND_BODY",
+          "ownerServiceKey": "platform",
+          "targetIdBodyFields": [
+            "objectRef",
+            "objectVersion"
+          ],
+          "targetType": "CONTROLLED_TRANSFER_OBJECT"
+        }
+      ],
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-controlled-transfer-authority.v1"
+          ],
+          "profileKey": "controlled-transfer-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.integration.transfer.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.management.controlled-transfer.data.binding.01",
+              "projectionPolicyKey": "route.hcm.management.controlled-transfer.data.metadata-only.projection.v1",
+              "responseSchemaKey": "ControlledTransferCatalogV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.management.controlled-transfer.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/hris/file-transfers",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.management.controlled-transfer.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.management.controlled-transfer.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/hris/file-transfers",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
     },
     {
       "accessProfiles": [
@@ -73012,5 +73236,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 43
+  "version": 44
 }

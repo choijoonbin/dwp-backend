@@ -62610,6 +62610,32 @@
           "gatewayApiBindings": [{"bindingKey": "route.hcm.utility.explorer-command-receipt.data.binding.01", "method": "GET", "path": "/api/platform/v1/admin/hris/command-receipts/{receiptId}", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.utility.explorer-command-receipt.data.binding.01", "method": "GET", "path": "/v1/admin/hris/command-receipts/{receiptId}", "pathParameterConstraints": {}, "serviceKey": "platform"}], "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 44,
+      "capabilities": [
+        {"contractKey": "hcm.integration.transfer.view", "resolvedCapabilityCode": "DATA.HRIS_CONTROLLED_TRANSFER:VIEW", "mappingVersion": 1, "productKey": "hcm", "surfaceKey": "hcm.management", "resourceKey": "DATA.HRIS_CONTROLLED_TRANSFER", "action": "VIEW", "authorityMode": "PERMISSION_AND_RELATIONSHIP", "responsibilityRequirement": "REQUIRED", "requiredResponsibilityCode": "HRIS_DUTY_CONTROLLED_TRANSFER_READER", "scopeResolver": "CONNECTOR_OR_LEGAL_ENTITY_SCOPE", "riskTier": "HIGH", "activationPolicy": null, "sodPolicyId": null, "requiresProductEntitlement": true, "sunsetAt": null, "legacySource": null, "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"},
+        {"contractKey": "hcm.integration.transfer.create", "resolvedCapabilityCode": "ACTION.HRIS_CONTROLLED_TRANSFER:CREATE", "mappingVersion": 1, "productKey": "hcm", "surfaceKey": "hcm.management", "resourceKey": "ACTION.HRIS_CONTROLLED_TRANSFER", "action": "CREATE", "authorityMode": "PERMISSION_AND_RELATIONSHIP", "responsibilityRequirement": "REQUIRED", "requiredResponsibilityCode": "HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR", "scopeResolver": "CONNECTOR_OR_LEGAL_ENTITY_SCOPE", "riskTier": "CRITICAL", "activationPolicy": "STEPUP-MGMT-HIGH-V1", "sodPolicyId": "NO_EXPORT_OWN_APPROVAL", "requiresProductEntitlement": true, "sunsetAt": null, "legacySource": null, "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"}
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [
+        {"predicatePolicyKey": "predicate.hcm-controlled-transfer-authority.v1", "ownerServiceKey": "platform", "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "inputEvidenceSchemaKey": "HcmControlledTransferAuthorityV1", "parameterSchemaKey": "predicate.hcm-controlled-transfer-authority.v1.parameters.v1", "parameterSchema": {"type": "object", "additionalProperties": false, "properties": {}}, "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"},
+        {"predicatePolicyKey": "predicate.hcm-controlled-transfer-create-sod.v1", "ownerServiceKey": "platform", "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "inputEvidenceSchemaKey": "HcmControlledTransferCreateSodEvidenceV1", "parameterSchemaKey": "predicate.hcm-controlled-transfer-create-sod.v1.parameters.v1", "parameterSchema": {"type": "object", "additionalProperties": false, "properties": {}}, "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"}
+      ],
+      "routes": [
+        {
+          "routeContractKey": "route.hcm.management.controlled-transfer.data", "navigationContextId": "hcm.management", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.management"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "controlled-transfer-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.integration.transfer.view"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-controlled-transfer-authority.v1"], "projectionPolicyKey": "route.hcm.management.controlled-transfer.data.metadata-only.projection.v1", "responseSchemaKey": "ControlledTransferCatalogV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.management.controlled-transfer.data.binding.01", "method": "GET", "path": "/api/platform/v1/admin/hris/file-transfers", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.management.controlled-transfer.data.binding.01", "method": "GET", "path": "/v1/admin/hris/file-transfers", "pathParameterConstraints": {}, "serviceKey": "platform"}], "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.management.controlled-transfer-create.action", "navigationContextId": "hcm.management", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.management"}, "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "controlled-transfer-creator", "precedence": 300, "activeAccessModes": ["ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.integration.transfer.create"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-controlled-transfer-authority.v1", "predicate.hcm-controlled-transfer-create-sod.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.management.controlled-transfer-create.action.binding.01", "method": "POST", "path": "/api/platform/v1/admin/hris/file-transfers", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.management.controlled-transfer-create.action.binding.01", "method": "POST", "path": "/v1/admin/hris/file-transfers", "pathParameterConstraints": {}, "serviceKey": "platform"}],
+          "stepUpCommandBindings": [{"bindingKey": "route.hcm.management.controlled-transfer-create.action.binding.01", "targetType": "CONTROLLED_TRANSFER_OBJECT", "targetIdBodyFields": ["objectRef", "objectVersion"], "expectedObjectVersionSource": "COMMAND_BODY", "expectedObjectVersionName": "objectVersion", "ownerServiceKey": "platform", "audience": "dwp-platform-server"}], "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {
@@ -62725,6 +62751,14 @@
       {
         "contractKey": "hcm.app.shell.view",
         "requiredResponsibilityCode": "HRIS_DUTY_APP_SHELL_READER"
+      },
+      {
+        "contractKey": "hcm.integration.transfer.view",
+        "requiredResponsibilityCode": "HRIS_DUTY_CONTROLLED_TRANSFER_READER"
+      },
+      {
+        "contractKey": "hcm.integration.transfer.create",
+        "requiredResponsibilityCode": "HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR"
       },
       {
         "contractKey": "hcm.integration.create",

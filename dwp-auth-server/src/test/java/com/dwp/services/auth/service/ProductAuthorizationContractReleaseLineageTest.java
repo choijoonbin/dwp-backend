@@ -105,14 +105,16 @@ class ProductAuthorizationContractReleaseLineageTest
                 generatedDocument("product-surfaces-v1.bundle-v42.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionFortyThree = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v43.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(43);
-        assertThat(index.latestChecksum()).isEqualTo(versionFortyThree.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionFortyFour = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v44.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(44);
+        assertThat(index.latestChecksum()).isEqualTo(versionFortyFour.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
                         26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L,
-                        39L, 40L, 41L, 42L, 43L);
+                        39L, 40L, 41L, 42L, 43L, 44L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -548,6 +550,18 @@ class ProductAuthorizationContractReleaseLineageTest
                         "route.hcm.utility.explorer-preferences-update.action",
                         "route.hcm.utility.explorer-recent-create.action",
                         "route.hcm.utility.explorer-command-receipt.data");
+        assertStrictCapabilitySuperset(versionFortyThree, versionFortyFour);
+        assertThat(versionFortyFour.capabilities()).hasSize(258)
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .contains(
+                        "hcm.integration.transfer.view",
+                        "hcm.integration.transfer.create");
+        assertThat(versionFortyFour.routes()).hasSize(1034)
+                .containsAll(versionFortyThree.routes())
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .contains(
+                        "route.hcm.management.controlled-transfer.data",
+                        "route.hcm.management.controlled-transfer-create.action");
         String voidRoute = "route.hcm.operations.time-clock-event-void.action";
         assertThat(versionThirtySix.routes())
                 .filteredOn(route -> voidRoute.equals(route.routeContractKey()))

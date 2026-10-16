@@ -186,8 +186,11 @@ LEGACY_HCM_PLATFORM_PEP_V40_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_nam
 LEGACY_HCM_PLATFORM_PEP_V42_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v42.generated.json"
 )
-HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+LEGACY_HCM_PLATFORM_PEP_V43_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v43.generated.json"
+)
+HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v44.generated.json"
 )
 LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT = (
     ROOT
@@ -202,7 +205,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 44))
+BUNDLE_VERSIONS = tuple(range(1, 45))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -322,11 +325,15 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 69, "routes": 1028, "PAGE": 132, "DATA": 308, "ACTION": 588},
     43: {"capabilities": 256, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 71, "routes": 1032, "PAGE": 133, "DATA": 309, "ACTION": 590},
+    44: {"capabilities": 258, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 73, "routes": 1034, "PAGE": 133, "DATA": 310, "ACTION": 591},
 }
 
 REQUIRED_RESPONSIBILITY_BY_CAPABILITY = {
     "hcm.app.shell.view": "HRIS_DUTY_APP_SHELL_READER",
     "hcm.audit.evidence.view": "HRIS_DUTY_AUDITOR",
+    "hcm.integration.transfer.view": "HRIS_DUTY_CONTROLLED_TRANSFER_READER",
+    "hcm.integration.transfer.create": "HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR",
 }
 
 V42_HCM_AUDIT_ELEVATED_READ_PROJECTIONS = {
@@ -445,6 +452,7 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     41: "026157acf598ebabf156b40e3c084c40d52346ebfd2019e2476f30ecdd2b8d93",
     42: "f73f9a64816ac8f5567a2a7c292821f4a40e6d675915ebc3c3ac8aad7d1fd983",
     43: "2222319502c362caf247a7a47fdacfc63c774dbf156f6272cafae797627e2400",
+    44: "8b4e05e5974a8a25fb9edf318bb3cd609105f2e6353677b69c2eab1cd7038a1b",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -3386,6 +3394,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PLATFORM_PEP_V38_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V40_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V42_OUTPUT,
+        LEGACY_HCM_PLATFORM_PEP_V43_OUTPUT,
         HCM_PLATFORM_PEP_OUTPUT,
         LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT,
         HCM_PAYROLL_PEP_OUTPUT,
@@ -3936,19 +3945,19 @@ def main() -> int:
             product_key="hcm",
         )
         hcm_platform_pep = build_approvals_pep(
-            snapshots[42],
+            snapshots[43],
             "platform",
-            "hcm-platform-pep-v43",
+            "hcm-platform-pep-v44",
             {
-                "routes": 34,
-                "bindings": 35,
-                "routeKinds": {"ACTION": 19, "DATA": 9, "PAGE": 6},
-                "capabilities": 18,
+                "routes": 36,
+                "bindings": 37,
+                "routeKinds": {"ACTION": 20, "DATA": 10, "PAGE": 6},
+                "capabilities": 20,
                 "accessPolicies": 4,
                 "entitlementExpressions": 3,
-                "predicatePolicies": 7,
+                "predicatePolicies": 9,
             },
-            version=43,
+            version=44,
             product_key="hcm",
         )
         legacy_hcm_payroll_pep_v38 = build_approvals_pep(

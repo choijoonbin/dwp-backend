@@ -59,7 +59,14 @@
           "HrisExplorerReceiptV1": {"type":"object","additionalProperties":false,"properties":{"receiptId":{"$ref":"#/components/schemas/Uuid"},"commandType":{"type":"string","enum":["EXPLORER_PREFERENCES_REPLACE","EXPLORER_RECENT_RECORD"]},"originatingAction":{"type":"string","enum":["EXPLORER_PREFERENCES_REPLACE","EXPLORER_RECENT_RECORD"]},"subjectPrincipalPublicId":{"$ref":"#/components/schemas/Uuid"},"populationScopeDigest":{"$ref":"#/components/schemas/Digest"},"fieldPolicyRevision":{"$ref":"#/components/schemas/PositiveRevision"},"purposeCode":{"const":"HRIS_APP_DISCOVERY"},"authorizationRevision":{"$ref":"#/components/schemas/PositiveRevision"},"status":{"type":"string","enum":["ACCEPTED","RUNNING","SUCCEEDED","REJECTED","FAILED","RESULT_UNKNOWN"]},"correlationId":{"$ref":"#/components/schemas/Uuid"},"requestDigest":{"$ref":"#/components/schemas/Digest"},"createdAt":{"$ref":"#/components/schemas/Instant"},"aggregateVersion":{"type":"integer","minimum":0},"resultRef":{"type":"string","minLength":1,"maxLength":500}},"required":["receiptId","commandType","originatingAction","subjectPrincipalPublicId","populationScopeDigest","fieldPolicyRevision","purposeCode","authorizationRevision","status","correlationId","requestDigest","createdAt"]},
           "HrisExplorerQuery": {"type":"object","additionalProperties":false,"properties":{"cursor":{"$ref":"#/components/schemas/Cursor"},"asOf":{"$ref":"#/components/schemas/Instant"},"filter":{"type":"string","minLength":1,"maxLength":200},"freshness":{"type":"string","enum":["FRESH_ONLY","ALLOW_STALE"]},"limit":{"type":"integer","minimum":1,"maximum":100}},"required":["asOf","freshness"]},
           "ExplorerPreferenceCommand": {"type":"object","additionalProperties":false,"x-writePolicy":"SERVER_OWNS_TENANT_AND_USER;CAS_REVISION;MAX_20;ORDER_IS_ARRAY_POSITION;REAUTHORIZE_EACH_ROUTE","properties":{"orderedFavoriteRouteKeys":{"type":"array","maxItems":20,"uniqueItems":true,"items":{"type":"string","pattern":"^[a-z][a-z0-9.-]{2,95}$"}}},"required":["orderedFavoriteRouteKeys"]},
-          "ExplorerRecentCommand": {"type":"object","additionalProperties":false,"x-writePolicy":"SERVER_OWNS_TENANT_USER_AND_VISITED_AT;UPSERT_ROUTE;MAX_20_LRU;TTL_30_DAYS;REAUTHORIZE_ROUTE","properties":{"routeKey":{"type":"string","pattern":"^[a-z][a-z0-9.-]{2,95}$"}},"required":["routeKey"]}
+          "ExplorerRecentCommand": {"type":"object","additionalProperties":false,"x-writePolicy":"SERVER_OWNS_TENANT_USER_AND_VISITED_AT;UPSERT_ROUTE;MAX_20_LRU;TTL_30_DAYS;REAUTHORIZE_ROUTE","properties":{"routeKey":{"type":"string","pattern":"^[a-z][a-z0-9.-]{2,95}$"}},"required":["routeKey"]},
+          "ControlledTransferCatalogItemV1": {"type":"object","additionalProperties":false,"properties":{"publicId":{"$ref":"#/components/schemas/Uuid"},"key":{"type":"string"},"type":{"type":"string"},"state":{"type":"string"},"version":{"type":"integer","minimum":0},"updatedAt":{"$ref":"#/components/schemas/Instant"}},"required":["publicId","key","type","state","version","updatedAt"]},
+          "ControlledTransferCatalogV1": {"type":"object","additionalProperties":false,"properties":{"asOf":{"$ref":"#/components/schemas/Instant"},"nextCursor":{"$ref":"#/components/schemas/Cursor"},"items":{"type":"array","items":{"$ref":"#/components/schemas/ControlledTransferCatalogItemV1"}},"freshUntil":{"$ref":"#/components/schemas/Instant"},"staleAfter":{"$ref":"#/components/schemas/Instant"}},"required":["asOf","items","freshUntil","staleAfter"]},
+          "ControlledTransferCatalogQueryV1": {"type":"object","additionalProperties":false,"properties":{"cursor":{"$ref":"#/components/schemas/Cursor"},"asOf":{"$ref":"#/components/schemas/Instant"},"filter":{"type":"string","minLength":1,"maxLength":1000},"fields":{"type":"array","uniqueItems":true,"maxItems":64,"items":{"type":"string","pattern":"^[A-Za-z][A-Za-z0-9.]{0,63}$"}},"freshness":{"type":"string","enum":["FRESH_ONLY","ALLOW_STALE"]},"limit":{"type":"integer","minimum":1,"maximum":100}},"required":["asOf","fields","freshness"]},
+          "ControlledTransferMalwareScanV1": {"type":"object","additionalProperties":false,"properties":{"scannerKey":{"type":"string","minLength":1,"maxLength":64},"scannerVersion":{"type":"string","minLength":1,"maxLength":64},"verdict":{"const":"CLEAN"},"scannedAt":{"$ref":"#/components/schemas/Instant"},"objectDigest":{"$ref":"#/components/schemas/Digest"},"byteSize":{"type":"integer","minimum":1,"maximum":5368709120}},"required":["scannerKey","scannerVersion","verdict","scannedAt","objectDigest","byteSize"]},
+          "ControlledTransferToctouBindingV1": {"type":"object","additionalProperties":false,"properties":{"uploadSessionId":{"$ref":"#/components/schemas/Uuid"},"storageETag":{"type":"string","minLength":1,"maxLength":256},"boundObjectVersion":{"type":"string","minLength":1,"maxLength":128},"boundDigest":{"$ref":"#/components/schemas/Digest"},"boundByteSize":{"type":"integer","minimum":1,"maximum":5368709120},"snapshotDigest":{"$ref":"#/components/schemas/Digest"}},"required":["uploadSessionId","storageETag","boundObjectVersion","boundDigest","boundByteSize","snapshotDigest"]},
+          "ControlledTransferCreateCommandV1": {"type":"object","additionalProperties":false,"x-directionByTransferKind":{"INGEST":"INBOUND","EXPORT":"OUTBOUND","DELIVERY":"OUTBOUND","EXCHANGE":"OUTBOUND"},"properties":{"ownerModule":{"type":"string","enum":["HRM","PER","TIM","PAY","SYS"]},"transferKind":{"type":"string","enum":["INGEST","EXPORT","DELIVERY","EXCHANGE"]},"recipientPolicyRef":{"$ref":"#/components/schemas/Uuid"},"egressPolicyRevision":{"type":"integer","minimum":1},"objectRef":{"type":"string","pattern":"^obj_[A-Za-z0-9_-]{16,128}$"},"objectVersion":{"type":"string","minLength":1,"maxLength":128},"objectDigest":{"$ref":"#/components/schemas/Digest"},"byteSize":{"type":"integer","minimum":1,"maximum":5368709120},"mediaType":{"type":"string","enum":["text/csv","application/json","application/pdf","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]},"malwareScanSnapshot":{"$ref":"#/components/schemas/ControlledTransferMalwareScanV1"},"toctouBinding":{"$ref":"#/components/schemas/ControlledTransferToctouBindingV1"},"classification":{"type":"string","enum":["CONFIDENTIAL","RESTRICTED"]},"purposeCode":{"const":"HRIS_INTEGRATION_ADMIN"},"expiresAt":{"$ref":"#/components/schemas/Instant"}},"required":["ownerModule","transferKind","objectRef","objectVersion","objectDigest","byteSize","mediaType","malwareScanSnapshot","toctouBinding","classification","purposeCode","expiresAt"],"if":{"properties":{"transferKind":{"enum":["EXPORT","DELIVERY","EXCHANGE"]}},"required":["transferKind"]},"then":{"required":["recipientPolicyRef","egressPolicyRevision"]}},
+          "ControlledTransferProblemV1": {"type":"object","additionalProperties":false,"properties":{"type":{"type":"string","format":"uri-reference"},"title":{"type":"string","minLength":1},"status":{"type":"integer","enum":[400,401,403,404,409,422,429,503]},"code":{"type":"string","enum":["SCHEMA_INVALID","AUTHENTICATION_REQUIRED","AUTHORIZATION_DENIED","TARGET_NOT_DISCLOSED","STALE_OR_STATE_CONFLICT","DOMAIN_RULE_REJECTED","RATE_LIMITED","RESULT_UNKNOWN"]},"correlationId":{"$ref":"#/components/schemas/Uuid"},"retryable":{"type":"boolean"},"currentVersion":{"type":"integer","minimum":0},"receiptId":{"$ref":"#/components/schemas/Uuid"}},"required":["type","title","status","code","correlationId","retryable"]}
         }
       },
       "paths": {
@@ -144,6 +151,73 @@
             "x-dwp-purpose-code": "COMMAND_STATUS",
             "x-dwp-reviewed-design-time-contract": "SYS-012-WORK-EXPLORER-CONTROL-R1",
             "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/file-transfers": {
+          "get": {
+            "operationId": "getControlledFileTransfers",
+            "parameters": [
+              {"in":"header","name":"Authorization","required":true,"schema":{"type":"string","pattern":"^Bearer .+$"}},
+              {"in":"header","name":"X-Correlation-Id","required":true,"schema":{"$ref":"#/components/schemas/Uuid"}},
+              {"in":"header","name":"X-Purpose-Code","required":true,"schema":{"type":"string","const":"HRIS_INTEGRATION_ADMIN"}},
+              {"in":"query","name":"cursor","required":false,"schema":{"$ref":"#/components/schemas/Cursor"}},
+              {"in":"query","name":"asOf","required":true,"schema":{"$ref":"#/components/schemas/Instant"}},
+              {"in":"query","name":"filter","required":false,"schema":{"type":"string","minLength":1,"maxLength":1000}},
+              {"in":"query","name":"fields","required":true,"schema":{"type":"array","uniqueItems":true,"maxItems":64,"items":{"type":"string","pattern":"^[A-Za-z][A-Za-z0-9.]{0,63}$"}}},
+              {"in":"query","name":"freshness","required":true,"schema":{"type":"string","enum":["FRESH_ONLY","ALLOW_STALE"]}},
+              {"in":"query","name":"limit","required":false,"schema":{"type":"integer","minimum":1,"maximum":100}}
+            ],
+            "responses": {
+              "200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ControlledTransferCatalogV1"}}},"description":"Metadata-only controlled transfer catalog"},
+              "400":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Schema invalid"},
+              "401":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Authentication required"},
+              "403":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Authorization denied"},
+              "429":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Rate limited"},
+              "503":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Result unknown"}
+            },
+            "tags": ["hris-controlled-transfer-controller"],
+            "x-dwp-access-profiles": [{"capabilityContractKey":"hcm.integration.transfer.view","predicatePolicyKeys":["predicate.hcm-controlled-transfer-authority.v1"],"profileKey":"controlled-transfer-reader","responseSchemaKey":"ControlledTransferCatalogV1"}],
+            "x-dwp-contract-id": "SYS-API-033",
+            "x-dwp-controller-method": "catalog",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "HRIS_INTEGRATION_ADMIN",
+            "x-dwp-query-schema": {"$ref":"#/components/schemas/ControlledTransferCatalogQueryV1"},
+            "x-dwp-reviewed-design-time-contract": "SYS-009-CONTROLLED-TRANSFER-R1",
+            "x-dwp-runtime-default": "OFF",
+            "x-dwp-source-authorization-alias": "DWP_CONTROLLED_TRANSFER_READ"
+          },
+          "post": {
+            "operationId": "requestControlledFileTransfer",
+            "parameters": [
+              {"in":"header","name":"Authorization","required":true,"schema":{"type":"string","pattern":"^Bearer .+$"}},
+              {"in":"header","name":"X-Correlation-Id","required":true,"schema":{"$ref":"#/components/schemas/Uuid"}},
+              {"in":"header","name":"X-Purpose-Code","required":true,"schema":{"type":"string","const":"HRIS_INTEGRATION_ADMIN"}},
+              {"in":"header","name":"Idempotency-Key","required":true,"schema":{"type":"string","minLength":16,"maxLength":128}},
+              {"in":"header","name":"X-DWP-Step-Up-Challenge","required":true,"schema":{"type":"string","minLength":1,"maxLength":16384}},
+              {"in":"header","name":"X-DWP-Expected-Decision-Revision","required":true,"schema":{"type":"string","minLength":1,"maxLength":200}}
+            ],
+            "requestBody": {"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ControlledTransferCreateCommandV1"}}},"required":true},
+            "responses": {
+              "202":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/HrisCommandReceiptV1"}}},"description":"Controlled transfer request accepted"},
+              "400":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Schema invalid"},
+              "401":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Authentication required"},
+              "403":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Authorization, purpose, step-up, or separation-of-duties denied"},
+              "404":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Object target not disclosed"},
+              "409":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Object snapshot or idempotency conflict"},
+              "422":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Transfer policy rejected"},
+              "429":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Rate limited"},
+              "503":{"content":{"application/problem+json":{"schema":{"$ref":"#/components/schemas/ControlledTransferProblemV1"}}},"description":"Result unknown; reconcile using the receipt"}
+            },
+            "tags": ["hris-controlled-transfer-controller"],
+            "x-dwp-access-profiles": [{"capabilityContractKey":"hcm.integration.transfer.create","predicatePolicyKeys":["predicate.hcm-controlled-transfer-authority.v1","predicate.hcm-controlled-transfer-create-sod.v1"],"profileKey":"controlled-transfer-creator"}],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-contract-id": "SYS-API-034",
+            "x-dwp-controller-method": "request",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-purpose-code": "HRIS_INTEGRATION_ADMIN",
+            "x-dwp-reviewed-design-time-contract": "SYS-009-CONTROLLED-TRANSFER-R1",
+            "x-dwp-runtime-default": "OFF",
+            "x-dwp-source-authorization-alias": "DWP_CONTROLLED_TRANSFER_CREATE"
           }
         },
         "/v1/hris/configuration/projection": {

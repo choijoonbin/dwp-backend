@@ -397,6 +397,8 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
                             trustedAuthority.currentRevision(),
                             trustedAuthority.contextKey(),
                             trustedAuthority.scopeKey(),
+                            productAuthorization.exactHeader(
+                                    request, PlatformSecurityHeaders.PURPOSE),
                             explorerOwnerEvidence(request),
                             trustedAuthority.routeContractKey()));
             if (!decision.allowed()) {
