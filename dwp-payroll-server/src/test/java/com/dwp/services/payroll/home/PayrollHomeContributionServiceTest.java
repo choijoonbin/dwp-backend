@@ -1,7 +1,6 @@
 package com.dwp.services.payroll.home;
 
 import com.dwp.platform.contracts.hris.home.HomeMaterializationWorkloadProofV1;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -27,7 +26,6 @@ import static org.mockito.Mockito.when;
 
 class PayrollHomeContributionServiceTest {
 
-    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final Clock clock = Clock.fixed(
             Instant.parse("2026-10-16T03:01:00Z"), ZoneOffset.UTC);
 
@@ -85,7 +83,7 @@ class PayrollHomeContributionServiceTest {
         when(source.load(any())).thenReturn(selfSource(9));
         PayrollHomeEventPublisher events = mock(PayrollHomeEventPublisher.class);
         var codec = new PayrollHomePayloadCodec(
-                "payroll-home-test-secret-32-bytes-minimum", mapper);
+                "payroll-home-test-secret-32-bytes-minimum");
         var projector = new PayrollHomeContributionProjector(
                 codec, Duration.ofMinutes(2), Duration.ofMinutes(10));
         var service = new PayrollHomeContributionService(

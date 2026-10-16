@@ -53,6 +53,8 @@ class TimeHomeEventPublisherTest {
                 "state", "widgetKey");
         assertThat(event.data().path("module").asText()).isEqualTo("TIM");
         assertThat(event.data().toString()).doesNotContain("location", "leaveReason");
+        assertThat(event.aggregateSequence()).isOne();
+        assertThat(event.aggregateId()).isEqualTo(event.id().toString());
         assertThat(contracts.snapshot()).containsEntry(
                 TimeHomeEventPublisher.EVENT_TYPE,
                 new DomainEventContractRegistry.Contract(1, 1));

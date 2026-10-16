@@ -1,39 +1,29 @@
 package com.dwp.services.payroll.home;
 
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.dwp.platform.contracts.hris.home.HrisHomeMaterializationDigestV1;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
-import java.util.HexFormat;
 
 import static com.dwp.services.payroll.home.PayrollHomePorts.ResolvedPayrollHomeAuthority;
 
 final class PayrollHomePayloadCodec {
 
     private final byte[] secret;
-    private final ObjectMapper canonicalMapper;
 
-    PayrollHomePayloadCodec(String secret, ObjectMapper mapper) {
+    PayrollHomePayloadCodec(String secret) {
         this.secret = secret.getBytes(StandardCharsets.UTF_8).clone();
         if (this.secret.length < 32) {
             throw new IllegalArgumentException("Payroll Home reference secret is too short.");
         }
-        this.canonicalMapper = mapper.copy()
-                .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
     }
 
-    String digest(Object value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(canonicalMapper.writeValueAsBytes(value)));
-        } catch (Exception exception) {
-            throw new IllegalStateException("Payroll Home canonical digest failed.", exception);
-        }
+    String digest(HrisHomeContributionMaterializationV1 materialization) {
+        return HrisHomeMaterializationDigestV1.digest(materialization);
     }
 
     String reference(
@@ -66,28 +56,5 @@ final class PayrollHomePayloadCodec {
                 candidate.getBytes(StandardCharsets.US_ASCII),
                 reference(authority, sourceVersion, payloadDigest)
                         .getBytes(StandardCharsets.US_ASCII));
-    }
-
-    record DigestSeed(
-            String profile,
-            HrisHomeContributionMaterializationV1.Module module,
-            String widgetKey,
-            HrisHomeContributionMaterializationV1.WidgetType widgetType,
-            HrisHomeContributionMaterializationV1.BrowserAudience browserAudience,
-            HrisHomeContributionMaterializationV1.OwnerPopulationScope ownerPopulationScope,
-            long scopeRevision,
-            String populationScopeDigest,
-            long fieldPolicyRevision,
-            String purposeCode,
-            HrisHomeContributionMaterializationV1.State state,
-            java.time.Instant generatedAt,
-            java.time.Instant freshUntil,
-            java.time.Instant staleAfter,
-            String deepLink,
-            long sourceVersion,
-            java.time.Instant asOf,
-            HrisHomeContributionMaterializationV1.PayrollHomeData data,
-            java.util.List<HrisHomeContributionMaterializationV1.FieldDecision> fieldDecisions,
-            java.util.List<HrisHomeContributionMaterializationV1.PartialFailure> partialFailures) {
     }
 }

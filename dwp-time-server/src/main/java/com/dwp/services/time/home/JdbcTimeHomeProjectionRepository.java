@@ -57,9 +57,11 @@ final class JdbcTimeHomeProjectionRepository implements TimeHomeProjectionReposi
                 .addValue("cutoff", Timestamp.from(cutoff));
         CountRow counts = namedJdbc.queryForObject("""
                 SELECT COUNT(*) FILTER (
-                           WHERE state IN ('OPEN', 'SUBMITTED', 'IN_REVIEW')) AS open_count,
+                           WHERE state IN (
+                               'OPEN', 'SUBMITTED', 'REJECTED',
+                               'CORRECTION_REQUIRED')) AS open_count,
                        COUNT(*) FILTER (
-                           WHERE state IN ('SUBMITTED', 'IN_REVIEW')) AS pending_count,
+                           WHERE state = 'SUBMITTED') AS pending_count,
                        COALESCE(MAX(
                            (EXTRACT(EPOCH FROM updated_at) * 1000)::BIGINT), 0) AS source_version
                   FROM tme_timecards

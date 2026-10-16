@@ -71,8 +71,8 @@ public final class PerformanceHomeEventPublisher {
         UUID eventId = stableEventId(authority, materialization);
         recorder.record(new DomainEventEnvelope(
                 "1.0", eventId, SOURCE, EVENT_TYPE, 1, materialization.generatedAt(),
-                "performance-home/" + authority.widgetKey(), authority.tenantId(),
-                AGGREGATE, aggregateId(authority), materialization.sourceVersion(),
+                "performance-home/" + eventId, authority.tenantId(),
+                AGGREGATE, eventId.toString(), 1,
                 correlationId.toString(), null, null, mapper.valueToTree(event), Map.of()));
         return Optional.of(new Publication(eventId, event, materialization));
     }

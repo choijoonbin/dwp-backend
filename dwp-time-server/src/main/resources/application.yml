@@ -101,13 +101,16 @@ dwp:
       queue-capacity: ${DWP_API_HISTORY_QUEUE_CAPACITY:4096}
       batch-size: ${DWP_API_HISTORY_BATCH_SIZE:100}
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
+  hris:
+    time:
+      home:
+        enabled: ${DWP_HRIS_TIME_HOME_ENABLED:false}
+        event-publication-enabled: ${DWP_HRIS_TIME_HOME_EVENT_PUBLICATION_ENABLED:false}
+        publication-delay-ms: ${DWP_HRIS_TIME_HOME_PUBLICATION_DELAY_MS:1000}
+        payload-reference-hmac-secret: ${DWP_HRIS_TIME_HOME_PAYLOAD_REFERENCE_HMAC_SECRET:}
+        fresh-seconds: ${DWP_HRIS_TIME_HOME_FRESH_SECONDS:60}
+        stale-seconds: ${DWP_HRIS_TIME_HOME_STALE_SECONDS:300}
   time:
-    home:
-      enabled: ${DWP_HRIS_TIME_HOME_ENABLED:false}
-      event-publication-enabled: ${DWP_HRIS_TIME_HOME_EVENT_PUBLICATION_ENABLED:false}
-      payload-reference-hmac-secret: ${DWP_HRIS_TIME_HOME_PAYLOAD_REFERENCE_HMAC_SECRET:}
-      fresh-seconds: ${DWP_HRIS_TIME_HOME_FRESH_SECONDS:60}
-      stale-seconds: ${DWP_HRIS_TIME_HOME_STALE_SECONDS:300}
     database:
       adoption-receipt-sha256: ${DWP_TIME_ADOPTION_RECEIPT_SHA256:}
       adoption-control-reference: ${DWP_TIME_ADOPTION_CONTROL_REFERENCE:}

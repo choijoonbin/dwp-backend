@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /** Binds signed workload admission to one freshly re-evaluated owner grant. */
 @Component
-@ConditionalOnProperty(prefix = ConfiguredPeopleHomeAuthority.PREFIX,
+@ConditionalOnProperty(prefix = PeopleHomeAuthorityPort.PREFIX,
         name = "enabled", havingValue = "true", matchIfMissing = false)
 final class PeopleHomeAdmissionService {
 
@@ -50,6 +50,7 @@ final class PeopleHomeAdmissionService {
                         mapper, clock, HomeMaterializationWorkloadProofV1.Endpoint.PEOPLE,
                         exactPath, headers, signingKeys,
                         (endpoint, claims) -> authorities.current(claims)
+                                .filter(authority -> authority.exactlyMatches(claims))
                                 .map(authority -> {
                                     current.set(authority);
                                     return true;

@@ -5,6 +5,7 @@ import com.dwp.core.event.DomainEventEnvelope;
 import com.dwp.core.event.DomainEventOutboxRepository;
 import com.dwp.core.event.DomainEventRecorder;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
+import com.dwp.platform.contracts.hris.home.HrisHomeMaterializationDigestV1;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -53,6 +54,8 @@ class PeopleHomeContributionServiceTest {
                 "payloadDigest", "payloadRef", "scopeRevision", "staleAfter",
                 "state", "widgetKey");
         assertThat(retry.event()).isEqualTo(first.event());
+        assertThat(HrisHomeMaterializationDigestV1.matches(
+                first.materialization(), first.materialization().payloadDigest())).isTrue();
         assertThat(recorder.appendCount()).hasValue(2);
         verify(recorder.repository(), times(2)).append(any(), any(), any());
     }
@@ -104,6 +107,10 @@ class PeopleHomeContributionServiceTest {
         assertThat(((HrisHomeContributionMaterializationV1.PeopleHomeData) published.data())
                 .organizationLabel().decision())
                 .isEqualTo(HrisHomeContributionMaterializationV1.Decision.OMIT);
+        assertThat(HrisHomeMaterializationDigestV1.matches(
+                published, published.payloadDigest())).isTrue();
+        assertThat(service.materialize(published.payloadRef(), grant, CORRELATION))
+                .isEqualTo(published);
     }
 
     @Test
@@ -149,6 +156,24 @@ class PeopleHomeContributionServiceTest {
 
         assertThatThrownBy(() -> expired.materialize(reference, grant, CORRELATION))
                 .isInstanceOf(PeopleHomePayloadCodec.UnknownReference.class);
+    }
+
+    @Test
+    void reMaterializationPreservesTheSealedWireAcrossTheFreshnessBoundary() {
+        RecorderFixture recorder = recorder();
+        PeopleHomeSourcePort.Snapshot snapshot = completeSnapshot();
+        var grant = authority(viewPolicy());
+        var published = service(() -> snapshot, recorder.recorder(), NOW)
+                .publish(grant).materialization();
+        PeopleHomeContributionService afterFreshUntil = service(
+                () -> snapshot, recorder.recorder(), NOW.plusSeconds(301));
+
+        var rematerialized = afterFreshUntil.materialize(
+                published.payloadRef(), grant, CORRELATION);
+
+        assertThat(rematerialized).isEqualTo(published);
+        assertThat(HrisHomeMaterializationDigestV1.matches(
+                rematerialized, rematerialized.payloadDigest())).isTrue();
     }
 
     private static PeopleHomeContributionService service(

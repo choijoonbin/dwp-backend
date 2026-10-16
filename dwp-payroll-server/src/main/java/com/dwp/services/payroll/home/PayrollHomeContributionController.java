@@ -2,8 +2,11 @@ package com.dwp.services.payroll.home;
 
 import com.dwp.platform.contracts.hris.home.HomeMaterializationWorkloadProofV1;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -16,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+@Hidden
 @RestController
 @ConditionalOnProperty(
         name = "dwp.hris.payroll.home-producer.enabled",
@@ -30,20 +34,27 @@ final class PayrollHomeContributionController {
     }
 
     @GetMapping("/internal/hris-payroll/v1/home-contributions/{payloadRef}")
-    HrisHomeContributionMaterializationV1 materialize(
+    ResponseEntity<HrisHomeContributionMaterializationV1> materialize(
             @PathVariable String payloadRef,
             HttpServletRequest request) {
-        if (request.getQueryString() != null || request.getContentLengthLong() > 0) {
+        if (request.getQueryString() != null || request.getContentLengthLong() > 0
+                || request.getHeader(HttpHeaders.TRANSFER_ENCODING) != null) {
             throw new PayrollHomeContributionService.PayrollHomeNotFoundException();
         }
-        return service.materialize(
-                payloadRef, request.getRequestURI(), headers(request));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(service.materialize(
+                        payloadRef, request.getRequestURI(), headers(request)));
     }
 
     static List<HomeMaterializationWorkloadProofV1.Header> headers(
             HttpServletRequest request) {
         List<HomeMaterializationWorkloadProofV1.Header> result = new ArrayList<>();
-        List<String> names = Collections.list(request.getHeaderNames());
+        var headerNames = request.getHeaderNames();
+        if (headerNames == null) {
+            throw new PayrollHomeContributionService.PayrollHomeNotFoundException();
+        }
+        List<String> names = Collections.list(headerNames);
         for (String name : names) {
             for (String value : Collections.list(request.getHeaders(name))) {
                 result.add(new HomeMaterializationWorkloadProofV1.Header(name, value));
@@ -68,6 +79,7 @@ final class PayrollHomeContributionFailureHandler {
     })
     ResponseEntity<Failure> opaqueNotFound(RuntimeException ignored) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .cacheControl(CacheControl.noStore())
                 .body(new Failure("PAYROLL_HOME_CONTRIBUTION_NOT_FOUND"));
     }
 

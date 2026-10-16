@@ -58,6 +58,9 @@ class PerformanceHomeEventPublisherTest {
                 .containsOnly(PerformanceHomeEventPublisher.EVENT_TYPE);
         assertThat(events.getValue().data()).isEqualTo(mapper.valueToTree(first.event()));
         assertThat(events.getValue().data().size()).isEqualTo(10);
+        assertThat(events.getValue().aggregateSequence()).isOne();
+        assertThat(events.getValue().aggregateId())
+                .isEqualTo(events.getValue().id().toString());
     }
 
     @Test

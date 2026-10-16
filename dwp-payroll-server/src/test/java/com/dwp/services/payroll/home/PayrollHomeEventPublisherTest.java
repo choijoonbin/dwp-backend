@@ -43,7 +43,8 @@ class PayrollHomeEventPublisherTest {
                 .containsExactly(events.getValue().id(), events.getValue().id());
         DomainEventEnvelope event = events.getValue();
         assertThat(event.type()).isEqualTo(PayrollHomeEventPublisher.EVENT_TYPE);
-        assertThat(event.aggregateSequence()).isEqualTo(value.sourceVersion());
+        assertThat(event.aggregateSequence()).isOne();
+        assertThat(event.aggregateId()).isEqualTo(event.id().toString());
         assertThat(event.extensions()).containsEntry("xcon", "XCON-015");
         var xcon = mapper.treeToValue(
                 event.data(), Xcon015PayrollHomeContributionChangedV1.class);
@@ -65,7 +66,7 @@ class PayrollHomeEventPublisherTest {
 
     private HrisHomeContributionMaterializationV1 materialization() {
         var codec = new PayrollHomePayloadCodec(
-                "payroll-home-test-secret-32-bytes-minimum", mapper);
+                "payroll-home-test-secret-32-bytes-minimum");
         var projector = new PayrollHomeContributionProjector(
                 codec, Duration.ofMinutes(2), Duration.ofMinutes(10));
         return projector.project(self(decisions(OMIT, VIEW, VIEW, OMIT)), selfSource(9));

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
+import com.dwp.platform.contracts.hris.home.HrisHomeMaterializationDigestV1;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1.Decision;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1.OmittedField;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1.OwnerPopulationScope;
@@ -45,6 +46,8 @@ class TimeHomeContributionServiceTest {
                             HrisHomeContributionMaterializationV1.FailureCode.OWNER_UNAVAILABLE);
                     assertThat(failure.retryable()).isFalse();
                 });
+        assertThat(HrisHomeMaterializationDigestV1.matches(
+                prepared, prepared.payloadDigest())).isTrue();
         assertThat(service.materialize(prepared.payloadRef(), authority)).isEqualTo(prepared);
     }
 

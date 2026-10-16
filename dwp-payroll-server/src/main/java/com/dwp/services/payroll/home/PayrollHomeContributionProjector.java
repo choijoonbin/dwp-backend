@@ -1,6 +1,7 @@
 package com.dwp.services.payroll.home;
 
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
+import com.dwp.platform.contracts.hris.home.HrisHomeMaterializationDigestV1;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -73,7 +74,33 @@ final class PayrollHomeContributionProjector {
 
         var freshUntil = source.asOf().plus(freshFor);
         var staleAt = source.asOf().plus(staleAfter);
-        var seed = new PayrollHomePayloadCodec.DigestSeed(
+        HrisHomeContributionMaterializationV1 draft = materialization(
+                authority, source, data, decisions, failures, state, freshUntil, staleAt,
+                HrisHomeMaterializationDigestV1.PLACEHOLDER_REFERENCE,
+                HrisHomeMaterializationDigestV1.PLACEHOLDER_DIGEST);
+        String digest = codec.digest(draft);
+        String reference = codec.reference(authority, source.sourceVersion(), digest);
+        HrisHomeContributionMaterializationV1 result = materialization(
+                authority, source, data, decisions, failures, state, freshUntil, staleAt,
+                reference, digest);
+        if (!HrisHomeMaterializationDigestV1.matches(result, digest)) {
+            throw new IllegalStateException("Payroll Home canonical digest was not stable.");
+        }
+        return result;
+    }
+
+    private HrisHomeContributionMaterializationV1 materialization(
+            ResolvedPayrollHomeAuthority authority,
+            PayrollHomeSourceSnapshot source,
+            HrisHomeContributionMaterializationV1.PayrollHomeData data,
+            List<HrisHomeContributionMaterializationV1.FieldDecision> decisions,
+            List<HrisHomeContributionMaterializationV1.PartialFailure> failures,
+            HrisHomeContributionMaterializationV1.State state,
+            java.time.Instant freshUntil,
+            java.time.Instant staleAt,
+            String payloadRef,
+            String payloadDigest) {
+        return new HrisHomeContributionMaterializationV1(
                 HrisHomeContributionMaterializationV1.PROFILE,
                 HrisHomeContributionMaterializationV1.Module.PAY,
                 authority.widgetKey(),
@@ -82,17 +109,8 @@ final class PayrollHomeContributionProjector {
                 authority.scopeRevision(), authority.populationScopeDigest(),
                 authority.fieldPolicyRevision(), HrisHomeContributionMaterializationV1.PURPOSE,
                 state, source.asOf(), freshUntil, staleAt, DEEP_LINK,
-                source.sourceVersion(), source.asOf(), data, decisions, failures);
-        String digest = codec.digest(seed);
-        String reference = codec.reference(authority, source.sourceVersion(), digest);
-
-        return new HrisHomeContributionMaterializationV1(
-                seed.profile(), seed.module(), seed.widgetKey(), seed.widgetType(),
-                seed.browserAudience(), seed.ownerPopulationScope(), seed.scopeRevision(),
-                seed.populationScopeDigest(), seed.fieldPolicyRevision(), seed.purposeCode(),
-                seed.state(), seed.generatedAt(), seed.freshUntil(), seed.staleAfter(),
-                seed.deepLink(), seed.sourceVersion(), reference, digest, seed.asOf(),
-                seed.data(), seed.fieldDecisions(), seed.partialFailures());
+                source.sourceVersion(), payloadRef, payloadDigest, source.asOf(),
+                data, decisions, failures);
     }
 
     private HrisHomeContributionMaterializationV1.TextProjection text(

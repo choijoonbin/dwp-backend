@@ -17,14 +17,14 @@ final class PerformanceHomeAdmission {
 
     private final ObjectMapper mapper;
     private final Clock clock;
-    private final HomeMaterializationWorkloadProofV1.SigningKeyResolver keys;
-    private final HomeMaterializationWorkloadProofV1.ReplayStore replays;
+    private final PerformanceHomeSecurityPorts.SigningKeys keys;
+    private final PerformanceHomeSecurityPorts.ReplayReservations replays;
     private final PerformanceHomeAuthorityPort authority;
 
     PerformanceHomeAdmission(
             ObjectMapper mapper,
-            HomeMaterializationWorkloadProofV1.SigningKeyResolver keys,
-            HomeMaterializationWorkloadProofV1.ReplayStore replays,
+            PerformanceHomeSecurityPorts.SigningKeys keys,
+            PerformanceHomeSecurityPorts.ReplayReservations replays,
             PerformanceHomeAuthorityPort authority) {
         this(mapper, Clock.systemUTC(), keys, replays, authority);
     }
@@ -32,8 +32,8 @@ final class PerformanceHomeAdmission {
     PerformanceHomeAdmission(
             ObjectMapper mapper,
             Clock clock,
-            HomeMaterializationWorkloadProofV1.SigningKeyResolver keys,
-            HomeMaterializationWorkloadProofV1.ReplayStore replays,
+            PerformanceHomeSecurityPorts.SigningKeys keys,
+            PerformanceHomeSecurityPorts.ReplayReservations replays,
             PerformanceHomeAuthorityPort authority) {
         this.mapper = mapper;
         this.clock = clock;

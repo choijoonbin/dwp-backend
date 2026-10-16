@@ -15,7 +15,7 @@ import java.util.UUID;
 
 /** Tenant- and owner-population-bound source for the closed People Home profile. */
 @Repository
-@ConditionalOnProperty(prefix = ConfiguredPeopleHomeAuthority.PREFIX,
+@ConditionalOnProperty(prefix = PeopleHomeAuthorityPort.PREFIX,
         name = "enabled", havingValue = "true", matchIfMissing = false)
 final class JdbcPeopleHomeSource implements PeopleHomeSourcePort {
 
@@ -27,6 +27,7 @@ final class JdbcPeopleHomeSource implements PeopleHomeSourcePort {
 
     @Override
     public Snapshot snapshot(PeopleHomeAuthorityPort.CurrentAuthority authority) {
+        bindTenant(authority.tenantId());
         Set<UUID> population = authority.populationPersonPublicIds();
         List<Row> rows = jdbc.query("""
                 SELECT person.public_id AS person_public_id,
@@ -116,6 +117,16 @@ final class JdbcPeopleHomeSource implements PeopleHomeSourcePort {
                 .orElse(Instant.EPOCH);
         return new Snapshot(employment, organization, Optional.of(pending),
                 sourceVersion, asOf);
+    }
+
+    private void bindTenant(long tenantId) {
+        String expected = Long.toString(tenantId);
+        String configured = jdbc.queryForObject(
+                "SELECT set_config('dwp.tenant_id', :tenantId, true)",
+                new MapSqlParameterSource("tenantId", expected), String.class);
+        if (!expected.equals(configured)) {
+            throw new IllegalStateException("People Home tenant context was not established.");
+        }
     }
 
     private static String aggregateEmployment(List<Row> rows) {

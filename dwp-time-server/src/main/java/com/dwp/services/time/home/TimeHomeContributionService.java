@@ -1,6 +1,7 @@
 package com.dwp.services.time.home;
 
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
+import com.dwp.platform.contracts.hris.home.HrisHomeMaterializationDigestV1;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1.BrowserAudience;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1.Decision;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1.FieldDecision;
@@ -41,9 +42,6 @@ import org.springframework.transaction.annotation.Transactional;
         havingValue = "true",
         matchIfMissing = false)
 final class TimeHomeContributionService {
-
-    private static final String PLACEHOLDER_REF = "href_AAAAAAAAAAAAAAAA";
-    private static final String PLACEHOLDER_DIGEST = "0".repeat(64);
 
     private final Clock clock;
     private final TimeHomeProjectionRepository projections;
@@ -165,7 +163,8 @@ final class TimeHomeContributionService {
 
         HrisHomeContributionMaterializationV1 draft = response(
                 authority, projection, issuedAt, data, decisions, failures, state,
-                PLACEHOLDER_REF, PLACEHOLDER_DIGEST);
+                HrisHomeMaterializationDigestV1.PLACEHOLDER_REFERENCE,
+                HrisHomeMaterializationDigestV1.PLACEHOLDER_DIGEST);
         String digest = digests.digest(draft);
         String payloadRef = references.issue(authority.tenantId(), issuedAt, digest);
         HrisHomeContributionMaterializationV1 result = response(

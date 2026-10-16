@@ -1,6 +1,7 @@
 package com.dwp.services.people.hris.performance.home;
 
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
+import com.dwp.platform.contracts.hris.home.HrisHomeMaterializationDigestV1;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -88,6 +89,8 @@ class PerformanceHomeMaterializerTest {
 
         assertThat(second.payloadDigest()).isEqualTo(first.payloadDigest());
         assertThat(second.payloadRef()).isEqualTo(first.payloadRef());
+        assertThat(HrisHomeMaterializationDigestV1.matches(
+                first.materialization(), first.payloadDigest())).isTrue();
 
         var expired = PerformanceHomeTestFixtures.materializer(
                 Clock.fixed(NOW.plusSeconds(301), ZoneOffset.UTC));

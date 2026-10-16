@@ -13,7 +13,7 @@ import java.util.Map;
 
 /** Owner-loaded one-key RS256 trust profile for dwp-platform-server. */
 @Component
-@ConditionalOnProperty(prefix = ConfiguredPeopleHomeAuthority.PREFIX,
+@ConditionalOnProperty(prefix = PeopleHomeAuthorityPort.PREFIX,
         name = "enabled", havingValue = "true", matchIfMissing = false)
 final class PeopleHomeWorkloadTrust
         implements HomeMaterializationWorkloadProofV1.SigningKeyResolver {
@@ -22,9 +22,9 @@ final class PeopleHomeWorkloadTrust
 
     PeopleHomeWorkloadTrust(Environment environment) {
         this(parse(environment.getProperty(
-                        ConfiguredPeopleHomeAuthority.PREFIX + "signing-public-jwk", "")),
+                        PeopleHomeAuthorityPort.PREFIX + "signing-public-jwk", "")),
                 authentication(environment.getProperty(
-                        ConfiguredPeopleHomeAuthority.PREFIX + "workload-authentication",
+                        PeopleHomeAuthorityPort.PREFIX + "workload-authentication",
                         "CLIENT_CREDENTIAL_JWT")));
     }
 

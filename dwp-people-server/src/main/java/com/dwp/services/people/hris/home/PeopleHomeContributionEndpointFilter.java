@@ -25,7 +25,7 @@ import java.util.List;
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
-@ConditionalOnProperty(prefix = ConfiguredPeopleHomeAuthority.PREFIX,
+@ConditionalOnProperty(prefix = PeopleHomeAuthorityPort.PREFIX,
         name = "enabled", havingValue = "true", matchIfMissing = false)
 final class PeopleHomeContributionEndpointFilter extends OncePerRequestFilter {
 

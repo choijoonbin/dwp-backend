@@ -1,8 +1,6 @@
 package com.dwp.services.people.hris.performance.home;
 
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -59,7 +57,6 @@ final class PerformanceHomeTestFixtures {
 
     static PerformanceHomeMaterializer materializer(Clock clock) {
         return new PerformanceHomeMaterializer(
-                new PerformanceHomeReferenceCodec("s".repeat(32).getBytes(), clock),
-                new ObjectMapper().findAndRegisterModules());
+                new PerformanceHomeReferenceCodec("s".repeat(32).getBytes(), clock));
     }
 }

@@ -5,6 +5,7 @@ import com.dwp.core.event.DomainEventContractRegistry;
 import com.dwp.core.event.DomainEventEnvelope;
 import com.dwp.core.event.DomainEventRecorder;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
+import com.dwp.platform.contracts.hris.home.HrisHomeMaterializationDigestV1;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -24,7 +25,7 @@ import java.util.UUID;
 
 /** Closed HRM Home materializer and XCON-013 transactional-outbox producer. */
 @Service
-@ConditionalOnProperty(prefix = ConfiguredPeopleHomeAuthority.PREFIX,
+@ConditionalOnProperty(prefix = PeopleHomeAuthorityPort.PREFIX,
         name = "enabled", havingValue = "true", matchIfMissing = false)
 final class PeopleHomeContributionService {
 
@@ -80,31 +81,42 @@ final class PeopleHomeContributionService {
             String payloadRef,
             PeopleHomeAuthorityPort.CurrentAuthority authority,
             UUID correlationId) {
+        java.util.Objects.requireNonNull(correlationId, "correlationId");
         PeopleHomePayloadCodec.Opened opened = codec.open(authority.tenantId(), payloadRef);
         Instant now = clock.instant();
         Instant staleAfter = opened.generatedAt().plus(FRESH_FOR).plus(STALE_FOR);
         if (opened.generatedAt().isAfter(now.plusSeconds(1))
                 || !staleAfter.isAfter(now)) throw new PeopleHomePayloadCodec.UnknownReference();
         PeopleHomeSourcePort.Snapshot snapshot = source.snapshot(authority);
-        String currentDigest = codec.digest(authority, snapshot);
-        if (!constantTime(currentDigest, opened.payloadDigest())
-                || snapshot.asOf().isAfter(opened.generatedAt())) {
+        if (snapshot.asOf().isAfter(opened.generatedAt())) {
             throw new PeopleHomePayloadCodec.UnknownReference();
         }
-        return assemble(authority, snapshot, correlationId, opened.generatedAt(),
-                payloadRef, currentDigest, now);
+        HrisHomeContributionMaterializationV1 materialization = assemble(
+                authority, snapshot, opened.generatedAt(), payloadRef,
+                opened.payloadDigest(), opened.generatedAt());
+        if (!constantTime(codec.digest(materialization), opened.payloadDigest())) {
+            throw new PeopleHomePayloadCodec.UnknownReference();
+        }
+        return materialization;
     }
 
     @Transactional
     Published publish(PeopleHomeAuthorityPort.CurrentAuthority authority) {
         PeopleHomeSourcePort.Snapshot snapshot = source.snapshot(authority);
-        String digest = codec.digest(authority, snapshot);
         Instant generatedAt = generationTime(clock.instant(), snapshot.asOf());
+        HrisHomeContributionMaterializationV1 draft = assemble(
+                authority, snapshot, generatedAt,
+                HrisHomeMaterializationDigestV1.PLACEHOLDER_REFERENCE,
+                HrisHomeMaterializationDigestV1.PLACEHOLDER_DIGEST, generatedAt);
+        String digest = codec.digest(draft);
         String reference = codec.seal(authority.tenantId(), generatedAt, digest);
         UUID eventId = deterministicUuid(
                 "people-home-event\n" + authority.tenantId() + "\n" + reference);
         HrisHomeContributionMaterializationV1 materialization = assemble(
-                authority, snapshot, eventId, generatedAt, reference, digest, generatedAt);
+                authority, snapshot, generatedAt, reference, digest, generatedAt);
+        if (!constantTime(codec.digest(materialization), digest)) {
+            throw new IllegalStateException("People Home canonical digest was not stable.");
+        }
         Xcon013PeopleHomeContributionChangedV1 data =
                 new Xcon013PeopleHomeContributionChangedV1(
                         authority.ownerPopulationScope().name(),
@@ -114,9 +126,8 @@ final class PeopleHomeContributionService {
                         authority.widgetKey());
         DomainEventEnvelope event = new DomainEventEnvelope(
                 "1.0", eventId, EVENT_SOURCE, EVENT_TYPE, 1, generatedAt,
-                "HRIS_HOME_CONTRIBUTION/" + aggregateId(authority),
-                authority.tenantId(), "HRIS_HOME_CONTRIBUTION", aggregateId(authority),
-                aggregateSequence(generatedAt, snapshot.sourceVersion()),
+                "HRIS_HOME_CONTRIBUTION/" + eventId,
+                authority.tenantId(), "HRIS_HOME_CONTRIBUTION", eventId.toString(), 1,
                 eventId.toString(), null, null,
                 mapper.valueToTree(data), Map.of());
         events.record(event);
@@ -137,7 +148,6 @@ final class PeopleHomeContributionService {
     private HrisHomeContributionMaterializationV1 assemble(
             PeopleHomeAuthorityPort.CurrentAuthority authority,
             PeopleHomeSourcePort.Snapshot snapshot,
-            UUID correlationId,
             Instant generatedAt,
             String reference,
             String digest,
@@ -158,7 +168,8 @@ final class PeopleHomeContributionService {
                     authority.fieldPolicyRevision(),
                     HrisHomeContributionMaterializationV1.PURPOSE,
                     HrisHomeContributionMaterializationV1.FailureCode.OWNER_UNAVAILABLE,
-                    true, correlationId, generatedAt));
+                    true, failureId(authority, snapshot, generatedAt,
+                            projections.missingRequiredFields()), generatedAt));
         } else {
             state = now.isBefore(generatedAt.plus(FRESH_FOR))
                     ? HrisHomeContributionMaterializationV1.State.FRESH
@@ -259,22 +270,19 @@ final class PeopleHomeContributionService {
         return Instant.ofEpochMilli(millis);
     }
 
+    private static UUID failureId(
+            PeopleHomeAuthorityPort.CurrentAuthority authority,
+            PeopleHomeSourcePort.Snapshot snapshot,
+            Instant generatedAt,
+            List<String> missingFields) {
+        return deterministicUuid("people-home-failure\n" + authority.tenantId() + "\n"
+                + authority.widgetKey() + "\n" + authority.scopeRevision() + "\n"
+                + authority.fieldPolicyRevision() + "\n" + snapshot.sourceVersion() + "\n"
+                + generatedAt + "\n" + String.join(",", missingFields));
+    }
+
     private static boolean constantTime(String left, String right) {
         return MessageDigestSupport.equals(left, right);
-    }
-
-    private static String aggregateId(PeopleHomeAuthorityPort.CurrentAuthority authority) {
-        return authority.tenantId() + ":" + authority.widgetKey() + ":"
-                + authority.subjectPrincipalPublicId() + ":"
-                + authority.ownerPopulationScope() + ":" + authority.scopeRevision()
-                + ":" + authority.effectivePermissionRevision() + ":"
-                + authority.fieldPolicyRevision();
-    }
-
-    private static long aggregateSequence(Instant generatedAt, long sourceVersion) {
-        return Math.addExact(
-                Math.multiplyExact(generatedAt.toEpochMilli(), 1_000_000L),
-                Math.floorMod(sourceVersion, 1_000_000L));
     }
 
     private static UUID deterministicUuid(String value) {

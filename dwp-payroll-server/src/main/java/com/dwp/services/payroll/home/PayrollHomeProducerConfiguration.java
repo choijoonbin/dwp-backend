@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.time.Clock;
 
@@ -15,6 +16,7 @@ import static com.dwp.services.payroll.home.PayrollHomePorts.*;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(PayrollHomeProducerProperties.class)
+@EnableScheduling
 @ConditionalOnProperty(
         name = "dwp.hris.payroll.home-producer.enabled",
         havingValue = "true",
@@ -23,10 +25,9 @@ class PayrollHomeProducerConfiguration {
 
     @Bean
     PayrollHomePayloadCodec payrollHomePayloadCodec(
-            PayrollHomeProducerProperties properties,
-            ObjectMapper mapper) {
+            PayrollHomeProducerProperties properties) {
         properties.validateForActivation();
-        return new PayrollHomePayloadCodec(properties.getPayloadReferenceSecret(), mapper);
+        return new PayrollHomePayloadCodec(properties.getPayloadReferenceSecret());
     }
 
     @Bean

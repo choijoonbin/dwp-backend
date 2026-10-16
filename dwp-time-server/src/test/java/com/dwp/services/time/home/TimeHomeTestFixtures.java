@@ -68,12 +68,11 @@ final class TimeHomeTestFixtures {
             Clock clock,
             TimeHomeProjectionRepository repository,
             TimeHomeEventPublisher publisher) {
-        ObjectMapper mapper = mapper();
         return new TimeHomeContributionService(
                 clock,
                 repository,
                 new TimeHomePayloadReferenceCodec("k".repeat(32).getBytes()),
-                new TimeHomeCanonicalDigest(mapper),
+                new TimeHomeCanonicalDigest(),
                 publisher,
                 60,
                 300);

@@ -68,6 +68,30 @@ class PeopleHomeAdmissionServiceTest {
     }
 
     @Test
+    void independentlyRejectsAnAdapterThatReturnsMismatchedAuthority() throws Exception {
+        PeopleHomeAuthorityPort.CurrentAuthority mismatched = authority(13);
+        PeopleHomeAuthorityPort permissiveAdapter = new PeopleHomeAuthorityPort() {
+            @Override
+            public Optional<CurrentAuthority> current(
+                    HomeMaterializationWorkloadProofV1.ProofClaims claims) {
+                return Optional.of(mismatched);
+            }
+
+            @Override
+            public List<CurrentAuthority> currentGrants() {
+                return List.of(mismatched);
+            }
+        };
+
+        assertThatThrownBy(() -> service(permissiveAdapter, true).admit(
+                PATH, HomeMaterializationWorkloadProofV1.headers(proof(12))))
+                .isInstanceOf(HomeMaterializationWorkloadProofV1.AdmissionDenied.class)
+                .extracting(error -> ((HomeMaterializationWorkloadProofV1.AdmissionDenied) error)
+                        .reason())
+                .isEqualTo("CURRENT_HOME_AUTHORITY_REQUIRED");
+    }
+
+    @Test
     void replayAndCallerTenantHeaderAreRejected() throws Exception {
         PeopleHomeAdmissionService replayed = service(authority(12), false);
         assertThatThrownBy(() -> replayed.admit(
@@ -103,6 +127,12 @@ class PeopleHomeAdmissionServiceTest {
                 return List.of(authority);
             }
         };
+        return service(port, reserve);
+    }
+
+    private static PeopleHomeAdmissionService service(
+            PeopleHomeAuthorityPort port,
+            boolean reserve) {
         HomeMaterializationWorkloadProofV1.SigningKeyResolver resolver = ignored ->
                 new HomeMaterializationWorkloadProofV1.VerifiedSigningKey(
                         keys.getPublic(),

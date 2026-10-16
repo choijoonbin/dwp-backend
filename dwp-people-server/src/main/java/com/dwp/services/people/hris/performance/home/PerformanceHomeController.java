@@ -1,54 +1,95 @@
 package com.dwp.services.people.hris.performance.home;
 
 import com.dwp.platform.contracts.hris.home.HomeMaterializationWorkloadProofV1;
-import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.HttpStatus;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
-/** Service-only endpoint. No browser route, body or caller-selected tenant exists. */
-@RestController
+/**
+ * Exact workload-only endpoint processed before the browser-oriented People
+ * security filter. It never accepts browser identity or caller-selected tenant
+ * evidence; the signed proof and owner re-evaluation are the only authority.
+ */
+@Component
+@Order(Ordered.HIGHEST_PRECEDENCE + 10)
 @ConditionalOnProperty(prefix = "dwp.people.hris.performance-home", name = "enabled",
         havingValue = "true")
-final class PerformanceHomeController {
+final class PerformanceHomeController extends OncePerRequestFilter {
+
+    private static final String FAMILY =
+            "/internal/hris-performance/v1/home-contributions";
+    private static final String PREFIX = FAMILY + "/";
 
     private final PerformanceHomeAdmission admission;
     private final PerformanceHomeService service;
+    private final ObjectMapper mapper;
 
     PerformanceHomeController(
             PerformanceHomeAdmission admission,
-            PerformanceHomeService service) {
+            PerformanceHomeService service,
+            ObjectMapper mapper) {
         this.admission = admission;
         this.service = service;
+        this.mapper = mapper;
     }
 
-    @GetMapping(value = "/internal/hris-performance/v1/home-contributions/{payloadRef}",
-            produces = MediaType.APPLICATION_JSON_VALUE)
-    HrisHomeContributionMaterializationV1 materialize(
-            @PathVariable String payloadRef,
-            HttpServletRequest request) {
-        String exactPath = request.getRequestURI();
-        if (request.getQueryString() != null) exactPath += '?' + request.getQueryString();
-        PerformanceHomeAdmission.Admission admitted = admission.admit(
-                exactPath, headers(request));
-        return service.materialize(payloadRef, admitted);
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path == null || !(path.equals(FAMILY)
+                || path.startsWith(PREFIX) || path.startsWith(FAMILY + ";"));
     }
 
-    private List<HomeMaterializationWorkloadProofV1.Header> headers(
+    @Override
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain chain) throws IOException, ServletException {
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        try {
+            String exactPath = request.getRequestURI();
+            if (!"GET".equals(request.getMethod())
+                    || request.getQueryString() != null
+                    || request.getContentLengthLong() > 0
+                    || request.getHeader(HttpHeaders.TRANSFER_ENCODING) != null
+                    || exactPath == null
+                    || !exactPath.startsWith(PREFIX)) {
+                throw new PerformanceHomeRequestRejected();
+            }
+            String payloadRef = exactPath.substring(PREFIX.length());
+            PerformanceHomeAdmission.Admission admitted = admission.admit(
+                    exactPath, headers(request));
+            mapper.writeValue(response.getOutputStream(),
+                    service.materialize(payloadRef, admitted));
+        } catch (HomeMaterializationWorkloadProofV1.AdmissionDenied
+                | PerformanceHomeReferenceCodec.ReferenceFailure
+                | PerformanceHomeRequestRejected denied) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            mapper.writeValue(response.getOutputStream(),
+                    Map.of("code", "PERFORMANCE_HOME_CONTRIBUTION_NOT_FOUND"));
+        }
+    }
+
+    private static List<HomeMaterializationWorkloadProofV1.Header> headers(
             HttpServletRequest request) {
+        if (request.getHeaderNames() == null) throw new PerformanceHomeRequestRejected();
         List<HomeMaterializationWorkloadProofV1.Header> result = new ArrayList<>();
-        if (request.getHeaderNames() == null) return List.of();
         for (String name : Collections.list(request.getHeaderNames())) {
             for (String value : Collections.list(request.getHeaders(name))) {
                 result.add(new HomeMaterializationWorkloadProofV1.Header(name, value));
@@ -56,27 +97,8 @@ final class PerformanceHomeController {
         }
         return List.copyOf(result);
     }
-}
 
-@RestControllerAdvice(assignableTypes = PerformanceHomeController.class)
-@ConditionalOnProperty(prefix = "dwp.people.hris.performance-home", name = "enabled",
-        havingValue = "true")
-final class PerformanceHomeExceptionHandler {
-
-    @ExceptionHandler(HomeMaterializationWorkloadProofV1.AdmissionDenied.class)
-    ResponseEntity<Problem> admissionDenied(
-            HomeMaterializationWorkloadProofV1.AdmissionDenied denied) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(new Problem("PERFORMANCE_HOME_ADMISSION_DENIED"));
-    }
-
-    @ExceptionHandler(PerformanceHomeReferenceCodec.ReferenceFailure.class)
-    ResponseEntity<Problem> referenceUnavailable(
-            PerformanceHomeReferenceCodec.ReferenceFailure failure) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new Problem("PERFORMANCE_HOME_REFERENCE_NOT_AVAILABLE"));
-    }
-
-    record Problem(String code) {
+    private static final class PerformanceHomeRequestRejected extends RuntimeException {
+        private static final long serialVersionUID = 1L;
     }
 }

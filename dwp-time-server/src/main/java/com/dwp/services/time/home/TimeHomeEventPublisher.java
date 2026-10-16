@@ -70,10 +70,9 @@ final class TimeHomeEventPublisher {
         DomainEventEnvelope event = new DomainEventEnvelope(
                 "1.0", eventId, "urn:dwp:dwp-time-server", EVENT_TYPE,
                 SCHEMA_VERSION, materialization.generatedAt(),
-                "HrisHomeContribution/" + materialization.widgetKey(), tenantId,
+                "HrisHomeContribution/" + eventId, tenantId,
                 "HrisHomeContribution",
-                materialization.widgetKey() + ":" + materialization.populationScopeDigest(),
-                materialization.sourceVersion(), eventId.toString(), null, null,
+                eventId.toString(), 1, eventId.toString(), null, null,
                 mapper.valueToTree(fact),
                 Map.of("xcon", "XCON-014", "profile", "TimeLeaveHomeContribution.v1"));
         return Optional.of(recorder.record(event));

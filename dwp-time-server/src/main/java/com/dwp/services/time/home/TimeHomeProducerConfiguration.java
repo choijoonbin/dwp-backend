@@ -7,9 +7,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /** Default-off owner wiring. Enabling with missing key material fails at startup. */
 @Configuration(proxyBeanMethods = false)
+@EnableScheduling
 @ConditionalOnProperty(
         name = "dwp.hris.time.home.enabled",
         havingValue = "true",

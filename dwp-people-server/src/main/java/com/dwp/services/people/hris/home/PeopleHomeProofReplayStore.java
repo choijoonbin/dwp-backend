@@ -17,7 +17,7 @@ import java.util.UUID;
 
 /** Atomically reserves both proof identifiers in the shared durable inbox ledger. */
 @Component
-@ConditionalOnProperty(prefix = ConfiguredPeopleHomeAuthority.PREFIX,
+@ConditionalOnProperty(prefix = PeopleHomeAuthorityPort.PREFIX,
         name = "enabled", havingValue = "true", matchIfMissing = false)
 final class PeopleHomeProofReplayStore
         implements HomeMaterializationWorkloadProofV1.ReplayStore {

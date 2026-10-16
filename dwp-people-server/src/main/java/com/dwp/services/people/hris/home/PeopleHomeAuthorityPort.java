@@ -9,12 +9,21 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-/** People-owned current authority used after workload authentication. */
-interface PeopleHomeAuthorityPort {
+/**
+ * People-owned current authority used after workload authentication.
+ *
+ * <p>Production adapters must re-evaluate authoritative tenant capability, population and field
+ * policy state on every call. Implementations backed by startup configuration or an in-memory
+ * snapshot are not valid activation adapters because they cannot observe revocation.
+ */
+public interface PeopleHomeAuthorityPort {
+
+    String PREFIX = "dwp.hris.home.people.";
 
     Optional<CurrentAuthority> current(
             HomeMaterializationWorkloadProofV1.ProofClaims signedContext);
 
+    /** Returns only grants that are current at the time of this invocation. */
     List<CurrentAuthority> currentGrants();
 
     record CurrentAuthority(

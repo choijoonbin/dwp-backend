@@ -1,26 +1,23 @@
 package com.dwp.services.people.hris.home;
 
+import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
+import com.dwp.platform.contracts.hris.home.HrisHomeMaterializationDigestV1;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Comparator;
 import java.util.HexFormat;
-import java.util.Map;
-import java.util.Optional;
 
 /** Canonical digest plus opaque tenant-bound stateless HMAC reference. */
 @Component
-@ConditionalOnProperty(prefix = ConfiguredPeopleHomeAuthority.PREFIX,
+@ConditionalOnProperty(prefix = PeopleHomeAuthorityPort.PREFIX,
         name = "enabled", havingValue = "true", matchIfMissing = false)
 final class PeopleHomePayloadCodec {
 
@@ -32,7 +29,7 @@ final class PeopleHomePayloadCodec {
 
     PeopleHomePayloadCodec(Environment environment) {
         this(secret(environment.getProperty(
-                ConfiguredPeopleHomeAuthority.PREFIX + "payload-ref-secret", "")));
+                PeopleHomeAuthorityPort.PREFIX + "payload-ref-secret", "")));
     }
 
     PeopleHomePayloadCodec(byte[] secret) {
@@ -43,42 +40,8 @@ final class PeopleHomePayloadCodec {
         this.secret = secret.clone();
     }
 
-    String digest(
-            PeopleHomeAuthorityPort.CurrentAuthority authority,
-            PeopleHomeSourcePort.Snapshot snapshot) {
-        try {
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            try (DataOutputStream output = new DataOutputStream(bytes)) {
-                text(output, "PeopleHomeContribution.v1");
-                output.writeLong(authority.tenantId());
-                text(output, authority.subjectPrincipalPublicId().toString());
-                text(output, authority.capability());
-                text(output, authority.browserAudience().name());
-                text(output, authority.ownerPopulationScope().name());
-                output.writeLong(authority.scopeRevision());
-                text(output, authority.populationScopeDigest());
-                output.writeLong(authority.effectivePermissionRevision());
-                output.writeLong(authority.fieldPolicyRevision());
-                text(output, authority.widgetKey());
-                for (var person : authority.populationPersonPublicIds().stream()
-                        .sorted(Comparator.comparing(Object::toString)).toList()) {
-                    text(output, person.toString());
-                }
-                for (Map.Entry<String, ?> decision : authority.fieldDecisions().entrySet()
-                        .stream().sorted(Map.Entry.comparingByKey()).toList()) {
-                    text(output, decision.getKey());
-                    text(output, decision.getValue().toString());
-                }
-                optional(output, snapshot.employmentStatus());
-                optional(output, snapshot.organizationLabel());
-                optional(output, snapshot.pendingActionCount().map(Object::toString));
-                output.writeLong(snapshot.sourceVersion());
-                text(output, snapshot.asOf().toString());
-            }
-            return HexFormat.of().formatHex(sha256(bytes.toByteArray()));
-        } catch (Exception exception) {
-            throw new IllegalStateException("Cannot canonicalize People Home payload.", exception);
-        }
+    String digest(HrisHomeContributionMaterializationV1 materialization) {
+        return HrisHomeMaterializationDigestV1.digest(materialization);
     }
 
     String seal(long tenantId, Instant generatedAt, String digest) {
@@ -134,27 +97,6 @@ final class PeopleHomePayloadCodec {
             return mac.doFinal(body);
         } catch (Exception exception) {
             throw new IllegalStateException("Cannot authenticate People Home reference.", exception);
-        }
-    }
-
-    private static void optional(DataOutputStream output, Optional<String> value)
-            throws java.io.IOException {
-        output.writeBoolean(value.isPresent());
-        if (value.isPresent()) text(output, value.get());
-    }
-
-    private static void text(DataOutputStream output, String value)
-            throws java.io.IOException {
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-        output.writeInt(bytes.length);
-        output.write(bytes);
-    }
-
-    private static byte[] sha256(byte[] value) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(value);
-        } catch (Exception exception) {
-            throw new IllegalStateException("SHA-256 is unavailable.", exception);
         }
     }
 

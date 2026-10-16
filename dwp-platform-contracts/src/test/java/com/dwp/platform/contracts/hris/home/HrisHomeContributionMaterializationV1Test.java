@@ -117,6 +117,30 @@ class HrisHomeContributionMaterializationV1Test {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void canonicalDigestExcludesOnlyCircularFieldsAndSealsEveryOtherWireField() {
+        var first = people();
+        var differentCircularFields = new HrisHomeContributionMaterializationV1(
+                first.profile(), first.module(), first.widgetKey(), first.widgetType(),
+                first.browserAudience(), first.ownerPopulationScope(), first.scopeRevision(),
+                first.populationScopeDigest(), first.fieldPolicyRevision(), first.purposeCode(),
+                first.state(), first.generatedAt(), first.freshUntil(), first.staleAfter(),
+                first.deepLink(), first.sourceVersion(), "href_fedcba9876543210",
+                "c".repeat(64), first.asOf(), first.data(), first.fieldDecisions(),
+                first.partialFailures());
+        var changedState = copy(first, HrisHomeContributionMaterializationV1.State.STALE,
+                List.of());
+
+        String digest = HrisHomeMaterializationDigestV1.digest(first);
+
+        assertThat(digest).matches("^[0-9a-f]{64}$");
+        assertThat(HrisHomeMaterializationDigestV1.digest(differentCircularFields))
+                .isEqualTo(digest);
+        assertThat(HrisHomeMaterializationDigestV1.digest(changedState))
+                .isNotEqualTo(digest);
+        assertThat(HrisHomeMaterializationDigestV1.matches(first, digest)).isTrue();
+    }
+
     private HrisHomeContributionMaterializationV1 people() {
         var data = new HrisHomeContributionMaterializationV1.PeopleHomeData(
                 HrisHomeContributionMaterializationV1.WidgetType.PEOPLE_SUMMARY,

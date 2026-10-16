@@ -2,11 +2,10 @@ package com.dwp.services.people.hris.performance.home;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,18 +28,10 @@ class PerformanceHomeDefaultOffContractTest {
     }
 
     @Test
-    void exposesOnlyTheExactInternalGetWithoutBodyOrTenantParameter() {
-        var method = Arrays.stream(PerformanceHomeController.class.getDeclaredMethods())
-                .filter(candidate -> candidate.isAnnotationPresent(GetMapping.class))
-                .findFirst().orElseThrow();
-        GetMapping mapping = method.getAnnotation(GetMapping.class);
-
-        assertThat(mapping.value()).containsExactly(
-                "/internal/hris-performance/v1/home-contributions/{payloadRef}");
-        assertThat(method.getParameterTypes()).containsExactly(
-                String.class, jakarta.servlet.http.HttpServletRequest.class);
-        assertThat(Arrays.stream(method.getParameters())
-                .noneMatch(parameter -> parameter.isAnnotationPresent(
-                        org.springframework.web.bind.annotation.RequestBody.class))).isTrue();
+    void exactWorkloadBoundaryIsImplementedAsAPreSecurityFilter() {
+        assertThat(OncePerRequestFilter.class)
+                .isAssignableFrom(PerformanceHomeController.class);
+        assertThat(PerformanceHomeController.class.getAnnotation(
+                org.springframework.web.bind.annotation.RestController.class)).isNull();
     }
 }

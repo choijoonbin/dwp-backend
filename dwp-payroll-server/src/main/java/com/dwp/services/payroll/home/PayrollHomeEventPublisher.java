@@ -44,9 +44,9 @@ final class PayrollHomeEventPublisher {
         var envelope = new DomainEventEnvelope(
                 "1.0", eventId, SOURCE, EVENT_TYPE, 1,
                 materialization.generatedAt(),
-                "PAYROLL_HOME/" + materialization.widgetKey(), tenantId,
-                "PAYROLL_HOME", materialization.widgetKey(),
-                materialization.sourceVersion(), eventId.toString(), null, null,
+                "PAYROLL_HOME/" + eventId, tenantId,
+                "PAYROLL_HOME", eventId.toString(),
+                1, eventId.toString(), null, null,
                 mapper.valueToTree(xcon), Map.of("xcon", "XCON-015"));
         recorder.record(envelope);
     }

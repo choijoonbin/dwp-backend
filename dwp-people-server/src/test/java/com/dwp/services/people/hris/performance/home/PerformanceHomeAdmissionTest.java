@@ -105,7 +105,7 @@ class PerformanceHomeAdmissionTest {
 
     private PerformanceHomeAdmission admission(
             PerformanceHomeAuthorityPort authority,
-            HomeMaterializationWorkloadProofV1.ReplayStore replay) {
+            PerformanceHomeSecurityPorts.ReplayReservations replay) {
         return new PerformanceHomeAdmission(
                 mapper, Clock.fixed(NOW, ZoneOffset.UTC),
                 keyId -> new HomeMaterializationWorkloadProofV1.VerifiedSigningKey(
@@ -180,7 +180,7 @@ class PerformanceHomeAdmissionTest {
     }
 
     private static final class Replay
-            implements HomeMaterializationWorkloadProofV1.ReplayStore {
+            implements PerformanceHomeSecurityPorts.ReplayReservations {
         private final Set<String> reservations = new HashSet<>();
 
         @Override

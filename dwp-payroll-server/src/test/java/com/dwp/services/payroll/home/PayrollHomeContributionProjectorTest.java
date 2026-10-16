@@ -1,6 +1,7 @@
 package com.dwp.services.payroll.home;
 
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
+import com.dwp.platform.contracts.hris.home.HrisHomeMaterializationDigestV1;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,7 @@ class PayrollHomeContributionProjectorTest {
 
     private static final Instant AS_OF = Instant.parse("2026-10-16T03:00:00Z");
     private final PayrollHomePayloadCodec codec = new PayrollHomePayloadCodec(
-            "payroll-home-test-secret-32-bytes-minimum", new ObjectMapper().findAndRegisterModules());
+            "payroll-home-test-secret-32-bytes-minimum");
     private final PayrollHomeContributionProjector projector =
             new PayrollHomeContributionProjector(
                     codec, Duration.ofMinutes(2), Duration.ofMinutes(10));
@@ -92,6 +93,8 @@ class PayrollHomeContributionProjectorTest {
         assertThat(second.payloadDigest()).isEqualTo(first.payloadDigest());
         assertThat(second.payloadRef()).isEqualTo(first.payloadRef());
         assertThat(codec.matches(first.payloadRef(), authority, 9, first.payloadDigest())).isTrue();
+        assertThat(HrisHomeMaterializationDigestV1.matches(
+                first, first.payloadDigest())).isTrue();
         assertThat(codec.matches(first.payloadRef(), authority, 10, first.payloadDigest())).isFalse();
         assertThat(codec.matches("href_0000000000000000", authority, 9,
                 first.payloadDigest())).isFalse();
