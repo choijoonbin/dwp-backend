@@ -196,6 +196,10 @@ dwp:
       allowed-hosts: ${DWP_HRIS_ALLOWED_HOSTS:}
       allow-unlisted-hosts: ${DWP_HRIS_ALLOW_UNLISTED_HOSTS:false}
       local-seed-enabled: ${DWP_PEOPLE_LOCAL_SEED_ENABLED:false}
+      performance-home:
+        enabled: ${DWP_PERFORMANCE_HOME_PRODUCER_ENABLED:false}
+        event-publication-enabled: ${DWP_PERFORMANCE_HOME_EVENT_PUBLICATION_ENABLED:false}
+        hmac-secret-base64: ${DWP_PERFORMANCE_HOME_HMAC_SECRET_BASE64:}
       database:
         migration-principal-policy: ${DWP_PEOPLE_MIGRATION_PRINCIPAL_POLICY:STRICT}
         runtime-environment: ${DWP_ENVIRONMENT:local}
