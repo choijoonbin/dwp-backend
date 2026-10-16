@@ -50,6 +50,12 @@ spring:
 
 dwp:
   hris:
+    home-composition:
+      # R4 delivers only the controller-free composition core. A later activation increment must
+      # provide the trusted candidate, signed owner-call and exact PAGE deep-link adapters.
+      enabled: ${DWP_HRIS_HOME_COMPOSITION_ENABLED:false}
+      owner-timeout: ${DWP_HRIS_HOME_COMPOSITION_OWNER_TIMEOUT:PT0.5S}
+      max-owner-concurrency: ${DWP_HRIS_HOME_COMPOSITION_MAX_OWNER_CONCURRENCY:4}
     controlled-transfer:
       # SYS-009 is dark by default. Enabling the route still requires exact PEP,
       # a private HMAC cursor secret and all three fresh internal authorities.
