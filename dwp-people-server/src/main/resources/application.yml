@@ -68,6 +68,17 @@ spring:
 
 dwp:
   hris:
+    home:
+      people:
+        # BASE-TFR-HRM-003 remains dark until Platform workload trust, the
+        # People-owned current-authority registry and publication are installed.
+        enabled: ${DWP_HRIS_HOME_PEOPLE_ENABLED:false}
+        publication-enabled: ${DWP_HRIS_HOME_PEOPLE_PUBLICATION_ENABLED:false}
+        publication-delay-ms: ${DWP_HRIS_HOME_PEOPLE_PUBLICATION_DELAY_MS:60000}
+        signing-public-jwk: ${DWP_HRIS_HOME_PEOPLE_SIGNING_PUBLIC_JWK:}
+        workload-authentication: ${DWP_HRIS_HOME_PEOPLE_WORKLOAD_AUTHENTICATION:CLIENT_CREDENTIAL_JWT}
+        payload-ref-secret: ${DWP_HRIS_HOME_PEOPLE_PAYLOAD_REF_SECRET:}
+        current-authority-grants-json: ${DWP_HRIS_HOME_PEOPLE_CURRENT_AUTHORITY_GRANTS_JSON:}
     experience:
       # HRM-002 remains dark until Central separately admits the exact
       # Notification source/event/template package and authoritative recipient
