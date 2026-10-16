@@ -91,6 +91,34 @@ class ControlledTransferServiceTest {
     }
 
     @Test
+    void metadataAuthorityMustBeCanonicalAndAtMost120Characters() {
+        CapturingRepository boundaryRepository = new CapturingRepository();
+        ControlledTransferService boundary = service(
+                boundaryRepository,
+                request -> metadata(request, "A".repeat(120)),
+                this::scan, this::egress);
+
+        boundary.create(access(true, "metadata-boundary-0001"),
+                command(TransferKind.INGEST));
+        assertThat(boundaryRepository.saved.getFirst().metadataAuthority())
+                .hasSize(120);
+
+        for (String invalid : List.of(
+                " OBJECT_STORE", "OBJECT_STORE ", "A".repeat(121))) {
+            ControlledTransferService rejected = service(
+                    new CapturingRepository(),
+                    request -> metadata(request, invalid),
+                    this::scan, this::egress);
+            assertThatThrownBy(() -> rejected.create(
+                    access(true, "metadata-invalid-0001"),
+                    command(TransferKind.INGEST)))
+                    .isInstanceOfSatisfying(BaseException.class, error ->
+                            assertThat(error.getErrorCode())
+                                    .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+        }
+    }
+
+    @Test
     void outboundRequiresAnExactFreshEgressPolicyEcho() {
         service.create(access(true, "0123456789abcdef"),
                 command(TransferKind.EXPORT));
@@ -337,10 +365,15 @@ class ControlledTransferServiceTest {
     }
 
     private TrustedObjectMetadata metadata(ObjectMetadataRequest request) {
+        return metadata(request, "OBJECT_STORE");
+    }
+
+    private TrustedObjectMetadata metadata(
+            ObjectMetadataRequest request, String authority) {
         return new TrustedObjectMetadata(
                 request.tenantId(), request.subjectPrincipalPublicId(), request.objectRef(),
                 request.uploadSessionId(), "v1", OBJECT_DIGEST, 10,
-                "application/json", "etag-1", "OBJECT_STORE", SNAPSHOT_DIGEST,
+                "application/json", "etag-1", authority, SNAPSHOT_DIGEST,
                 METADATA_AUTHORITY_DIGEST, NOW.plusMinutes(10));
     }
 

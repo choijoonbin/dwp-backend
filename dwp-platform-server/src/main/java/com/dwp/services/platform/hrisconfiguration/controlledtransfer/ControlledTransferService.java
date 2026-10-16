@@ -290,7 +290,7 @@ final class ControlledTransferService {
                 || !binding.snapshotDigest().equals(trusted.metadataSnapshotDigest())
                 || !digest(trusted.metadataSnapshotDigest())
                 || !digest(trusted.authorityDigest())
-                || blank(trusted.metadataAuthority())) {
+                || !canonical(trusted.metadataAuthority(), 120)) {
             throw conflict("CONTROLLED_TRANSFER_OBJECT_SNAPSHOT_CONFLICT");
         }
         requireFuture(trusted.freshUntil(), checkedAt,

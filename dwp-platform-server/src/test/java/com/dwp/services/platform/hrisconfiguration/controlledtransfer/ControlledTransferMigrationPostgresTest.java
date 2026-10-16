@@ -170,6 +170,52 @@ class ControlledTransferMigrationPostgresTest {
     }
 
     @Test
+    void expiryTransitionRejectsEarlyAndAllowsOnlyElapsedExpiry() {
+        Fixture fixture = fixture("sys009_expiry_guard");
+        PreparedTransfer future = transfer(
+                access(SUBJECT_ONE, "expiry-guard-future-01"),
+                UUID.randomUUID(), "a".repeat(64));
+        fixture.transactions.execute(ignored -> fixture.repository.create(future));
+
+        assertThatThrownBy(() -> fixture.jdbc.update("""
+                UPDATE sys_controlled_file_transfers
+                   SET state = 'EXPIRED', version = version + 1
+                 WHERE public_id = ?
+                """, future.transferPublicId()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(fixture.jdbc.queryForObject("""
+                SELECT state FROM sys_controlled_file_transfers WHERE public_id = ?
+                """, String.class, future.transferPublicId())).isEqualTo("REQUESTED");
+
+        UUID elapsedPublicId = UUID.randomUUID();
+        assertThat(fixture.jdbc.update("""
+                INSERT INTO sys_controlled_file_transfers
+                SELECT (jsonb_populate_record(
+                    NULL::sys_controlled_file_transfers,
+                    to_jsonb(source_row) || jsonb_build_object(
+                        'controlled_transfer_id', gen_random_uuid(),
+                        'public_id', CAST(? AS UUID),
+                        'idempotency_key', 'expiry-guard-elapsed-01',
+                        'receipt_public_id', gen_random_uuid(),
+                        'requested_at', CURRENT_TIMESTAMP - INTERVAL '2 hours',
+                        'updated_at', CURRENT_TIMESTAMP - INTERVAL '2 hours',
+                        'scanned_at', CURRENT_TIMESTAMP - INTERVAL '3 hours',
+                        'expires_at', CURRENT_TIMESTAMP - INTERVAL '1 hour'))).*
+                  FROM sys_controlled_file_transfers AS source_row
+                 WHERE public_id = ?
+                """, elapsedPublicId, future.transferPublicId())).isEqualTo(1);
+        assertThat(fixture.jdbc.update("""
+                UPDATE sys_controlled_file_transfers
+                   SET state = 'EXPIRED', version = version + 1
+                 WHERE public_id = ?
+                """, elapsedPublicId)).isEqualTo(1);
+        assertThat(fixture.jdbc.queryForObject("""
+                SELECT state || ':' || version
+                  FROM sys_controlled_file_transfers WHERE public_id = ?
+                """, String.class, elapsedPublicId)).isEqualTo("EXPIRED:2");
+    }
+
+    @Test
     void repositoryReplayEventAndRollbackAreAtomicAndExact() {
         Fixture fixture = fixture("sys009_repository");
         PreparedTransfer first = transfer(
@@ -208,6 +254,23 @@ class ControlledTransferMigrationPostgresTest {
         assertThat(currentScope.items())
                 .extracting(CatalogItem::publicId)
                 .containsExactly(first.transferPublicId());
+        TransferPage ordinaryFilter = fixture.transactions.execute(ignored ->
+                fixture.repository.catalog(
+                        first.access(), OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(1),
+                        "sys", null, 10));
+        assertThat(ordinaryFilter.items())
+                .extracting(CatalogItem::publicId)
+                .containsExactly(first.transferPublicId());
+        for (String literalFilter : List.of("\\", "%", "_")) {
+            TransferPage literalResult = fixture.transactions.execute(ignored ->
+                    fixture.repository.catalog(
+                            first.access(),
+                            OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(1),
+                            literalFilter, null, 10));
+            assertThat(literalResult.items())
+                    .as("filter metacharacter %s is literal", literalFilter)
+                    .isEmpty();
+        }
         TransferPage wrongScope = fixture.transactions.execute(ignored ->
                 fixture.repository.catalog(
                         access(SUBJECT_ONE, "unused-catalog-key", OTHER_SCOPE),

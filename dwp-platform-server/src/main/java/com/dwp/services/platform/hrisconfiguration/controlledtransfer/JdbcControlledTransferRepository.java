@@ -195,8 +195,15 @@ final class JdbcControlledTransferRepository implements ControlledTransferReposi
         arguments.add(access.populationScopeDigest());
         arguments.add(asOf);
         if (normalized != null) {
-            sql.append(" AND (owner_module LIKE ? OR transfer_kind LIKE ? OR state LIKE ?)");
-            String pattern = '%' + normalized.replace("%", "\\%").replace("_", "\\_") + '%';
+            sql.append("""
+                     AND (owner_module LIKE ? ESCAPE '\\'
+                       OR transfer_kind LIKE ? ESCAPE '\\'
+                       OR state LIKE ? ESCAPE '\\')
+                    """);
+            String pattern = '%' + normalized
+                    .replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_") + '%';
             arguments.add(pattern);
             arguments.add(pattern);
             arguments.add(pattern);

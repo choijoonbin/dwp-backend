@@ -17,7 +17,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -72,13 +71,12 @@ final class ControlledTransferController {
     }
 
     @PostMapping(path = PATH, consumes = MediaType.APPLICATION_JSON_VALUE)
-    ResponseEntity<Receipt> create(
-            HttpServletRequest request,
-            @RequestBody byte[] body) {
+    ResponseEntity<Receipt> create(HttpServletRequest request) {
         requireNoQuery(request);
-        FileTransferCommand command = strictCommand(body);
+        AccessSeal access = access(request, true);
+        FileTransferCommand command = strictCommand(request);
         return ResponseEntity.accepted().cacheControl(CacheControl.noStore())
-                .body(service.create(access(request, true), command));
+                .body(service.create(access, command));
     }
 
     private AccessSeal access(HttpServletRequest request, boolean mutation) {
@@ -129,6 +127,7 @@ final class ControlledTransferController {
                 || idempotencyKey.length() > 128)) {
             throw invalid("Idempotency-Key must contain 16 through 128 characters");
         }
+        if (mutation) requireStepUpChallenge(request);
         return new AccessSeal(
                 tenantId, subject, populationDigest, populationKind, fieldGroups,
                 fieldPolicyRevision, authorizationRevision, authority.routeContractKey(),
@@ -161,14 +160,37 @@ final class ControlledTransferController {
         }
     }
 
-    private FileTransferCommand strictCommand(byte[] body) {
-        if (body == null || body.length == 0 || body.length > MAX_COMMAND_BODY_BYTES) {
+    private FileTransferCommand strictCommand(HttpServletRequest request) {
+        long declaredLength = request.getContentLengthLong();
+        if (declaredLength == 0 || declaredLength > MAX_COMMAND_BODY_BYTES) {
             throw invalid("Controlled-transfer command body is required and bounded");
         }
         try {
+            byte[] body = request.getInputStream().readNBytes(
+                    MAX_COMMAND_BODY_BYTES + 1);
+            if (body.length == 0 || body.length > MAX_COMMAND_BODY_BYTES) {
+                throw invalid("Controlled-transfer command body is required and bounded");
+            }
             return strictJson.readValue(body, FileTransferCommand.class);
         } catch (IOException | RuntimeException exception) {
+            if (exception instanceof BaseException baseException) {
+                throw baseException;
+            }
             throw invalid("Controlled-transfer command body is invalid");
+        }
+    }
+
+    private void requireStepUpChallenge(HttpServletRequest request) {
+        List<String> values = Collections.list(
+                request.getHeaders("X-DWP-Step-Up-Challenge"));
+        if (values.size() != 1) {
+            throw invalid("X-DWP-Step-Up-Challenge must occur exactly once");
+        }
+        String value = values.getFirst();
+        if (value == null || value.isBlank() || !value.equals(value.strip())
+                || value.length() > 16_384 || value.indexOf('\r') >= 0
+                || value.indexOf('\n') >= 0) {
+            throw invalid("X-DWP-Step-Up-Challenge is invalid");
         }
     }
 

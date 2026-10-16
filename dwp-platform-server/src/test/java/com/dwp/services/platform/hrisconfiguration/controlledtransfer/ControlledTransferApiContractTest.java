@@ -103,7 +103,7 @@ class ControlledTransferApiContractTest {
         MockHttpServletRequest post = new MockHttpServletRequest(
                 "POST", "/v1/admin/hris/file-transfers");
         post.addParameter("debug", "true");
-        assertThatThrownBy(() -> controller.create(post, null))
+        assertThatThrownBy(() -> controller.create(post))
                 .isInstanceOfSatisfying(BaseException.class, error ->
                         assertThat(error.getErrorCode())
                                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
@@ -179,25 +179,85 @@ class ControlledTransferApiContractTest {
         String duplicatePurpose = validCommandJson().replace(
                 "\"purposeCode\":\"HRIS_INTEGRATION_ADMIN\"",
                 "\"purposeCode\":\"WRONG\",\"purposeCode\":\"HRIS_INTEGRATION_ADMIN\"");
-        assertThatThrownBy(() -> controller.create(
-                new MockHttpServletRequest("POST", "/v1/admin/hris/file-transfers"),
-                duplicatePurpose.getBytes(StandardCharsets.UTF_8)))
+        assertThatThrownBy(() -> controller.create(postRequest(
+                "0123456789abcdef", duplicatePurpose)))
+                .isInstanceOfSatisfying(BaseException.class, error ->
+                        assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        assertThatThrownBy(() -> controller.create(postRequest(
+                "0123456789abcdef", validCommandJson() + " {}")))
                 .isInstanceOfSatisfying(BaseException.class, error ->
                         assertThat(error.getErrorCode())
                                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
 
         assertThatThrownBy(() -> controller.create(
-                new MockHttpServletRequest("POST", "/v1/admin/hris/file-transfers"),
-                (validCommandJson() + " {}").getBytes(StandardCharsets.UTF_8)))
+                postRequest("short", validCommandJson())))
+                .isInstanceOfSatisfying(BaseException.class, error ->
+                        assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+    }
+
+    @Test
+    void commandRequiresExactlyOneBoundedStepUpChallenge() {
+        MockHttpServletRequest missing = postRequest(
+                "0123456789abcdef", validCommandJson());
+        missing.removeHeader("X-DWP-Step-Up-Challenge");
+        assertThatThrownBy(() -> controller.create(missing))
                 .isInstanceOfSatisfying(BaseException.class, error ->
                         assertThat(error.getErrorCode())
                                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
 
-        assertThatThrownBy(() -> controller.create(
-                postRequest("short"), validCommandJson().getBytes(StandardCharsets.UTF_8)))
+        MockHttpServletRequest duplicate = postRequest(
+                "0123456789abcdef", validCommandJson());
+        duplicate.addHeader("X-DWP-Step-Up-Challenge", "second-proof");
+        assertThatThrownBy(() -> controller.create(duplicate))
                 .isInstanceOfSatisfying(BaseException.class, error ->
                         assertThat(error.getErrorCode())
                                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        MockHttpServletRequest oversized = postRequest(
+                "0123456789abcdef", validCommandJson());
+        oversized.removeHeader("X-DWP-Step-Up-Challenge");
+        oversized.addHeader("X-DWP-Step-Up-Challenge", "x".repeat(16_385));
+        assertThatThrownBy(() -> controller.create(oversized))
+                .isInstanceOfSatisfying(BaseException.class, error ->
+                        assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+    }
+
+    @Test
+    void commandBodyIsBoundedForDeclaredAndChunkedIngress() {
+        MockHttpServletRequest declared = postRequest("0123456789abcdef");
+        declared.setContent("x".repeat(65_537).getBytes(StandardCharsets.UTF_8));
+        assertThatThrownBy(() -> controller.create(declared))
+                .isInstanceOfSatisfying(BaseException.class, error -> {
+                    assertThat(error.getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+                    assertThat(error).hasMessageContaining("bounded");
+                });
+
+        MockHttpServletRequest chunked = new MockHttpServletRequest(
+                "POST", "/v1/admin/hris/file-transfers") {
+            @Override
+            public int getContentLength() {
+                return -1;
+            }
+
+            @Override
+            public long getContentLengthLong() {
+                return -1;
+            }
+        };
+        addPostHeaders(chunked, "0123456789abcdef");
+        chunked.addHeader("Transfer-Encoding", "chunked");
+        chunked.setContent("x".repeat(65_537).getBytes(StandardCharsets.UTF_8));
+        assertThatThrownBy(() -> controller.create(chunked))
+                .isInstanceOfSatisfying(BaseException.class, error -> {
+                    assertThat(error.getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+                    assertThat(error).hasMessageContaining("bounded");
+                });
     }
 
     private MockHttpServletRequest readRequest() {
@@ -232,6 +292,18 @@ class ControlledTransferApiContractTest {
     private MockHttpServletRequest postRequest(String idempotencyKey) {
         MockHttpServletRequest request = new MockHttpServletRequest(
                 "POST", "/v1/admin/hris/file-transfers");
+        addPostHeaders(request, idempotencyKey);
+        return request;
+    }
+
+    private MockHttpServletRequest postRequest(String idempotencyKey, String body) {
+        MockHttpServletRequest request = postRequest(idempotencyKey);
+        request.setContent(body.getBytes(StandardCharsets.UTF_8));
+        return request;
+    }
+
+    private void addPostHeaders(
+            MockHttpServletRequest request, String idempotencyKey) {
         request.setAttribute(HcmPlatformPepRegistry.class.getName() + ".authority",
                 new HcmPlatformPepRegistry.RouteAuthority(
                         ControlledTransferService.CREATE_ROUTE, "ACTION", "POST",
@@ -253,7 +325,7 @@ class ControlledTransferApiContractTest {
         request.addHeader("X-Correlation-ID",
                 "22222222-2222-4222-8222-222222222222");
         request.addHeader("Idempotency-Key", idempotencyKey);
-        return request;
+        request.addHeader("X-DWP-Step-Up-Challenge", "step-up-proof");
     }
 
     private String validCommandJson() {

@@ -228,6 +228,10 @@ BEGIN
         RAISE EXCEPTION 'Controlled-transfer transition requires exact CAS version increment'
             USING ERRCODE = '23514';
     END IF;
+    IF NEW.state = 'EXPIRED' AND CURRENT_TIMESTAMP < OLD.expires_at THEN
+        RAISE EXCEPTION 'Controlled-transfer cannot expire before expires_at'
+            USING ERRCODE = '23514';
+    END IF;
     IF NEW.state IN ('SCANNING', 'IN_PROGRESS')
        AND (NEW.lease_expires_at IS NULL
             OR NEW.lease_expires_at <= CURRENT_TIMESTAMP) THEN

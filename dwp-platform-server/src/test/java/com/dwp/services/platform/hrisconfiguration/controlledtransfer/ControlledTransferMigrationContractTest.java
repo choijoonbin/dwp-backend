@@ -41,6 +41,8 @@ class ControlledTransferMigrationContractTest {
                 .contains("Controlled-transfer terminal evidence is immutable")
                 .contains("Controlled-transfer evidence cannot be deleted")
                 .contains("Controlled-transfer transition requires exact CAS version increment")
+                .contains("NEW.state = 'EXPIRED' AND CURRENT_TIMESTAMP < OLD.expires_at")
+                .contains("Controlled-transfer cannot expire before expires_at")
                 .contains("Illegal controlled-transfer state transition")
                 .contains("Controlled-transfer must start as REQUESTED version 1")
                 .contains("OLD.updated_at + INTERVAL '1 microsecond'")
