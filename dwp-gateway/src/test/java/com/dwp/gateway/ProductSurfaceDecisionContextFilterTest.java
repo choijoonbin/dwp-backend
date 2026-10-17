@@ -1274,6 +1274,151 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void exactTenantFeatureRouteFamilyAlwaysEvaluatesAuthAtRollout000And100() {
+        record RouteCase(String method, String path) {}
+        List<RouteCase> routes = List.of(
+                new RouteCase("GET", "/api/people/v1/hris/organizations/graph"),
+                new RouteCase("GET", "/api/platform/v1/hris/workbench/settings-operations"),
+                new RouteCase("GET", "/api/platform/v1/admin/hris/operations/exceptions"),
+                new RouteCase("GET", "/api/platform/v1/admin/hris/operations/exceptions/ex-1"),
+                new RouteCase("GET", "/api/payroll/v1/workbench/population"),
+                new RouteCase("POST", "/api/payroll/v1/runs"),
+                new RouteCase("GET", "/api/time/v1/hris/workbench/time-command-center"),
+                new RouteCase("GET", "/api/time/v1/hris/workbench/time-daily-close"),
+                new RouteCase("GET", "/api/time/v1/hris/workbench/time-monthly-close"),
+                new RouteCase("POST", "/api/time/v1/close-periods/period-1/validations"),
+                new RouteCase("POST", "/api/time/v1/close-periods/period-1/close"),
+                new RouteCase("POST", "/api/time/v1/close-periods/period-1/reopen"),
+                new RouteCase("POST", "/api/time/v1/close-periods/period-1/payroll-handoffs"),
+                new RouteCase("GET", "/api/time/v1/payroll-handoffs/handoff-1"));
+        ProductSurfaceContextAggregationService authority = authority(activationRequired(
+                "FEATURE_ACTIVATION_REQUIRED"));
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        int evaluations = 0;
+
+        for (String rollout : List.of("000", "100")) {
+            for (String tenant : List.of("7", "91")) {
+                for (RouteCase route : routes) {
+                    MockServerWebExchange exchange = exchange(MockServerHttpRequest.method(
+                                    HttpMethod.valueOf(route.method()), route.path())
+                            .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, rollout)
+                            .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                            .header(VerifiedIdentityFilter.TENANT_HEADER, tenant));
+                    AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+                    filter.filter(exchange, ignored -> {
+                        forwarded.set(true);
+                        return Mono.empty();
+                    }).block();
+
+                    assertThat(forwarded.get()).as(route.path()).isFalse();
+                    assertThat(exchange.getResponse().getStatusCode()).as(route.path())
+                            .isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(body(exchange)).as(route.path())
+                            .contains("FEATURE_ACTIVATION_REQUIRED");
+                    evaluations++;
+                }
+            }
+        }
+
+        verify(authority, times(evaluations)).evaluateProductTrusted(any(), any());
+    }
+
+    @Test
+    void activationRequiredReasonsAre403AndAuthorityUnavailableIs503WithoutOwnerCalls() {
+        for (String reason : List.of(
+                "FEATURE_ACTIVATION_REQUIRED",
+                "TENANT_FEATURE_ENROLLMENT_REQUIRED",
+                "TENANT_APP_ADOPTION_REQUIRED")) {
+            MockServerWebExchange denied = exchange(MockServerHttpRequest.get(
+                            "/api/platform/v1/hris/workbench/settings-operations")
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+            AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+            filter(authority(activationRequired(reason))).filter(denied, ignored -> {
+                forwarded.set(true);
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(reason).isFalse();
+            assertThat(denied.getResponse().getStatusCode()).as(reason)
+                    .isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(body(denied)).as(reason).contains(reason);
+        }
+
+        MockServerWebExchange unavailable = exchange(MockServerHttpRequest.get(
+                        "/api/platform/v1/hris/workbench/settings-operations")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "100")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+        AtomicReference<Boolean> unavailableForwarded = new AtomicReference<>(false);
+
+        filter(authority(authorityUnavailable())).filter(unavailable, ignored -> {
+            unavailableForwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(unavailableForwarded.get()).isFalse();
+        assertThat(unavailable.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(unavailable)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
+    }
+
+    @Test
+    void governedRouteForwardsOnlyWithNonblankTenantControlEvidence() {
+        var active = allowedWave2("TARGET_POPULATION");
+        var legacy = new ProductSurfaceContextAggregationService.TrustedProductEvaluation(
+                active.data(),
+                active.contextKey(),
+                active.scope(),
+                new ProductSurfaceContextDtos.SourceRevisions(
+                        "auth-v38", "policy-v38", "relationship-v1", "population-v1", null),
+                false);
+        MockServerWebExchange rejected = exchange(MockServerHttpRequest.get(
+                        "/api/platform/v1/hris/workbench/settings-operations")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041"));
+        AtomicReference<Boolean> rejectedForwarded = new AtomicReference<>(false);
+
+        filter(authority(legacy)).filter(rejected, ignored -> {
+            rejectedForwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(rejectedForwarded.get()).isFalse();
+        assertThat(rejected.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+
+        MockServerWebExchange admitted = exchange(MockServerHttpRequest.get(
+                        "/api/platform/v1/hris/workbench/settings-operations")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter(authority(active)).filter(admitted, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                .isEqualTo("route.hcm.configuration.settings-operations.page");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER))
+                .isEqualTo(REVISION);
+    }
+
+    @Test
     void homeShadowRoutesReceiveRecipientBoundAuthorityEvidence() {
         ProductSurfaceContextAggregationService authority = authority(allowed());
         ProductSurfaceDecisionContextFilter filter = filter(authority);
@@ -1771,7 +1916,7 @@ class ProductSurfaceDecisionContextFilterTest {
                         ProductSurfaceContextDtos.Decision.ALLOWED, "ALLOWED", REVISION,
                         context, "grant-1", scope, false, REVALIDATE_AT, null,
                         null, null, REVALIDATE_AT),
-                "ctx-approval", scope, false);
+                "ctx-approval", scope, sourceRevisions(), false);
     }
 
     private ProductSurfaceContextAggregationService.TrustedProductEvaluation allowedHcm() {
@@ -1790,7 +1935,7 @@ class ProductSurfaceDecisionContextFilterTest {
                         ProductSurfaceContextDtos.Decision.ALLOWED, "ALLOWED", REVISION,
                         context, "grant-hcm-services", scope, false, REVALIDATE_AT,
                         null, null, null, REVALIDATE_AT),
-                contextKey, scope, false);
+                contextKey, scope, sourceRevisions(), false);
     }
 
     private ProductSurfaceContextAggregationService.TrustedProductEvaluation allowedDwaion() {
@@ -1809,7 +1954,7 @@ class ProductSurfaceDecisionContextFilterTest {
                         ProductSurfaceContextDtos.Decision.ALLOWED, "ALLOWED", REVISION,
                         context, "grant-dwaion", scope, false, REVALIDATE_AT,
                         null, null, null, REVALIDATE_AT),
-                contextKey, scope, false);
+                contextKey, scope, sourceRevisions(), false);
     }
 
     private ProductSurfaceContextAggregationService.TrustedProductEvaluation allowedWave2(
@@ -1831,9 +1976,7 @@ class ProductSurfaceDecisionContextFilterTest {
                         null, null, null, REVALIDATE_AT),
                 contextKey,
                 scope,
-                new ProductSurfaceContextDtos.SourceRevisions(
-                        "auth-v38", "policy-v38", "relationship-v1",
-                        "population-v1", null),
+                sourceRevisions(),
                 false);
     }
 
@@ -1845,7 +1988,7 @@ class ProductSurfaceDecisionContextFilterTest {
                         "STEP_UP_REQUIRED", REVISION, null, null, null, null,
                         REVALIDATE_AT, null, "urn:dwp:acr:mfa",
                         "STEPUP-MGMT-HIGH-V1", REVALIDATE_AT),
-                "ctx-approval", scope, false);
+                "ctx-approval", scope, sourceRevisions(), false);
     }
 
     private ProductSurfaceContextAggregationService.TrustedProductEvaluation stepUpWave2(
@@ -1861,9 +2004,7 @@ class ProductSurfaceDecisionContextFilterTest {
                         "STEPUP-MGMT-HIGH-V1", REVALIDATE_AT),
                 "psc-" + "d".repeat(64),
                 scope,
-                new ProductSurfaceContextDtos.SourceRevisions(
-                        "auth-v38", "policy-v38", "relationship-v1",
-                        "population-v1", null),
+                sourceRevisions(),
                 false);
     }
 
@@ -1875,6 +2016,7 @@ class ProductSurfaceDecisionContextFilterTest {
                         null, null, null, null, null),
                 null,
                 null,
+                sourceRevisions(),
                 false);
     }
 
@@ -1891,7 +2033,42 @@ class ProductSurfaceDecisionContextFilterTest {
                         null, null, null, null, null),
                 null,
                 null,
+                sourceRevisions(),
                 authRouteProductNotRegistered);
+    }
+
+    private ProductSurfaceContextAggregationService.TrustedProductEvaluation activationRequired(
+            String reasonCode) {
+        return deniedEvaluation(ProductSurfaceContextDtos.Decision.ACTIVATION_REQUIRED, reasonCode);
+    }
+
+    private ProductSurfaceContextAggregationService.TrustedProductEvaluation authorityUnavailable() {
+        return deniedEvaluation(
+                ProductSurfaceContextDtos.Decision.AUTHORITY_UNAVAILABLE,
+                "AUTHORITY_RESOLUTION_UNAVAILABLE");
+    }
+
+    private ProductSurfaceContextAggregationService.TrustedProductEvaluation deniedEvaluation(
+            ProductSurfaceContextDtos.Decision decision,
+            String reasonCode) {
+        return new ProductSurfaceContextAggregationService.TrustedProductEvaluation(
+                new ProductSurfaceContextDtos.ProductEvaluationData(
+                        decision, reasonCode, REVISION, null, null, null, null,
+                        null, null, null, null, null),
+                null,
+                null,
+                sourceRevisions(),
+                false);
+    }
+
+    private ProductSurfaceContextDtos.SourceRevisions sourceRevisions() {
+        return new ProductSurfaceContextDtos.SourceRevisions(
+                "auth-v38",
+                "policy-v38",
+                "relationship-v1",
+                "population-v1",
+                "tenant-control-activation-1",
+                null);
     }
 
     private ProductSurfaceContextDtos.EffectiveScope scope() {

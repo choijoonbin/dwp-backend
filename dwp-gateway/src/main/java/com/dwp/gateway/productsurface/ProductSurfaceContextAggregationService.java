@@ -22,7 +22,7 @@ import static com.dwp.gateway.productsurface.ProductSurfaceContextAggregationSup
 @Service
 public class ProductSurfaceContextAggregationService {
 
-    private static final String CONTRACT_VERSION = "1";
+    private static final String CONTRACT_VERSION = "2";
     private static final String PRODUCT_NOT_REGISTERED = "PRODUCT_NOT_REGISTERED";
 
     private final ProductSurfaceAuthorityClient authorityClient;
@@ -438,6 +438,7 @@ public class ProductSurfaceContextAggregationService {
                         authority.policyRevision(),
                         eligibility == null ? null : eligibility.productRelationshipRevision(),
                         eligibility == null ? null : eligibility.targetPopulationRevision(),
+                        authority.tenantControlRevision(),
                         requestContext.supportRevision());
         return new Resolution(
                 decision,
@@ -559,7 +560,8 @@ public class ProductSurfaceContextAggregationService {
                 || !candidate.surfaceKey().equals(authority.surfaceKey())) {
             return false;
         }
-        if (blank(authority.authRevision()) || blank(authority.policyRevision())) return false;
+        if (blank(authority.authRevision()) || blank(authority.policyRevision())
+                || blank(authority.tenantControlRevision())) return false;
         if (authority.decision() != ProductSurfaceContextDtos.Decision.ALLOWED) {
             if (authority.decision() == ProductSurfaceContextDtos.Decision.STEP_UP_REQUIRED) {
                 return authority.accessSource() != null

@@ -23,18 +23,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.allowed;
-import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.allowedWithAppResourceKey;
-import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.allowedWithScopes;
-import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.challenged;
-import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.denied;
 import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.eligibleScope;
 import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.evaluationRequest;
-import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.productNotRegistered;
 import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.requestContext;
 import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.rollout;
 import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.scope;
-import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.surfaceNotRegistered;
 import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.unavailable;
 
 class ProductSurfaceContextAggregationServiceTest {
@@ -83,9 +76,11 @@ class ProductSurfaceContextAggregationServiceTest {
         var result = service.listContexts(requestContext()).block();
 
         assertThat(result).isNotNull();
-        assertThat(result.contractVersion()).isEqualTo("1");
+        assertThat(result.contractVersion()).isEqualTo("2");
         assertThat(result.generatedAt()).isEqualTo("2026-08-24T01:00Z");
         assertThat(result.decisionRevision()).startsWith("psr-");
+        assertThat(result.sourceRevisions().tenantControl())
+                .isEqualTo("tenant-control-activation-1");
         assertThat(result.contexts()).singleElement()
                 .extracting(ProductSurfaceContextDtos.EffectiveContext::surfaceKey)
                 .isEqualTo("approvals.admin");
@@ -315,26 +310,19 @@ class ProductSurfaceContextAggregationServiceTest {
     }
 
     @Test
-    void noActiveAuthorityBundleAllowsOnlyTheConfirmedOffBaseline() {
+    void confirmedOffBaselineCannotEmitContractV2WithoutTenantControlEvidence() {
         when(authority.evaluate(any(), any(), any(), isNull(), isNull(), isNull()))
                 .thenReturn(Mono.just(unavailable()));
         when(rollout.evaluateProducts(anyLong(), any(), any()))
                 .thenReturn(Mono.just(List.of(rollout("000"))));
 
-        var baseline = service.listContexts(requestContext()).block();
-
-        assertThat(baseline).isNotNull();
-        assertThat(baseline.contexts()).isEmpty();
-        assertThat(baseline.rollouts()).singleElement().satisfies(value -> {
-            assertThat(value.state()).isEqualTo("000");
-            assertThat(value.authorityStatus()).isEqualTo(
-                    ProductSurfaceContextDtos.AuthorityStatus.NOT_EVALUATED);
-        });
+        assertThatThrownBy(() -> service.listContexts(requestContext()).block())
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
         verify(authority, never()).evaluate(any(), any(), any(), any(), any(), any());
     }
 
     @Test
-    void defaultOffEnvelopeIncludesTheCompleteRolloutInventoryWithoutRouteAuthority() {
+    void defaultOffEnvelopeDoesNotFabricateTenantControlEvidence() {
         List<String> products = List.of(
                 "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
                 "meetings", "messaging", "notifications", "services", "spaces", "workplace");
@@ -344,16 +332,8 @@ class ProductSurfaceContextAggregationServiceTest {
                         .map(product -> rollout(product, "000"))
                         .toList()));
 
-        var result = service.listContexts(requestContext()).block();
-
-        assertThat(result).isNotNull();
-        assertThat(result.contexts()).isEmpty();
-        assertThat(result.rollouts())
-                .extracting(ProductSurfaceContextDtos.ProductRollout::productKey)
-                .containsExactlyElementsOf(products);
-        assertThat(result.rollouts())
-                .allMatch(value -> value.authorityStatus()
-                        == ProductSurfaceContextDtos.AuthorityStatus.NOT_EVALUATED);
+        assertThatThrownBy(() -> service.listContexts(requestContext()).block())
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
         verify(rollout).evaluateProducts(eq(1L), eq(products), any());
         verify(authority, never()).evaluate(any(), any(), any(), any(), any(), any());
     }
@@ -483,21 +463,14 @@ class ProductSurfaceContextAggregationServiceTest {
     }
 
     @Test
-    void shadowAuthorityFailureKeepsBaselineAndReportsPerProductUnavailable() {
+    void shadowAuthorityFailureCannotEmitContractV2WithoutTenantControlEvidence() {
         when(authority.evaluate(any(), any(), any(), isNull(), isNull(), isNull()))
                 .thenReturn(Mono.just(unavailable()));
         when(rollout.evaluateProducts(anyLong(), any(), any()))
                 .thenReturn(Mono.just(List.of(rollout("100"))));
 
-        var shadow = service.listContexts(requestContext()).block();
-
-        assertThat(shadow).isNotNull();
-        assertThat(shadow.contexts()).isEmpty();
-        assertThat(shadow.rollouts()).singleElement().satisfies(value -> {
-            assertThat(value.state()).isEqualTo("100");
-            assertThat(value.authorityStatus()).isEqualTo(
-                    ProductSurfaceContextDtos.AuthorityStatus.UNAVAILABLE);
-        });
+        assertThatThrownBy(() -> service.listContexts(requestContext()).block())
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -679,6 +652,28 @@ class ProductSurfaceContextAggregationServiceTest {
     }
 
     @Test
+    void tenantControlRevisionIsMandatoryAndChangesTheCompositeDecisionRevision() {
+        ProductSurfaceContextDtos.AuthorityResult legacy =
+                ProductSurfaceContextTestFixtures.allowed(false);
+        when(authority.evaluate(any(), any(), any(), any(), any(), any()))
+                .thenReturn(
+                        Mono.just(legacy),
+                        Mono.just(withTenantControl(legacy, "tenant-control-activation-1")),
+                        Mono.just(withTenantControl(legacy, "tenant-control-activation-2")));
+
+        assertThatThrownBy(() -> service.evaluateProduct(
+                requestContext(), evaluationRequest()).block())
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
+
+        var first = service.evaluateProduct(requestContext(), evaluationRequest()).block();
+        var second = service.evaluateProduct(requestContext(), evaluationRequest()).block();
+
+        assertThat(first).isNotNull();
+        assertThat(second).isNotNull();
+        assertThat(second.decisionRevision()).isNotEqualTo(first.decisionRevision());
+    }
+
+    @Test
     void failsClosedWhenAllowedAuthorityOmitsTheCanonicalAppResourceKey() {
         when(authority.evaluate(any(), any(), any(), any(), any(), any()))
                 .thenReturn(Mono.just(allowedWithAppResourceKey(null)));
@@ -809,6 +804,92 @@ class ProductSurfaceContextAggregationServiceTest {
                 ProductSurfaceContextDtos.Decision.SCOPE_SELECTION_REQUIRED);
         assertThat(result.scope()).isNull();
         assertThat(result.context()).isNull();
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult allowed(boolean requiresEligibility) {
+        return withTenantControl(
+                ProductSurfaceContextTestFixtures.allowed(requiresEligibility));
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult allowed(
+            String productKey,
+            String surfaceKey) {
+        return withTenantControl(
+                ProductSurfaceContextTestFixtures.allowed(productKey, surfaceKey));
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult allowedWithAppResourceKey(String key) {
+        return withTenantControl(
+                ProductSurfaceContextTestFixtures.allowedWithAppResourceKey(key));
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult challenged(boolean requiresEligibility) {
+        return withTenantControl(
+                ProductSurfaceContextTestFixtures.challenged(requiresEligibility));
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult denied() {
+        return withTenantControl(ProductSurfaceContextTestFixtures.denied());
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult surfaceNotRegistered(
+            String productKey,
+            String surfaceKey) {
+        return withTenantControl(
+                ProductSurfaceContextTestFixtures.surfaceNotRegistered(productKey, surfaceKey));
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult productNotRegistered(
+            String productKey,
+            String surfaceKey) {
+        return withTenantControl(
+                ProductSurfaceContextTestFixtures.productNotRegistered(productKey, surfaceKey));
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult allowedWithScopes(
+            List<ProductSurfaceContextDtos.EffectiveScope> scopes) {
+        return withTenantControl(ProductSurfaceContextTestFixtures.allowedWithScopes(scopes));
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult allowedWithScopes(
+            List<ProductSurfaceContextDtos.EffectiveScope> scopes,
+            boolean requiresEligibility) {
+        return withTenantControl(ProductSurfaceContextTestFixtures.allowedWithScopes(
+                scopes, requiresEligibility));
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult withTenantControl(
+            ProductSurfaceContextDtos.AuthorityResult value) {
+        return withTenantControl(value, "tenant-control-activation-1");
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult withTenantControl(
+            ProductSurfaceContextDtos.AuthorityResult value,
+            String tenantControlRevision) {
+        return new ProductSurfaceContextDtos.AuthorityResult(
+                value.decision(),
+                value.reasonCode(),
+                value.authRevision(),
+                value.policyRevision(),
+                tenantControlRevision,
+                value.contextKey(),
+                value.productKey(),
+                value.surfaceKey(),
+                value.plane(),
+                value.accessMode(),
+                value.accessSource(),
+                value.appResourceKey(),
+                value.effectiveGrants(),
+                value.scopes(),
+                value.routeGrantRef(),
+                value.effectiveReadOnly(),
+                value.requiresProductEligibility(),
+                value.validUntil(),
+                value.expiredAt(),
+                value.requiredAssurance(),
+                value.requestPolicyRef(),
+                value.revalidateAt(),
+                value.evidenceRef());
     }
 
 }
