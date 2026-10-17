@@ -42,6 +42,8 @@ public class ProductSurfaceInternalSecurityConfig {
             "/internal/auth/v1/product-surface-authority/evaluate";
     public static final String MEETING_FOLLOWUP_PATH =
             "/internal/auth/v1/meeting-followup-authority/evaluate";
+    public static final String HRIS_NAVIGATION_POLICY_DECISION_PATH =
+            "/internal/auth/v1/hris-navigation-policy-decisions/evaluate";
 
     @Bean
     @Order(0)
@@ -57,7 +59,8 @@ public class ProductSurfaceInternalSecurityConfig {
                 .securityMatcher(
                         PRODUCT_SURFACE_EVALUATE_PATH,
                         "/internal/auth/v1/governed-route-authority/evaluate",
-                        MEETING_FOLLOWUP_PATH)
+                        MEETING_FOLLOWUP_PATH,
+                        HRIS_NAVIGATION_POLICY_DECISION_PATH)
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -117,6 +120,13 @@ public class ProductSurfaceInternalSecurityConfig {
             boolean productSurfaceCaller = (GATEWAY_SERVICE_IDENTITY.equals(identity)
                     || PLATFORM_SERVICE_IDENTITY.equals(identity))
                     && !MEETING_FOLLOWUP_PATH.equals(request.getRequestURI())
+                    && !HRIS_NAVIGATION_POLICY_DECISION_PATH.equals(request.getRequestURI())
+                    && absentHeader(request, MEETING_FOLLOWUP_TOKEN_HEADER)
+                    && absentHeader(request, HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER)
+                    && matches(expectedToken, productSurfaceToken);
+            boolean hrisNavigationPolicy = PLATFORM_SERVICE_IDENTITY.equals(identity)
+                    && "POST".equals(request.getMethod())
+                    && HRIS_NAVIGATION_POLICY_DECISION_PATH.equals(request.getRequestURI())
                     && absentHeader(request, MEETING_FOLLOWUP_TOKEN_HEADER)
                     && absentHeader(request, HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER)
                     && matches(expectedToken, productSurfaceToken);
@@ -132,7 +142,7 @@ public class ProductSurfaceInternalSecurityConfig {
                     && absentHeader(request, TOKEN_HEADER)
                     && absentHeader(request, MEETING_FOLLOWUP_TOKEN_HEADER)
                     && matches(expectedHrisOriginAuthorityToken, hrisOriginAuthorityToken);
-            if (!productSurfaceCaller && !meeting && !people) {
+            if (!productSurfaceCaller && !hrisNavigationPolicy && !meeting && !people) {
                 response.setStatus(ErrorCode.UNAUTHORIZED.getHttpStatus().value());
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                 objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(

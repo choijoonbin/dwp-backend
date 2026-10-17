@@ -195,6 +195,9 @@ LEGACY_HCM_PLATFORM_PEP_V44_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_nam
 HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v45.generated.json"
 )
+HCM_PLATFORM_PEP_V46_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v46.generated.json"
+)
 LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT = (
     ROOT
     / "dwp-payroll-server/src/main/resources/product-authorization/"
@@ -208,7 +211,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 46))
+BUNDLE_VERSIONS = tuple(range(1, 47))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -332,6 +335,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 73, "routes": 1034, "PAGE": 133, "DATA": 310, "ACTION": 591},
     45: {"capabilities": 258, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 73, "routes": 1046, "PAGE": 133, "DATA": 315, "ACTION": 598},
+    46: {"capabilities": 258, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 73, "routes": 1048, "PAGE": 133, "DATA": 317, "ACTION": 598},
 }
 
 REQUIRED_RESPONSIBILITY_BY_CAPABILITY = {
@@ -459,6 +464,7 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     43: "2222319502c362caf247a7a47fdacfc63c774dbf156f6272cafae797627e2400",
     44: "8b4e05e5974a8a25fb9edf318bb3cd609105f2e6353677b69c2eab1cd7038a1b",
     45: "6f41e17159104cd0fd721a13877611b6225bd6458cb2831f0f30e51573992e64",
+    46: "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -994,7 +1000,7 @@ SERVICE_PATH_PREFIXES = {
     "messaging": ("/v1/",),
     "notification": ("/v1/",),
     "payroll": ("/v1/",),
-    "platform": ("/v1/", "/v2/"),
+    "platform": ("/v1/", "/v2/", "/v3/"),
     "approval": ("/v1/",),
     "people": ("/v1/",),
     "space": ("/v1/",),
@@ -1219,10 +1225,21 @@ def _validate_descriptor_enrichment_envelope(
     authority = enrichment["authorityEndpoints"]
     require(
         isinstance(authority, dict)
-        and set(authority) == {"introducedInVersion", "values"}
+        and set(authority) == {"introducedInVersion", "values", "versionedValues"}
         and authority["introducedInVersion"] == 2
         and isinstance(authority["values"], list),
         "authorityEndpoints must be introduced exactly in registry v2",
+    )
+    require(
+        isinstance(authority["versionedValues"], list)
+        and all(
+            isinstance(value, dict)
+            and isinstance(value.get("introducedInVersion"), int)
+            and 2 < value["introducedInVersion"] <= BUNDLE_VERSIONS[-1]
+            and isinstance(value.get("endpoint"), dict)
+            for value in authority["versionedValues"]
+        ),
+        "versioned authorityEndpoints are invalid",
     )
 
     accumulated = copy.deepcopy(base)
@@ -1319,6 +1336,11 @@ def _apply_descriptor_enrichments(
     authority = enrichment["authorityEndpoints"]
     if version >= authority["introducedInVersion"]:
         candidate["authorityEndpoints"] = copy.deepcopy(authority["values"])
+        candidate["authorityEndpoints"].extend(
+            copy.deepcopy(value["endpoint"])
+            for value in authority["versionedValues"]
+            if version >= value["introducedInVersion"]
+        )
     else:
         candidate.pop("authorityEndpoints", None)
 
@@ -1652,9 +1674,22 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
                 f"v{current['version']}: append-only wave must add a descriptor")
     prior_endpoints = previous.get("authorityEndpoints", [])
     current_endpoints = current.get("authorityEndpoints", [])
+    prior_endpoint_map = {
+        value["endpointKey"]: value for value in prior_endpoints
+    }
+    current_endpoint_map = {
+        value["endpointKey"]: value for value in current_endpoints
+    }
     if current["version"] == 2:
         require(not prior_endpoints and current_endpoints,
                 "v2 must introduce the step-up authority endpoint")
+    elif current["version"] == 46:
+        require(
+            prior_endpoint_map.keys() < current_endpoint_map.keys()
+            and all(current_endpoint_map[key] == value
+                    for key, value in prior_endpoint_map.items()),
+            "v46 must append the internal HRIS navigation POLICY authority endpoint",
+        )
     else:
         require(prior_endpoints == current_endpoints,
                 f"v{current['version']}: authority endpoint drift")
@@ -1900,6 +1935,17 @@ def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
                 "X-DWP-Expected-Decision-Revision",
         }
     }
+    if version >= 46:
+        expected_endpoints["hris-navigation-policy-decisions.evaluate"] = {
+            "endpointKey": "hris-navigation-policy-decisions.evaluate",
+            "method": "POST",
+            "publicPath": None,
+            "serviceKey": "auth",
+            "servicePath": "/internal/auth/v1/hris-navigation-policy-decisions/evaluate",
+            "requiresAuthentication": False,
+            "requiresCsrf": False,
+            "expectedDecisionRevisionHeader": None,
+        }
     require(endpoints == expected_endpoints,
             f"v{version}: authority endpoint contract drift")
 
@@ -3403,6 +3449,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PLATFORM_PEP_V43_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V44_OUTPUT,
         HCM_PLATFORM_PEP_OUTPUT,
+        HCM_PLATFORM_PEP_V46_OUTPUT,
         LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT,
         HCM_PAYROLL_PEP_OUTPUT,
     }
@@ -3983,6 +4030,22 @@ def main() -> int:
             version=45,
             product_key="hcm",
         )
+        hcm_platform_pep_v46 = build_approvals_pep(
+            snapshots[45],
+            "platform",
+            "hcm-platform-pep-v46",
+            {
+                "routes": 50,
+                "bindings": 51,
+                "routeKinds": {"ACTION": 27, "DATA": 17, "PAGE": 6},
+                "capabilities": 20,
+                "accessPolicies": 4,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 9,
+            },
+            version=46,
+            product_key="hcm",
+        )
         legacy_hcm_payroll_pep_v38 = build_approvals_pep(
             snapshots[37],
             "payroll",
@@ -4217,6 +4280,11 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                HCM_PLATFORM_PEP_V46_OUTPUT,
+                render(hcm_platform_pep_v46),
+                args.check,
+            ),
+            write_or_check(
                 LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT,
                 render(legacy_hcm_payroll_pep_v38),
                 args.check,
@@ -4331,6 +4399,7 @@ def main() -> int:
             LEGACY_HCM_PLATFORM_PEP_V44_OUTPUT, legacy_hcm_platform_pep_v44
         )
         verify_approvals_pep(HCM_PLATFORM_PEP_OUTPUT, hcm_platform_pep)
+        verify_approvals_pep(HCM_PLATFORM_PEP_V46_OUTPUT, hcm_platform_pep_v46)
         verify_approvals_pep(
             LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT, legacy_hcm_payroll_pep_v38
         )

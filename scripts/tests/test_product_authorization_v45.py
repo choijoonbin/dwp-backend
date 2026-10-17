@@ -207,16 +207,8 @@ class ProductAuthorizationV45Test(unittest.TestCase):
                 else:
                     self.assertNotIn("stepUpCommandBindings", route)
 
-    def test_latest_alias_seed_index_and_platform_projection_are_v45(self) -> None:
-        alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
-        seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text())
-        index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
+    def test_immutable_v45_platform_projection_remains_pinned(self) -> None:
         projection = json.loads(PLATFORM_PEP.read_text())
-        self.assertEqual(self.v45, alias)
-        self.assertEqual(self.v45, seed)
-        self.assertEqual((45, V45_SHA256), (
-            index["latestVersion"], index["latestChecksum"]
-        ))
         self.assertEqual({
             "bundleKey": "product-surfaces", "version": 45, "sha256": V45_SHA256,
         }, projection["registryRef"])

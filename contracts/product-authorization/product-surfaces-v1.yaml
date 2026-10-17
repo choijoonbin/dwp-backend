@@ -62708,6 +62708,25 @@
           "stepUpCommandBindings": [{"bindingKey": "route.hcm.configuration.navigation-policy-v2-revision-restore.action.binding.01", "targetType": "HRIS_NAVIGATION_POLICY_REVISION", "targetIdPathParameter": "revisionId", "expectedObjectVersionSource": "COMMAND_BODY", "expectedObjectVersionName": "expectedVersion", "ownerServiceKey": "platform", "audience": "dwp-platform-server"}], "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 46,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.hcm.shell.navigation-aggregate-v3.data", "navigationContextId": "hcm.utility", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.utility"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "navigation-shell-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.app.shell.view"}, "targetBindingKinds": ["SELF"], "predicatePolicyKeys": [], "projectionPolicyKey": "route.hcm.shell.navigation-aggregate-v3.data.exact-v46-policy-alias-set.projection.v3", "responseSchemaKey": "HrisNavigationAuthorityAggregateV3", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.shell.navigation-aggregate-v3.data.binding.01", "method": "GET", "path": "/api/platform/v3/hris/navigation/projection", "pathParameterConstraints": {}, "queryParameterConstraints": {"navigationScope": {"kind": "FIXED", "value": "TENANT"}, "legalEntityPublicId": {"kind": "ABSENT"}}}], "servicePepBindings": [{"bindingKey": "route.hcm.shell.navigation-aggregate-v3.data.binding.01", "method": "GET", "path": "/v3/hris/navigation/projection", "pathParameterConstraints": {}, "queryParameterConstraints": {"navigationScope": {"kind": "FIXED", "value": "TENANT"}, "legalEntityPublicId": {"kind": "ABSENT"}}, "serviceKey": "platform"}], "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.shell.navigation-deep-link-decision-v3.data", "navigationContextId": "hcm.utility", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.utility"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "navigation-shell-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.app.shell.view"}, "targetBindingKinds": ["SELF"], "predicatePolicyKeys": [], "projectionPolicyKey": "route.hcm.shell.navigation-deep-link-decision-v3.data.exact-v46-policy-alias-set.projection.v3", "responseSchemaKey": "HrisNavigationAuthorityDeepLinkDecisionV3", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.shell.navigation-deep-link-decision-v3.data.binding.01", "method": "GET", "path": "/api/platform/v3/hris/navigation/deep-link-decision", "pathParameterConstraints": {}, "queryParameterConstraints": {"navigationScope": {"kind": "FIXED", "value": "TENANT"}, "legalEntityPublicId": {"kind": "ABSENT"}}}], "servicePepBindings": [{"bindingKey": "route.hcm.shell.navigation-deep-link-decision-v3.data.binding.01", "method": "GET", "path": "/v3/hris/navigation/deep-link-decision", "pathParameterConstraints": {}, "queryParameterConstraints": {"navigationScope": {"kind": "FIXED", "value": "TENANT"}, "legalEntityPublicId": {"kind": "ABSENT"}}, "serviceKey": "platform"}], "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {
@@ -62723,6 +62742,21 @@
           "requiresAuthentication": true,
           "requiresCsrf": true,
           "expectedDecisionRevisionHeader": "X-DWP-Expected-Decision-Revision"
+        }
+      ],
+      "versionedValues": [
+        {
+          "introducedInVersion": 46,
+          "endpoint": {
+            "endpointKey": "hris-navigation-policy-decisions.evaluate",
+            "method": "POST",
+            "publicPath": null,
+            "serviceKey": "auth",
+            "servicePath": "/internal/auth/v1/hris-navigation-policy-decisions/evaluate",
+            "requiresAuthentication": false,
+            "requiresCsrf": false,
+            "expectedDecisionRevisionHeader": null
+          }
         }
       ]
     },
