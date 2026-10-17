@@ -3,6 +3,7 @@ package com.dwp.services.people.workforce;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
+import jakarta.validation.constraints.Size;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +19,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class WorkforceAccessPolicyServiceTest {
@@ -109,6 +111,54 @@ class WorkforceAccessPolicyServiceTest {
         verify(repository).resolveForShare(
                 eq(7L), eq(41L), eq(Set.of("HR_ADMIN")), any(Instant.class));
         verify(repository).expandOrganizationsForShare(7L, List.of(policy));
+    }
+
+    @Test
+    void createsAnExplicitOrganizationFieldPolicyWithoutExpandingTheRequestLimit() {
+        PeopleRequestContext.set(41L, 7L, Set.of("TENANT_ADMIN"));
+        WorkforceAccessDtos.CreatePolicyRequest request =
+                new WorkforceAccessDtos.CreatePolicyRequest(
+                        "ROLE", "HR_ORGANIZATION_VIEWER", "TENANT", null,
+                        List.of("DIRECTORY", "ORGANIZATION"), List.of("READ"),
+                        null, null, "Approved organization graph access.");
+        WorkforceAccessPolicyRepository.PolicyRow created =
+                new WorkforceAccessPolicyRepository.PolicyRow(
+                        UUID.randomUUID(), "ROLE", "HR_ORGANIZATION_VIEWER",
+                        "TENANT", null, null,
+                        List.of("DIRECTORY", "ORGANIZATION"), List.of("READ"),
+                        null, null, "ACTIVE", request.justification(), 0L);
+        when(repository.create(
+                eq(7L), eq(41L), any(UUID.class), eq(request),
+                eq(List.of("DIRECTORY", "ORGANIZATION")), eq(List.of("READ"))))
+                .thenReturn(created);
+
+        WorkforceAccessDtos.Policy result = service.create(request, "corr-organization");
+
+        assertThat(result.fieldGroups())
+                .containsExactly("DIRECTORY", "ORGANIZATION");
+        Size maximum = java.util.Arrays.stream(
+                        WorkforceAccessDtos.CreatePolicyRequest.class.getRecordComponents())
+                .filter(component -> "fieldGroups".equals(component.getName()))
+                .findFirst().orElseThrow().getAccessor().getAnnotation(Size.class);
+        assertThat(maximum).isNotNull();
+        assertThat(maximum.max()).isEqualTo(4);
+    }
+
+    @Test
+    void rejectsUnknownFieldGroupsWithoutRepositoryOrAuditSideEffects() {
+        PeopleRequestContext.set(41L, 7L, Set.of("TENANT_ADMIN"));
+        WorkforceAccessDtos.CreatePolicyRequest request =
+                new WorkforceAccessDtos.CreatePolicyRequest(
+                        "ROLE", "HR_ORGANIZATION_VIEWER", "TENANT", null,
+                        List.of("DIRECTORY", "UNKNOWN_ORGANIZATION_FIELD"),
+                        List.of("READ"), null, null,
+                        "Unknown fields must remain closed.");
+
+        assertThatThrownBy(() -> service.create(request, "corr-unknown"))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("field group");
+
+        verifyNoInteractions(repository, audit);
     }
 
     private WorkforceAccessPolicyRepository.PolicyRow policy(
