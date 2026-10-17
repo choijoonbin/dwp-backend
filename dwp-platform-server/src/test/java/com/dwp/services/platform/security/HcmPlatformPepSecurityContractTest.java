@@ -35,8 +35,8 @@ class HcmPlatformPepSecurityContractTest {
             registry);
 
     @Test
-    void loadsOnlyTheTwentyNineExactSysCarrierBindings() {
-        assertThat(registry.bindingContracts()).hasSize(29)
+    void loadsOnlyTheFortyOneExactSysCarrierBindings() {
+        assertThat(registry.bindingContracts()).hasSize(41)
                 .extracting(HcmPlatformPepRegistry.BindingContract::routeContractKey)
                 .contains(
                         "route.hcm.configuration.settings-reference.page",
@@ -52,7 +52,13 @@ class HcmPlatformPepSecurityContractTest {
                         "route.hcm.utility.explorer-recent-create.action",
                         "route.hcm.utility.explorer-command-receipt.data",
                         "route.hcm.management.controlled-transfer.data",
-                        "route.hcm.management.controlled-transfer-create.action");
+                        "route.hcm.management.controlled-transfer-create.action",
+                        "route.hcm.shell.navigation-aggregate.data",
+                        "route.hcm.shell.navigation-deep-link-decision.data",
+                        "route.hcm.shell.navigation-aggregate-legal-entity.data",
+                        "route.hcm.shell.navigation-deep-link-decision-legal-entity.data",
+                        "route.hcm.configuration.navigation-policy-v2-workspace.data",
+                        "route.hcm.configuration.navigation-policy-v2-revision-publish.action");
         assertThat(registry.governsPathFamily(
                 "/v1/admin/hris/configurations/c1/versions/2/publish")).isTrue();
         assertThat(registry.governsPathFamily("/v1/admin/users")).isFalse();
@@ -84,6 +90,128 @@ class HcmPlatformPepSecurityContractTest {
                 "/v1/admin/hris/file-transfers")).isTrue();
         assertThat(registry.governsPathFamily(
                 "/v1/admin/hris/file-transfers/nearby")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v2/hris/navigation/projection")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v2/hris/navigation/deep-link-decision")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v2/hris/navigation/nearby")).isFalse();
+        assertThat(registry.governsPathFamily(
+                "/v2/admin/hris/navigation-policies/workspace")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v2/admin/hris/navigation-policies-admin")).isFalse();
+    }
+
+    @Test
+    void navigationV2RuntimeRequiresExactShellCapabilityEntitlementAndDuty() throws Exception {
+        for (String route : Set.of(
+                "route.hcm.shell.navigation-aggregate.data",
+                "route.hcm.shell.navigation-deep-link-decision.data")) {
+            String path = route.endsWith("aggregate.data")
+                    ? "/v2/hris/navigation/projection"
+                    : "/v2/hris/navigation/deep-link-decision";
+            HcmPlatformPepRegistry.RequestEvidence allowed = navigationShellRequest(
+                    path, route,
+                    Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                    Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"));
+            assertThat(registry.authorize(allowed).allowed()).as(route).isTrue();
+            assertThat(registry.authorize(navigationShellRequest(
+                    path, route, Set.of("DATA.HRIS_APP_SHELL:VIEW"),
+                    Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"))).allowed())
+                    .as(route + " missing product entitlement").isFalse();
+            assertThat(registry.authorize(navigationShellRequest(
+                    path, route, Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                    Set.of())).allowed()).as(route + " missing duty").isFalse();
+            assertThat(registry.authorize(navigationShellRequest(
+                    path, "route.hcm.operations.navigation-projection.data",
+                    Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                    Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"))).allowed())
+                    .as(route + " wrong trusted route").isFalse();
+            assertThat(invokeNavigationShell(path, route, true, true).getStatus())
+                    .as(route + " through service PEP").isEqualTo(200);
+            assertThat(invokeNavigationShell(path, route, false, true).getStatus())
+                    .as(route + " without APP.HCM").isEqualTo(403);
+            assertThat(invokeNavigationShell(path, route, true, false).getStatus())
+                    .as(route + " without shell duty").isEqualTo(403);
+        }
+    }
+
+    @Test
+    void navigationV2LegalEntityRuntimeRequiresExactOperationsTargetPopulation()
+            throws Exception {
+        for (String route : Set.of(
+                "route.hcm.shell.navigation-aggregate-legal-entity.data",
+                "route.hcm.shell.navigation-deep-link-decision-legal-entity.data")) {
+            String path = route.contains("aggregate")
+                    ? "/v2/hris/navigation/projection"
+                    : "/v2/hris/navigation/deep-link-decision";
+            Set<String> permissions = Set.of(
+                    "APP.HCM:VIEW", "DATA.WORKFORCE:VIEW");
+            assertThat(registry.authorize(navigationRuntimeRequest(
+                    path, route, permissions, Set.of(),
+                    "TARGET_POPULATION")).allowed()).as(route).isTrue();
+            assertThat(registry.authorize(navigationRuntimeRequest(
+                    path, route, permissions, Set.of(), "SELF")).allowed())
+                    .as(route + " tenant scope cannot select legal profile").isFalse();
+            assertThat(registry.authorize(navigationRuntimeRequest(
+                    path, route, permissions, Set.of(), "RESOURCE_SET")).allowed())
+                    .as(route + " management scope cannot select legal profile").isFalse();
+            assertThat(registry.authorize(navigationRuntimeRequest(
+                    path, route, Set.of("DATA.WORKFORCE:VIEW"), Set.of(),
+                    "TARGET_POPULATION")).allowed())
+                    .as(route + " missing product entitlement").isFalse();
+            assertThat(registry.authorize(navigationRuntimeRequest(
+                    path, route, Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),
+                    Set.of("HRIS_DUTY_APP_SHELL_READER@SELF"),
+                    "TARGET_POPULATION")).allowed())
+                    .as(route + " shell-only authority cannot replace operations").isFalse();
+            assertThat(invokeNavigationRuntime(
+                    path, route, "TARGET_POPULATION", true).getStatus())
+                    .as(route + " through service PEP").isEqualTo(200);
+            assertThat(invokeNavigationRuntime(
+                    path, route, "SELF", true).getStatus())
+                    .as(route + " mismatched trusted population").isEqualTo(403);
+            assertThat(invokeNavigationRuntime(
+                    path, route, "TARGET_POPULATION", false).getStatus())
+                    .as(route + " missing operations authority").isEqualTo(403);
+        }
+    }
+
+    @Test
+    void navigationV2AdminSeparatesViewUpdateAndStepUpPublish() throws Exception {
+        assertThat(invoke(
+                "GET", "/v2/admin/hris/navigation-policies/workspace",
+                "route.hcm.configuration.navigation-policy-v2-workspace.data",
+                "CONFIG.HRIS_NAVIGATION_POLICY:VIEW", false, false).getStatus())
+                .isEqualTo(200);
+        assertThat(invoke(
+                "GET", "/v2/admin/hris/navigation-policies/workspace",
+                "route.hcm.configuration.navigation-policy-v2-workspace.data",
+                "CONFIG.HRIS_NAVIGATION_POLICY:UPDATE", false, false).getStatus())
+                .isEqualTo(403);
+        assertThat(invoke(
+                "POST", "/v2/admin/hris/navigation-policies/drafts",
+                "route.hcm.configuration.navigation-policy-v2-draft-create.action",
+                "CONFIG.HRIS_NAVIGATION_POLICY:UPDATE", true, false).getStatus())
+                .isEqualTo(200);
+
+        String revision = "10000000-0000-4000-8000-000000000045";
+        String path = "/v2/admin/hris/navigation-policies/revisions/"
+                + revision + "/publish";
+        String route =
+                "route.hcm.configuration.navigation-policy-v2-revision-publish.action";
+        assertThat(invoke(
+                "POST", path, route,
+                "CONFIG.HRIS_NAVIGATION_POLICY:UPDATE", true, true).getStatus())
+                .isEqualTo(403);
+        assertThat(invoke(
+                "POST", path, route,
+                "ACTION.HRIS_NAVIGATION_POLICY_PUBLISH:PUBLISH", true, false).getStatus())
+                .isEqualTo(403);
+        assertThat(invoke(
+                "POST", path, route,
+                "ACTION.HRIS_NAVIGATION_POLICY_PUBLISH:PUBLISH", true, true).getStatus())
+                .isEqualTo(200);
     }
 
     @Test
@@ -610,6 +738,27 @@ class HcmPlatformPepSecurityContractTest {
                 ownerEvidence, route);
     }
 
+    private HcmPlatformPepRegistry.RequestEvidence navigationShellRequest(
+            String path,
+            String route,
+            Set<String> permissions,
+            Set<String> resourceRoles) {
+        return navigationRuntimeRequest(
+                path, route, permissions, resourceRoles, "SELF");
+    }
+
+    private HcmPlatformPepRegistry.RequestEvidence navigationRuntimeRequest(
+            String path,
+            String route,
+            Set<String> permissions,
+            Set<String> resourceRoles,
+            String populationKind) {
+        return new HcmPlatformPepRegistry.RequestEvidence(
+                "GET", path, permissions, Set.of(), resourceRoles,
+                DECISION_REVISION, "psc-" + "1".repeat(64), "self",
+                populationKind, null, null, route);
+    }
+
     private HcmPlatformPepRegistry.ExplorerOwnerEvidence ownerEvidence() {
         return ownerEvidence(
                 DECISION_REVISION, 17, 29,
@@ -706,6 +855,42 @@ class HcmPlatformPepSecurityContractTest {
                         ? "route.hcm.management.controlled-transfer-create.action"
                         : "route.hcm.management.controlled-transfer.data",
                 create);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        return response;
+    }
+
+    private MockHttpServletResponse invokeNavigationShell(
+            String path,
+            String route,
+            boolean appEntitlement,
+            boolean shellDuty) throws Exception {
+        MockHttpServletRequest request = base("GET", path);
+        request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                (appEntitlement ? "APP.HCM:VIEW," : "")
+                        + "DATA.HRIS_APP_SHELL:VIEW");
+        if (shellDuty) {
+            request.addHeader(PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                    "HRIS_DUTY_APP_SHELL_READER@SELF");
+        }
+        request.addHeader(PlatformSecurityHeaders.POPULATION_KIND, "SELF");
+        trustedEvidence(request, route, false);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        return response;
+    }
+
+    private MockHttpServletResponse invokeNavigationRuntime(
+            String path,
+            String route,
+            String populationKind,
+            boolean operationsAuthority) throws Exception {
+        MockHttpServletRequest request = base("GET", path);
+        request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "APP.HCM:VIEW"
+                        + (operationsAuthority ? ",DATA.WORKFORCE:VIEW" : ""));
+        request.addHeader(PlatformSecurityHeaders.POPULATION_KIND, populationKind);
+        trustedEvidence(request, route, false);
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, new MockFilterChain());
         return response;

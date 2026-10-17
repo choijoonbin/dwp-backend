@@ -28,7 +28,7 @@ public final class PilotAuthorizationFixtureAdapter {
     private static final String RESOURCE =
             "product-authorization/pilot-fixtures.v1.generated.json";
     private static final String CANONICAL_FIXTURE_CHECKSUM =
-            "494f536e214de4c6357613c108cca5c7d252146d4d53dd1de67cc12e8fbfde67";
+            "d581e352a5c7d39947ecde489c1bcbb1c68029023b4a42803fc3a7ecc334dd6e";
     public static final String EXPECTED_FIXTURE_CHECKSUM = readCanonicalFixtureChecksum();
     private static final List<String> CATALOG_NAMES = List.of(
             "scopes",

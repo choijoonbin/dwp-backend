@@ -93,6 +93,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     private static final Set<String> CONTROLLED_TRANSFER_OWNER_ROUTE_KEYS = Set.of(
             "route.hcm.management.controlled-transfer.data",
             "route.hcm.management.controlled-transfer-create.action");
+    private static final Set<String> NAVIGATION_V2_TENANT_ROUTE_KEYS = Set.of(
+            "route.hcm.shell.navigation-aggregate.data",
+            "route.hcm.shell.navigation-deep-link-decision.data");
+    private static final Set<String> NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS = Set.of(
+            "route.hcm.shell.navigation-aggregate-legal-entity.data",
+            "route.hcm.shell.navigation-deep-link-decision-legal-entity.data");
     private static final Set<String> CONTROLLED_TRANSFER_POPULATION_KINDS = Set.of(
             "CONNECTOR_SET", "LEGAL_ENTITY");
     private static final Map<String, String> WAVE2_OWNER_PURPOSE_BY_ROUTE = Map.ofEntries(
@@ -167,6 +173,22 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             Map.entry("route.hcm.configuration.navigation-policy-revision-publish.action",
                     "HRIS_SYSTEM_ADMIN"),
             Map.entry("route.hcm.configuration.navigation-policy-revision-restore.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-v2-workspace.data",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-v2-draft-create.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-v2-draft-update.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-v2-draft-validate.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-v2-draft-submit.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-v2-revision-approve.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-v2-revision-publish.action",
+                    "HRIS_SYSTEM_ADMIN"),
+            Map.entry("route.hcm.configuration.navigation-policy-v2-revision-restore.action",
                     "HRIS_SYSTEM_ADMIN"),
             Map.entry("route.hcm.audit.evidence.page", "HRIS_AUDIT_EVIDENCE"),
             Map.entry("route.hcm.audit.evidence-detail.data", "HRIS_AUDIT_EVIDENCE"),
@@ -465,7 +487,9 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         boolean requiresPopulationKind = TIM_WAVE2_ROUTE_KEYS.contains(route.routeContractKey())
                 || PAYROLL_OWNER_POPULATION_ROUTE_KEYS.contains(route.routeContractKey())
                 || PER_TIM_WAVE5_POPULATION_ROUTE_KEYS.contains(route.routeContractKey())
-                || CONTROLLED_TRANSFER_OWNER_ROUTE_KEYS.contains(route.routeContractKey());
+                || CONTROLLED_TRANSFER_OWNER_ROUTE_KEYS.contains(route.routeContractKey())
+                || NAVIGATION_V2_TENANT_ROUTE_KEYS.contains(route.routeContractKey())
+                || NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey());
         String populationKind = requiresPopulationKind && trustedResult.scope() != null
                 ? trustedResult.scope().kind() : null;
         if (requiresPopulationKind && blank(populationKind)) {
@@ -474,6 +498,13 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         }
         if (CONTROLLED_TRANSFER_OWNER_ROUTE_KEYS.contains(route.routeContractKey())
                 && !CONTROLLED_TRANSFER_POPULATION_KINDS.contains(populationKind)) {
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+        }
+        if ((NAVIGATION_V2_TENANT_ROUTE_KEYS.contains(route.routeContractKey())
+                && !"SELF".equals(populationKind))
+                || (NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey())
+                && !"TARGET_POPULATION".equals(populationKind))) {
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }

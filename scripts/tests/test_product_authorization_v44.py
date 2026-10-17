@@ -96,11 +96,11 @@ class ProductAuthorizationV44Test(unittest.TestCase):
         with self.assertRaises(generator.ContractError):
             generator.build_snapshots(source)
 
-    def test_latest_alias_auth_seed_and_platform_projection_are_v44(self) -> None:
-        alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
-        seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text())
+    def test_immutable_auth_seed_and_legacy_platform_projection_remain_v44(self) -> None:
+        seed = json.loads(
+            (AUTH_SEEDS / "product-surfaces-v1.bundle-v44.generated.json").read_text()
+        )
         projection = json.loads(PLATFORM_PEP.read_text())
-        self.assertEqual(self.v44, alias)
         self.assertEqual(self.v44, seed)
         self.assertEqual({
             "bundleKey": "product-surfaces", "version": 44, "sha256": V44_SHA256,
