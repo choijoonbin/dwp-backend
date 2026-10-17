@@ -268,16 +268,16 @@ class PayrollG3SliceContractTest {
         store.seedPreparedRun(PayrollCalculationTestSupport.preparedRun(1, 101, RUN_ID));
 
         PayrollCommandReceipt first = service.calculate(
-                actor, RUN_ID, "pay-gold-003", 1, UUID.randomUUID(), command);
+                actor, RUN_ID, "pay-gold-003", 2, UUID.randomUUID(), command);
         PayrollCommandReceipt replay = service.calculate(
-                actor, RUN_ID, "pay-gold-003", 1,
+                actor, RUN_ID, "pay-gold-003", 2,
                 first.correlationId(), command);
 
         assertThat(replay).isEqualTo(first);
         assertThat(store.attemptCount(1, RUN_ID)).isEqualTo(1);
         assertThat(store.outboxCount(1, RUN_ID, "PayrollCalculated")).isZero();
         assertThatThrownBy(() -> service.calculate(
-                actor, RUN_ID, "pay-gold-003", 1, first.correlationId(),
+                actor, RUN_ID, "pay-gold-003", 2, first.correlationId(),
                 new ActionCommand("CHANGED", null, null)))
                 .isInstanceOfSatisfying(BaseException.class,
                         exception -> assertThat(exception.getErrorCode())
@@ -288,6 +288,9 @@ class PayrollG3SliceContractTest {
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.OBJECT_VERSION_CONFLICT));
         assertThat(store.attemptCount(1, RUN_ID)).isEqualTo(1);
+        assertThat(store.prepareCalls()).isZero();
+        assertThat(store.freezeCalls()).isZero();
+        assertThat(store.cloneCalls()).isZero();
 
         PayrollCalculationAuthority.Actor otherTenant = PayrollCalculationTestSupport.actor(
                 2, 202, PayrollCalculationAuthority.Action.RUN_VIEW,
@@ -403,7 +406,7 @@ class PayrollG3SliceContractTest {
                 receiptStore, canonical, mock(PayrollHighRiskCommandGuard.class),
                 Clock.fixed(NOW, ZoneOffset.UTC));
         receiptStore.seedPreparedRun(run(
-                1, RunType.REGULAR, RunState.PREPARING, 101, 0,
+                2, RunType.REGULAR, RunState.READY, 101, 0,
                 BigDecimal.ZERO.setScale(4), BigDecimal.ZERO.setScale(4),
                 null, null, null, null, "LEGAL_ENTITY"));
         var legalCalculator = PayrollCalculationTestSupport.actor(
@@ -411,7 +414,7 @@ class PayrollG3SliceContractTest {
                 "PAYROLL_PROCESSING", "LEGAL_ENTITY",
                 Set.of("APP.HCM:VIEW", "ACTION.HRIS_PAYROLL_RUN:EXECUTE"));
         var issued = receiptService.calculate(
-                legalCalculator, RUN_ID, "legal-calculate", 1, UUID.randomUUID(),
+                legalCalculator, RUN_ID, "legal-calculate", 2, UUID.randomUUID(),
                 new ActionCommand("CALCULATE", null, null));
         var receiptActor = PayrollCalculationTestSupport.actor(
                 1, 101, PayrollCalculationAuthority.Action.RECEIPT_VIEW,
@@ -451,7 +454,7 @@ class PayrollG3SliceContractTest {
                 PayrollCalculationTestSupport.preparedRun(1, 101, RUN_ID));
         var nonLegalReceipt = nonLegalService.calculate(
                 PayrollCalculationTestSupport.calculator(1, 101), RUN_ID,
-                "group-calculate", 1, UUID.randomUUID(),
+                "group-calculate", 2, UUID.randomUUID(),
                 new ActionCommand("CALCULATE", null, null));
         assertOpaque(() -> nonLegalService.receipt(
                 receiptActor, nonLegalReceipt.receiptId()));

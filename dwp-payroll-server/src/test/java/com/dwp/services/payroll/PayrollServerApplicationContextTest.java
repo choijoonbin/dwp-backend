@@ -1,10 +1,27 @@
 package com.dwp.services.payroll;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import javax.sql.DataSource;
 
+import java.sql.Array;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import com.dwp.core.database.SystemFlywayConfigurationGuard;
+import com.dwp.core.database.AuxiliaryRoleAclGuard;
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -90,6 +107,117 @@ class PayrollServerApplicationContextTest {
                             .hasRootCauseInstanceOf(IllegalArgumentException.class)
                             .hasStackTraceContaining("pairwise distinct");
                 });
+    }
+
+    @Test
+    void publisherPolicyAcceptsOnlyTheExactV52ProjectionObjectsAndPrivileges() {
+        String publisher = "payroll_projection_publisher";
+        var policy = PayrollDatabaseMigrationConfiguration.publisherPolicy(
+                publisher, true);
+
+        assertThat(policy.allowedAclPrivileges().stream()
+                .filter(privilege -> privilege.objectIdentity().contains(
+                        "population_source")
+                        || privilege.objectIdentity().contains(
+                        "semantic_source"))
+                .map(privilege -> privilege.objectClass() + ":"
+                        + privilege.objectIdentity() + ":"
+                        + privilege.privilege()))
+                .containsExactlyInAnyOrder(
+                        "RELATION:public.pay_population_source_revisions:SELECT",
+                        "RELATION:public.pay_population_source_revisions:INSERT",
+                        "RELATION:public.pay_population_source_members:SELECT",
+                        "RELATION:public.pay_population_source_members:INSERT",
+                        "RELATION:public.pay_semantic_source_revisions:SELECT",
+                        "RELATION:public.pay_semantic_source_revisions:INSERT",
+                        "RELATION:public.pay_population_source_revisions_"
+                                + "population_source_internal_id_s:USAGE",
+                        "RELATION:public.pay_population_source_revisions_"
+                                + "population_source_internal_id_s:SELECT",
+                        "RELATION:public.pay_population_source_members_"
+                                + "population_member_internal_id_seq:USAGE",
+                        "RELATION:public.pay_population_source_members_"
+                                + "population_member_internal_id_seq:SELECT",
+                        "RELATION:public.pay_semantic_source_revisions_"
+                                + "semantic_source_internal_id_seq:USAGE",
+                        "RELATION:public.pay_semantic_source_revisions_"
+                                + "semantic_source_internal_id_seq:SELECT");
+        assertThat(policy.requiredAclPrivileges())
+                .isEqualTo(policy.allowedAclPrivileges());
+        assertThat(policy.allowedAclPrivileges()).doesNotContain(
+                new AuxiliaryRoleAclGuard.AllowedPrivilege(
+                        publisher, "RELATION", "public",
+                        "public.pay_population_source_revisions", "UPDATE"),
+                new AuxiliaryRoleAclGuard.AllowedPrivilege(
+                        publisher, "RELATION", "public",
+                        "public.pay_population_source_members", "DELETE"),
+                new AuxiliaryRoleAclGuard.AllowedPrivilege(
+                        publisher, "RELATION", "public",
+                        "public.unlisted_payroll_projection", "SELECT"));
+    }
+
+    @Test
+    void publisherAclGuardAcceptsV52RowsAndRejectsAnActualOverGrant()
+            throws Exception {
+        String publisher = "payroll_projection_publisher";
+        var policy = PayrollDatabaseMigrationConfiguration.publisherPolicy(
+                publisher, false);
+        Set<AuxiliaryRoleAclGuard.AllowedPrivilege> v52Privileges =
+                policy.allowedAclPrivileges().stream()
+                        .filter(privilege -> privilege.objectIdentity().contains(
+                                "population_source")
+                                || privilege.objectIdentity().contains(
+                                "semantic_source"))
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+        AuxiliaryRoleAclGuard.verify(
+                "Payroll", aclCatalog(v52Privileges), List.of("public"),
+                Set.of(publisher), policy.allowedAclPrivileges(), v52Privileges);
+
+        List<AuxiliaryRoleAclGuard.AllowedPrivilege> overGranted =
+                new ArrayList<>(v52Privileges);
+        overGranted.add(new AuxiliaryRoleAclGuard.AllowedPrivilege(
+                publisher, "RELATION", "public",
+                "public.pay_population_source_revisions", "UPDATE"));
+        assertThatThrownBy(() -> AuxiliaryRoleAclGuard.verify(
+                "Payroll", aclCatalog(overGranted), List.of("public"),
+                Set.of(publisher), policy.allowedAclPrivileges(), Set.of()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(
+                        "auxiliary-role ACL exceeds the exact privilege surface")
+                .hasMessageContaining("pay_population_source_revisions:UPDATE");
+    }
+
+    private static DataSource aclCatalog(
+            Iterable<AuxiliaryRoleAclGuard.AllowedPrivilege> privileges)
+            throws Exception {
+        List<AuxiliaryRoleAclGuard.AllowedPrivilege> rows = new ArrayList<>();
+        privileges.forEach(rows::add);
+        DataSource dataSource = mock(DataSource.class);
+        Connection connection = mock(Connection.class);
+        PreparedStatement statement = mock(PreparedStatement.class);
+        ResultSet result = mock(ResultSet.class);
+        Array roles = mock(Array.class);
+        when(dataSource.getConnection()).thenReturn(connection);
+        when(connection.createArrayOf(eq("text"), any())).thenReturn(roles);
+        when(connection.prepareStatement(anyString())).thenReturn(statement);
+        when(statement.executeQuery()).thenReturn(result);
+        AtomicInteger index = new AtomicInteger(-1);
+        when(result.next()).thenAnswer(ignored ->
+                index.incrementAndGet() < rows.size());
+        when(result.getString(anyInt())).thenAnswer(invocation -> {
+            AuxiliaryRoleAclGuard.AllowedPrivilege row = rows.get(index.get());
+            return switch (invocation.getArgument(0, Integer.class)) {
+                case 1 -> row.grantee();
+                case 2 -> row.objectClass();
+                case 3 -> row.schema();
+                case 4 -> row.objectIdentity();
+                case 5 -> row.privilege();
+                default -> throw new AssertionError("unexpected catalog column");
+            };
+        });
+        when(result.getBoolean(6)).thenReturn(false);
+        return dataSource;
     }
 
     private static ApplicationContextRunner migrationContext() {

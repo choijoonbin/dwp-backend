@@ -44,7 +44,7 @@ class PayrollCalculationService {
 
     private static final BigDecimal ZERO = new BigDecimal("0.0000");
     private static final Set<RunState> CALCULABLE = Set.of(
-            RunState.PREPARING, RunState.FAILED);
+            RunState.READY, RunState.FAILED);
 
     private final PayrollCalculationStore store;
     private final PayrollCalculationCanonical canonical;
@@ -98,7 +98,9 @@ class PayrollCalculationService {
         requireVisible(actor, current);
         requireRegular(current);
         if (current.revision() != expectedVersion) throw versionConflict();
-        if (!CALCULABLE.contains(current.state())) {
+        if (!CALCULABLE.contains(current.state())
+                || (current.state() == RunState.READY
+                && current.latestAttemptNo() != 0)) {
             if (current.state() == RunState.RESULT_UNKNOWN) {
                 throw conflict("RESULT_UNKNOWN requires explicit reconciliation.");
             }
@@ -107,16 +109,23 @@ class PayrollCalculationService {
 
         int attemptNo = current.latestAttemptNo() + 1;
         Instant now = clock.instant();
-        PayrollCalculationStore.Preparation unresolved = store.prepare(
-                current, attemptNo, actor.scope().scopeDigest(), now);
+        PayrollCalculationModels.FrozenSnapshot snapshot =
+                current.state() == RunState.READY
+                        ? store.snapshot(current.tenantId(), current.runId(), attemptNo)
+                        : store.cloneSnapshot(
+                        current.tenantId(), current.runId(),
+                        current.latestAttemptNo(), attemptNo);
         PayrollCalculationStore.Preparation preparation =
                 new PayrollCalculationStore.Preparation(
-                        unresolved.payPeriodId(), unresolved.legalEntityId(),
-                        unresolved.payrollGroupId(), unresolved.currency(),
-                        semanticBinder.bind(unresolved.snapshot()));
+                        current.payPeriodId(), current.legalEntityId(),
+                        current.payrollGroupId(), current.currency(), snapshot);
         if (!current.legalEntityId().equals(preparation.legalEntityId())
                 || !current.payrollGroupId().equals(preparation.payrollGroupId())
-                || !current.populationScopeDigest().equals(actor.scope().scopeDigest())) {
+                || !current.populationScopeDigest().equals(actor.scope().scopeDigest())
+                || snapshot.attemptNo() != attemptNo
+                || !current.sourceSnapshotId().equals(snapshot.sourceSnapshotId())
+                || current.sourceSnapshotRevision() != snapshot.sourceSnapshotRevision()
+                || !current.sourcePayloadDigest().equals(snapshot.sourcePayloadDigest())) {
             throw notFound();
         }
         long runRevision = current.revision() + 1;
@@ -131,7 +140,6 @@ class PayrollCalculationService {
 
         // AC-01: the V50 copy and all source/formula digests are durable before
         // the attempt identity is allowed by its reverse foreign key.
-        store.freeze(preparation);
         store.insertReceipt(persisted);
         store.appendReceiptStatus(
                 actor.tenantId(), receiptId, ReceiptStatus.ACCEPTED, now);

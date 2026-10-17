@@ -219,7 +219,7 @@ public class PayrollDatabaseMigrationConfiguration {
                 configurationGuard.migrationUser());
     }
 
-    private static TrustedPublisherPolicy publisherPolicy(
+    static TrustedPublisherPolicy publisherPolicy(
             String publisher, boolean requireSteadyState) {
         Set<AuxiliaryRoleAclGuard.AllowedPrivilege> allowed = Set.of(
                 privilege(publisher, "SCHEMA", "public", "public", "USAGE"),
@@ -234,7 +234,37 @@ public class PayrollDatabaseMigrationConfiguration {
                 privilege(publisher, "RELATION", "public",
                         "public.pay_legal_entity_scope_members", "SELECT"),
                 privilege(publisher, "RELATION", "public",
-                        "public.pay_legal_entity_scope_members", "INSERT"));
+                        "public.pay_legal_entity_scope_members", "INSERT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_population_source_revisions", "SELECT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_population_source_revisions", "INSERT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_population_source_members", "SELECT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_population_source_members", "INSERT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_semantic_source_revisions", "SELECT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_semantic_source_revisions", "INSERT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_population_source_revisions_population_source_internal_id_s",
+                        "USAGE"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_population_source_revisions_population_source_internal_id_s",
+                        "SELECT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_population_source_members_population_member_internal_id_seq",
+                        "USAGE"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_population_source_members_population_member_internal_id_seq",
+                        "SELECT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_semantic_source_revisions_semantic_source_internal_id_seq",
+                        "USAGE"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_semantic_source_revisions_semantic_source_internal_id_seq",
+                        "SELECT"));
         return new TrustedPublisherPolicy(
                 publisher, allowed, requireSteadyState ? allowed : Set.of());
     }

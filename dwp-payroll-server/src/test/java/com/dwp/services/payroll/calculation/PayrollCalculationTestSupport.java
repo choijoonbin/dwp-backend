@@ -219,12 +219,12 @@ final class PayrollCalculationTestSupport {
 
     static RunRevision preparedRun(long tenantId, long makerActorId, UUID runId) {
         return new RunRevision(
-                tenantId, runId, 1, PayrollCalculationModels.RunType.REGULAR,
+                tenantId, runId, 2, PayrollCalculationModels.RunType.REGULAR,
                 PAY_PERIOD, UUID.fromString("00000000-0000-0000-0000-000000001106"),
                 9, DIGEST, LEGAL_ENTITY, PAY_GROUP, "PAY_GROUP", TARGET_DIGEST,
-                RunState.PREPARING, makerActorId, SUBJECT, 0, 0,
+                RunState.READY, makerActorId, SUBJECT, 0, 0,
                 new BigDecimal("0.0000"), new BigDecimal("0.0000"), "TST", null,
-                null, null, null, null, null, null, NOW);
+                null, null, null, null, null, new UUID(0, 1_113), NOW);
     }
 
     private static SourceInput input(
@@ -321,6 +321,9 @@ final class PayrollCalculationTestSupport {
         private final List<EventFact> events = new ArrayList<>();
         private final List<String> audits = new ArrayList<>();
         private CompletionFailure completionFailure = CompletionFailure.NONE;
+        private int prepareCalls;
+        private int freezeCalls;
+        private int cloneCalls;
 
         @Override
         public void bindTenant(long tenantId) {
@@ -363,15 +366,22 @@ final class PayrollCalculationTestSupport {
         public Preparation prepare(
                 RunRevision run, int attemptNo,
                 String targetPopulationDigest, Instant pinnedAt) {
+            prepareCalls++;
             return unboundPreparation(run.tenantId(), run.runId(), attemptNo, pinnedAt);
         }
 
         void seedPreparedRun(RunRevision run) {
-            appendRunRevision(run);
+            runs.computeIfAbsent(runKey(run.tenantId(), run.runId()),
+                    ignored -> new ArrayList<>()).add(run);
+            if (run.state() == RunState.READY && run.latestAttemptNo() == 0) {
+                snapshots.put(attemptKey(run.tenantId(), run.runId(), 1),
+                        preparation(run.tenantId(), run.runId(), 1, NOW).snapshot());
+            }
         }
 
         @Override
         public void freeze(Preparation preparation) {
+            freezeCalls++;
             String key = attemptKey(
                     preparation.snapshot().tenantId(), preparation.snapshot().runId(),
                     preparation.snapshot().attemptNo());
@@ -409,7 +419,9 @@ final class PayrollCalculationTestSupport {
             List<RunRevision> revisions = runs.computeIfAbsent(
                     runKey(revision.tenantId(), revision.runId()),
                     ignored -> new ArrayList<>());
-            if (revision.revision() != revisions.size() + 1L) {
+            long expected = revisions.isEmpty()
+                    ? 1L : revisions.getLast().revision() + 1L;
+            if (revision.revision() != expected) {
                 throw new IllegalStateException("run revision gap");
             }
             revisions.add(revision);
@@ -505,6 +517,26 @@ final class PayrollCalculationTestSupport {
             FrozenSnapshot snapshot = snapshots.get(attemptKey(tenantId, runId, attemptNo));
             if (snapshot == null) throw new IllegalStateException("snapshot missing");
             return snapshot;
+        }
+
+        @Override
+        public FrozenSnapshot cloneSnapshot(
+                long tenantId, UUID runId,
+                int sourceAttemptNo, int targetAttemptNo) {
+            cloneCalls++;
+            FrozenSnapshot source = snapshot(tenantId, runId, sourceAttemptNo);
+            FrozenSnapshot clone = new FrozenSnapshot(
+                    source.tenantId(), source.runId(), targetAttemptNo,
+                    source.sourceSnapshotId(), source.sourceSnapshotRevision(),
+                    source.sourcePayloadDigest(), source.formulaSetDigest(),
+                    source.targetPopulationDigest(), source.compensationInputDigest(),
+                    source.semanticBindingDigest(), source.inputs(), source.formulas(),
+                    source.semanticBindings(), source.pinnedAt());
+            String key = attemptKey(tenantId, runId, targetAttemptNo);
+            if (snapshots.putIfAbsent(key, clone) != null) {
+                throw new IllegalStateException("snapshot already cloned");
+            }
+            return clone;
         }
 
         @Override
@@ -749,6 +781,18 @@ final class PayrollCalculationTestSupport {
 
         int snapshotCount() {
             return snapshots.size();
+        }
+
+        int prepareCalls() {
+            return prepareCalls;
+        }
+
+        int freezeCalls() {
+            return freezeCalls;
+        }
+
+        int cloneCalls() {
+            return cloneCalls;
         }
 
         int auditCount() {

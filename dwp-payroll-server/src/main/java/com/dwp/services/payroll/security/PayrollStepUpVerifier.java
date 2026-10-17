@@ -3,21 +3,22 @@ package com.dwp.services.payroll.security;
 import com.dwp.core.security.ProductSurfaceStepUpChallengeVerifier;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 
 @Component
-@ConditionalOnProperty(
-        name = "dwp.hris.payroll.calculation.enabled",
-        havingValue = "true",
-        matchIfMissing = false)
-final class PayrollStepUpVerifier {
+@ConditionalOnExpression(
+        "'${dwp.hris.payroll.calculation.enabled:false}' == 'true' || "
+                + "'${dwp.features.HRIS_PAYROLL_RUN_PREPARE.enabled:false}' == 'true'")
+public final class PayrollStepUpVerifier {
 
     private final ProductSurfaceStepUpChallengeVerifier delegate;
 
-    PayrollStepUpVerifier(
+    @Autowired
+    public PayrollStepUpVerifier(
             ObjectMapper mapper,
             @Value("${dwp.payroll.step-up.public-key-pem:}") String publicKeyPem,
             @Value("${dwp.payroll.step-up.issuer:}") String issuer,
@@ -50,13 +51,13 @@ final class PayrollStepUpVerifier {
                         maximumAuthenticationAgeSeconds, maximumChallengeTtlSeconds));
     }
 
-    ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge verify(
+    public ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge verify(
             String challenge,
             ProductSurfaceStepUpChallengeVerifier.CommandBinding binding) {
         return delegate.verify(challenge, binding);
     }
 
-    String payloadSha256(Object payload) {
+    public String payloadSha256(Object payload) {
         return delegate.payloadSha256(payload);
     }
 }

@@ -75,6 +75,12 @@ interface PayrollCalculationStore {
 
     FrozenSnapshot snapshot(long tenantId, UUID runId, int attemptNo);
 
+    FrozenSnapshot cloneSnapshot(
+            long tenantId,
+            UUID runId,
+            int sourceAttemptNo,
+            int targetAttemptNo);
+
     Optional<Checkpoint> latestCheckpoint(long tenantId, UUID runId, int attemptNo);
 
     void verifyCheckpoint(Lease lease, Checkpoint checkpoint, CalculationOutcome outcome);

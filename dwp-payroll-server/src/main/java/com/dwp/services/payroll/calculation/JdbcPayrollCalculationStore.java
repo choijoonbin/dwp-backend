@@ -182,6 +182,21 @@ class JdbcPayrollCalculationStore implements PayrollCalculationStore {
                        approved_at, audit_bundle_digest, command_receipt_id, recorded_at
                   FROM pay_payroll_runs
                  WHERE tenant_id = :tenantId AND run_id = :runId
+                   AND (state <> 'READY' OR latest_attempt_no <> 0 OR EXISTS (
+                       SELECT 1
+                         FROM pay_run_preparations prepared
+                         JOIN pay_outbox_events event
+                           ON event.tenant_id = prepared.tenant_id
+                          AND event.event_id = prepared.event_id
+                          AND event.run_id = prepared.run_id
+                          AND event.run_revision = prepared.run_revision
+                          AND event.event_type = 'PayrollRunPrepared'
+                        WHERE prepared.tenant_id = pay_payroll_runs.tenant_id
+                          AND prepared.run_id = pay_payroll_runs.run_id
+                          AND prepared.run_revision =
+                              pay_payroll_runs.run_revision
+                          AND prepared.state_sequence = 2
+                          AND prepared.preparation_state = 'READY'))
                  ORDER BY run_revision DESC LIMIT 1
                 """, params(tenantId, runId), (result, row) -> mapRun(result))
                 .stream().findFirst();
@@ -889,6 +904,75 @@ class JdbcPayrollCalculationStore implements PayrollCalculationStore {
                 header.formulaSetDigest(), header.targetPopulationDigest(),
                 header.compensationInputDigest(), header.semanticBindingDigest(),
                 inputs, formulas, semanticBindings, header.pinnedAt());
+    }
+
+    @Override
+    public FrozenSnapshot cloneSnapshot(
+            long tenantId,
+            UUID runId,
+            int sourceAttemptNo,
+            int targetAttemptNo) {
+        bindTenant(tenantId);
+        if (sourceAttemptNo < 1 || targetAttemptNo != sourceAttemptNo + 1) {
+            throw invalid("Payroll retry snapshot attempt sequence is invalid.");
+        }
+        FrozenSnapshot source = snapshot(tenantId, runId, sourceAttemptNo);
+        UUID inputSnapshotId = canonical.deterministicUuid(
+                "payroll-input-snapshot-v1", Map.of(
+                        "tenantId", tenantId,
+                        "runId", runId,
+                        "attemptNo", targetAttemptNo,
+                        "sourceSnapshotId", source.sourceSnapshotId(),
+                        "sourceSnapshotRevision", source.sourceSnapshotRevision(),
+                        "sourcePayloadDigest", source.sourcePayloadDigest()));
+        Long targetInternalId = jdbc.queryForObject("""
+                INSERT INTO pay_input_snapshots (
+                    tenant_id, input_snapshot_id, run_id, attempt_no,
+                    source_snapshot_id, source_snapshot_revision,
+                    source_payload_digest, formula_set_digest, formula_bindings,
+                    engine_version, function_set_version,
+                    semantic_binding_digest, target_population_digest,
+                    compensation_input_digest, source_line_count, pinned_at)
+                SELECT tenant_id, :inputSnapshotId, run_id, :targetAttemptNo,
+                       source_snapshot_id, source_snapshot_revision,
+                       source_payload_digest, formula_set_digest, formula_bindings,
+                       engine_version, function_set_version,
+                       semantic_binding_digest, target_population_digest,
+                       compensation_input_digest, source_line_count, pinned_at
+                  FROM pay_input_snapshots
+                 WHERE tenant_id = :tenantId AND run_id = :runId
+                   AND attempt_no = :sourceAttemptNo
+                RETURNING input_snapshot_internal_id
+                """, params(tenantId, runId)
+                .addValue("inputSnapshotId", inputSnapshotId)
+                .addValue("sourceAttemptNo", sourceAttemptNo)
+                .addValue("targetAttemptNo", targetAttemptNo), Long.class);
+        int copied = jdbc.update("""
+                INSERT INTO pay_input_snapshot_compensation_refs (
+                    tenant_id, input_snapshot_internal_id, input_ordinal,
+                    compensation_plan_input_id, source_payload_digest,
+                    worker_id, assignment_id, component_code, currency,
+                    approved_amount, semantic_binding, semantic_binding_digest)
+                SELECT ref.tenant_id, :targetInternalId, ref.input_ordinal,
+                       ref.compensation_plan_input_id, ref.source_payload_digest,
+                       ref.worker_id, ref.assignment_id, ref.component_code,
+                       ref.currency, ref.approved_amount, ref.semantic_binding,
+                       ref.semantic_binding_digest
+                  FROM pay_input_snapshot_compensation_refs ref
+                  JOIN pay_input_snapshots source
+                    ON source.tenant_id = ref.tenant_id
+                   AND source.input_snapshot_internal_id =
+                       ref.input_snapshot_internal_id
+                 WHERE source.tenant_id = :tenantId AND source.run_id = :runId
+                   AND source.attempt_no = :sourceAttemptNo
+                 ORDER BY ref.input_ordinal
+                """, params(tenantId, runId)
+                .addValue("targetInternalId", targetInternalId)
+                .addValue("sourceAttemptNo", sourceAttemptNo));
+        if (copied != source.inputs().size()) {
+            throw conflict("The Payroll retry snapshot copy is incomplete.", null);
+        }
+        return snapshot(tenantId, runId, targetAttemptNo);
     }
 
     @Override

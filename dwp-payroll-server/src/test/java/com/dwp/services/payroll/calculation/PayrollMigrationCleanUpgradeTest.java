@@ -26,6 +26,7 @@ import com.dwp.services.payroll.security.PayrollCalculationAuthority;
 import com.dwp.services.payroll.security.PayrollHighRiskCommandGuard;
 import com.dwp.services.payroll.security.PayrollStepUpEvidence;
 import com.dwp.services.payroll.security.PayrollStepUpHeaders;
+import com.dwp.services.payroll.preparation.PayrollPreparationPostgresFixture;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -63,6 +64,7 @@ class PayrollMigrationCleanUpgradeTest {
     private static final String RUNTIME_PASSWORD = "pay011-runtime-password";
     private static final String PUBLISHER_USER = "pay011_projection_publisher";
     private static final String UPGRADE_DATABASE = "pay011_upgrade";
+    private static final String V51_UPGRADE_DATABASE = "pay013_v51_upgrade";
     private static final List<String> V50_TABLES = List.of(
             "pay_input_snapshots",
             "pay_input_snapshot_compensation_refs",
@@ -74,6 +76,19 @@ class PayrollMigrationCleanUpgradeTest {
             "pay_calculation_trace_nodes",
             "pay_command_receipts",
             "pay_outbox_events");
+    private static final List<String> V52_PREPARATION_TABLES = List.of(
+            "pay_run_preparation_step_up_uses",
+            "pay_run_preparations",
+            "pay_run_preparation_sources",
+            "pay_run_preparation_decisions",
+            "pay_run_preparation_lines",
+            "pay_run_preparation_formula_refs");
+    private static final List<String> V52_AUTHORITY_TABLES = List.of(
+            "pay_population_source_revisions",
+            "pay_population_source_members",
+            "pay_semantic_source_revisions");
+    private static final List<String> V52_TABLES = java.util.stream.Stream.concat(
+            V52_PREPARATION_TABLES.stream(), V52_AUTHORITY_TABLES.stream()).toList();
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -81,9 +96,12 @@ class PayrollMigrationCleanUpgradeTest {
 
     private static DataSource adminDataSource;
     private static DataSource runtimeDataSource;
+    private static DataSource publisherDataSource;
     private static DataSource upgradeDataSource;
+    private static DataSource v51UpgradeDataSource;
     private static JdbcTemplate admin;
     private static JdbcTemplate upgrade;
+    private static JdbcTemplate v51Upgrade;
 
     @BeforeAll
     static void migrateCleanAndUpgradeDatabases() throws Exception {
@@ -96,10 +114,14 @@ class PayrollMigrationCleanUpgradeTest {
             statement.execute("CREATE ROLE " + PUBLISHER_USER
                     + " LOGIN NOINHERIT PASSWORD 'publisher-test-password'");
             statement.execute("CREATE DATABASE " + UPGRADE_DATABASE);
+            statement.execute("CREATE DATABASE " + V51_UPGRADE_DATABASE);
         }
         migrate(adminDataSource, null);
         runtimeDataSource = dataSource(
                 POSTGRES.getJdbcUrl(), RUNTIME_USER, RUNTIME_PASSWORD);
+        publisherDataSource = dataSource(
+                POSTGRES.getJdbcUrl(), PUBLISHER_USER,
+                "publisher-test-password");
         admin = new JdbcTemplate(adminDataSource);
 
         upgradeDataSource = dataSource(
@@ -108,14 +130,25 @@ class PayrollMigrationCleanUpgradeTest {
         seedV49(upgradeDataSource);
         migrate(upgradeDataSource, null);
         upgrade = new JdbcTemplate(upgradeDataSource);
+
+        v51UpgradeDataSource = dataSource(
+                jdbcUrl(V51_UPGRADE_DATABASE),
+                POSTGRES.getUsername(), POSTGRES.getPassword());
+        migrate(v51UpgradeDataSource, MigrationVersion.fromVersion("51"));
+        seedV49(v51UpgradeDataSource);
+        migrate(v51UpgradeDataSource, null);
+        v51Upgrade = new JdbcTemplate(v51UpgradeDataSource);
     }
 
     @AfterAll
     static void releaseReferences() {
         upgrade = null;
+        v51Upgrade = null;
         admin = null;
         upgradeDataSource = null;
+        v51UpgradeDataSource = null;
         runtimeDataSource = null;
+        publisherDataSource = null;
         adminDataSource = null;
     }
 
@@ -124,6 +157,10 @@ class PayrollMigrationCleanUpgradeTest {
         admin.execute("TRUNCATE TABLE " + String.join(", ", V50_TABLES)
                 + ", pay_compensation_plan_event_inbox"
                 + ", pay_formula_versions, pay_foundation_configurations"
+                + ", pay_population_source_members"
+                + ", pay_population_source_revisions"
+                + ", pay_semantic_source_revisions"
+                + ", pay_run_preparation_step_up_uses"
                 + " RESTART IDENTITY CASCADE");
     }
 
@@ -186,6 +223,122 @@ class PayrollMigrationCleanUpgradeTest {
                 "SELECT has_function_privilege(?, "
                         + "'pay_v50_claim_attempts(bigint,text,integer,bigint)', 'EXECUTE')",
                 Boolean.class, RUNTIME_USER)).isTrue();
+    }
+
+    @Test
+    void v51ToV52PreservesExistingFactsAndHardensPreparationTables() {
+        assertThat(v51Upgrade.queryForObject("""
+                SELECT COUNT(*) FROM flyway_schema_history
+                 WHERE version IN ('51', '52') AND success
+                """, Long.class)).isEqualTo(2L);
+        assertThat(v51Upgrade.queryForObject(
+                "SELECT COUNT(*) FROM pay_compensation_plan_inputs",
+                Long.class)).isEqualTo(1L);
+        assertThat(v51Upgrade.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pg_class
+                 WHERE relkind = 'r'
+                   AND relname IN (%s)
+                   AND relrowsecurity AND relforcerowsecurity
+                """.formatted(sqlNames(V52_TABLES)), Long.class))
+                .isEqualTo(9L);
+        assertThat(v51Upgrade.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pg_proc
+                 WHERE proname LIKE 'pay_v52_%'
+                   AND prosecdef
+                   AND proconfig =
+                       ARRAY['search_path=pg_catalog, public, pg_temp']::text[]
+                """, Long.class)).isEqualTo(8L);
+        assertThat(v51Upgrade.queryForObject("""
+                SELECT NOT EXISTS (
+                    SELECT 1
+                      FROM pg_proc function
+                      CROSS JOIN LATERAL aclexplode(
+                          COALESCE(function.proacl,
+                              acldefault('f', function.proowner))) grant_entry
+                     WHERE function.proname LIKE 'pay_v52_%'
+                       AND grant_entry.grantee = 0
+                       AND grant_entry.privilege_type = 'EXECUTE')
+                """, Boolean.class)).isTrue();
+        assertThat(v51Upgrade.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM pg_trigger
+                     WHERE NOT tgisinternal
+                       AND tgrelid =
+                           'pay_run_preparation_step_up_uses'::regclass
+                       AND tgname =
+                           'pay_run_preparation_step_up_uses_immutable')
+                """, Boolean.class)).isTrue();
+        assertThat(v51Upgrade.queryForObject("""
+                SELECT has_table_privilege(?,
+                    'pay_run_preparation_step_up_uses', 'SELECT,INSERT')
+                   AND NOT has_table_privilege(?,
+                    'pay_run_preparation_step_up_uses', 'UPDATE,DELETE,TRUNCATE')
+                """, Boolean.class, RUNTIME_USER, RUNTIME_USER)).isTrue();
+    }
+
+    @Test
+    void cleanV1ThroughV52CreatesPreparationTablesAndDeferredClosure() {
+        assertThat(admin.queryForObject("""
+                SELECT COUNT(*) FROM flyway_schema_history
+                 WHERE version = '52' AND success
+                """, Long.class)).isEqualTo(1L);
+        assertThat(admin.queryForList("""
+                SELECT relname
+                  FROM pg_class
+                 WHERE relkind = 'r'
+                   AND relname IN (%s)
+                 ORDER BY relname
+                """.formatted(sqlNames(V52_PREPARATION_TABLES)), String.class))
+                .containsExactly(
+                "pay_run_preparation_decisions",
+                "pay_run_preparation_formula_refs",
+                "pay_run_preparation_lines",
+                "pay_run_preparation_sources",
+                "pay_run_preparation_step_up_uses",
+                "pay_run_preparations");
+        assertThat(admin.queryForObject("""
+                SELECT bool_and(relrowsecurity AND relforcerowsecurity)
+                  FROM pg_class
+                 WHERE relname LIKE 'pay_run_preparation%%'
+                   AND relkind = 'r'
+                """, Boolean.class)).isTrue();
+        assertThat(admin.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pg_trigger
+                 WHERE NOT tgisinternal
+                   AND tgname IN (
+                       'pay_v52_prepared_commit_guard',
+                       'pay_v52_step_up_use_binding_guard',
+                       'pay_run_preparation_state_guard',
+                       'pay_run_preparation_source_insert_guard',
+                       'pay_run_preparation_decision_insert_guard',
+                       'pay_run_preparation_line_insert_guard',
+                       'pay_run_preparation_formula_insert_guard')
+                """, Long.class)).isEqualTo(7L);
+        assertThat(admin.queryForObject("""
+                SELECT bool_and(tgdeferrable AND tginitdeferred)
+                  FROM pg_trigger
+                 WHERE tgname IN (
+                    'pay_v52_prepared_commit_guard',
+                    'pay_v52_step_up_use_binding_guard')
+                """, Boolean.class)).isTrue();
+        assertThat(admin.queryForObject("""
+                SELECT has_table_privilege(?,
+                    'pay_run_preparation_step_up_uses', 'SELECT,INSERT')
+                   AND NOT has_table_privilege(?,
+                    'pay_run_preparation_step_up_uses', 'UPDATE,DELETE,TRUNCATE')
+                """, Boolean.class, RUNTIME_USER, RUNTIME_USER)).isTrue();
+        assertThat(admin.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM pg_trigger
+                     WHERE NOT tgisinternal
+                       AND tgrelid =
+                           'pay_run_preparation_step_up_uses'::regclass
+                       AND tgname =
+                           'pay_run_preparation_step_up_uses_immutable')
+                """, Boolean.class)).isTrue();
     }
 
     @Test
@@ -507,16 +660,15 @@ class PayrollMigrationCleanUpgradeTest {
         PayrollCalculationService service = transactionalService(
                 mock(PayrollHighRiskCommandGuard.class));
 
-        UUID resumedRun = UUID.randomUUID();
         UUID resumedSnapshot = UUID.randomUUID();
         String resumedDigest = "5".repeat(64);
         seedV49Line(
                 resumedSnapshot, 9, resumedDigest, UUID.randomUUID(),
                 PayrollCalculationTestSupport.PAY_PERIOD, "BASE", "6".repeat(64));
-        insertRun(admin, resumedRun, "PREPARING", 0, null,
+        UUID resumedRun = preparedRun(
                 resumedSnapshot, 9, resumedDigest);
         service.calculate(
-                calculator(), resumedRun, "resume-command", 1, UUID.randomUUID(),
+                calculator(), resumedRun, "resume-command", 2, UUID.randomUUID(),
                 new PayrollCalculationModels.ActionCommand("CALCULATE", null, null));
 
         assertThatThrownBy(() -> worker.execute(
@@ -528,7 +680,8 @@ class PayrollMigrationCleanUpgradeTest {
                  WHERE run_id = ? AND record_kind = 'CHECKPOINT'
                 """, Long.class, resumedRun)).isEqualTo(1L);
         assertThat(admin.queryForObject(
-                "SELECT COUNT(*) FROM pay_outbox_events WHERE run_id = ?",
+                "SELECT COUNT(*) FROM pay_outbox_events WHERE run_id = ? "
+                        + "AND event_type <> 'PayrollRunPrepared'",
                 Long.class, resumedRun)).isZero();
         clock.advance(Duration.ofSeconds(2));
         assertThat(worker.execute(1, resumedRun, 1, "worker-b")).isTrue();
@@ -546,19 +699,19 @@ class PayrollMigrationCleanUpgradeTest {
                 "SELECT COUNT(*) FROM pay_worker_results WHERE run_id = ?",
                 Long.class, resumedRun)).isEqualTo(1L);
         assertThat(admin.queryForObject(
-                "SELECT COUNT(*) FROM pay_command_receipts WHERE run_id = ?",
+                "SELECT COUNT(*) FROM pay_command_receipts WHERE run_id = ? "
+                        + "AND command_type <> 'RUN_PREPARE'",
                 Long.class, resumedRun)).isEqualTo(5L);
 
-        UUID unknownRun = UUID.randomUUID();
         UUID unknownSnapshot = UUID.randomUUID();
         String unknownDigest = "7".repeat(64);
         seedV49Line(
                 unknownSnapshot, 9, unknownDigest, UUID.randomUUID(),
                 PayrollCalculationTestSupport.PAY_PERIOD, "BASE", "8".repeat(64));
-        insertRun(admin, unknownRun, "PREPARING", 0, null,
+        UUID unknownRun = preparedRun(
                 unknownSnapshot, 9, unknownDigest);
         service.calculate(
-                calculator(), unknownRun, "unknown-command", 1, UUID.randomUUID(),
+                calculator(), unknownRun, "unknown-command", 2, UUID.randomUUID(),
                 new PayrollCalculationModels.ActionCommand("CALCULATE", null, null));
         assertThat(worker.execute(
                 1, unknownRun, 1, "worker-unknown",
@@ -594,7 +747,8 @@ class PayrollMigrationCleanUpgradeTest {
                 "SELECT COUNT(*) FROM pay_worker_results WHERE run_id = ?",
                 Long.class, unknownRun)).isEqualTo(1L);
         assertThat(admin.queryForObject(
-                "SELECT COUNT(*) FROM pay_command_receipts WHERE run_id = ?",
+                "SELECT COUNT(*) FROM pay_command_receipts WHERE run_id = ? "
+                        + "AND command_type <> 'RUN_PREPARE'",
                 Long.class, unknownRun)).isEqualTo(10L);
         assertThat(admin.queryForList("""
                 SELECT result_line_digest FROM pay_result_lines
@@ -717,11 +871,13 @@ class PayrollMigrationCleanUpgradeTest {
                 "SELECT COUNT(*) FROM pay_worker_results WHERE run_id = ?",
                 Long.class, runId)).isEqualTo(1L);
         assertThat(admin.queryForObject(
-                "SELECT COUNT(*) FROM pay_outbox_events WHERE run_id = ?",
+                "SELECT COUNT(*) FROM pay_outbox_events WHERE run_id = ? "
+                        + "AND event_type <> 'PayrollRunPrepared'",
                 Long.class, runId)).isEqualTo(1L);
         assertThat(admin.queryForObject("""
                 SELECT COUNT(*) FROM pay_command_receipts
                  WHERE run_id = ? AND receipt_status = 'SUCCEEDED'
+                   AND command_type <> 'RUN_PREPARE'
                 """, Long.class, runId)).isEqualTo(2L);
         assertThat(admin.queryForObject("""
                 SELECT COUNT(*) FROM pay_payroll_runs
@@ -905,6 +1061,7 @@ class PayrollMigrationCleanUpgradeTest {
                 SELECT event_type, event_payload::text AS payload
                   FROM pay_outbox_events
                  WHERE tenant_id = 1 AND run_id = ?
+                   AND event_type <> 'PayrollRunPrepared'
                  ORDER BY run_revision
                 """, runId);
         assertThat(events).extracting(row -> row.get("event_type"))
@@ -1007,7 +1164,8 @@ class PayrollMigrationCleanUpgradeTest {
                 .isInstanceOf(DataAccessException.class)
                 .hasMessageContaining("payload is not exact");
         assertThat(admin.queryForObject(
-                "SELECT COUNT(*) FROM pay_outbox_events WHERE run_id = ?",
+                "SELECT COUNT(*) FROM pay_outbox_events WHERE run_id = ? "
+                        + "AND event_type <> 'PayrollRunPrepared'",
                 Long.class, runId)).isEqualTo(3L);
     }
 
@@ -1058,6 +1216,38 @@ class PayrollMigrationCleanUpgradeTest {
                 SELECT COUNT(*) FROM pay_payroll_run_attempts
                  WHERE run_id = ? AND attempt_no = 2 AND attempt_state = 'READY'
                 """, Long.class, runId)).isEqualTo(1L);
+        assertThat(admin.queryForObject("""
+                SELECT COUNT(*) = 2
+                       AND COUNT(DISTINCT preparation_id) = 1
+                       AND COUNT(*) FILTER (
+                           WHERE state_sequence = 1
+                             AND preparation_state = 'PREPARING') = 1
+                       AND COUNT(*) FILTER (
+                           WHERE state_sequence = 2
+                             AND preparation_state = 'READY') = 1
+                  FROM pay_run_preparations
+                 WHERE tenant_id = 1 AND run_id = ?
+                """, Boolean.class, runId)).isTrue();
+        assertThat(admin.queryForObject("""
+                SELECT COUNT(*) FROM pay_command_receipts
+                 WHERE tenant_id = 1 AND run_id = ?
+                   AND command_type = 'RUN_PREPARE'
+                   AND originating_action = 'PAY_RUN_PREPARE'
+                   AND status_sequence = 1
+                """, Long.class, runId)).isEqualTo(1L);
+        assertThat(admin.queryForObject("""
+                SELECT COUNT(*) FROM pay_outbox_events
+                 WHERE tenant_id = 1 AND run_id = ?
+                   AND event_type = 'PayrollRunPrepared'
+                   AND event_payload ->> 'type' = 'PayrollRunPrepared.v1'
+                """, Long.class, runId)).isEqualTo(1L);
+        PayrollPreparationPostgresFixture
+                .assertRejectedPreparationsLeaveNoBusinessEffects(
+                        adminDataSource, runtimeDataSource, publisherDataSource,
+                        runId, PayrollCalculationTestSupport.LEGAL_ENTITY,
+                        PayrollCalculationTestSupport.PAY_GROUP,
+                        PayrollCalculationTestSupport.SUBJECT, 101,
+                        PayrollCalculationTestSupport.TARGET_DIGEST);
     }
 
     private Object approvalRace(
@@ -1123,17 +1313,15 @@ class PayrollMigrationCleanUpgradeTest {
             PayrollCalculationWorker worker,
             String snapshotDigit,
             String payloadDigit) {
-        UUID runId = UUID.randomUUID();
         UUID snapshotId = UUID.randomUUID();
         String snapshotDigest = snapshotDigit.repeat(64);
         seedV49Line(
                 snapshotId, 9, snapshotDigest, UUID.randomUUID(),
                 PayrollCalculationTestSupport.PAY_PERIOD, "BASE",
                 payloadDigit.repeat(64));
-        insertRun(admin, runId, "PREPARING", 0, null,
-                snapshotId, 9, snapshotDigest);
+        UUID runId = preparedRun(snapshotId, 9, snapshotDigest);
         service.calculate(
-                calculator(), runId, "calculate-" + runId, 1, UUID.randomUUID(),
+                calculator(), runId, "calculate-" + runId, 2, UUID.randomUUID(),
                 new PayrollCalculationModels.ActionCommand("CALCULATE", null, null));
         assertThat(worker.execute(1, runId, 1, "worker-" + runId)).isTrue();
         assertThat(admin.queryForObject("""
@@ -1148,19 +1336,31 @@ class PayrollMigrationCleanUpgradeTest {
             PayrollCalculationService service,
             String snapshotDigit,
             String payloadDigit) {
-        UUID runId = UUID.randomUUID();
         UUID snapshotId = UUID.randomUUID();
         String snapshotDigest = snapshotDigit.repeat(64);
         seedV49Line(
                 snapshotId, 9, snapshotDigest, UUID.randomUUID(),
                 PayrollCalculationTestSupport.PAY_PERIOD, "BASE",
                 payloadDigit.repeat(64));
-        insertRun(admin, runId, "PREPARING", 0, null,
-                snapshotId, 9, snapshotDigest);
+        UUID runId = preparedRun(snapshotId, 9, snapshotDigest);
         service.calculate(
-                calculator(), runId, "calculate-" + runId, 1, UUID.randomUUID(),
+                calculator(), runId, "calculate-" + runId, 2, UUID.randomUUID(),
                 new PayrollCalculationModels.ActionCommand("CALCULATE", null, null));
         return runId;
+    }
+
+    private UUID preparedRun(
+            UUID snapshotId,
+            long snapshotRevision,
+            String snapshotDigest) {
+        return PayrollPreparationPostgresFixture.prepareReadyRun(
+                runtimeDataSource, publisherDataSource,
+                snapshotId, snapshotRevision, snapshotDigest,
+                PayrollCalculationTestSupport.PAY_PERIOD,
+                PayrollCalculationTestSupport.LEGAL_ENTITY,
+                PayrollCalculationTestSupport.PAY_GROUP,
+                PayrollCalculationTestSupport.SUBJECT, 101,
+                PayrollCalculationTestSupport.TARGET_DIGEST);
     }
 
     private long currentRunVersion(UUID runId) {
@@ -1367,6 +1567,7 @@ class PayrollMigrationCleanUpgradeTest {
             UUID payrollGroupId,
             UUID formulaId,
             String astDigest) {
+        UUID configurationId = UUID.randomUUID();
         admin.update("""
                 INSERT INTO pay_foundation_configurations (
                     tenant_id, configuration_id, current_version, lifecycle_state,
@@ -1375,7 +1576,17 @@ class PayrollMigrationCleanUpgradeTest {
                     created_at, updated_at)
                 VALUES (1, ?, 1, 'PUBLISHED', ?, ?, DATE '2026-01-01', NULL,
                     101, 202, '{}'::jsonb, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, UUID.randomUUID(), legalEntityId, payrollGroupId,
+                """, configurationId, legalEntityId, payrollGroupId,
+                UUID.randomUUID());
+        admin.update("""
+                INSERT INTO pay_foundation_versions (
+                    tenant_id, configuration_id, version, definition,
+                    definition_digest, dependency_digest, lifecycle_state,
+                    simulation_report, authored_by, published_by,
+                    command_id, recorded_at)
+                VALUES (1, ?, 1, '{}'::jsonb, ?, ?, 'PUBLISHED',
+                    '{}'::jsonb, 101, 202, ?, CURRENT_TIMESTAMP)
+                """, configurationId, "d".repeat(64), "e".repeat(64),
                 UUID.randomUUID());
         admin.update("""
                 INSERT INTO pay_formula_versions (
@@ -1764,6 +1975,13 @@ class PayrollMigrationCleanUpgradeTest {
         Set<String> result = new LinkedHashSet<>();
         node.fieldNames().forEachRemaining(result::add);
         return result;
+    }
+
+    private static String sqlNames(List<String> names) {
+        return names.stream()
+                .map(name -> "'" + name + "'")
+                .reduce((left, right) -> left + "," + right)
+                .orElseThrow();
     }
 
     private static final class CommitThenLoseAcknowledgement
