@@ -795,6 +795,23 @@ class ProductSurfaceDecisionContextFilterTest {
                 new Case("POST", "/api/platform/v1/admin/hris/navigation-policies/revisions/"
                         + revision + "/publish", true),
                 new Case("POST", "/api/platform/v1/admin/hris/navigation-policies/revisions/"
+                        + revision + "/restore", true),
+                new Case("GET",
+                        "/api/platform/v2/admin/hris/navigation-policies/workspace",
+                        false),
+                new Case("POST", "/api/platform/v2/admin/hris/navigation-policies/drafts",
+                        true),
+                new Case("PUT", "/api/platform/v2/admin/hris/navigation-policies/drafts/"
+                        + revision, true),
+                new Case("POST", "/api/platform/v2/admin/hris/navigation-policies/drafts/"
+                        + revision + "/validate", true),
+                new Case("POST", "/api/platform/v2/admin/hris/navigation-policies/drafts/"
+                        + revision + "/submit", true),
+                new Case("POST", "/api/platform/v2/admin/hris/navigation-policies/revisions/"
+                        + revision + "/approve", true),
+                new Case("POST", "/api/platform/v2/admin/hris/navigation-policies/revisions/"
+                        + revision + "/publish", true),
+                new Case("POST", "/api/platform/v2/admin/hris/navigation-policies/revisions/"
                         + revision + "/restore", true));
 
         for (Case requestCase : cases) {
@@ -860,6 +877,140 @@ class ProductSurfaceDecisionContextFilterTest {
         assertThat(forwarded.get()).isNotNull();
         assertThat(forwarded.get().getHeaders().containsKey(
                 ProductSurfaceDecisionContextFilter.PURPOSE_HEADER)).isFalse();
+    }
+
+    @Test
+    void navigationV2RuntimeUsesDisjointTenantAndLegalEntityCarriers() {
+        record Case(
+                String path, String route, String surface, String populationKind,
+                String selectedScope) { }
+        String legalEntity = "10000000-0000-4000-8000-000000000045";
+        List<Case> cases = List.of(
+                new Case(
+                        "/api/platform/v2/hris/navigation/projection"
+                                + "?navigationScope=TENANT",
+                        "route.hcm.shell.navigation-aggregate.data",
+                        "hcm.utility", "SELF", null),
+                new Case(
+                        "/api/platform/v2/hris/navigation/deep-link-decision"
+                                + "?navigationScope=TENANT&nodeId=HRIS-NODE-HOME"
+                                + "&requestedPath=%2Fhr&revisionPin=nav-45",
+                        "route.hcm.shell.navigation-deep-link-decision.data",
+                        "hcm.utility", "SELF", null),
+                new Case(
+                        "/api/platform/v2/hris/navigation/projection"
+                                + "?navigationScope=LEGAL_ENTITY"
+                                + "&legalEntityPublicId=" + legalEntity
+                                + "&contextScopeKey=" + HCM_DERIVED_SCOPE,
+                        "route.hcm.shell.navigation-aggregate-legal-entity.data",
+                        "hcm.operations", "TARGET_POPULATION", HCM_DERIVED_SCOPE),
+                new Case(
+                        "/api/platform/v2/hris/navigation/deep-link-decision"
+                                + "?navigationScope=LEGAL_ENTITY"
+                                + "&legalEntityPublicId=" + legalEntity
+                                + "&nodeId=HRIS-NODE-HOME&requestedPath=%2Fhr"
+                                + "&revisionPin=nav-45&contextScopeKey="
+                                + HCM_DERIVED_SCOPE,
+                        "route.hcm.shell.navigation-deep-link-decision-legal-entity.data",
+                        "hcm.operations", "TARGET_POPULATION", HCM_DERIVED_SCOPE));
+        for (Case requestCase : cases) {
+            java.net.URI uri = java.net.URI.create(requestCase.path());
+            GeneratedProductRouteCatalog.Match catalogMatch = catalog.match(
+                    "GET", uri.getPath(), uri.getRawQuery());
+            assertThat(catalogMatch.status()).as(requestCase.path())
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(catalogMatch.uniqueRoute()).isNotNull().satisfies(route -> {
+                assertThat(route.routeContractKey()).isEqualTo(requestCase.route());
+                assertThat(route.surfaceKey()).isEqualTo(requestCase.surface());
+            });
+            ProductSurfaceContextAggregationService authority = authority(
+                    allowedWave2(requestCase.populationKind()));
+            ProductSurfaceDecisionContextFilter filter = filter(authority);
+            String path = requestCase.path();
+            MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(path)
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000041")
+                    .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                            "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER,
+                            "HRIS_SYSTEM_ADMIN"));
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest>
+                    forwarded = new AtomicReference<>();
+            ArgumentCaptor<ProductSurfaceContextDtos.ProductEvaluationRequest> evaluation =
+                    ArgumentCaptor.forClass(
+                            ProductSurfaceContextDtos.ProductEvaluationRequest.class);
+
+            filter.filter(exchange, filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            verify(authority).evaluateProductTrusted(any(), evaluation.capture());
+            assertThat(forwarded.get()).as(path).isNotNull();
+            assertThat(evaluation.getValue().routeContractKey())
+                    .isEqualTo(requestCase.route());
+            assertThat(evaluation.getValue().subject().surfaceKey())
+                    .isEqualTo(requestCase.surface());
+            assertThat(evaluation.getValue().contextScopeKey())
+                    .isEqualTo(requestCase.selectedScope());
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                    .isEqualTo(requestCase.route());
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                    .isEqualTo(requestCase.populationKind());
+            assertThat(forwarded.get().getURI().getRawQuery())
+                    .doesNotContain("contextScopeKey");
+        }
+    }
+
+    @Test
+    void navigationV2ScopeDiscriminatorAndTrustedPopulationMismatchFailClosed() {
+        String legalEntity = "10000000-0000-4000-8000-000000000045";
+        for (String path : List.of(
+                "/api/platform/v2/hris/navigation/projection",
+                "/api/platform/v2/hris/navigation/projection"
+                        + "?navigationScope=TENANT&legalEntityPublicId=" + legalEntity,
+                "/api/platform/v2/hris/navigation/projection"
+                        + "?navigationScope=LEGAL_ENTITY")) {
+            java.net.URI uri = java.net.URI.create(path);
+            assertThat(catalog.match("GET", uri.getPath(), uri.getRawQuery()).status())
+                    .as(path).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+            MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(path)
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+            filter(authority(allowedWave2("SELF")))
+                    .filter(exchange, ignored -> Mono.empty()).block();
+            assertThat(exchange.getResponse().getStatusCode()).as(path)
+                    .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        }
+
+        record Mismatch(String path, String returnedKind) { }
+        for (Mismatch mismatch : List.of(
+                new Mismatch(
+                        "/api/platform/v2/hris/navigation/projection"
+                                + "?navigationScope=TENANT", "TARGET_POPULATION"),
+                new Mismatch(
+                        "/api/platform/v2/hris/navigation/projection"
+                                + "?navigationScope=LEGAL_ENTITY"
+                                + "&legalEntityPublicId=" + legalEntity
+                                + "&contextScopeKey=" + HCM_DERIVED_SCOPE,
+                        "SELF"))) {
+            MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(mismatch.path())
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+            filter(authority(allowedWave2(mismatch.returnedKind())))
+                    .filter(exchange, ignored -> Mono.empty()).block();
+            assertThat(exchange.getResponse().getStatusCode()).as(mismatch.path())
+                    .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        }
     }
 
     @Test

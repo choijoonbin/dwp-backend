@@ -22,6 +22,7 @@ final class PlatformSecurityHeaders {
             "X-DWP-Subject-Principal-Public-ID";
     static final String FIELD_POLICY_REVISION = "X-DWP-Field-Policy-Revision";
     static final String AUTHORIZATION_REVISION = "X-DWP-Authorization-Revision";
+    static final String POPULATION_KIND = "X-DWP-Population-Kind";
     static final String MASKED_FIELD_GROUPS = "X-DWP-Masked-Field-Groups";
     static final String OMITTED_FIELD_GROUPS = "X-DWP-Omitted-Field-Groups";
     static final String PURPOSE = "X-Purpose-Code";

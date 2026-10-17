@@ -36,6 +36,69 @@ class ProductAuthorizationHcmAuthorityAdapterTest {
     private ProductAuthorizationAuthorityAdapter adapter;
 
     @Test
+    void v45NavigationScopeSplitReturnsTenantSelfAndOperationsPopulation()
+            throws IOException {
+        useContract("product-surfaces-v1.bundle-v45.generated.json");
+        evidence(Set.of(
+                "APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW",
+                "DATA.WORKFORCE:VIEW"), List.of(role(
+                "HRIS_DUTY_APP_SHELL_READER", "APP.HCM",
+                "RS_HCM_UTILITY_SELF")));
+
+        ProductSurfaceAuthorityDtos.AuthorityResult tenant = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.shell.navigation-aggregate.data",
+                null, null, null, null, List.of());
+
+        // Legal-entity navigation is authorized by the canonical operations authority alone;
+        // it must not inherit the tenant shell duty as a hidden prerequisite.
+        evidence(Set.of("APP.HCM:VIEW", "DATA.WORKFORCE:VIEW"), List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult legalEntity = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.shell.navigation-aggregate-legal-entity.data",
+                null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult wrongSurface = evaluate(
+                "hcm", "hcm.utility", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.shell.navigation-aggregate-legal-entity.data",
+                null, null, null, null, List.of());
+
+        assertThat(tenant.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(tenant.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("SELF");
+            assertThat(scope.key()).isEqualTo(ProductSurfaceScopeKey.key(
+                    10, 20, "hcm", "hcm.utility", "SELF", "SELF"));
+        });
+        assertThat(tenant.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.capabilityContractKey())
+                                .isEqualTo("hcm.app.shell.view"));
+
+        assertThat(legalEntity.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(legalEntity.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+            assertThat(scope.key()).isEqualTo(ProductSurfaceScopeKey.key(
+                    10, 20, "hcm", "hcm.operations",
+                    "WORKFORCE_TARGET_POPULATION", "TARGET_POPULATION"));
+        });
+        assertThat(legalEntity.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> {
+                            assertThat(grant.capabilityContractKey())
+                                    .isEqualTo("hcm.operations.workforce.read");
+                            // The runtime node projection consumes this same canonical code;
+                            // an HRIS-prefixed alias must not create a second authority dialect.
+                            assertThat(grant.resolvedCapabilityCode())
+                                    .isEqualTo("DATA.WORKFORCE:VIEW");
+                        });
+        assertThat(wrongSurface.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
+    }
+
+    @Test
     void resolvesTheV33HcmSystemPageToAnExplicitTenantScope() throws IOException {
         useContract("product-surfaces-v1.bundle-v33.generated.json");
         evidence(Set.of("APP.HCM:VIEW"), List.of());
