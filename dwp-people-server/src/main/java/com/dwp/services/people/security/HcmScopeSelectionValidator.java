@@ -29,6 +29,8 @@ final class HcmScopeSelectionValidator {
                             "OrganizationScenarioDecisionService:approver-maker-sod"),
                     java.util.Map.entry("predicate.hcm-org-publish-sod.v1",
                             "OrganizationScenarioService:publisher-maker-sod"),
+                    java.util.Map.entry("predicate.hcm-organization-graph-authority.v1",
+                            "HcmPopulationScopeService:organization-root-population"),
                     java.util.Map.entry("predicate.hcm-performance-cycle-object.v1",
                             "PerformanceCycleService:locked-cycle-object"),
                     java.util.Map.entry("predicate.hcm-performance-cycle-publish-sod.v1",
@@ -50,6 +52,10 @@ final class HcmScopeSelectionValidator {
             java.util.Set.of(
                     "route.hcm.operations.employee-change-request-create.action",
                     "route.hcm.operations.employee-change-request-submit.action");
+    private static final java.util.Set<String> ORGANIZATION_GRAPH_ROUTES =
+            java.util.Set.of(
+                    "route.hcm.operations.organization-graph.data",
+                    "route.hcm.operations.organization-positions.page");
 
     private final HcmPopulationScopeService populations;
 
@@ -84,6 +90,10 @@ final class HcmScopeSelectionValidator {
         }
         if (EMPLOYEE_CHANGE_MUTATION_ROUTES.contains(route)) {
             validateEmployeeChangeMutation(authority);
+            return;
+        }
+        if (ORGANIZATION_GRAPH_ROUTES.contains(route)) {
+            validateOrganizationGraph(authority);
             return;
         }
         if (java.util.Set.of(
@@ -155,6 +165,28 @@ final class HcmScopeSelectionValidator {
             return;
         }
         throw new IllegalStateException("Unknown generated HCM route plane.");
+    }
+
+    private void validateOrganizationGraph(HcmV3PepRegistry.RouteAuthority authority) {
+        String expectedKind = authority.routeContractKey().endsWith(".data") ? "DATA" : "PAGE";
+        if (!expectedKind.equals(authority.routeKind())
+                || !"organization-viewer".equals(authority.profileKey())
+                || !authority.readOnly()
+                || !"GET".equals(authority.method())
+                || !"hcm.operations.organization.view".equals(
+                authority.capabilityContractKey())
+                || !java.util.Set.of("predicate.hcm-organization-graph-authority.v1")
+                .equals(authority.predicatePolicyKeys())
+                || !java.util.Set.of("TARGET_POPULATION")
+                .equals(authority.targetBindingKinds())) {
+            throw new IllegalStateException("Organization graph scope profile changed.");
+        }
+        HcmPopulationScopeService.ResolvedPopulation population =
+                populations.requireOperations("READ");
+        populations.requireField(population, "ORGANIZATION");
+        populations.requireTrustedScope(
+                population, "hcm.operations", "TARGET_POPULATION",
+                "ORGANIZATION_TARGET_POPULATION");
     }
 
     private void validateEmployeeChangeMutation(HcmV3PepRegistry.RouteAuthority authority) {

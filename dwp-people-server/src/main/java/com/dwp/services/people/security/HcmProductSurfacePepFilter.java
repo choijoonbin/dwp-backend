@@ -9,6 +9,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -56,22 +57,55 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             "baseline", "holdout", "full", "eligible-10", "eligible-25",
             "eligible-50", "eligible-90");
     private static final Set<String> TENANT_ACCESS_MODES = Set.of("NORMAL", "ELEVATED");
+    private static final String ORGANIZATION_GRAPH_PATH =
+            "/v1/hris/organizations/graph";
 
     private final boolean productAuthorizationV3Enabled;
     private final HcmV3PepRegistry registry;
     private final HcmScopeSelectionValidator scopeValidator;
     private final ObjectMapper objectMapper;
+    private final boolean organizationPositionsEnabled;
+    private final Set<Long> organizationPositionsEnrolledTenants;
 
+    @Autowired
     public HcmProductSurfacePepFilter(
             @Value("${dwp.people.product-authorization-v3-enabled:false}")
             boolean productAuthorizationV3Enabled,
             HcmV3PepRegistry registry,
             HcmScopeSelectionValidator scopeValidator,
+            ObjectMapper objectMapper,
+            @Value("${dwp.hris.organization-positions.enabled:false}")
+            boolean organizationPositionsEnabled,
+            @Value("${dwp.hris.organization-positions.enrolled-tenants:}")
+            String organizationPositionsEnrolledTenants) {
+        this(productAuthorizationV3Enabled, registry, scopeValidator, objectMapper,
+                organizationPositionsEnabled,
+                parseEnrolledTenants(organizationPositionsEnrolledTenants));
+    }
+
+    /** Default-off compatibility constructor for existing non-HRM-005 security seams. */
+    public HcmProductSurfacePepFilter(
+            boolean productAuthorizationV3Enabled,
+            HcmV3PepRegistry registry,
+            HcmScopeSelectionValidator scopeValidator,
             ObjectMapper objectMapper) {
+        this(productAuthorizationV3Enabled, registry, scopeValidator, objectMapper,
+                false, Set.of());
+    }
+
+    private HcmProductSurfacePepFilter(
+            boolean productAuthorizationV3Enabled,
+            HcmV3PepRegistry registry,
+            HcmScopeSelectionValidator scopeValidator,
+            ObjectMapper objectMapper,
+            boolean organizationPositionsEnabled,
+            Set<Long> organizationPositionsEnrolledTenants) {
         this.productAuthorizationV3Enabled = productAuthorizationV3Enabled;
         this.registry = registry;
         this.scopeValidator = scopeValidator;
         this.objectMapper = objectMapper;
+        this.organizationPositionsEnabled = organizationPositionsEnabled;
+        this.organizationPositionsEnrolledTenants = organizationPositionsEnrolledTenants;
     }
 
     @Override
@@ -98,6 +132,11 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
         if (supportSession != null) {
             writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                     "Trusted HCM provider-support population evidence is unavailable.");
+            return;
+        }
+        if (organizationPositionsUnavailable(request)) {
+            writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "The requested HCM route is unavailable.");
             return;
         }
         String state = exactHeader(request, ROLLOUT_STATE_HEADER);
@@ -206,6 +245,35 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
     private boolean validCurrentDecision(String revision, OffsetDateTime validUntil) {
         return revision != null && revision.matches("psr-[a-f0-9]{64}")
                 && validUntil != null && validUntil.isAfter(OffsetDateTime.now());
+    }
+
+    private boolean organizationPositionsUnavailable(HttpServletRequest request) {
+        return "GET".equals(request.getMethod())
+                && ORGANIZATION_GRAPH_PATH.equals(request.getRequestURI())
+                && (!organizationPositionsEnabled
+                || !organizationPositionsEnrolledTenants.contains(
+                PeopleRequestContext.require().tenantId()));
+    }
+
+    private static Set<Long> parseEnrolledTenants(String configured) {
+        if (configured == null || configured.isBlank()) return Set.of();
+        try {
+            return Arrays.stream(configured.split(","))
+                    .map(String::trim)
+                    .map(HcmProductSurfacePepFilter::canonicalPositiveTenantId)
+                    .collect(Collectors.toUnmodifiableSet());
+        } catch (RuntimeException exception) {
+            throw new IllegalArgumentException(
+                    "HRIS organization-position tenant enrollment is invalid.", exception);
+        }
+    }
+
+    private static Long canonicalPositiveTenantId(String value) {
+        long parsed = Long.parseLong(value);
+        if (parsed < 1 || !Long.toString(parsed).equals(value)) {
+            throw new IllegalArgumentException("Tenant enrollment must be a positive integer.");
+        }
+        return parsed;
     }
 
     private boolean validRolloutEvidence(String state, String revision, String cohort) {
