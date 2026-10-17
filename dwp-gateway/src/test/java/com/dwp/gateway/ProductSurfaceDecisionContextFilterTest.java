@@ -306,6 +306,62 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void hrm007PeopleEmploymentTranslatesOnlyTrustedResourceSetToConfigScope() {
+        String path = "/api/people/v1/hris/workbench/configuration/people-employment";
+        GeneratedProductRouteCatalog.Match match = catalog.match("GET", path);
+        assertThat(match.uniqueRoute()).isNotNull();
+        assertThat(match.uniqueRoute().routeContractKey())
+                .isEqualTo("route.hcm.configuration.people-employment.data");
+
+        ProductSurfaceDecisionContextFilter filter = filter(authority(
+                allowedWave2("RESOURCE_SET")));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+        filter.filter(exchange(MockServerHttpRequest.get(path)
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041")
+                .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                        "CLIENT_FORGED")), filtered -> {
+                    forwarded.set(filtered.getRequest());
+                    return Mono.empty();
+                }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                .isEqualTo("CONFIG_SCOPE");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                .isEqualTo("HRIS_CONFIGURATION");
+
+        for (String invalidTrustedKind : List.of("CONFIG_SCOPE", "TARGET_POPULATION")) {
+            ProductSurfaceDecisionContextFilter invalidFilter = filter(authority(
+                    allowedWave2(invalidTrustedKind)));
+            MockServerWebExchange denied = exchange(MockServerHttpRequest.get(path)
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000041"));
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest>
+                    invalidForward = new AtomicReference<>();
+
+            invalidFilter.filter(denied, filtered -> {
+                invalidForward.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(invalidForward.get()).as(invalidTrustedKind).isNull();
+            assertThat(denied.getResponse().getStatusCode())
+                    .as(invalidTrustedKind).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            assertThat(body(denied)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
+        }
+    }
+
+    @Test
     void wave5SysPerTimOwnerContextIsExactAndReplacesSpoofedHeaders() {
         String id = "10000000-0000-4000-8000-000000000251";
         record Case(

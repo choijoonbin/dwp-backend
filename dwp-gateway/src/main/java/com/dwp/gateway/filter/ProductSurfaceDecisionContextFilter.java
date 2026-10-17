@@ -98,6 +98,9 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.operations.people-appointments.data",
             "route.hcm.configuration.people-employment.page",
             "route.hcm.configuration.people-employment.data");
+    private static final Set<String> HRM007_CONFIGURATION_ENTRY_QUERY_ROUTE_KEYS = Set.of(
+            "route.hcm.configuration.people-employment.page",
+            "route.hcm.configuration.people-employment.data");
     private static final Set<String> TIM_WAVE2_ROUTE_KEYS = Set.of(
             "route.hcm.operations.time-interpretation.page",
             "route.hcm.operations.time-interpretation-run.action",
@@ -660,24 +663,32 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 || HRM007_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_TENANT_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey());
-        String populationKind = requiresPopulationKind && trustedResult.scope() != null
+        String trustedPopulationKind = requiresPopulationKind && trustedResult.scope() != null
                 ? trustedResult.scope().kind() : null;
-        if (requiresPopulationKind && blank(populationKind)) {
+        if (requiresPopulationKind && blank(trustedPopulationKind)) {
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
         if (CONTROLLED_TRANSFER_OWNER_ROUTE_KEYS.contains(route.routeContractKey())
-                && !CONTROLLED_TRANSFER_POPULATION_KINDS.contains(populationKind)) {
+                && !CONTROLLED_TRANSFER_POPULATION_KINDS.contains(trustedPopulationKind)) {
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
         if ((NAVIGATION_V2_TENANT_ROUTE_KEYS.contains(route.routeContractKey())
-                && !"SELF".equals(populationKind))
+                && !"SELF".equals(trustedPopulationKind))
                 || (NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey())
-                && !"TARGET_POPULATION".equals(populationKind))) {
+                && !"TARGET_POPULATION".equals(trustedPopulationKind))) {
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
+        boolean hrm007ConfigurationEntry = HRM007_CONFIGURATION_ENTRY_QUERY_ROUTE_KEYS.contains(
+                route.routeContractKey());
+        if (hrm007ConfigurationEntry && !"RESOURCE_SET".equals(trustedPopulationKind)) {
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+        }
+        String populationKind = hrm007ConfigurationEntry
+                ? "CONFIG_SCOPE" : trustedPopulationKind;
         responseRevision(exchange, result.decisionRevision());
         ServerHttpRequest trusted = request.mutate().headers(headers -> {
             headers.set(ROUTE_HEADER, route.routeContractKey());
