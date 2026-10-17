@@ -205,7 +205,10 @@ final class CertificateAuthority {
             throw denied("Fresh certificate command authority is incomplete.");
         }
         if (authorized.self()) {
-            populations.requireSelfScope("hcm.personal");
+            // The one shared command route belongs to hcm.operations even when the
+            // selected profile is employee self-service. Keep the read entry route
+            // on hcm.personal, but revalidate mutation scope on the action surface.
+            populations.requireSelfScope("hcm.operations");
             return new CommandDecision(
                     authorized.actor(), true, authorized.profile(),
                     authorized.capability(), authorized.purpose(), null,

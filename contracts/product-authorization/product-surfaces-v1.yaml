@@ -63003,6 +63003,54 @@
           "gatewayApiBindings": [], "servicePepBindings": [], "owner": "HCM + Approvals + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 52,
+      "capabilities": [
+        {
+          "contractKey": "hcm.personal.requests.view", "productKey": "hcm", "surfaceKey": "hcm.personal", "resolvedCapabilityCode": "DATA.HRIS_SELF_REQUEST:VIEW", "resourceKey": "DATA.HRIS_SELF_REQUEST", "action": "VIEW", "mappingVersion": 1, "requiresProductEntitlement": false, "authorityMode": "PERMISSION_AND_RELATIONSHIP", "scopeResolver": "SELF", "riskTier": "MEDIUM", "activationPolicy": null, "responsibilityRequirement": "NOT_REQUIRED", "sodPolicyId": null, "legacySource": null, "sunsetAt": null, "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "hcm.personal.certificate.request", "productKey": "hcm", "surfaceKey": "hcm.personal", "resolvedCapabilityCode": "ACTION.HRIS_CERTIFICATE:CREATE", "resourceKey": "ACTION.HRIS_CERTIFICATE", "action": "CREATE", "mappingVersion": 1, "requiresProductEntitlement": false, "authorityMode": "PERMISSION_AND_RELATIONSHIP", "scopeResolver": "SELF", "riskTier": "MEDIUM", "activationPolicy": null, "responsibilityRequirement": "NOT_REQUIRED", "sodPolicyId": null, "legacySource": null, "sunsetAt": null, "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "hcm.operations.certificate.issue", "productKey": "hcm", "surfaceKey": "hcm.operations", "resolvedCapabilityCode": "ACTION.HRIS_CERTIFICATE:ISSUE", "resourceKey": "ACTION.HRIS_CERTIFICATE", "action": "ISSUE", "mappingVersion": 1, "requiresProductEntitlement": false, "authorityMode": "PERMISSION_AND_RELATIONSHIP", "scopeResolver": "WORKFORCE_TARGET_POPULATION", "riskTier": "HIGH", "activationPolicy": "STEPUP-MGMT-HIGH-V1", "responsibilityRequirement": "NOT_REQUIRED", "sodPolicyId": null, "legacySource": null, "sunsetAt": null, "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.hcm.personal.requests.page", "authorizationEquivalenceKey": "wire-authority.hcm.personal.requests.v1", "navigationContextId": "hcm.personal", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.personal"}, "routeKind": "PAGE", "sideEffectFree": null, "uiRouteId": "hcm.personal.requests", "uiRoutePattern": "/hr/me/requests",
+          "accessProfiles": [{"profileKey": "self-request-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.personal.requests.view"}, "targetBindingKinds": ["SELF"], "predicatePolicyKeys": ["predicate.self-person.v1"], "projectionPolicyKey": "route.hcm.personal.requests.page.self-request-reader.projection.v1", "responseSchemaKey": "Hrm009SelfRequestsProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.personal.requests.page.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/self-service/requests", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.personal.requests.page.binding.01", "method": "GET", "path": "/v1/hris/workbench/self-service/requests", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.personal.requests.data", "authorizationEquivalenceKey": "wire-authority.hcm.personal.requests.v1", "navigationContextId": "hcm.personal", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.personal"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "self-request-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.personal.requests.view"}, "targetBindingKinds": ["SELF"], "predicatePolicyKeys": ["predicate.self-person.v1"], "projectionPolicyKey": "route.hcm.personal.requests.data.self-request-reader.projection.v1", "responseSchemaKey": "Hrm009SelfRequestsProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.personal.requests.data.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/self-service/requests", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.personal.requests.data.binding.01", "method": "GET", "path": "/v1/hris/workbench/self-service/requests", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.certificates-documents.page", "authorizationEquivalenceKey": "wire-authority.hcm.operations.certificates-documents.v1", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "PAGE", "sideEffectFree": null, "uiRouteId": "hcm.operations.certificates-documents", "uiRoutePattern": "/hr/operations/people/certificates-documents",
+          "accessProfiles": [{"profileKey": "people-operations-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.people.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-visible-person.v1"], "projectionPolicyKey": "route.hcm.operations.certificates-documents.page.people-operations-reader.projection.v1", "responseSchemaKey": "Hrm009CertificatesDocumentsProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.certificates-documents.page.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/operations/certificates/documents", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.certificates-documents.page.binding.01", "method": "GET", "path": "/v1/hris/workbench/operations/certificates/documents", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.certificates-documents.data", "authorizationEquivalenceKey": "wire-authority.hcm.operations.certificates-documents.v1", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "people-operations-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.people.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-visible-person.v1"], "projectionPolicyKey": "route.hcm.operations.certificates-documents.data.people-operations-reader.projection.v1", "responseSchemaKey": "Hrm009CertificatesDocumentsProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.certificates-documents.data.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/operations/certificates/documents", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.certificates-documents.data.binding.01", "method": "GET", "path": "/v1/hris/workbench/operations/certificates/documents", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.certificate-issue.action", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [
+            {"profileKey": "certificate-operations-issuer", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.certificate.issue"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-visible-person.v1", "predicate.people.object-version.v1"], "readOnly": false},
+            {"profileKey": "certificate-self-requester", "precedence": 200, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.personal.certificate.request"}, "targetBindingKinds": ["SELF", "OBJECT"], "predicatePolicyKeys": ["predicate.self-person.v1", "predicate.people.object-version.v1"], "readOnly": false}
+          ],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.certificate-issue.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/certificates", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.certificate-issue.action.binding.01", "method": "POST", "path": "/v1/hris/certificates", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "stepUpCommandBindings": [{"bindingKey": "route.hcm.operations.certificate-issue.action.binding.01", "targetType": "PERSON", "targetIdBodyFields": ["personPublicId"], "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "X-DWP-Expected-Object-Version", "ownerServiceKey": "people", "audience": "dwp-people-server"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {

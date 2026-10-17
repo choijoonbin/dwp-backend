@@ -370,6 +370,49 @@ class HcmOwnerPepExecutionTest {
     }
 
     @Test
+    void hrm009SelectedActionProfilesDeferLiveScopeUntilFreshCommandAndNeverUseTeam() {
+        HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
+        HcmScopeSelectionValidator validator = new HcmScopeSelectionValidator(populations);
+        HcmV3PepRegistry.StepUpBinding stepUp = new HcmV3PepRegistry.StepUpBinding(
+                "PERSON", null, List.of("personPublicId"),
+                "people", "dwp-people-server");
+
+        validator.validate(new HcmV3PepRegistry.RouteAuthority(
+                "route.hcm.operations.certificate-issue.action", "ACTION",
+                "certificate-self-requester", false,
+                Set.of("predicate.self-person.v1", "predicate.people.object-version.v1"),
+                Set.of("SELF", "OBJECT"),
+                "route.hcm.operations.certificate-issue.action.binding.01",
+                "hcm.personal.certificate.request", "STEPUP-MGMT-HIGH-V1",
+                "POST", "/api/people/v1/hris/certificates", stepUp));
+        validator.validate(new HcmV3PepRegistry.RouteAuthority(
+                "route.hcm.operations.certificate-issue.action", "ACTION",
+                "certificate-operations-issuer", false,
+                Set.of("predicate.hcm-workforce-visible-person.v1",
+                        "predicate.people.object-version.v1"),
+                Set.of("OBJECT", "TARGET_POPULATION"),
+                "route.hcm.operations.certificate-issue.action.binding.01",
+                "hcm.operations.certificate.issue", "STEPUP-MGMT-HIGH-V1",
+                "POST", "/api/people/v1/hris/certificates", stepUp));
+
+        verifyNoInteractions(populations);
+
+        HcmPopulationScopeService teamFallback = mock(HcmPopulationScopeService.class);
+        HcmScopeSelectionValidator teamValidator = new HcmScopeSelectionValidator(teamFallback);
+        assertThatThrownBy(() -> teamValidator.validate(
+                new HcmV3PepRegistry.RouteAuthority(
+                        "route.hcm.operations.certificate-issue.action", "ACTION",
+                        "team-management", false,
+                        Set.of("predicate.team-target-population.v1"),
+                        Set.of("RELATIONSHIP", "OBJECT", "TARGET_POPULATION"),
+                        "route.hcm.operations.certificate-issue.action.binding.01",
+                        "hcm.team.certificate.issue", "STEPUP-MGMT-HIGH-V1",
+                        "POST", "/api/people/v1/hris/certificates", stepUp)))
+                .isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(teamFallback);
+    }
+
+    @Test
     void organizationPageAndDataRevalidateOnlyTheOwnerDerivedOrganizationRootScope() {
         HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
         HcmPopulationScopeService.ResolvedPopulation operations =

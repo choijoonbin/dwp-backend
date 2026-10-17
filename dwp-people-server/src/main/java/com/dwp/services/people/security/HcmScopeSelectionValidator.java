@@ -65,6 +65,14 @@ final class HcmScopeSelectionValidator {
     private static final java.util.Set<String> HRM007_CONFIGURATION_ROUTES = java.util.Set.of(
             "route.hcm.configuration.people-employment.page",
             "route.hcm.configuration.people-employment.data");
+    private static final java.util.Set<String> HRM009_PERSONAL_QUERY_ROUTES = java.util.Set.of(
+            "route.hcm.personal.requests.page",
+            "route.hcm.personal.requests.data");
+    private static final java.util.Set<String> HRM009_OPERATIONS_QUERY_ROUTES = java.util.Set.of(
+            "route.hcm.operations.certificates-documents.page",
+            "route.hcm.operations.certificates-documents.data");
+    private static final String HRM009_ACTION_ROUTE =
+            "route.hcm.operations.certificate-issue.action";
 
     private final HcmPopulationScopeService populations;
 
@@ -132,6 +140,30 @@ final class HcmScopeSelectionValidator {
                     "predicate.hcm-configuration-scope.v1",
                     java.util.Set.of("CONFIG_SCOPE"));
             populations.requireConfigurationScope();
+            return;
+        }
+        if (HRM009_PERSONAL_QUERY_ROUTES.contains(route)) {
+            validateHrm009Query(authority, "self-request-reader",
+                    "hcm.personal.requests.view", "predicate.self-person.v1",
+                    java.util.Set.of("SELF"));
+            populations.requireSelfScope("hcm.personal");
+            return;
+        }
+        if (HRM009_OPERATIONS_QUERY_ROUTES.contains(route)) {
+            validateHrm009Query(authority, "people-operations-reader",
+                    "hcm.operations.people.view",
+                    "predicate.hcm-workforce-visible-person.v1",
+                    java.util.Set.of("TARGET_POPULATION"));
+            HcmPopulationScopeService.ResolvedPopulation population =
+                    populations.requireOperations("READ");
+            populations.requireTrustedScope(
+                    population, "hcm.operations", "TARGET_POPULATION",
+                    "LEGAL_ENTITY", "ORG_TREE", "ORG_UNIT", "NAMED_POPULATION",
+                    "ORG_UNIT/LEGAL_ENTITY", "WORKFORCE_TARGET_POPULATION");
+            return;
+        }
+        if (HRM009_ACTION_ROUTE.equals(route)) {
+            validateHrm009Action(authority);
             return;
         }
         if (java.util.Set.of(
@@ -243,6 +275,67 @@ final class HcmScopeSelectionValidator {
                 || !targetKinds.equals(authority.targetBindingKinds())) {
             throw new IllegalStateException("HRM-007 entry-query scope profile changed.");
         }
+    }
+
+    private void validateHrm009Query(
+            HcmV3PepRegistry.RouteAuthority authority,
+            String profileKey,
+            String capabilityKey,
+            String predicateKey,
+            java.util.Set<String> targetKinds) {
+        String expectedKind = authority.routeContractKey().endsWith(".page") ? "PAGE" : "DATA";
+        if (!expectedKind.equals(authority.routeKind())
+                || !profileKey.equals(authority.profileKey())
+                || !authority.readOnly()
+                || !"GET".equals(authority.method())
+                || !capabilityKey.equals(authority.capabilityContractKey())
+                || !java.util.Set.of(predicateKey).equals(authority.predicatePolicyKeys())
+                || !targetKinds.equals(authority.targetBindingKinds())
+                || authority.stepUpBinding() != null) {
+            throw new IllegalStateException("HRM-009 entry-query scope profile changed.");
+        }
+    }
+
+    private void validateHrm009Action(HcmV3PepRegistry.RouteAuthority authority) {
+        HcmV3PepRegistry.StepUpBinding stepUp = authority.stepUpBinding();
+        if (!"ACTION".equals(authority.routeKind())
+                || authority.readOnly()
+                || !"POST".equals(authority.method())
+                || !"STEPUP-MGMT-HIGH-V1".equals(authority.activationPolicy())
+                || stepUp == null
+                || !"PERSON".equals(stepUp.targetType())
+                || stepUp.targetIdPathParameter() != null
+                || !java.util.List.of("personPublicId").equals(stepUp.targetIdBodyFields())
+                || !"people".equals(stepUp.ownerServiceKey())
+                || !"dwp-people-server".equals(stepUp.audience())) {
+            throw new IllegalStateException("HRM-009 route-wide HIGH binding changed.");
+        }
+        if ("certificate-self-requester".equals(authority.profileKey())
+                && "hcm.personal.certificate.request".equals(
+                authority.capabilityContractKey())
+                && java.util.Set.of("predicate.self-person.v1",
+                "predicate.people.object-version.v1").equals(
+                authority.predicatePolicyKeys())
+                && java.util.Set.of("SELF", "OBJECT").equals(
+                authority.targetBindingKinds())) {
+            // The command owner revalidates hcm.operations only after durable
+            // replay disposition. Do not make a replay depend on mutable scope.
+            return;
+        }
+        if ("certificate-operations-issuer".equals(authority.profileKey())
+                && "hcm.operations.certificate.issue".equals(
+                authority.capabilityContractKey())
+                && java.util.Set.of("predicate.hcm-workforce-visible-person.v1",
+                "predicate.people.object-version.v1").equals(
+                authority.predicatePolicyKeys())
+                && java.util.Set.of("OBJECT", "TARGET_POPULATION").equals(
+                authority.targetBindingKinds())) {
+            // CertificateAuthority performs the locked live-population proof for
+            // a fresh command after replay disposition and before mutation.
+            return;
+        }
+        throw new IllegalStateException(
+                "HRM-009 action profile changed or TEAM fallback was introduced.");
     }
 
     private void validateEmployeeChangeMutation(HcmV3PepRegistry.RouteAuthority authority) {

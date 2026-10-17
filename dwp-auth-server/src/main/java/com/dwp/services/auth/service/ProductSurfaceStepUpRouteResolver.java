@@ -28,9 +28,15 @@ public class ProductSurfaceStepUpRouteResolver {
     private static final String BUNDLE_KEY = "product-surfaces";
     private static final java.util.Set<Long> STEP_UP_RUNTIME_BUNDLE_VERSIONS =
             java.util.Set.of(2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L,
-                    14L, 15L, 16L, 32L, 49L, 50L);
+                    14L, 15L, 16L, 32L, 49L, 50L, 52L);
     private static final java.util.Set<Long> SEALED_RUNTIME_BUNDLE_VERSIONS =
-            java.util.Set.of(9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 32L, 49L, 50L);
+            java.util.Set.of(9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 32L, 49L, 50L, 52L);
+    private static final String HRM009_SHARED_ACTION_ROUTE =
+            "route.hcm.operations.certificate-issue.action";
+    private static final String HRM009_OPERATIONS_CAPABILITY =
+            "hcm.operations.certificate.issue";
+    private static final String HRM009_SELF_CAPABILITY =
+            "hcm.personal.certificate.request";
     private static final String AUTHORITY_ENDPOINT_KEY =
             "product-surface-step-up-challenge.issue";
     private static final String AUTHORITY_PUBLIC_PATH =
@@ -62,6 +68,20 @@ public class ProductSurfaceStepUpRouteResolver {
 
     @Transactional(readOnly = true)
     public Resolution resolve(ProductSurfaceStepUpDtos.IssueRequest request) {
+        return resolve(request, null);
+    }
+
+    @Transactional(readOnly = true)
+    Resolution resolveForCapability(
+            ProductSurfaceStepUpDtos.IssueRequest request,
+            String selectedCapabilityContractKey) {
+        if (blank(selectedCapabilityContractKey)) throw unavailable();
+        return resolve(request, selectedCapabilityContractKey);
+    }
+
+    private Resolution resolve(
+            ProductSurfaceStepUpDtos.IssueRequest request,
+            String selectedCapabilityContractKey) {
         validateWire(request);
         ProductAuthorizationContractRepository.StoredBundle stored = repository
                 .findActive(BUNDLE_KEY)
@@ -100,11 +120,18 @@ public class ProductSurfaceStepUpRouteResolver {
                 safe(contract.capabilities()).stream().collect(Collectors.toUnmodifiableMap(
                         ProductAuthorizationContractDtos.CapabilityContract::contractKey,
                         Function.identity()));
-        ProductAuthorizationContractDtos.AccessProfile profile = capabilityProfile(
-                resolved.route(), capabilities);
+        ProductAuthorizationContractDtos.AccessProfile profile = selectedCapabilityContractKey == null
+                ? capabilityProfile(resolved.route(), capabilities)
+                : capabilityProfile(
+                        resolved.route(), capabilities, selectedCapabilityContractKey);
         ProductAuthorizationContractDtos.CapabilityContract capability = capabilities.get(
                 profile.requiredAccess().capabilityContractKey());
-        if (capability == null || !"ACTIVE".equals(capability.lifecycleState())
+        String effectiveActivationPolicy = capability == null
+                ? null : capability.activationPolicy();
+        if (HRM009_SHARED_ACTION_ROUTE.equals(resolved.route().routeContractKey())) {
+            effectiveActivationPolicy = validateHrm009SharedRoute(
+                    request, resolved.route(), capabilities, capability);
+        } else if (capability == null || !"ACTIVE".equals(capability.lifecycleState())
                 || !java.util.Set.of("HIGH", "CRITICAL").contains(capability.riskTier())
                 || blank(capability.activationPolicy())
                 || blank(capability.scopeResolver())) {
@@ -120,11 +147,46 @@ public class ProductSurfaceStepUpRouteResolver {
         return new Resolution(
                 resolved.route().routeContractKey(), resolved.route().subject().productKey(),
                 resolved.route().subject().surfaceKey(), capability.contractKey(),
-                capability.activationPolicy(), capability.scopeResolver(), stepUp.ownerServiceKey(),
+                effectiveActivationPolicy, capability.scopeResolver(), stepUp.ownerServiceKey(),
                 stepUp.audience(), stepUp.targetType(), stepUp.targetIdPathParameter(),
                 safe(stepUp.targetIdBodyFields()),
                 stepUp.expectedObjectVersionSource(), stepUp.expectedObjectVersionName(),
                 stored.version(), stored.checksum(), pointerRevision);
+    }
+
+    private String validateHrm009SharedRoute(
+            ProductSurfaceStepUpDtos.IssueRequest request,
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities,
+            ProductAuthorizationContractDtos.CapabilityContract selected) {
+        if (blank(request.contextScopeKey()) || selected == null
+                || !"ACTIVE".equals(selected.lifecycleState())
+                || blank(selected.scopeResolver())
+                || !java.util.Set.of(
+                        HRM009_OPERATIONS_CAPABILITY,
+                        HRM009_SELF_CAPABILITY).contains(selected.contractKey())) {
+            throw mismatch("The shared certificate command requires one selected trusted scope.");
+        }
+        List<ProductAuthorizationContractDtos.AccessProfile> profiles = safe(route.accessProfiles());
+        if (profiles.size() != 2
+                || profiles.stream().map(ProductAuthorizationContractDtos.AccessProfile::profileKey)
+                .collect(java.util.stream.Collectors.toSet()).size() != 2
+                || profiles.stream().map(value -> value.requiredAccess().capabilityContractKey())
+                .collect(java.util.stream.Collectors.toSet()).size() != 2) {
+            throw unavailable();
+        }
+        ProductAuthorizationContractDtos.CapabilityContract high =
+                capabilities.get(HRM009_OPERATIONS_CAPABILITY);
+        ProductAuthorizationContractDtos.CapabilityContract self =
+                capabilities.get(HRM009_SELF_CAPABILITY);
+        if (high == null || self == null
+                || !"HIGH".equals(high.riskTier())
+                || !"STEPUP-MGMT-HIGH-V1".equals(high.activationPolicy())
+                || !"MEDIUM".equals(self.riskTier())
+                || self.activationPolicy() != null) {
+            throw unavailable();
+        }
+        return high.activationPolicy();
     }
 
     private void validateAuthorityEndpoint(
@@ -209,6 +271,24 @@ public class ProductSurfaceStepUpRouteResolver {
                 .toList();
         if (winners.size() != 1) throw unavailable();
         return winners.getFirst();
+    }
+
+    private ProductAuthorizationContractDtos.AccessProfile capabilityProfile(
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities,
+            String selectedCapabilityContractKey) {
+        List<ProductAuthorizationContractDtos.AccessProfile> matches =
+                safe(route.accessProfiles()).stream()
+                        .filter(value -> safe(value.activeAccessModes()).contains("NORMAL"))
+                        .filter(value -> value.requiredAccess() != null)
+                        .filter(value -> "CAPABILITY".equals(value.requiredAccess().type()))
+                        .filter(value -> selectedCapabilityContractKey.equals(
+                                value.requiredAccess().capabilityContractKey()))
+                        .filter(value -> capabilities.containsKey(
+                                value.requiredAccess().capabilityContractKey()))
+                        .toList();
+        if (matches.size() != 1) throw unavailable();
+        return matches.getFirst();
     }
 
     private void validateWire(ProductSurfaceStepUpDtos.IssueRequest request) {

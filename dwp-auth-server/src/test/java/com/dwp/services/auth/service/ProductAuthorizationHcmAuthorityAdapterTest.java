@@ -517,6 +517,61 @@ class ProductAuthorizationHcmAuthorityAdapterTest {
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
     }
 
+    @Test
+    void v52SharedCertificateActionSelectsOneProfileAndKeepsRouteWideHigh()
+            throws IOException {
+        useContract("product-surfaces-v1.bundle-v52.generated.json");
+        evidence(Set.of(
+                "APP.HCM:VIEW",
+                "ACTION.HRIS_CERTIFICATE:CREATE",
+                "ACTION.HRIS_CERTIFICATE:ISSUE"), List.of());
+        String operations = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.operations",
+                "WORKFORCE_TARGET_POPULATION", "TARGET_POPULATION");
+        String self = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.operations", "SELF", "SELF");
+        String team = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.operations",
+                "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION",
+                "TARGET_POPULATION");
+
+        var operationsResult = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.certificate-issue.action",
+                null, operations, null, null, List.of());
+        var selfResult = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.certificate-issue.action",
+                null, self, null, null, List.of());
+        var elevatedSelf = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                "route.hcm.operations.certificate-issue.action",
+                null, self, null, null, List.of());
+        var deferredTeam = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.certificate-issue.action",
+                null, team, null, null, List.of());
+
+        assertThat(operationsResult.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        assertThat(operationsResult.requestPolicyRef()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertCapability(operationsResult, "hcm.operations.certificate.issue", operations,
+                ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE);
+
+        assertThat(selfResult.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        assertThat(selfResult.requestPolicyRef()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertCapability(selfResult, "hcm.personal.certificate.request", self,
+                ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE);
+
+        assertThat(elevatedSelf.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertCapability(elevatedSelf, "hcm.personal.certificate.request", self,
+                ProductSurfaceAuthorityDtos.ActivationState.ACTIVE);
+        assertThat(deferredTeam.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+    }
+
     private void useContract(String resource) throws IOException {
         ProductAuthorizationContractDtos.BundleContract contract = new ObjectMapper()
                 .findAndRegisterModules().readValue(getClass().getResourceAsStream(

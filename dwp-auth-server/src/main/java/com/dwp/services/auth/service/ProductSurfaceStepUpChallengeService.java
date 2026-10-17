@@ -34,6 +34,8 @@ import java.util.UUID;
 public final class ProductSurfaceStepUpChallengeService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final String HRM009_SHARED_ACTION_ROUTE =
+            "route.hcm.operations.certificate-issue.action";
 
     private final ProductSurfaceStepUpRouteResolver routeResolver;
     private final ProductSurfaceAuthorityService authorityService;
@@ -127,6 +129,10 @@ public final class ProductSurfaceStepUpChallengeService {
                         normalizeOptional(request.contextKey()),
                         normalizeOptional(request.contextScopeKey()),
                         null, null, List.of()));
+        route = selectedProfileRoute(request, route, authority);
+        if (!allowedAudiences.contains(route.audience())) {
+            throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+        }
         ProductSurfaceAuthorityDtos.EffectiveScope scope =
                 requireEligible(authority, route, request);
         String decisionRevision = compositeRevision(
@@ -173,6 +179,30 @@ public final class ProductSurfaceStepUpChallengeService {
                 challengeId));
         return new Issued(new ProductSurfaceStepUpDtos.IssueResponse(
                 "ISSUED", token, challengeId, decisionRevision, expiresAt));
+    }
+
+    private ProductSurfaceStepUpRouteResolver.Resolution selectedProfileRoute(
+            ProductSurfaceStepUpDtos.IssueRequest request,
+            ProductSurfaceStepUpRouteResolver.Resolution resolved,
+            ProductSurfaceAuthorityDtos.AuthorityResult authority) {
+        List<String> eligibleCapabilities = authority.effectiveGrants().stream()
+                .filter(grant -> grant instanceof ProductSurfaceAuthorityDtos.CapabilityGrant)
+                .map(grant -> (ProductSurfaceAuthorityDtos.CapabilityGrant) grant)
+                .filter(grant -> grant.activationState()
+                        == ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE)
+                .filter(grant -> !grant.readOnly())
+                .map(ProductSurfaceAuthorityDtos.CapabilityGrant::capabilityContractKey)
+                .distinct()
+                .toList();
+        if (HRM009_SHARED_ACTION_ROUTE.equals(resolved.routeContractKey())
+                && eligibleCapabilities.size() != 1) {
+            throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+        }
+        if (eligibleCapabilities.size() != 1) return resolved;
+        String selected = eligibleCapabilities.getFirst();
+        return selected.equals(resolved.capabilityContractKey())
+                ? resolved
+                : routeResolver.resolveForCapability(request, selected);
     }
 
     private Outcome continuation(

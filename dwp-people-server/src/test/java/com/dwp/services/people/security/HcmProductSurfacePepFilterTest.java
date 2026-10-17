@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -45,6 +46,8 @@ class HcmProductSurfacePepFilterTest {
     private final Runnable organizationGraphRepository = mock(Runnable.class);
     private final Runnable organizationGraphOutbox = mock(Runnable.class);
     private final AtomicInteger organizationGraphControllerCalls = new AtomicInteger();
+    private final AtomicReference<HcmPepContext.Evidence> hrm009Evidence =
+            new AtomicReference<>();
     private MockMvc mvc;
 
     @BeforeEach
@@ -52,6 +55,7 @@ class HcmProductSurfacePepFilterTest {
         reset(service, candidates, validator, organizationGraphService,
                 organizationGraphRepository, organizationGraphOutbox);
         organizationGraphControllerCalls.set(0);
+        hrm009Evidence.set(null);
         mvc = mvcWithOrganizationFeature(true, "3");
     }
 
@@ -64,7 +68,8 @@ class HcmProductSurfacePepFilterTest {
                         new HrController(service), new WorkforceCandidateController(candidates),
                         new OrganizationGraphProbeController(
                                 organizationGraphControllerCalls, organizationGraphService,
-                                organizationGraphRepository, organizationGraphOutbox))
+                                organizationGraphRepository, organizationGraphOutbox),
+                        new Hrm009ProbeController(hrm009Evidence))
                 .addFilters(
                         new PeopleSecurityFilter("people-token", mapper),
                         new HcmProductSurfacePepFilter(
@@ -127,6 +132,42 @@ class HcmProductSurfacePepFilterTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void hrm009ActionDerivesPurposeFromSelectedSelfProfileAndRejectsCallerPurpose()
+            throws Exception {
+        var allowed = exact(
+                post("/v1/hris/certificates"),
+                "route.hcm.operations.certificate-issue.action",
+                "APP.HCM:VIEW,ACTION.HRIS_CERTIFICATE:CREATE",
+                null)
+                .header(HcmProductSurfacePepFilter.POPULATION_KIND_HEADER, "SELF")
+                .header(HcmProductSurfacePepFilter.EXPECTED_DECISION_REVISION_HEADER,
+                        DECISION_REVISION);
+
+        mvc.perform(allowed).andExpect(status().isOk());
+
+        assertThat(hrm009Evidence.get()).isNotNull();
+        assertThat(hrm009Evidence.get().authority().profileKey())
+                .isEqualTo("certificate-self-requester");
+        assertThat(hrm009Evidence.get().authority().activationPolicy())
+                .isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertThat(hrm009Evidence.get().purpose()).isEqualTo("EMPLOYEE_SELF_SERVICE");
+
+        hrm009Evidence.set(null);
+        mvc.perform(exact(
+                        post("/v1/hris/certificates"),
+                        "route.hcm.operations.certificate-issue.action",
+                        "APP.HCM:VIEW,ACTION.HRIS_CERTIFICATE:CREATE",
+                        null)
+                        .header(HcmProductSurfacePepFilter.POPULATION_KIND_HEADER, "SELF")
+                        .header(HcmProductSurfacePepFilter.EXPECTED_DECISION_REVISION_HEADER,
+                                DECISION_REVISION)
+                        .header(HcmProductSurfacePepFilter.PURPOSE_HEADER,
+                                "EMPLOYEE_SELF_SERVICE"))
+                .andExpect(status().isForbidden());
+        assertThat(hrm009Evidence.get()).isNull();
     }
 
     @Test
@@ -523,6 +564,22 @@ class HcmProductSurfacePepFilterTest {
             service.run();
             repository.run();
             outbox.run();
+            return Map.of("ok", true);
+        }
+    }
+
+    @RestController
+    private static final class Hrm009ProbeController {
+
+        private final AtomicReference<HcmPepContext.Evidence> evidence;
+
+        private Hrm009ProbeController(AtomicReference<HcmPepContext.Evidence> evidence) {
+            this.evidence = evidence;
+        }
+
+        @PostMapping("/v1/hris/certificates")
+        public Map<String, Boolean> issue() {
+            evidence.set(HcmPepContext.current());
             return Map.of("ok", true);
         }
     }

@@ -37,7 +37,7 @@ class TenantFeatureActivationV259PostgresTest {
         fresh.clean();
         fresh.migrate();
         JdbcTemplate jdbc = new JdbcTemplate(source);
-        assertCatalogOnly(jdbc, 6, 24);
+        assertCatalogOnly(jdbc, 7, 29);
 
         flyway(source, null).clean();
         flyway(source, "258").migrate();
@@ -205,7 +205,7 @@ class TenantFeatureActivationV259PostgresTest {
     @Test
     void v260MinimumBundle51IsAValidDefaultOffSuccessor() {
         PGSimpleDataSource source = source();
-        Flyway flyway = flyway(source, null);
+        Flyway flyway = flyway(source, "260");
         flyway.clean();
         flyway.migrate();
         JdbcTemplate jdbc = new JdbcTemplate(source);
