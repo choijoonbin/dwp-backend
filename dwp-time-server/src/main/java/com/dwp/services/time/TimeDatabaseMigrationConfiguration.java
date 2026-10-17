@@ -261,6 +261,12 @@ public class TimeDatabaseMigrationConfiguration {
                 "public.tme_timecard_outbox_events.publish_attempts", "UPDATE"));
         mutable.add(privilege(publisher, "COLUMN", "public",
                 "public.tme_timecard_outbox_events.published_at", "UPDATE"));
+        mutable.add(privilege(publisher, "RELATION", "public",
+                "public.tme_close_outbox_events", "SELECT"));
+        mutable.add(privilege(publisher, "COLUMN", "public",
+                "public.tme_close_outbox_events.publish_attempts", "UPDATE"));
+        mutable.add(privilege(publisher, "COLUMN", "public",
+                "public.tme_close_outbox_events.published_at", "UPDATE"));
         Set<AuxiliaryRoleAclGuard.AllowedPrivilege> allowed = Set.copyOf(mutable);
         return new TrustedPublisherPolicy(
                 publisher, allowed, requireSteadyState ? allowed : Set.of());
