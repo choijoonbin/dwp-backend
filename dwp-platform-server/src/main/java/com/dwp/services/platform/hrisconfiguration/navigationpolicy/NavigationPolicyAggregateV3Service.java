@@ -214,7 +214,7 @@ public class NavigationPolicyAggregateV3Service {
         }
         return new DeepLinkDecisionV3(
                 true, nodeId, requestedPath, requestedPath,
-                NavigationPolicyAggregateV2Canonical.CANONICAL_ROUTES.get(nodeId),
+                NavigationPolicyTopologySuccessor.CANONICAL_ROUTES.get(nodeId),
                 current.revisionPin(), null);
     }
 

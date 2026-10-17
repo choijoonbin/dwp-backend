@@ -52,7 +52,7 @@ class NavigationPolicyAggregateV2PostgresTest {
         source.setPassword(POSTGRES.getPassword());
         Flyway flyway = Flyway.configure().dataSource(source)
                 .locations("filesystem:src/main/resources/db/migration")
-                .baselineVersion("325").target("329").cleanDisabled(false).load();
+                .baselineVersion("325").target("330").cleanDisabled(false).load();
         flyway.clean();
         flyway.baseline();
         flyway.migrate();
@@ -80,7 +80,8 @@ class NavigationPolicyAggregateV2PostgresTest {
     @Test
     void lifecycleAtomicallyPinsExactPublishedRevisionAndImmutableEvidence() {
         AggregatePolicyDocument policy =
-                NavigationPolicyAggregateV2CanonicalTest.policy(ScopeKind.TENANT, null);
+                NavigationPolicyTopologySuccessor.canonicalPolicy(
+                        ScopeKind.TENANT, null, RolloutMode.ENFORCED);
         AggregateDraftCommand create = new AggregateDraftCommand(
                 ScopeKind.TENANT, null, null, RolloutMode.ENFORCED,
                 policy.workbenches(), 0L, DIGEST);
@@ -120,7 +121,7 @@ class NavigationPolicyAggregateV2PostgresTest {
                 .containsEntry("revision_id", published.revisionId())
                 .containsEntry("lifecycle_state", "PUBLISHED")
                 .containsEntry("topology_revision",
-                        NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION)
+                        NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION)
                 .containsEntry("generated_ia_sha256",
                         NavigationPolicyAggregateV2Canonical.GENERATED_IA_SHA256);
         assertThat(transaction(() -> jdbc.queryForMap("""
@@ -149,7 +150,8 @@ class NavigationPolicyAggregateV2PostgresTest {
                 .flatMap(group -> group.nodes().stream())
                 .map(NavigationPolicyAggregateV2Dtos.EffectiveNode::nodeId))
                 .containsExactlyInAnyOrderElementsOf(
-                        ServerNavigationPolicyEligibilityProvider.IMPLEMENTATION_NODE_IDS);
+                        ServerNavigationPolicyEligibilityProvider
+                                .PAGE_IMPLEMENTATION_NODE_IDS);
         assertThat(projection.revisionPin()).matches("^nav-v2-[a-f0-9]{64}$");
         assertThat(projection.tenantRevisionId()).isEqualTo(published.revisionId());
 
@@ -208,6 +210,79 @@ class NavigationPolicyAggregateV2PostgresTest {
                    AND t.tgname LIKE '%v2%'
                 """, Integer.class);
         assertThat(bridgeTriggers).isZero();
+    }
+
+    @Test
+    void databaseAcceptsExactHistoricalAndSuccessorPairsButRejectsMixedPair() {
+        long tenantId = 84;
+        UUID policyId = UUID.fromString("00000000-0000-4000-8000-000000000084");
+        transaction(() -> {
+            bindTenant(tenantId);
+            jdbc.update("""
+                    INSERT INTO hris_navigation_policy_v2_heads (
+                        tenant_id, policy_id, scope_kind, legal_entity_public_id,
+                        created_by, created_at, updated_at)
+                    VALUES (?, ?, 'TENANT', NULL, 101, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """, tenantId, policyId);
+            insertTopologyRevision(
+                    tenantId, policyId, 1,
+                    NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
+                    NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256);
+            insertTopologyRevision(
+                    tenantId, policyId, 2,
+                    NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION,
+                    NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256);
+            return null;
+        });
+
+        assertThat(transaction(() -> {
+            bindTenant(tenantId);
+            return jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM hris_navigation_policy_v2_revisions
+                     WHERE tenant_id = ? AND policy_id = ?
+                    """, Integer.class, tenantId, policyId);
+        })).isEqualTo(2);
+
+        assertThatThrownBy(() -> transaction(() -> {
+            bindTenant(tenantId);
+            insertTopologyRevision(
+                    tenantId, policyId, 3,
+                    NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
+                    NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256);
+            return null;
+        })).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private static void insertTopologyRevision(
+            long tenantId, UUID policyId, long revision,
+            String topologyRevision, String topologySha256) {
+        String payload = """
+                {"schemaVersion":"2","scopeKind":"TENANT",
+                 "legalEntityPublicId":null,"rolloutMode":"OFF",
+                 "workbenches":[{},{},{},{},{},{},{}]}
+                """;
+        jdbc.update("""
+                INSERT INTO hris_navigation_policy_v2_revisions (
+                    tenant_id, policy_id, revision, revision_id, lifecycle_state,
+                    rollout_mode, policy_payload, payload_digest, aggregate_version,
+                    authored_by, topology_revision, topology_sha256,
+                    ia_register_sha256, shell_register_sha256,
+                    task_group_register_sha256, generated_ia_sha256,
+                    created_at, updated_at)
+                VALUES (?, ?, ?, ?, 'DRAFT', 'OFF', CAST(? AS jsonb), ?, 0, 101,
+                        ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, tenantId, policyId, revision,
+                UUID.nameUUIDFromBytes((policyId + ":" + revision).getBytes()),
+                payload, DIGEST, topologyRevision, topologySha256,
+                NavigationPolicyAggregateV2Canonical.IA_REGISTER_SHA256,
+                NavigationPolicyAggregateV2Canonical.SHELL_REGISTER_SHA256,
+                NavigationPolicyAggregateV2Canonical.TASK_GROUP_REGISTER_SHA256,
+                NavigationPolicyAggregateV2Canonical.GENERATED_IA_SHA256);
+    }
+
+    private static void bindTenant(long tenantId) {
+        jdbc.queryForObject("SELECT set_config('dwp.tenant_id', ?, true)",
+                String.class, Long.toString(tenantId));
     }
 
     private static LifecycleCommand lifecycleCommand(long version) {

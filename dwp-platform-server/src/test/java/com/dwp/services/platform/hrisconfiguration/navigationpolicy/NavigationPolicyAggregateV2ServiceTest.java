@@ -312,6 +312,71 @@ class NavigationPolicyAggregateV2ServiceTest {
     }
 
     @Test
+    void controlledExportRequiresSuccessorPolicyAndExactV47Path() {
+        AggregatePolicyDocument historical =
+                NavigationPolicyAggregateV2CanonicalTest.policy(ScopeKind.TENANT, null);
+        when(repository.findPublished(42, ScopeKind.TENANT, null))
+                .thenReturn(Optional.of(published(historical, 1, "100")));
+        when(eligibility.installedNodeIds(42)).thenReturn(Set.of(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID));
+        when(eligibility.deployedNodeIds(42)).thenReturn(Set.of(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of());
+        Map<String, List<String>> exactExportPath = Map.of(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID,
+                List.of(NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_ROUTE));
+
+        EffectiveNavigation historicalResult = service.projectionWithV47Paths(
+                runtime(null), Map.of(), exactExportPath);
+
+        assertThat(effectiveNodes(historicalResult)).doesNotContain(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID);
+        assertThat(historicalResult.topologyRevision())
+                .isEqualTo(NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION);
+
+        AggregatePolicyDocument successor =
+                NavigationPolicyTopologySuccessor.canonicalPolicy(
+                        ScopeKind.TENANT, null, RolloutMode.ENFORCED);
+        when(repository.findPublished(42, ScopeKind.TENANT, null))
+                .thenReturn(Optional.of(publishedSuccessor(successor, 2, "101")));
+
+        EffectiveNavigation successorResult = service.projectionWithV47Paths(
+                runtime(null), Map.of(), exactExportPath);
+
+        assertThat(effectiveNodes(successorResult)).containsExactly(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID);
+        assertThat(findNode(successorResult,
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID)
+                .routeAliases()).containsExactly("/hr/data/exports");
+    }
+
+    @Test
+    void historicalOrMixedTopologyCannotClaimSuccessorNode() {
+        AggregatePolicyDocument successor =
+                NavigationPolicyTopologySuccessor.canonicalPolicy(
+                        ScopeKind.TENANT, null, RolloutMode.ENFORCED);
+        when(eligibility.installedNodeIds(42)).thenReturn(Set.of());
+        when(eligibility.deployedNodeIds(42)).thenReturn(Set.of());
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of());
+
+        when(repository.findPublished(42, ScopeKind.TENANT, null)).thenReturn(
+                Optional.of(publishedWithTopology(
+                        successor, 1, "100",
+                        NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
+                        NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256)));
+        assertThat(service.projection(runtime(null)).enforcementState())
+                .isEqualTo(EnforcementState.DENIED_MISSING_POLICY);
+
+        when(repository.findPublished(42, ScopeKind.TENANT, null)).thenReturn(
+                Optional.of(publishedWithTopology(
+                        successor, 2, "101",
+                        NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
+                        NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256)));
+        assertThat(service.projection(runtime(null)).enforcementState())
+                .isEqualTo(EnforcementState.DENIED_MISSING_POLICY);
+    }
+
+    @Test
     void selectedLegalEntityMissingOverlayFailsClosedWhenEnforced() {
         stubTenantPolicy();
         when(repository.findPublished(42, ScopeKind.LEGAL_ENTITY, LEGAL_ENTITY))
@@ -541,13 +606,29 @@ class NavigationPolicyAggregateV2ServiceTest {
 
     private PublishedAggregate published(
             AggregatePolicyDocument policy, long revision, String suffix) {
+        return publishedWithTopology(
+                policy, revision, suffix,
+                NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
+                NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256);
+    }
+
+    private PublishedAggregate publishedSuccessor(
+            AggregatePolicyDocument policy, long revision, String suffix) {
+        return publishedWithTopology(
+                policy, revision, suffix,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256);
+    }
+
+    private PublishedAggregate publishedWithTopology(
+            AggregatePolicyDocument policy, long revision, String suffix,
+            String topologyRevision, String topologySha256) {
         return new PublishedAggregate(
                 UUID.fromString("00000000-0000-0000-0000-000000000" + suffix),
                 UUID.nameUUIDFromBytes(("revision-" + suffix)
                         .getBytes(StandardCharsets.UTF_8)),
                 revision, policy, digest(policy),
-                NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
-                NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256,
+                topologyRevision, topologySha256,
                 NavigationPolicyAggregateV2Canonical.IA_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.SHELL_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.TASK_GROUP_REGISTER_SHA256,

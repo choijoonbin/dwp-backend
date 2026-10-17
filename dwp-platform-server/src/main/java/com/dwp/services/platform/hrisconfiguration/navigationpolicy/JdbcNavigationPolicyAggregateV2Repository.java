@@ -157,8 +157,8 @@ class JdbcNavigationPolicyAggregateV2Repository
                 VALUES (?, ?, ?, ?, 'DRAFT', ?, CAST(? AS jsonb), ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, tenantId, policyId, revisionNumber, revisionId,
                 policy.rolloutMode().name(), write(policy), payloadDigest, actorId, supersedes,
-                NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
-                NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256,
                 NavigationPolicyAggregateV2Canonical.IA_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.SHELL_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.TASK_GROUP_REGISTER_SHA256,
@@ -244,10 +244,13 @@ class JdbcNavigationPolicyAggregateV2Repository
         return jdbc.update("""
                 UPDATE hris_navigation_policy_v2_revisions
                    SET rollout_mode = ?, policy_payload = CAST(? AS jsonb), payload_digest = ?,
+                       topology_revision = ?, topology_sha256 = ?,
                        aggregate_version = aggregate_version + 1, updated_at = ?
                  WHERE tenant_id = ? AND revision_id = ?
                    AND lifecycle_state = 'DRAFT' AND aggregate_version = ?
-                """, policy.rolloutMode().name(), write(policy), payloadDigest, now,
+                """, policy.rolloutMode().name(), write(policy), payloadDigest,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256, now,
                 tenantId, revisionId, expectedVersion) == 1;
     }
 

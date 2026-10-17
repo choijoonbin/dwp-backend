@@ -109,6 +109,7 @@ public class NavigationPolicyAggregateV2LifecycleService {
         requireAuthor(access);
         requireClientDigest(body.requestDigest());
         AggregateRevisionView current = required(access.tenantId(), revisionId);
+        requireSuccessorTopology(current);
         AggregatePolicyDocument policy = body.policy();
         verifyPolicyScope(access, policy, body.scopePublicId());
         if (current.lifecycleState() != LifecycleState.DRAFT
@@ -172,9 +173,10 @@ public class NavigationPolicyAggregateV2LifecycleService {
         requirePublisher(access);
         requireReason(body.reason());
         return execute(access, command, "PUBLISH", body.requestDigest(), body, () -> {
+            AggregateRevisionView current = required(access.tenantId(), revisionId);
+            requireSuccessorTopology(current);
             requireStepUp(access, command, "PUBLISH", revisionId,
                     body.expectedVersion(), body);
-            AggregateRevisionView current = required(access.tenantId(), revisionId);
             if (current.authoredBy() == access.subjectId()) {
                 throw forbidden("HRIS_NAV_V2_MAKER_CANNOT_PUBLISH");
             }
@@ -235,6 +237,7 @@ public class NavigationPolicyAggregateV2LifecycleService {
         return execute(access, command, action, body.requestDigest(), body, () -> {
                     AggregateRevisionView current = required(
                             access.tenantId(), revisionId);
+                    requireSuccessorTopology(current);
                     guard.accept(current);
                     verifyRevisionScope(access, current);
                 },
@@ -321,13 +324,13 @@ public class NavigationPolicyAggregateV2LifecycleService {
 
     private void validateForScope(long tenantId, AggregatePolicyDocument policy) {
         try {
-            NavigationPolicyAggregateV2Canonical.validate(policy);
+            NavigationPolicyTopologySuccessor.validate(policy);
             if (policy.scopeKind() == ScopeKind.LEGAL_ENTITY) {
                 AggregateRevisionView tenant = repository.findPublishedRevision(
                                 tenantId, ScopeKind.TENANT, null)
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "HRIS_NAV_V2_TENANT_BASELINE_REQUIRED"));
-                NavigationPolicyAggregateV2Canonical.validateRestrictiveOverlay(
+                NavigationPolicyTopologySuccessor.validateRestrictiveOverlay(
                         tenant.policy(), policy);
             }
         } catch (IllegalArgumentException exception) {
@@ -355,6 +358,15 @@ public class NavigationPolicyAggregateV2LifecycleService {
             AccessContext access, AggregateRevisionView revision) {
         verifyPolicyScope(access, revision.policy(),
                 revision.policy().legalEntityPublicId());
+    }
+
+    private void requireSuccessorTopology(AggregateRevisionView revision) {
+        if (!NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION.equals(
+                revision.topologyRevision())
+                || !NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256.equals(
+                revision.topologySha256())) {
+            throw conflict("HRIS_NAV_V2_SUCCESSOR_TOPOLOGY_REQUIRED");
+        }
     }
 
     private UUID resolveScope(

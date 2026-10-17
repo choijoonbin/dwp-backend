@@ -324,6 +324,39 @@ class NavigationPolicyAggregateV3ServiceTest {
                 .denialReason()).isEqualTo("EXACT_PAGE_ROUTE_DENIED");
     }
 
+    @Test
+    void controlledExportDeepLinkUsesDedicatedSuccessorOwnerAndExactPageAuthority() {
+        EffectiveNavigation baseline = enforced(List.of(), "a", NOW);
+        EffectiveNavigation effective = enforced(List.of(node(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID,
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_ROUTE)), "b", NOW);
+        when(v2.projection(any())).thenReturn(baseline);
+        when(v2.projectionWithV47Paths(any(), any(), any())).thenReturn(effective);
+        when(authority.evaluate(any())).thenReturn(snapshot(Set.of()));
+        when(eligibility.v47PageAuthorizedPath(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID,
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_ROUTE,
+                Set.of("APP.HCM:VIEW"))).thenReturn(true);
+        String pin = service.projection(runtime(), AccessMode.NORMAL).revisionPin();
+
+        DeepLinkDecisionV3 admitted = service.deepLinkDecision(
+                runtime(), AccessMode.NORMAL,
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID,
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_ROUTE, pin);
+
+        assertThat(admitted.allowed()).isTrue();
+        assertThat(admitted.iaCanonicalRoute()).isEqualTo("/hr/data/exports");
+        when(eligibility.v47PageAuthorizedPath(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID,
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_ROUTE,
+                Set.of("APP.HCM:VIEW"))).thenReturn(false);
+        assertThat(service.deepLinkDecision(
+                runtime(), AccessMode.NORMAL,
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID,
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_ROUTE, pin)
+                .denialReason()).isEqualTo("EXACT_PAGE_ROUTE_DENIED");
+    }
+
     private void stubEnforced() {
         when(v2.projection(any())).thenReturn(enforced(List.of(), "a", NOW));
         when(v2.projectionWithV47Paths(any(), any(), any()))
@@ -365,8 +398,8 @@ class NavigationPolicyAggregateV3ServiceTest {
                         "MY-TEST", 0, nodes.getFirst().nodeId(), nodes))));
         return new EffectiveNavigation(
                 NavigationPolicyAggregateV2Dtos.SCHEMA_VERSION,
-                NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
-                NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256,
                 NavigationPolicyAggregateV2Canonical.IA_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.SHELL_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.TASK_GROUP_REGISTER_SHA256,
