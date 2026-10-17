@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 
 /** Deterministic read adapter over the existing organization chart engine. */
 @Service
-public final class OrganizationGraphService {
+public class OrganizationGraphService {
 
     static final String REPORTING = "REPORTING";
     static final String INVALID_QUERY = "INVALID_ORGANIZATION_GRAPH_QUERY";
