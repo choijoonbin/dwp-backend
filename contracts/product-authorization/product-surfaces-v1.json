@@ -7943,7 +7943,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "5c1dccdc27d8b260fbf001de5695e983a7107072824a8087038340d0d84cbc60",
+  "checksum": "c52222caad2749c4048c694f6582e157f6ab1184f73237f0944c3d88807a2760",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -48933,9 +48933,12 @@
           },
           "responseProjectionBindings": [
             {
+              "additionalProperties": false,
               "apiBindingKey": "route.hcm.operations.time-command-center.page.binding.01",
+              "openApiSchemaSha256": "b9f8e20f38dc265df0b65ae498c5728536e9634b719bae11dad4aeb53f3afd8e",
               "projectionPolicyKey": "route.hcm.operations.time-command-center.page.time-operations-reader.projection.v1",
-              "responseSchemaKey": "route.hcm.operations.time-command-center.page.response.v1"
+              "responseSchemaKey": "TimeCommandCenterProjectionV1",
+              "schemaVersion": 1
             }
           ],
           "targetBindingKinds": [
@@ -48994,9 +48997,12 @@
           },
           "responseProjectionBindings": [
             {
+              "additionalProperties": false,
               "apiBindingKey": "route.hcm.operations.time-daily-close.page.binding.01",
+              "openApiSchemaSha256": "7ad4402e9fd26c2d76fc38f9554a6f8370562e536879e516084c32d57c85e039",
               "projectionPolicyKey": "route.hcm.operations.time-daily-close.page.time-operations-reader.projection.v1",
-              "responseSchemaKey": "route.hcm.operations.time-daily-close.page.response.v1"
+              "responseSchemaKey": "TimeDailyCloseProjectionV1",
+              "schemaVersion": 1
             }
           ],
           "targetBindingKinds": [
@@ -49418,9 +49424,12 @@
           },
           "responseProjectionBindings": [
             {
+              "additionalProperties": false,
               "apiBindingKey": "route.hcm.operations.time-monthly-close.page.binding.01",
+              "openApiSchemaSha256": "985741661b4d879f242bfcbeb9310af40ae917411ae817bf1eb6239766e580c9",
               "projectionPolicyKey": "route.hcm.operations.time-monthly-close.page.time-operations-reader.projection.v1",
-              "responseSchemaKey": "route.hcm.operations.time-monthly-close.page.response.v1"
+              "responseSchemaKey": "TimeMonthlyCloseProjectionV1",
+              "schemaVersion": 1
             }
           ],
           "targetBindingKinds": [
@@ -49536,7 +49545,7 @@
             {
               "apiBindingKey": "route.hcm.operations.time-payroll-handoff.data.binding.01",
               "projectionPolicyKey": "route.hcm.operations.time-payroll-handoff.data.time-close-operator.projection.v1",
-              "responseSchemaKey": "ClosedTimeResultV1"
+              "responseSchemaKey": "PayrollTimeHandoffStatusV1"
             }
           ],
           "targetBindingKinds": [
@@ -53015,7 +53024,7 @@
             {
               "apiBindingKey": "route.hcm.time.command-receipt.data.binding.01",
               "projectionPolicyKey": "route.hcm.time.command-receipt.data.originating-command.projection.v1",
-              "responseSchemaKey": "TimeCommandReceiptV1"
+              "responseSchemaKey": "TimeCommandReceiptLookupV1"
             }
           ],
           "targetBindingKinds": [
@@ -76526,5 +76535,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 49
+  "version": 50
 }

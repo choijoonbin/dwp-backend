@@ -28,6 +28,48 @@ import static com.dwp.services.auth.service.ProductAuthorizationContractRules.*;
 
 @Component
 public class ProductAuthorizationContractValidator {
+    private static final Map<String, Tim007ProjectionSeal> TIM007_V50_PROJECTIONS = Map.of(
+            "route.hcm.operations.time-command-center.page",
+            new Tim007ProjectionSeal(
+                    "time-operations-reader",
+                    "route.hcm.operations.time-command-center.page.binding.01",
+                    "route.hcm.operations.time-command-center.page.time-operations-reader.projection.v1",
+                    "TimeCommandCenterProjectionV1",
+                    "b9f8e20f38dc265df0b65ae498c5728536e9634b719bae11dad4aeb53f3afd8e",
+                    "route.hcm.operations.time-command-center.page.response.v1"),
+            "route.hcm.operations.time-daily-close.page",
+            new Tim007ProjectionSeal(
+                    "time-operations-reader",
+                    "route.hcm.operations.time-daily-close.page.binding.01",
+                    "route.hcm.operations.time-daily-close.page.time-operations-reader.projection.v1",
+                    "TimeDailyCloseProjectionV1",
+                    "7ad4402e9fd26c2d76fc38f9554a6f8370562e536879e516084c32d57c85e039",
+                    "route.hcm.operations.time-daily-close.page.response.v1"),
+            "route.hcm.operations.time-monthly-close.page",
+            new Tim007ProjectionSeal(
+                    "time-operations-reader",
+                    "route.hcm.operations.time-monthly-close.page.binding.01",
+                    "route.hcm.operations.time-monthly-close.page.time-operations-reader.projection.v1",
+                    "TimeMonthlyCloseProjectionV1",
+                    "985741661b4d879f242bfcbeb9310af40ae917411ae817bf1eb6239766e580c9",
+                    "route.hcm.operations.time-monthly-close.page.response.v1"),
+            "route.hcm.operations.time-payroll-handoff.data",
+            new Tim007ProjectionSeal(
+                    "time-close-operator",
+                    "route.hcm.operations.time-payroll-handoff.data.binding.01",
+                    "route.hcm.operations.time-payroll-handoff.data.time-close-operator.projection.v1",
+                    "PayrollTimeHandoffStatusV1",
+                    null,
+                    "ClosedTimeResultV1"),
+            "route.hcm.time.command-receipt.data",
+            new Tim007ProjectionSeal(
+                    "originating-command",
+                    "route.hcm.time.command-receipt.data.binding.01",
+                    "route.hcm.time.command-receipt.data.originating-command.projection.v1",
+                    "TimeCommandReceiptLookupV1",
+                    null,
+                    "TimeCommandReceiptV1"));
+
     private final ObjectMapper objectMapper;
     private final ObjectReader strictDocumentReader;
     private final ProductAuthorizationRouteContractValidator routeValidator =
@@ -129,8 +171,10 @@ public class ProductAuthorizationContractValidator {
         predicates.values().forEach(predicate -> validatePredicate(predicate));
         capabilities.values().forEach(value -> validateCapability(value, contract.version()));
         policies.values().forEach(policy -> validatePolicy(policy, capabilities, expressions));
+        validateTim007ProjectionSchemaMetadata(contract.version(), routes);
         routes.values().forEach(route -> routeValidator.validateRoute(
-                route, capabilities, policies, predicates,
+                tim007ProjectionCompatibilityView(contract.version(), route),
+                capabilities, policies, predicates,
                 capabilityRoutes, policyRoutes, predicateRoutes, contract.version()));
         routeValidator.validateApprovalProjectionSchemaCoverage(contract);
         ProductAuthorizationExtensionProjectionSchema.validateCoverage(contract);
@@ -162,6 +206,79 @@ public class ProductAuthorizationContractValidator {
                 sorted(value.routeContractKeys()).equals(sorted(predicateRoutes.get(key))),
                 key + ": predicate route reverse index drift."));
         validateReleaseLineage(contract);
+    }
+
+    private void validateTim007ProjectionSchemaMetadata(
+            long bundleVersion,
+            Map<String, ProductAuthorizationContractDtos.GovernedRoute> routes) {
+        if (bundleVersion != 50) return;
+        TIM007_V50_PROJECTIONS.forEach((routeKey, seal) -> {
+            ProductAuthorizationContractDtos.GovernedRoute route = routes.get(routeKey);
+            require(route != null, routeKey + ": missing TIM-007 v50 projection route.");
+            List<ProductAuthorizationContractDtos.AccessProfile> profiles = nullSafe(
+                    route.accessProfiles()).stream()
+                    .filter(profile -> seal.profileKey().equals(profile.profileKey()))
+                    .toList();
+            require(profiles.size() == 1,
+                    routeKey + ": invalid TIM-007 v50 projection profile.");
+            List<ProductAuthorizationContractDtos.ResponseProjectionBinding> projections =
+                    nullSafe(profiles.getFirst().responseProjectionBindings());
+            require(projections.equals(List.of(seal.binding())),
+                    routeKey + ": invalid TIM-007 v50 projection schema metadata.");
+        });
+    }
+
+    /**
+     * The shared route validator predates the TIM-007 materialized OpenAPI seal and
+     * intentionally rejects schema metadata on ordinary HCM projections. Validate
+     * the exact v50 metadata above, then expose only its legacy-compatible fields to
+     * that validator. The returned view is never persisted or used at runtime.
+     */
+    private ProductAuthorizationContractDtos.GovernedRoute tim007ProjectionCompatibilityView(
+            long bundleVersion,
+            ProductAuthorizationContractDtos.GovernedRoute route) {
+        Tim007ProjectionSeal seal = TIM007_V50_PROJECTIONS.get(route.routeContractKey());
+        if (bundleVersion != 50 || seal == null) return route;
+        List<ProductAuthorizationContractDtos.AccessProfile> profiles = route.accessProfiles()
+                .stream()
+                .map(profile -> seal.profileKey().equals(profile.profileKey())
+                        ? new ProductAuthorizationContractDtos.AccessProfile(
+                                profile.profileKey(), profile.precedence(),
+                                profile.activeAccessModes(), profile.requiredAccess(),
+                                profile.targetBindingKinds(), profile.predicatePolicyKeys(),
+                                List.of(seal.compatibilityBinding()), profile.readOnly())
+                        : profile)
+                .toList();
+        return new ProductAuthorizationContractDtos.GovernedRoute(
+                route.routeContractKey(), route.navigationContextId(), route.subject(),
+                route.routeKind(), route.sideEffectFree(), route.uiRouteId(),
+                route.uiRoutePattern(), profiles, route.gatewayApiBindings(),
+                route.servicePepBindings(), route.authorizationEquivalenceKey(),
+                route.stepUpCommandBindings(), route.consumedApiRouteContractKeys(),
+                route.owner(), route.policyVersion(), route.lifecycleState());
+    }
+
+    private record Tim007ProjectionSeal(
+            String profileKey,
+            String apiBindingKey,
+            String projectionPolicyKey,
+            String responseSchemaKey,
+            String openApiSchemaSha256,
+            String compatibilityResponseSchemaKey) {
+
+        ProductAuthorizationContractDtos.ResponseProjectionBinding binding() {
+            return new ProductAuthorizationContractDtos.ResponseProjectionBinding(
+                    apiBindingKey, projectionPolicyKey, responseSchemaKey,
+                    openApiSchemaSha256 == null ? null : 1,
+                    openApiSchemaSha256,
+                    openApiSchemaSha256 == null ? null : false);
+        }
+
+        ProductAuthorizationContractDtos.ResponseProjectionBinding compatibilityBinding() {
+            return new ProductAuthorizationContractDtos.ResponseProjectionBinding(
+                    apiBindingKey, projectionPolicyKey, compatibilityResponseSchemaKey,
+                    null, null, null);
+        }
     }
 
     /**

@@ -52,7 +52,7 @@ ALLOWED_OVERRIDE_REFS = {
 RESERVED_CONTRACTS = {"hcm.reference.publish", "hcm.integration.rotate-secret"}
 REGISTRY_VERSIONS = (
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
 )
 FIXED_GROUP_VERSIONS = {"CANARY": 1, "APPROVALS": 2, "HCM": 3}
 PRESERVED_V7_CATALOG_HASHES = {
@@ -755,6 +755,63 @@ def validate_monotonic_registry_lineage(
         normalized.pop("stepUpCommandBindings", None)
         return normalized == inherited
 
+    def is_v50_tim007_response_upgrade(
+        version: int,
+        identity: tuple[str, str],
+        current: dict[str, Any],
+        inherited: dict[str, Any],
+    ) -> bool:
+        if version != 50 or identity[0] != "routes":
+            return False
+        expected_responses = {
+            "route.hcm.operations.time-command-center.page": (
+                "TimeCommandCenterProjectionV1",
+                "b9f8e20f38dc265df0b65ae498c5728536e9634b719bae11dad4aeb53f3afd8e",
+            ),
+            "route.hcm.operations.time-daily-close.page": (
+                "TimeDailyCloseProjectionV1",
+                "7ad4402e9fd26c2d76fc38f9554a6f8370562e536879e516084c32d57c85e039",
+            ),
+            "route.hcm.operations.time-monthly-close.page": (
+                "TimeMonthlyCloseProjectionV1",
+                "985741661b4d879f242bfcbeb9310af40ae917411ae817bf1eb6239766e580c9",
+            ),
+            "route.hcm.operations.time-payroll-handoff.data": (
+                "PayrollTimeHandoffStatusV1",
+                None,
+            ),
+            "route.hcm.time.command-receipt.data": (
+                "TimeCommandReceiptLookupV1",
+                None,
+            ),
+        }
+        expected = expected_responses.get(identity[1])
+        if expected is None:
+            return False
+        current_profiles = current.get("accessProfiles", [])
+        inherited_profiles = inherited.get("accessProfiles", [])
+        if len(current_profiles) != 1 or len(inherited_profiles) != 1:
+            return False
+        current_bindings = current_profiles[0].get("responseProjectionBindings", [])
+        inherited_bindings = inherited_profiles[0].get("responseProjectionBindings", [])
+        if len(current_bindings) != 1 or len(inherited_bindings) != 1:
+            return False
+        expected_schema, expected_hash = expected
+        expected_binding = copy.deepcopy(inherited_bindings[0])
+        expected_binding["responseSchemaKey"] = expected_schema
+        if expected_hash is not None:
+            expected_binding.update({
+                "additionalProperties": False,
+                "openApiSchemaSha256": expected_hash,
+                "schemaVersion": 1,
+            })
+        if current_bindings[0] != expected_binding:
+            return False
+        normalized = copy.deepcopy(current)
+        normalized["accessProfiles"][0]["responseProjectionBindings"] = \
+            copy.deepcopy(inherited_bindings)
+        return normalized == inherited
+
     keyed_sections = list(DESCRIPTOR_SECTIONS.values()) + [
         ("authorityEndpoints", "endpointKey")
     ]
@@ -786,6 +843,9 @@ def validate_monotonic_registry_lineage(
                     version, identity, current[identity], record
                 )
                 and not is_v49_payroll_security_hardening(
+                    version, identity, current[identity], record
+                )
+                and not is_v50_tim007_response_upgrade(
                     version, identity, current[identity], record
                 )
             )
