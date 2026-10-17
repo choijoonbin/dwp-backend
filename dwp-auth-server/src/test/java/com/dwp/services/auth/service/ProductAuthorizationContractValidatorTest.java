@@ -328,6 +328,59 @@ class ProductAuthorizationContractValidatorTest extends ProductAuthorizationCont
     }
 
     @Test
+    void v49AllowsOnlyTheExactTwelveGenericSessionStepUpTopologies()
+            throws IOException {
+        Set<String> exactTwelve = Set.of(
+                "route.hcm.configuration.configuration-version.data",
+                "route.hcm.configuration.configurations.data",
+                "route.hcm.operations.payroll-population.page",
+                "route.hcm.operations.payroll-support.data",
+                "route.hcm.operations.payroll-run.data",
+                "route.hcm.operations.time-close-validate.action",
+                "route.hcm.operations.time-interpretation-run.action",
+                "route.hcm.operations.time-interpretation-trace.data",
+                "route.hcm.operations.time-payroll-handoff-create.action",
+                "route.hcm.operations.time-payroll-handoff.data",
+                "route.hcm.time.timecard-correction.action",
+                "route.hcm.time.timecard.data");
+        ProductAuthorizationContractDtos.BundleContract v49 = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v49.generated.json"));
+        assertThat(v49.routes().stream()
+                .filter(route -> exactTwelve.contains(route.routeContractKey())))
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsExactlyInAnyOrderElementsOf(exactTwelve);
+        assertThat(v49.routes().stream()
+                .filter(route -> exactTwelve.contains(route.routeContractKey())))
+                .allSatisfy(route -> assertThat(route.stepUpCommandBindings())
+                        .as(route.routeContractKey()).isNullOrEmpty());
+
+        ObjectNode drifted = (ObjectNode) generatedDocument(
+                "product-surfaces-v1.bundle-v49.generated.json");
+        ObjectNode configuration = (ObjectNode) drifted.withArray("routes").valueStream()
+                .filter(value -> "route.hcm.configuration.configurations.data"
+                        .equals(value.path("routeContractKey").asText()))
+                .findFirst().orElseThrow();
+        ((ObjectNode) configuration.withArray("servicePepBindings").get(0))
+                .put("path", "/v1/admin/hris/configurations-drift");
+        drifted.put("checksum", validator.checksum(drifted));
+        assertThatThrownBy(() -> validator.validateDocument(drifted))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("incomplete step-up command bindings");
+
+        ObjectNode thirteenth = (ObjectNode) generatedDocument(
+                "product-surfaces-v1.bundle-v49.generated.json");
+        ObjectNode calculate = (ObjectNode) thirteenth.withArray("routes").valueStream()
+                .filter(value -> "route.hcm.operations.payroll-run-calculate.action"
+                        .equals(value.path("routeContractKey").asText()))
+                .findFirst().orElseThrow();
+        calculate.remove("stepUpCommandBindings");
+        thirteenth.put("checksum", validator.checksum(thirteenth));
+        assertThatThrownBy(() -> validator.validateDocument(thirteenth))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("incomplete step-up command bindings");
+    }
+
+    @Test
     void rejectsOmittedOrMalformedApprovalProjectionMetadataWithAValidBundleChecksum()
             throws IOException {
         List<Consumer<ObjectNode>> corruptions = List.of(

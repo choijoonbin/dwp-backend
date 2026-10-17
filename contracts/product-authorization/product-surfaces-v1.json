@@ -3756,6 +3756,7 @@
         "route.hcm.configuration.payroll-foundation-receipt.data",
         "route.hcm.configuration.payroll-foundation-versions.data",
         "route.hcm.configuration.payroll.page",
+        "route.hcm.configuration.settings-operations.page",
         "route.hcm.configuration.settings-reference.page"
       ],
       "scopeResolver": "APP_RESOURCE_SET:RS_HCM_CONFIG",
@@ -4243,6 +4244,58 @@
     {
       "action": "VIEW",
       "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.exception.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiredResponsibilityCode": "HRIS_DUTY_OPERATION_EXCEPTION_READER",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "DATA.HRIS_OPERATION_EXCEPTION:VIEW",
+      "resourceKey": "DATA.HRIS_OPERATION_EXCEPTION",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.operations.exception-detail.data",
+        "route.hcm.operations.exception.data"
+      ],
+      "scopeResolver": "AUTHORIZED_PACKAGE_SCOPE",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.organization.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiredResponsibilityCode": "HRIS_DUTY_ORGANIZATION_VIEWER",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "DATA.HRIS_ORGANIZATION:VIEW",
+      "resourceKey": "DATA.HRIS_ORGANIZATION",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.operations.organization-graph.data",
+        "route.hcm.operations.organization-positions.page"
+      ],
+      "scopeResolver": "ORGANIZATION_TARGET_POPULATION",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
       "authorityMode": "PERMISSION",
       "contractKey": "hcm.operations.pay.read",
       "legacySource": null,
@@ -4446,7 +4499,7 @@
     },
     {
       "action": "EXECUTE",
-      "activationPolicy": null,
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
       "contractKey": "hcm.operations.payroll-run.execute",
       "legacySource": null,
@@ -4459,9 +4512,10 @@
       "resolvedCapabilityCode": "ACTION.HRIS_PAYROLL_RUN:EXECUTE",
       "resourceKey": "ACTION.HRIS_PAYROLL_RUN",
       "responsibilityRequirement": "NOT_REQUIRED",
-      "riskTier": "MEDIUM",
+      "riskTier": "CRITICAL",
       "routeContractKeys": [
         "route.hcm.operations.payroll-run-calculate.action",
+        "route.hcm.operations.payroll-run.action",
         "route.hcm.operations.payroll-run.data"
       ],
       "scopeResolver": "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE",
@@ -4471,7 +4525,7 @@
     },
     {
       "action": "VIEW",
-      "activationPolicy": null,
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
       "contractKey": "hcm.operations.payroll-support.view",
       "legacySource": null,
@@ -4484,9 +4538,11 @@
       "resolvedCapabilityCode": "DATA.HRIS_PAYROLL_STATUS:VIEW",
       "resourceKey": "DATA.HRIS_PAYROLL_STATUS",
       "responsibilityRequirement": "NOT_REQUIRED",
-      "riskTier": "LOW",
+      "riskTier": "HIGH",
       "routeContractKeys": [
-        "route.hcm.operations.payroll-run.data"
+        "route.hcm.operations.payroll-population.page",
+        "route.hcm.operations.payroll-run.data",
+        "route.hcm.operations.payroll-support.data"
       ],
       "scopeResolver": "PAY_TARGET_POPULATION",
       "sodPolicyId": null,
@@ -4822,6 +4878,34 @@
       "surfaceKey": "hcm.operations"
     },
     {
+      "action": "EXECUTE",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.time.close",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiredResponsibilityCode": "HRIS_DUTY_TIME_CLOSE_OPERATOR",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.HRIS_TIME_CLOSE:EXECUTE",
+      "resourceKey": "ACTION.HRIS_TIME_CLOSE",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "CRITICAL",
+      "routeContractKeys": [
+        "route.hcm.operations.time-close-validate.action",
+        "route.hcm.operations.time-close.action",
+        "route.hcm.operations.time-payroll-handoff-create.action",
+        "route.hcm.operations.time-payroll-handoff.data"
+      ],
+      "scopeResolver": "TIME_TARGET_POPULATION",
+      "sodPolicyId": "NO_CLOSE_WITH_UNRESOLVED_EXCEPTION",
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
       "action": "VIEW",
       "activationPolicy": null,
       "authorityMode": "PERMISSION",
@@ -4850,6 +4934,31 @@
       ],
       "scopeResolver": "TIME_TARGET_POPULATION",
       "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
+      "action": "MANAGE",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.time.reopen",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiredResponsibilityCode": "HRIS_DUTY_TIME_REOPEN_OPERATOR",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.HRIS_TIME_REOPEN:MANAGE",
+      "resourceKey": "ACTION.HRIS_TIME_REOPEN",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "CRITICAL",
+      "routeContractKeys": [
+        "route.hcm.operations.time-reopen.action"
+      ],
+      "scopeResolver": "TIME_TARGET_POPULATION",
+      "sodPolicyId": "NO_REOPEN_OWN_CLOSE",
       "sunsetAt": null,
       "surfaceKey": "hcm.operations"
     },
@@ -4899,8 +5008,11 @@
       "riskTier": "LOW",
       "routeContractKeys": [
         "route.hcm.operations.time-clock-ingestion.page",
+        "route.hcm.operations.time-command-center.page",
+        "route.hcm.operations.time-daily-close.page",
         "route.hcm.operations.time-exceptions.page",
-        "route.hcm.operations.time-interpretation.page"
+        "route.hcm.operations.time-interpretation.page",
+        "route.hcm.operations.time-monthly-close.page"
       ],
       "scopeResolver": "TIME_TARGET_POPULATION",
       "sodPolicyId": null,
@@ -7831,7 +7943,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "9fd324cd67ede1f02cc8ac33c08ad880ec6e283f99f5d7aa50e0e514545aa043",
+  "checksum": "5c1dccdc27d8b260fbf001de5695e983a7107072824a8087038340d0d84cbc60",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -9231,6 +9343,28 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "HcmOperationExceptionAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + HCM + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-operation-exception-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-operation-exception-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.exception-detail.data",
+        "route.hcm.operations.exception.data"
+      ],
+      "targetBindingKinds": [
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "HcmOrgApprovalEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "People + HCM + Security",
@@ -9268,6 +9402,27 @@
       ],
       "targetBindingKinds": [
         "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmOrganizationGraphAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "People + HCM + Security",
+      "ownerServiceKey": "people",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-organization-graph-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-organization-graph-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.organization-graph.data",
+        "route.hcm.operations.organization-positions.page"
+      ],
+      "targetBindingKinds": [
+        "TARGET_POPULATION"
       ]
     },
     {
@@ -9413,6 +9568,27 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "HcmPayrollPopulationAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Payroll + HCM + Security",
+      "ownerServiceKey": "payroll",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-payroll-population-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-payroll-population-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.payroll-population.page",
+        "route.hcm.operations.payroll-support.data"
+      ],
+      "targetBindingKinds": [
+        "TARGET_POPULATION"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "HcmPayrollRunAuthorityEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "Payroll + HCM + Security",
@@ -9430,6 +9606,27 @@
         "route.hcm.operations.payroll-run-calculate.action",
         "route.hcm.operations.payroll-run-finalize.action",
         "route.hcm.operations.payroll-run.data"
+      ],
+      "targetBindingKinds": [
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmPayrollRunPrepareAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Payroll + HCM + Security",
+      "ownerServiceKey": "payroll",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-payroll-run-prepare-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-payroll-run-prepare-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.payroll-run.action"
       ],
       "targetBindingKinds": [
         "OBJECT",
@@ -9581,6 +9778,26 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "HcmSettingsOperationsAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + HCM + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-settings-operations-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-settings-operations-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.configuration.settings-operations.page"
+      ],
+      "targetBindingKinds": [
+        "CONFIG_SCOPE"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "HcmTimeCaptureAuthorityEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "Time + HCM + Security",
@@ -9609,6 +9826,26 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "HcmTimeCloseSodEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Time + HCM + Security",
+      "ownerServiceKey": "time",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-time-close-sod.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-time-close-sod.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.time-close.action"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "HcmTimeCommandReceiptAuthorityEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "Time + HCM + Security",
@@ -9627,6 +9864,54 @@
       "targetBindingKinds": [
         "OBJECT",
         "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmTimePeriodAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Time + HCM + Security",
+      "ownerServiceKey": "time",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-time-period-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-time-period-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.time-close-validate.action",
+        "route.hcm.operations.time-close.action",
+        "route.hcm.operations.time-command-center.page",
+        "route.hcm.operations.time-daily-close.page",
+        "route.hcm.operations.time-monthly-close.page",
+        "route.hcm.operations.time-payroll-handoff-create.action",
+        "route.hcm.operations.time-payroll-handoff.data",
+        "route.hcm.operations.time-reopen.action"
+      ],
+      "targetBindingKinds": [
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmTimeReopenSodEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Time + HCM + Security",
+      "ownerServiceKey": "time",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-time-reopen-sod.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-time-reopen-sod.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.time-reopen.action"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
       ]
     },
     {
@@ -41400,6 +41685,67 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-settings-operations-authority.v1"
+          ],
+          "profileKey": "configuration-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.configuration.workbench.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.configuration.settings-operations.page.binding.01",
+              "projectionPolicyKey": "route.hcm.configuration.settings-operations.page.configuration-reader.projection.v1",
+              "responseSchemaKey": "route.hcm.configuration.settings-operations.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.settings-operations.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/hris/workbench/settings-operations",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.settings-operations.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.settings-operations.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/workbench/settings-operations",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.management.settings-operations",
+      "uiRoutePattern": "/hr/settings/operations"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-reference-configuration-authority.v1"
           ],
           "profileKey": "configuration-reader",
@@ -45440,6 +45786,129 @@
             "ELEVATED"
           ],
           "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-operation-exception-authority.v1"
+          ],
+          "profileKey": "operation-exception-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.exception.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.exception-detail.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.exception-detail.data.operation-exception-reader.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.exception-detail.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.exception-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/hris/operations/exceptions/{exceptionId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.exception-detail.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.exception-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/hris/operations/exceptions/{exceptionId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-operation-exception-authority.v1"
+          ],
+          "profileKey": "operation-exception-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.exception.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.exception.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.exception.data.operation-exception-reader.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.exception.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.exception.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/hris/operations/exceptions",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.exception.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.exception.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/hris/operations/exceptions",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
           "predicatePolicyKeys": [],
           "profileKey": "full-management",
           "readOnly": false,
@@ -45583,6 +46052,130 @@
       },
       "uiRouteId": null,
       "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-organization-graph-authority.v1"
+          ],
+          "profileKey": "organization-viewer",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.organization.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.organization-graph.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.organization-graph.data.organization-viewer.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.organization-graph.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.operations.organization-graph.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.organization-graph.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/organizations/graph",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.organization-graph.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.organization-graph.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/organizations/graph",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-organization-graph-authority.v1"
+          ],
+          "profileKey": "organization-viewer",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.organization.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.organization-positions.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.organization-positions.page.organization-viewer.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.organization-graph.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.operations.organization-graph.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.organization-positions.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/organizations/graph",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.organization-positions.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.organization-positions.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/organizations/graph",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.organization-positions",
+      "uiRoutePattern": "/hr/operations/people/organization-positions"
     },
     {
       "accessProfiles": [
@@ -46407,6 +47000,67 @@
       "accessProfiles": [
         {
           "activeAccessModes": [
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-population-authority.v1"
+          ],
+          "profileKey": "payroll-support-viewer",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll-support.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.payroll-population.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.payroll-population.page.payroll-support-viewer.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.payroll-support.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.operations.payroll-population.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-population.page.binding.01",
+          "method": "GET",
+          "path": "/api/payroll/v1/workbench/population",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.payroll-population.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-population.page.binding.01",
+          "method": "GET",
+          "path": "/v1/workbench/population",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.payroll-population",
+      "uiRoutePattern": "/hr/operations/payroll/population"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
             "NORMAL",
             "ELEVATED"
           ],
@@ -46474,7 +47128,6 @@
       "accessProfiles": [
         {
           "activeAccessModes": [
-            "NORMAL",
             "ELEVATED"
           ],
           "precedence": 300,
@@ -46517,6 +47170,17 @@
         }
       ],
       "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-payroll-server",
+          "bindingKey": "route.hcm.operations.payroll-run-calculate.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "payroll",
+          "targetIdPathParameter": "runId",
+          "targetType": "PAYROLL_RUN"
+        }
+      ],
       "subject": {
         "productKey": "hcm",
         "surfaceKey": "hcm.operations",
@@ -46596,6 +47260,73 @@
       "accessProfiles": [
         {
           "activeAccessModes": [
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-run-prepare-authority.v1"
+          ],
+          "profileKey": "payroll-run-operator",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll-run.execute",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-run.action.binding.01",
+          "method": "POST",
+          "path": "/api/payroll/v1/runs",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.payroll-run.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-run.action.binding.01",
+          "method": "POST",
+          "path": "/v1/runs",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-payroll-server",
+          "bindingKey": "route.hcm.operations.payroll-run.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "payroll",
+          "targetIdBodyFields": [
+            "preparationId"
+          ],
+          "targetType": "PAYROLL_RUN_PREPARATION"
+        }
+      ],
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
             "NORMAL",
             "ELEVATED"
           ],
@@ -46645,6 +47376,67 @@
           "bindingKey": "route.hcm.operations.payroll-run.data.binding.01",
           "method": "GET",
           "path": "/v1/runs/{runId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-population-authority.v1"
+          ],
+          "profileKey": "payroll-support-viewer",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll-support.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.payroll-support.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.payroll-support.data.payroll-support-viewer.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.payroll-support.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.operations.payroll-population.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-support.data.binding.01",
+          "method": "GET",
+          "path": "/api/payroll/v1/workbench/population",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.payroll-support.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.payroll-support.data.binding.01",
+          "method": "GET",
+          "path": "/v1/workbench/population",
           "pathParameterConstraints": {},
           "serviceKey": "payroll"
         }
@@ -48009,6 +48801,250 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-time-period-authority.v1"
+          ],
+          "profileKey": "time-close-operator",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.close",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-close-validate.action.binding.01",
+          "method": "POST",
+          "path": "/api/time/v1/close-periods/{periodId}/validations",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-close-validate.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-close-validate.action.binding.01",
+          "method": "POST",
+          "path": "/v1/close-periods/{periodId}/validations",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-period-authority.v1",
+            "predicate.hcm-time-close-sod.v1"
+          ],
+          "profileKey": "time-close-operator",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.close",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-close.action.binding.01",
+          "method": "POST",
+          "path": "/api/time/v1/close-periods/{periodId}/close",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-close.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-close.action.binding.01",
+          "method": "POST",
+          "path": "/v1/close-periods/{periodId}/close",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-time-server",
+          "bindingKey": "route.hcm.operations.time-close.action.binding.01",
+          "expectedObjectVersionName": "If-Match",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "time",
+          "targetIdPathParameter": "periodId",
+          "targetType": "TIME_PERIOD"
+        }
+      ],
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-period-authority.v1"
+          ],
+          "profileKey": "time-operations-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.time-command-center.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.time-command-center.page.time-operations-reader.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.time-command-center.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-command-center.page.binding.01",
+          "method": "GET",
+          "path": "/api/time/v1/hris/workbench/time-command-center",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-command-center.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-command-center.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/workbench/time-command-center",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.time-command-center",
+      "uiRoutePattern": "/hr/operations/time/command-center"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-period-authority.v1"
+          ],
+          "profileKey": "time-operations-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.time-daily-close.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.time-daily-close.page.time-operations-reader.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.time-daily-close.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-daily-close.page.binding.01",
+          "method": "GET",
+          "path": "/api/time/v1/hris/workbench/time-daily-close",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-daily-close.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-daily-close.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/workbench/time-daily-close",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.time-daily-close",
+      "uiRoutePattern": "/hr/operations/time/daily-close"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-time-capture-authority.v1"
           ],
           "profileKey": "full-management",
@@ -48362,6 +49398,251 @@
       },
       "uiRouteId": "hcm.operations.time-leave-operations",
       "uiRoutePattern": "/hr/operations/time/leave-operations"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-period-authority.v1"
+          ],
+          "profileKey": "time-operations-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.time-monthly-close.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.time-monthly-close.page.time-operations-reader.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.time-monthly-close.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-monthly-close.page.binding.01",
+          "method": "GET",
+          "path": "/api/time/v1/hris/workbench/time-monthly-close",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-monthly-close.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-monthly-close.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/workbench/time-monthly-close",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.time-monthly-close",
+      "uiRoutePattern": "/hr/operations/time/monthly-close"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-period-authority.v1"
+          ],
+          "profileKey": "time-close-operator",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.close",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-payroll-handoff-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/time/v1/close-periods/{periodId}/payroll-handoffs",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-payroll-handoff-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-payroll-handoff-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/close-periods/{periodId}/payroll-handoffs",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-period-authority.v1"
+          ],
+          "profileKey": "time-close-operator",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.close",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.time-payroll-handoff.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.time-payroll-handoff.data.time-close-operator.projection.v1",
+              "responseSchemaKey": "ClosedTimeResultV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-payroll-handoff.data.binding.01",
+          "method": "GET",
+          "path": "/api/time/v1/payroll-handoffs/{handoffId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-payroll-handoff.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-payroll-handoff.data.binding.01",
+          "method": "GET",
+          "path": "/v1/payroll-handoffs/{handoffId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-time-period-authority.v1",
+            "predicate.hcm-time-reopen-sod.v1"
+          ],
+          "profileKey": "time-reopen-operator",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.reopen",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-reopen.action.binding.01",
+          "method": "POST",
+          "path": "/api/time/v1/close-periods/{periodId}/reopen",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-reopen.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-reopen.action.binding.01",
+          "method": "POST",
+          "path": "/v1/close-periods/{periodId}/reopen",
+          "pathParameterConstraints": {},
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-time-server",
+          "bindingKey": "route.hcm.operations.time-reopen.action.binding.01",
+          "expectedObjectVersionName": "If-Match",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "time",
+          "targetIdPathParameter": "periodId",
+          "targetType": "TIME_PERIOD"
+        }
+      ],
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
     },
     {
       "accessProfiles": [
@@ -75245,5 +76526,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 48
+  "version": 49
 }

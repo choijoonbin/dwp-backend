@@ -212,12 +212,24 @@ HCM_PAYROLL_PEP_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
 HCM_PAYROLL_PEP_V48_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
     "hcm-payroll-pep-v48.generated.json"
 )
+HCM_PEOPLE_PEP_V49_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v49.generated.json"
+)
+HCM_TIME_PEP_V49_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
+    "hcm-time-pep-v49.generated.json"
+)
+HCM_PLATFORM_PEP_V49_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v49.generated.json"
+)
+HCM_PAYROLL_PEP_V49_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
+    "hcm-payroll-pep-v49.generated.json"
+)
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 49))
+BUNDLE_VERSIONS = tuple(range(1, 50))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -347,6 +359,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 73, "routes": 1053, "PAGE": 138, "DATA": 317, "ACTION": 598},
     48: {"capabilities": 258, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 73, "routes": 1063, "PAGE": 138, "DATA": 321, "ACTION": 604},
+    49: {"capabilities": 262, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 81, "routes": 1079, "PAGE": 144, "DATA": 326, "ACTION": 609},
 }
 
 V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
@@ -360,11 +374,56 @@ V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
     "route.hcm.operations.home.page": "route.hcm.operations.overview.page",
 }
 
+V49_PAYROLL_CAPABILITY_HARDENING = {
+    "hcm.operations.payroll-run.execute": {
+        "riskTier": "CRITICAL",
+        "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+    },
+    "hcm.operations.payroll-support.view": {
+        "riskTier": "HIGH",
+        "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+    },
+}
+V49_PAYROLL_CALCULATE_ROUTE = "route.hcm.operations.payroll-run-calculate.action"
+V49_PAYROLL_CALCULATE_STEP_UP = [{
+    "bindingKey": "route.hcm.operations.payroll-run-calculate.action.binding.01",
+    "targetType": "PAYROLL_RUN",
+    "targetIdPathParameter": "runId",
+    "expectedObjectVersionSource": "COMMAND_HEADER",
+    "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+    "ownerServiceKey": "payroll",
+    "audience": "dwp-payroll-server",
+}]
+GRANDFATHERED_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = frozenset({
+    "route.hcm.configuration.configuration-version.data",
+    "route.hcm.configuration.configurations.data",
+    "route.hcm.operations.time-interpretation-run.action",
+    "route.hcm.operations.time-interpretation-trace.data",
+    "route.hcm.time.timecard-correction.action",
+    "route.hcm.time.timecard.data",
+})
+V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = frozenset({
+    "route.hcm.operations.payroll-population.page",
+    "route.hcm.operations.payroll-support.data",
+    "route.hcm.operations.payroll-run.data",
+    "route.hcm.operations.time-close-validate.action",
+    "route.hcm.operations.time-payroll-handoff-create.action",
+    "route.hcm.operations.time-payroll-handoff.data",
+})
+GENERIC_SESSION_STEP_UP_ROUTE_KEYS = (
+    GRANDFATHERED_GENERIC_SESSION_STEP_UP_ROUTE_KEYS
+    | V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS
+)
+
 REQUIRED_RESPONSIBILITY_BY_CAPABILITY = {
     "hcm.app.shell.view": "HRIS_DUTY_APP_SHELL_READER",
     "hcm.audit.evidence.view": "HRIS_DUTY_AUDITOR",
     "hcm.integration.transfer.view": "HRIS_DUTY_CONTROLLED_TRANSFER_READER",
     "hcm.integration.transfer.create": "HRIS_DUTY_CONTROLLED_TRANSFER_CREATOR",
+    "hcm.operations.organization.view": "HRIS_DUTY_ORGANIZATION_VIEWER",
+    "hcm.operations.exception.view": "HRIS_DUTY_OPERATION_EXCEPTION_READER",
+    "hcm.operations.time.close": "HRIS_DUTY_TIME_CLOSE_OPERATOR",
+    "hcm.operations.time.reopen": "HRIS_DUTY_TIME_REOPEN_OPERATOR",
 }
 
 V42_HCM_AUDIT_ELEVATED_READ_PROJECTIONS = {
@@ -1242,8 +1301,28 @@ def _validate_descriptor_enrichment_envelope(
     require(isinstance(enrichment, dict), "descriptorEnrichments must be an object")
     require(
         set(enrichment)
-        == {"capabilities", "accessPolicies", "routes", "authorityEndpoints"},
+        == {
+            "capabilities", "accessPolicies", "routes", "authorityEndpoints",
+            "securityHardening",
+        },
         "descriptorEnrichments envelope is invalid",
+    )
+    security_hardening = enrichment["securityHardening"]
+    require(
+        security_hardening == {
+            "introducedInVersion": 49,
+            "capabilities": [
+                {"contractKey": key, **values}
+                for key, values in V49_PAYROLL_CAPABILITY_HARDENING.items()
+            ],
+            "routes": [{
+                "routeContractKey": V49_PAYROLL_CALCULATE_ROUTE,
+                "profileKey": "payroll-run-operator",
+                "activeAccessModes": ["ELEVATED"],
+                "stepUpCommandBindings": V49_PAYROLL_CALCULATE_STEP_UP,
+            }],
+        },
+        "securityHardening must contain only the exact v49 payroll exception",
     )
     authority = enrichment["authorityEndpoints"]
     require(
@@ -1513,6 +1592,25 @@ def _apply_descriptor_enrichments(
                 )
         for projection in patch.get("projectionBindings", []):
             _apply_projection_binding(route, projection)
+
+    security_hardening = enrichment["securityHardening"]
+    if version >= security_hardening["introducedInVersion"]:
+        for patch in security_hardening["capabilities"]:
+            capability = capabilities[patch["contractKey"]]
+            capability["riskTier"] = patch["riskTier"]
+            capability["activationPolicy"] = patch["activationPolicy"]
+        for patch in security_hardening["routes"]:
+            route = routes[patch["routeContractKey"]]
+            profiles = unique(
+                route["accessProfiles"], "profileKey",
+                f"{patch['routeContractKey']} profiles",
+            )
+            profiles[patch["profileKey"]]["activeAccessModes"] = copy.deepcopy(
+                patch["activeAccessModes"]
+            )
+            route["stepUpCommandBindings"] = copy.deepcopy(
+                patch["stepUpCommandBindings"]
+            )
     return candidate
 
 
@@ -1680,6 +1778,38 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
                 and prior_descriptor == candidate_descriptor
                 and candidate_routes == prior_routes - {V37_TIME_VOID_ROUTE}
             ):
+                continue
+            if (
+                current["version"] == 49
+                and section == "capabilities"
+                and descriptor_key in V49_PAYROLL_CAPABILITY_HARDENING
+            ):
+                expected = copy.deepcopy(prior_descriptor)
+                expected.update(V49_PAYROLL_CAPABILITY_HARDENING[descriptor_key])
+                require(
+                    candidate_descriptor == expected
+                    and prior_routes <= candidate_routes,
+                    f"v49/{descriptor_key}: payroll capability hardening drift",
+                )
+                continue
+            if (
+                current["version"] == 49
+                and section == "routes"
+                and descriptor_key == V49_PAYROLL_CALCULATE_ROUTE
+            ):
+                expected = copy.deepcopy(prior_descriptor)
+                profiles = unique(
+                    expected["accessProfiles"], "profileKey",
+                    f"{descriptor_key} profiles",
+                )
+                profiles["payroll-run-operator"]["activeAccessModes"] = ["ELEVATED"]
+                expected["stepUpCommandBindings"] = copy.deepcopy(
+                    V49_PAYROLL_CALCULATE_STEP_UP
+                )
+                require(
+                    candidate_descriptor == expected,
+                    f"v49/{descriptor_key}: payroll calculate hardening drift",
+                )
                 continue
             if prior_descriptor != candidate_descriptor or not prior_routes <= candidate_routes:
                 drift.append(descriptor_key)
@@ -2510,11 +2640,9 @@ def _validate_route(
         profile.pop("responseSchemaKey", None)
 
     elevated_step_up = any(
-        profile["requiredAccess"].get("type") == "CAPABILITY"
-        and capabilities[profile["requiredAccess"]["capabilityContractKey"]]
-            .get("riskTier") in {"HIGH", "CRITICAL"}
-        and str(capabilities[profile["requiredAccess"]["capabilityContractKey"]]
-            .get("activationPolicy", "")).startswith("STEPUP-")
+        _required_access_has_activated_capability(
+            profile["requiredAccess"], capabilities, f"{key}/{profile['profileKey']}"
+        )
         for profile in profiles
     )
     receipt_capability = APPROVAL_RECOVERY11_RECEIPT_CAPABILITIES.get(key)
@@ -2563,13 +2691,277 @@ def _validate_route(
     elevated_read_exception = _is_v42_hcm_audit_elevated_read(
         route, gateway, service, capabilities
     )
+    generic_session_step_up = _is_generic_session_step_up_exception(
+        route, gateway, service, bundle_version
+    )
     if elevated_step_up and not original_authority_receipt \
             and not non_publishing_review_rejection \
-            and not elevated_read_exception:
+            and not elevated_read_exception \
+            and not generic_session_step_up:
         _validate_step_up_command_binding(route, service)
     else:
         require(route.get("stepUpCommandBindings") is None,
                 f"{key}: stepUpCommandBindings forbidden")
+
+
+def _is_generic_session_step_up_exception(
+    route: dict[str, Any],
+    gateway_bindings: dict[str, dict[str, Any]],
+    service_bindings: dict[str, dict[str, Any]],
+    bundle_version: int,
+) -> bool:
+    """Allow only the sealed twelve generic session step-up route topologies."""
+    key = route["routeContractKey"]
+    if key not in GENERIC_SESSION_STEP_UP_ROUTE_KEYS:
+        return False
+    if key in V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS and bundle_version < 49:
+        return False
+    require(
+        len(gateway_bindings) == len(service_bindings) == 1
+        and route.get("stepUpCommandBindings") is None,
+        f"{key}: invalid v49 no-fresh-step-up envelope",
+    )
+    if key in GRANDFATHERED_GENERIC_SESSION_STEP_UP_ROUTE_KEYS:
+        return _is_exact_grandfathered_generic_session_route(
+            route, gateway_bindings, service_bindings
+        )
+    profile = route["accessProfiles"][0] if len(route["accessProfiles"]) == 1 else {}
+    if key == "route.hcm.operations.payroll-run.data":
+        binding = next(iter(gateway_bindings.values()))
+        owner_binding = next(iter(service_bindings.values()))
+        require(
+            route["routeKind"] == "DATA"
+            and route.get("sideEffectFree") is True
+            and binding["method"] == "GET"
+            and binding["path"] == "/api/payroll/v1/runs/{runId}"
+            and owner_binding["method"] == "GET"
+            and owner_binding["serviceKey"] == "payroll"
+            and owner_binding["path"] == "/v1/runs/{runId}"
+            and profile.get("profileKey") == "payroll-run-viewer"
+            and profile.get("activeAccessModes") == ["NORMAL", "ELEVATED"]
+            and profile.get("requiredAccess") == {
+                "type": "CAPABILITY_EXPRESSION",
+                "mode": "ANY",
+                "capabilityContractKeys": [
+                    "hcm.operations.payroll-run.execute",
+                    "hcm.operations.payroll-support.view",
+                ],
+            }
+            and profile.get("targetBindingKinds") == ["OBJECT", "TARGET_POPULATION"]
+            and profile.get("predicatePolicyKeys")
+                == ["predicate.hcm-payroll-run-authority.v1"]
+            and profile.get("readOnly") is True,
+            f"{key}: invalid v49 payroll run generic-session exception",
+        )
+    elif key.startswith("route.hcm.operations.payroll-"):
+        require(
+            route["routeKind"] in {"PAGE", "DATA"}
+            and next(iter(gateway_bindings.values()))["method"] == "GET"
+            and profile.get("profileKey") == "payroll-support-viewer"
+            and profile.get("activeAccessModes") == ["ELEVATED"]
+            and profile.get("readOnly") is True,
+            f"{key}: invalid v49 elevated payroll read exception",
+        )
+    else:
+        expected = {
+            "route.hcm.operations.time-close-validate.action":
+                ("ACTION", "POST", False),
+            "route.hcm.operations.time-payroll-handoff-create.action":
+                ("ACTION", "POST", False),
+            "route.hcm.operations.time-payroll-handoff.data":
+                ("DATA", "GET", True),
+        }[key]
+        require(
+            (route["routeKind"], next(iter(gateway_bindings.values()))["method"],
+             profile.get("readOnly")) == expected
+            and profile.get("profileKey") == "time-close-operator"
+            and profile.get("activeAccessModes") == ["NORMAL", "ELEVATED"]
+            and profile.get("predicatePolicyKeys")
+                == ["predicate.hcm-time-period-authority.v1"],
+            f"{key}: invalid v49 Time continuation exception",
+        )
+    return True
+
+
+def _is_exact_grandfathered_generic_session_route(
+    route: dict[str, Any],
+    gateway_bindings: dict[str, dict[str, Any]],
+    service_bindings: dict[str, dict[str, Any]],
+) -> bool:
+    key = route["routeContractKey"]
+    exact = {
+        "route.hcm.configuration.configuration-version.data": (
+            "DATA", "GET",
+            "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}",
+            "platform", "/v1/admin/hris/configurations/{configId}/versions/{version}",
+            "hcm.management", 1,
+        ),
+        "route.hcm.configuration.configurations.data": (
+            "DATA", "GET", "/api/platform/v1/admin/hris/configurations",
+            "platform", "/v1/admin/hris/configurations", "hcm.management", 1,
+        ),
+        "route.hcm.operations.time-interpretation-run.action": (
+            "ACTION", "POST", "/api/time/v1/interpretation-runs",
+            "time", "/v1/interpretation-runs", "hcm.operations", 2,
+        ),
+        "route.hcm.operations.time-interpretation-trace.data": (
+            "DATA", "GET", "/api/time/v1/interpretation-runs/{runId}/trace",
+            "time", "/v1/interpretation-runs/{runId}/trace", "hcm.operations", 2,
+        ),
+        "route.hcm.time.timecard-correction.action": (
+            "ACTION", "POST", "/api/time/v1/timecards/{timecardId}/corrections",
+            "time", "/v1/timecards/{timecardId}/corrections", "hcm.operations", 2,
+        ),
+        "route.hcm.time.timecard.data": (
+            "DATA", "GET", "/api/time/v1/timecards/{timecardId}",
+            "time", "/v1/timecards/{timecardId}", "hcm.operations", 3,
+        ),
+    }[key]
+    kind, method, gateway_path, service_key, service_path, navigation, profile_count = exact
+    gateway = next(iter(gateway_bindings.values()))
+    service = next(iter(service_bindings.values()))
+    profiles = route.get("accessProfiles", [])
+    binding_key = f"{key}.binding.01"
+    require(
+        route.get("routeKind") == kind
+        and route.get("sideEffectFree") == (True if kind == "DATA" else None)
+        and route.get("navigationContextId") == navigation
+        and route.get("subject") == {
+            "type": "PRODUCT", "productKey": "hcm", "surfaceKey": navigation,
+        }
+        and gateway.get("bindingKey") == binding_key
+        and gateway.get("method") == method
+        and gateway.get("path") == gateway_path
+        and service.get("bindingKey") == binding_key
+        and service.get("serviceKey") == service_key
+        and service.get("method") == method
+        and service.get("path") == service_path
+        and len(profiles) == profile_count,
+        f"{key}: invalid grandfathered generic-session envelope",
+    )
+    management = profiles[0]
+    expected_management = (
+        "configuration-manager", 300,
+        ["predicate.hcm-reference-configuration-authority.v1"],
+        ["CONFIG_SCOPE", "OBJECT"] if key.endswith("configuration-version.data")
+        else ["CONFIG_SCOPE"],
+        ["hcm.configuration.policy.update", "hcm.configuration.policy.publish"],
+    ) if key.startswith("route.hcm.configuration.") else (
+        "time-operator" if key.startswith("route.hcm.time.") else "full-management",
+        400 if key == "route.hcm.time.timecard.data" else 300,
+        ["predicate.hcm-timecard-authority.v1"]
+        if key.startswith("route.hcm.time.")
+        else ["predicate.hcm-time-capture-authority.v1"],
+        ["OBJECT", "TARGET_POPULATION"],
+        ["hcm.operations.time.update"],
+    )
+    profile_key, precedence, predicates, targets, capabilities = expected_management
+    require(
+        management.get("profileKey") == profile_key
+        and management.get("precedence") == precedence
+        and management.get("activeAccessModes") == ["NORMAL", "ELEVATED"]
+        and management.get("predicatePolicyKeys") == predicates
+        and management.get("targetBindingKinds") == targets
+        and management.get("readOnly") == (kind == "DATA")
+        and management.get("requiredAccess") == {
+            "type": "CAPABILITY_EXPRESSION",
+            "mode": "ANY",
+            "capabilityContractKeys": capabilities,
+        },
+        f"{key}: invalid grandfathered activated profile",
+    )
+    if kind == "DATA":
+        response_schema = "TimecardV1" if key == "route.hcm.time.timecard.data" \
+            else f"{key}.response.v1"
+        for profile in profiles:
+            projection = profile.get("responseProjectionBindings", [])
+            require(
+                len(projection) == 1
+                and projection[0].get("apiBindingKey") == binding_key
+                and projection[0].get("projectionPolicyKey")
+                    == f"{key}.{profile['profileKey']}.projection.v1"
+                and projection[0].get("responseSchemaKey") == response_schema,
+                f"{key}/{profile.get('profileKey')}: invalid grandfathered projection",
+            )
+    else:
+        require(
+            all(not profile.get("responseProjectionBindings") for profile in profiles),
+            f"{key}: grandfathered command projections are forbidden",
+        )
+    alternative_profiles = {
+        "route.hcm.operations.time-interpretation-run.action": [
+            ("self-service", 200, False, ["SELF", "OBJECT"],
+             "predicate.hcm-time-capture-authority.v1", "hcm.personal.time.submit"),
+        ],
+        "route.hcm.operations.time-interpretation-trace.data": [
+            ("self-service", 200, True, ["SELF", "OBJECT"],
+             "predicate.hcm-time-capture-authority.v1", "hcm.personal.time.view"),
+        ],
+        "route.hcm.time.timecard-correction.action": [
+            ("self-submitter", 200, False, ["SELF", "OBJECT"],
+             "predicate.hcm-timecard-authority.v1", "hcm.personal.time.submit"),
+        ],
+        "route.hcm.time.timecard.data": [
+            ("manager-approver", 300, True, ["OBJECT", "TARGET_POPULATION"],
+             "predicate.hcm-timecard-authority.v1", "hcm.team.time.approve"),
+            ("self-reader", 200, True, ["SELF", "OBJECT"],
+             "predicate.hcm-timecard-authority.v1", "hcm.personal.time.view"),
+        ],
+    }.get(key, [])
+    require(
+        len(profiles) - 1 == len(alternative_profiles),
+        f"{key}: invalid grandfathered alternative profile count",
+    )
+    for profile, expected in zip(profiles[1:], alternative_profiles):
+        alt_key, alt_precedence, alt_read_only, alt_targets, alt_predicate, alt_capability = expected
+        require(
+            profile.get("profileKey") == alt_key
+            and profile.get("precedence") == alt_precedence
+            and profile.get("activeAccessModes") == ["NORMAL", "ELEVATED"]
+            and profile.get("readOnly") == alt_read_only
+            and profile.get("targetBindingKinds") == alt_targets
+            and profile.get("predicatePolicyKeys") == [alt_predicate]
+            and profile.get("requiredAccess") == {
+                "type": "CAPABILITY", "capabilityContractKey": alt_capability,
+            },
+            f"{key}/{alt_key}: invalid grandfathered alternative profile",
+        )
+    return True
+
+
+def _required_access_has_activated_capability(
+    access: dict[str, Any],
+    capabilities: dict[str, dict[str, Any]],
+    label: str,
+) -> bool:
+    access_type = access.get("type")
+    if access_type == "POLICY":
+        return False
+    if access_type == "CAPABILITY":
+        keys = [access.get("capabilityContractKey")]
+    else:
+        require(
+            access_type == "CAPABILITY_EXPRESSION"
+            and access.get("mode") in {"ANY", "ALL"}
+            and isinstance(access.get("capabilityContractKeys"), list)
+            and access["capabilityContractKeys"],
+            f"{label}: invalid capability traversal",
+        )
+        keys = access["capabilityContractKeys"]
+    resolved = []
+    for capability_key in keys:
+        require(
+            isinstance(capability_key, str) and capability_key in capabilities,
+            f"{label}: activated capability reference is missing",
+        )
+        resolved.append(capabilities[capability_key])
+    return any(
+        capability.get("lifecycleState") == "ACTIVE"
+        and capability.get("riskTier") in {"HIGH", "CRITICAL"}
+        and isinstance(capability.get("activationPolicy"), str)
+        and capability["activationPolicy"].startswith("STEPUP-")
+        for capability in resolved
+    )
 
 
 def _is_v42_hcm_audit_elevated_read(
@@ -2851,15 +3243,21 @@ def _wire_authority_semantics(
             "targetBindingKinds": profile["targetBindingKinds"],
             "predicatePolicyKeys": profile["predicatePolicyKeys"],
             "readOnly": profile["readOnly"],
-            "projection": None if projection is None else {
-                field: value for field, value in projection.items()
-                if field != "apiBindingKey"
-            },
+            # Equivalence groups may expose the same governed read as a PAGE
+            # entry point and as a DATA endpoint.  Binding and projection
+            # policy keys remain route identities; the response schema is the
+            # shared wire-authority semantic that must stay equal.
+            "responseSchemaKey": None if projection is None
+            else projection["responseSchemaKey"],
         })
     return {
         "subject": route["subject"],
         "navigationContextId": route["navigationContextId"],
-        "routeKind": route["routeKind"],
+        "operationClass": (
+            "READ" if public_binding["method"] == "GET"
+            and route["routeKind"] in {"PAGE", "DATA"}
+            else route["routeKind"]
+        ),
         "profiles": profiles,
         "serviceKey": service["serviceKey"],
         "servicePath": service["path"],
@@ -3552,6 +3950,10 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT,
         HCM_PAYROLL_PEP_OUTPUT,
         HCM_PAYROLL_PEP_V48_OUTPUT,
+        HCM_PEOPLE_PEP_V49_OUTPUT,
+        HCM_TIME_PEP_V49_OUTPUT,
+        HCM_PLATFORM_PEP_V49_OUTPUT,
+        HCM_PAYROLL_PEP_V49_OUTPUT,
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -4210,6 +4612,70 @@ def main() -> int:
             version=48,
             product_key="hcm",
         )
+        hcm_people_pep_v49 = build_approvals_pep(
+            snapshots[48],
+            "people",
+            "hcm-people-pep-v49",
+            {
+                "routes": 103,
+                "bindings": 130,
+                "routeKinds": {"ACTION": 48, "DATA": 20, "PAGE": 35},
+                "capabilities": 52,
+                "accessPolicies": 5,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 18,
+            },
+            version=49,
+            product_key="hcm",
+        )
+        hcm_time_pep_v49 = build_approvals_pep(
+            snapshots[48],
+            "time",
+            "hcm-time-pep-v49",
+            {
+                "routes": 29,
+                "bindings": 29,
+                "routeKinds": {"ACTION": 16, "DATA": 6, "PAGE": 7},
+                "capabilities": 15,
+                "accessPolicies": 0,
+                "entitlementExpressions": 0,
+                "predicatePolicies": 9,
+            },
+            version=49,
+            product_key="hcm",
+        )
+        hcm_platform_pep_v49 = build_approvals_pep(
+            snapshots[48],
+            "platform",
+            "hcm-platform-pep-v49",
+            {
+                "routes": 53,
+                "bindings": 54,
+                "routeKinds": {"ACTION": 27, "DATA": 19, "PAGE": 7},
+                "capabilities": 21,
+                "accessPolicies": 4,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 11,
+            },
+            version=49,
+            product_key="hcm",
+        )
+        hcm_payroll_pep_v49 = build_approvals_pep(
+            snapshots[48],
+            "payroll",
+            "hcm-payroll-pep-v49",
+            {
+                "routes": 34,
+                "bindings": 34,
+                "routeKinds": {"ACTION": 21, "DATA": 11, "PAGE": 2},
+                "capabilities": 16,
+                "accessPolicies": 0,
+                "entitlementExpressions": 0,
+                "predicatePolicies": 8,
+            },
+            version=49,
+            product_key="hcm",
+        )
     except ContractError as exc:
         print(f"authorization contract error: {exc}", file=sys.stderr)
         return 1
@@ -4436,6 +4902,26 @@ def main() -> int:
                 render(hcm_payroll_pep_v48),
                 args.check,
             ),
+            write_or_check(
+                HCM_PEOPLE_PEP_V49_OUTPUT,
+                render(hcm_people_pep_v49),
+                args.check,
+            ),
+            write_or_check(
+                HCM_TIME_PEP_V49_OUTPUT,
+                render(hcm_time_pep_v49),
+                args.check,
+            ),
+            write_or_check(
+                HCM_PLATFORM_PEP_V49_OUTPUT,
+                render(hcm_platform_pep_v49),
+                args.check,
+            ),
+            write_or_check(
+                HCM_PAYROLL_PEP_V49_OUTPUT,
+                render(hcm_payroll_pep_v49),
+                args.check,
+            ),
         ]
     )
     if not all(outcomes):
@@ -4548,6 +5034,10 @@ def main() -> int:
         )
         verify_approvals_pep(HCM_PAYROLL_PEP_OUTPUT, hcm_payroll_pep)
         verify_approvals_pep(HCM_PAYROLL_PEP_V48_OUTPUT, hcm_payroll_pep_v48)
+        verify_approvals_pep(HCM_PEOPLE_PEP_V49_OUTPUT, hcm_people_pep_v49)
+        verify_approvals_pep(HCM_TIME_PEP_V49_OUTPUT, hcm_time_pep_v49)
+        verify_approvals_pep(HCM_PLATFORM_PEP_V49_OUTPUT, hcm_platform_pep_v49)
+        verify_approvals_pep(HCM_PAYROLL_PEP_V49_OUTPUT, hcm_payroll_pep_v49)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1

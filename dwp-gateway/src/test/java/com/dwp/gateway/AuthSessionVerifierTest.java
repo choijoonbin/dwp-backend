@@ -92,6 +92,35 @@ class AuthSessionVerifierTest extends AuthSessionVerifierTestSupport {
     }
 
     @Test
+    void acceptsOnlyExactAuthProjectedModesAndDefaultsOnlyAMissingFieldToNormal() {
+        VerifiedIdentity compatible = verifierReturningBody("""
+                {"success":true,"data":{"userId":7,"tenantId":1,
+                "identityPlane":"TENANT","roles":["WORKSPACE_MEMBER"]}}
+                """).verify(MockServerHttpRequest.get("/api/people/v1/hr/home").build()).block();
+        VerifiedIdentity elevated = verifierReturningBody("""
+                {"success":true,"data":{"userId":7,"tenantId":1,
+                "identityPlane":"TENANT","activeAccessMode":"ELEVATED",
+                "roles":["WORKSPACE_MEMBER"]}}
+                """).verify(MockServerHttpRequest.get("/api/people/v1/hr/home").build()).block();
+
+        assertThat(compatible).isNotNull();
+        assertThat(compatible.activeAccessMode()).isEqualTo("NORMAL");
+        assertThat(elevated).isNotNull();
+        assertThat(elevated.activeAccessMode()).isEqualTo("ELEVATED");
+
+        for (String invalid : java.util.List.of("\"\"", "\"elevated\"", "\"UNKNOWN\"", "7", "{}")) {
+            AuthSessionVerifier verifier = verifierReturningBody("""
+                    {"success":true,"data":{"userId":7,"tenantId":1,
+                    "identityPlane":"TENANT","activeAccessMode":%s,
+                    "roles":["WORKSPACE_MEMBER"]}}
+                    """.formatted(invalid));
+            assertThatThrownBy(() -> verifier.verify(MockServerHttpRequest
+                    .get("/api/people/v1/hr/home").build()).block())
+                    .isInstanceOf(RuntimeException.class);
+        }
+    }
+
+    @Test
     void rejectsClientTenantAssertionThatDoesNotMatchSession() {
         AuthSessionVerifier verifier = verifierReturningTenant("1");
         MockServerHttpRequest request = MockServerHttpRequest

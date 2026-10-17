@@ -150,12 +150,21 @@ public class AuthSessionVerifier implements SessionVerifier {
                     data.displayName(),
                     Boolean.TRUE.equals(data.legacyRoleFallbackAllowed()),
                     data.sessionFamilyId(),
-                    data.identityPlane());
+                    data.identityPlane(),
+                    activeAccessMode(data.activeAccessMode()));
         } catch (IllegalArgumentException | NullPointerException exception) {
             throw new IllegalStateException(
                     "Auth /auth/me returned an invalid durable identity contract.",
                     exception);
         }
+    }
+
+    private String activeAccessMode(String value) {
+        if (value == null) return "NORMAL";
+        if (!Set.of("NORMAL", "ELEVATED").contains(value)) {
+            throw new IllegalArgumentException("Auth /auth/me returned an invalid activeAccessMode.");
+        }
+        return value;
     }
 
     private String cacheKey(ServerHttpRequest request) {
@@ -514,7 +523,8 @@ public class AuthSessionVerifier implements SessionVerifier {
             List<ResourceRoleData> resourceRoles,
             Boolean legacyRoleFallbackAllowed,
             String sessionFamilyId,
-            String identityPlane) {
+            String identityPlane,
+            String activeAccessMode) {
     }
 
     private record GroupData(String groupRef, String groupKey, String displayName) {

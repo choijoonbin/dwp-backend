@@ -261,6 +261,22 @@ public class AuthSessionService {
         return evidence;
     }
 
+    @Transactional(readOnly = true)
+    public ActiveAccessMode resolveActiveAccessMode(
+            Jwt jwt,
+            Long userId,
+            Long tenantId,
+            String requiredAcr,
+            long maximumAgeSeconds) {
+        Instant now = Instant.now();
+        AuthSession session = authSessionRepository.findByTokenId(jwt.getId())
+                .orElseThrow(() -> new BaseException(ErrorCode.TOKEN_INVALID));
+        requireActiveIdentity(session, jwt, userId, tenantId, now);
+        return AssuranceEvidence.from(session).freshAt(now, requiredAcr, maximumAgeSeconds)
+                ? ActiveAccessMode.ELEVATED
+                : ActiveAccessMode.NORMAL;
+    }
+
     @Transactional
     public IssuedSession elevate(
             Jwt jwt,
@@ -402,6 +418,11 @@ public class AuthSessionService {
     }
 
     public record IssuedSession(String accessToken, long expiresIn) {
+    }
+
+    public enum ActiveAccessMode {
+        NORMAL,
+        ELEVATED
     }
 
     public record AssuranceEvidence(

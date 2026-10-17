@@ -115,14 +115,16 @@ class ProductAuthorizationContractReleaseLineageTest
                 generatedDocument("product-surfaces-v1.bundle-v47.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionFortyEight = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v48.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(48);
-        assertThat(index.latestChecksum()).isEqualTo(versionFortyEight.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionFortyNine = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v49.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(49);
+        assertThat(index.latestChecksum()).isEqualTo(versionFortyNine.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
                         26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L,
-                        39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L);
+                        39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L, 49L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -630,6 +632,36 @@ class ProductAuthorizationContractReleaseLineageTest
                         "route.hcm.configuration.payroll-foundation-publish.action",
                         "route.hcm.configuration.payroll-foundation-reverse.action",
                         "route.hcm.configuration.payroll-foundation-reconcile.action");
+        assertStrictCapabilitySuperset(versionFortyEight, versionFortyNine);
+        assertThat(versionFortyNine.capabilities()).hasSize(262)
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .contains(
+                        "hcm.operations.organization.view",
+                        "hcm.operations.exception.view",
+                        "hcm.operations.time.close",
+                        "hcm.operations.time.reopen");
+        assertThat(versionFortyNine.routes()).hasSize(1079)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionFortyEight.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.hcm.operations.organization-positions.page",
+                        "route.hcm.operations.organization-graph.data",
+                        "route.hcm.operations.payroll-population.page",
+                        "route.hcm.operations.payroll-support.data",
+                        "route.hcm.operations.payroll-run.action",
+                        "route.hcm.configuration.settings-operations.page",
+                        "route.hcm.operations.exception.data",
+                        "route.hcm.operations.exception-detail.data",
+                        "route.hcm.operations.time-command-center.page",
+                        "route.hcm.operations.time-daily-close.page",
+                        "route.hcm.operations.time-monthly-close.page",
+                        "route.hcm.operations.time-close-validate.action",
+                        "route.hcm.operations.time-close.action",
+                        "route.hcm.operations.time-reopen.action",
+                        "route.hcm.operations.time-payroll-handoff-create.action",
+                        "route.hcm.operations.time-payroll-handoff.data");
         String voidRoute = "route.hcm.operations.time-clock-event-void.action";
         assertThat(versionThirtySix.routes())
                 .filteredOn(route -> voidRoute.equals(route.routeContractKey()))

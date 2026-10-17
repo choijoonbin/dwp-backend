@@ -45,6 +45,82 @@ public final class GeneratedProductRouteCatalog {
      */
     private static final Set<String> SHARED_SERVICE_ROOTS = Set.of("auth", "platform");
 
+    private static final Map<String, GenericSessionTopology>
+            GENERIC_SESSION_STEP_UP_TOPOLOGIES = Map.ofEntries(
+            Map.entry("route.hcm.configuration.configuration-version.data",
+                    new GenericSessionTopology("hcm.management", "DATA", "GET",
+                            "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}",
+                            "platform",
+                            "/v1/admin/hris/configurations/{configId}/versions/{version}",
+                            List.of("configuration-manager"))),
+            Map.entry("route.hcm.configuration.configurations.data",
+                    new GenericSessionTopology("hcm.management", "DATA", "GET",
+                            "/api/platform/v1/admin/hris/configurations", "platform",
+                            "/v1/admin/hris/configurations",
+                            List.of("configuration-manager"))),
+            Map.entry("route.hcm.operations.payroll-population.page",
+                    new GenericSessionTopology("hcm.operations", "PAGE", "GET",
+                            "/api/payroll/v1/workbench/population", "payroll",
+                            "/v1/workbench/population",
+                            List.of("payroll-support-viewer"))),
+            Map.entry("route.hcm.operations.payroll-support.data",
+                    new GenericSessionTopology("hcm.operations", "DATA", "GET",
+                            "/api/payroll/v1/workbench/population", "payroll",
+                            "/v1/workbench/population",
+                            List.of("payroll-support-viewer"))),
+            Map.entry("route.hcm.operations.payroll-run.data",
+                    new GenericSessionTopology("hcm.operations", "DATA", "GET",
+                            "/api/payroll/v1/runs/{runId}", "payroll",
+                            "/v1/runs/{runId}", List.of("payroll-run-viewer"))),
+            Map.entry("route.hcm.operations.time-close-validate.action",
+                    new GenericSessionTopology("hcm.operations", "ACTION", "POST",
+                            "/api/time/v1/close-periods/{periodId}/validations", "time",
+                            "/v1/close-periods/{periodId}/validations",
+                            List.of("time-close-operator"))),
+            Map.entry("route.hcm.operations.time-interpretation-run.action",
+                    new GenericSessionTopology("hcm.operations", "ACTION", "POST",
+                            "/api/time/v1/interpretation-runs", "time",
+                            "/v1/interpretation-runs",
+                            List.of("full-management", "self-service"))),
+            Map.entry("route.hcm.operations.time-interpretation-trace.data",
+                    new GenericSessionTopology("hcm.operations", "DATA", "GET",
+                            "/api/time/v1/interpretation-runs/{runId}/trace", "time",
+                            "/v1/interpretation-runs/{runId}/trace",
+                            List.of("full-management", "self-service"))),
+            Map.entry("route.hcm.operations.time-payroll-handoff-create.action",
+                    new GenericSessionTopology("hcm.operations", "ACTION", "POST",
+                            "/api/time/v1/close-periods/{periodId}/payroll-handoffs", "time",
+                            "/v1/close-periods/{periodId}/payroll-handoffs",
+                            List.of("time-close-operator"))),
+            Map.entry("route.hcm.operations.time-payroll-handoff.data",
+                    new GenericSessionTopology("hcm.operations", "DATA", "GET",
+                            "/api/time/v1/payroll-handoffs/{handoffId}", "time",
+                            "/v1/payroll-handoffs/{handoffId}",
+                            List.of("time-close-operator"))),
+            Map.entry("route.hcm.time.timecard-correction.action",
+                    new GenericSessionTopology("hcm.operations", "ACTION", "POST",
+                            "/api/time/v1/timecards/{timecardId}/corrections", "time",
+                            "/v1/timecards/{timecardId}/corrections",
+                            List.of("time-operator", "self-submitter"))),
+            Map.entry("route.hcm.time.timecard.data",
+                    new GenericSessionTopology("hcm.operations", "DATA", "GET",
+                            "/api/time/v1/timecards/{timecardId}", "time",
+                            "/v1/timecards/{timecardId}",
+                            List.of("time-operator", "manager-approver", "self-reader"))));
+    private static final Set<String> OTHER_EXACT_NO_COMMAND_STEP_UP_ROUTE_KEYS = Set.of(
+            "route.approvals.admin.form-publish-review-reject.action",
+            "route.approvals.admin.retention-policy-publication-command.data",
+            "route.approvals.admin.retention-record-command.data",
+            "route.hcm.audit.evidence-detail.data",
+            "route.hcm.audit.evidence.page");
+    private static final Set<String> V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = Set.of(
+            "route.hcm.operations.payroll-population.page",
+            "route.hcm.operations.payroll-support.data",
+            "route.hcm.operations.payroll-run.data",
+            "route.hcm.operations.time-close-validate.action",
+            "route.hcm.operations.time-payroll-handoff-create.action",
+            "route.hcm.operations.time-payroll-handoff.data");
+
     private static final Set<String> AUTHORITY_ENDPOINT_FIELDS = Set.of(
             "endpointKey", "method", "publicPath", "serviceKey", "servicePath",
             "requiresAuthentication", "requiresCsrf",
@@ -180,6 +256,7 @@ public final class GeneratedProductRouteCatalog {
     public AuthorityEndpoint authorityEndpoint(String method, String path) {
         List<AuthorityEndpoint> matches = authorityEndpoints.stream()
                 .filter(endpoint -> endpoint.method().equals(normalizeMethod(method)))
+                .filter(endpoint -> endpoint.publicPath() != null)
                 .filter(endpoint -> endpoint.publicPath().equals(path))
                 .toList();
         return matches.size() == 1 ? matches.getFirst() : null;
@@ -215,9 +292,11 @@ public final class GeneratedProductRouteCatalog {
                     || !bundle.path("capabilities").isArray()) {
                 throw new IllegalStateException("Generated PRODUCT route registry is invalid.");
             }
+            long bundleVersion = bundle.path("version").asLong();
             Map<String, Boolean> highRiskCapabilities = highRiskCapabilities(bundle);
             List<Route> result = new ArrayList<>();
             Map<String, Set<String>> namespaces = new HashMap<>();
+            Set<String> genericSessionRoutes = new HashSet<>();
             for (JsonNode route : bundle.path("routes")) {
                 JsonNode subject = route.path("subject");
                 if (!"ACTIVE".equals(route.path("lifecycleState").asText())
@@ -225,6 +304,17 @@ public final class GeneratedProductRouteCatalog {
                 boolean stateChanging = "ACTION".equals(route.path("routeKind").asText())
                         && !route.path("sideEffectFree").asBoolean(false);
                 boolean highRiskStepUp = highRiskStepUp(route, highRiskCapabilities);
+                boolean commandBoundStepUp = route.path("stepUpCommandBindings").isArray()
+                        && !route.path("stepUpCommandBindings").isEmpty();
+                boolean genericSessionStepUp = genericSessionStepUp(
+                        route, bundleVersion, highRiskStepUp, commandBoundStepUp);
+                String routeKey = route.path("routeContractKey").asText();
+                if (highRiskStepUp && !commandBoundStepUp && !genericSessionStepUp
+                        && !OTHER_EXACT_NO_COMMAND_STEP_UP_ROUTE_KEYS.contains(routeKey)) {
+                    throw new IllegalStateException(
+                            "A PRODUCT generic session step-up route is not sealed.");
+                }
+                if (genericSessionStepUp) genericSessionRoutes.add(routeKey);
                 for (JsonNode binding : route.path("gatewayApiBindings")) {
                     String publicPath = binding.path("path").asText();
                     if (!publicPath.startsWith("/api/")) {
@@ -237,7 +327,8 @@ public final class GeneratedProductRouteCatalog {
                             subject.path("surfaceKey").asText(),
                             normalizeMethod(binding.path("method").asText()),
                             publicPath, route.path("routeKind").asText(), stateChanging,
-                            highRiskStepUp, compile(publicPath, null),
+                            highRiskStepUp, commandBoundStepUp, genericSessionStepUp,
+                            compile(publicPath, null),
                             compile(publicPath, binding.path("pathParameterConstraints")),
                             queryConstraints(binding.path("queryParameterConstraints"))));
                     namespaces.computeIfAbsent(serviceNamespace(publicPath), ignored -> new HashSet<>())
@@ -245,6 +336,12 @@ public final class GeneratedProductRouteCatalog {
                 }
             }
             if (result.isEmpty()) throw new IllegalStateException("PRODUCT routes are absent.");
+            if (bundleVersion >= 49
+                    && !genericSessionRoutes.equals(
+                    GENERIC_SESSION_STEP_UP_TOPOLOGIES.keySet())) {
+                throw new IllegalStateException(
+                        "The PRODUCT generic session step-up closed set is incomplete.");
+            }
             Map<String, Set<String>> immutableNamespaces = namespaces.entrySet().stream()
                     .collect(java.util.stream.Collectors.toUnmodifiableMap(
                             Map.Entry::getKey, entry -> Set.copyOf(entry.getValue())));
@@ -289,21 +386,26 @@ public final class GeneratedProductRouteCatalog {
             AuthorityEndpoint value = new AuthorityEndpoint(
                     endpoint.path("endpointKey").asText(),
                     normalizeMethod(endpoint.path("method").asText()),
-                    endpoint.path("publicPath").asText(),
+                    textOrNull(endpoint, "publicPath"),
                     endpoint.path("serviceKey").asText(),
                     endpoint.path("servicePath").asText(),
                     endpoint.path("requiresAuthentication").asBoolean(),
                     endpoint.path("requiresCsrf").asBoolean(),
-                    endpoint.path("expectedDecisionRevisionHeader").asText());
+                    textOrNull(endpoint, "expectedDecisionRevisionHeader"));
+            boolean exactInternalOnly = isExactInternalOnlyAuthorityEndpoint(value);
+            boolean validPublic = value.publicPath() != null
+                    && value.publicPath().startsWith("/api/")
+                    && value.expectedDecisionRevisionHeader() != null;
             if (!value.endpointKey().matches("^[a-z][a-z0-9.-]{2,159}$")
                     || !value.method().matches("^[A-Z]+$")
-                    || !value.publicPath().startsWith("/api/")
                     || !value.serviceKey().matches("^[a-z][a-z0-9-]{1,79}$")
                     || !value.servicePath().startsWith("/")
-                    || value.expectedDecisionRevisionHeader().isBlank()
+                    || !(validPublic || exactInternalOnly)
                     || result.stream().anyMatch(existing -> existing.endpointKey()
                             .equals(value.endpointKey())
-                            || existing.method().equals(value.method())
+                            || value.publicPath() != null
+                            && existing.publicPath() != null
+                            && existing.method().equals(value.method())
                             && existing.publicPath().equals(value.publicPath()))) {
                 throw new IllegalStateException("Generated authority endpoint is invalid.");
             }
@@ -312,14 +414,114 @@ public final class GeneratedProductRouteCatalog {
         return List.copyOf(result);
     }
 
+    private boolean isExactInternalOnlyAuthorityEndpoint(AuthorityEndpoint endpoint) {
+        return "hris-navigation-policy-decisions.evaluate".equals(endpoint.endpointKey())
+                && "POST".equals(endpoint.method())
+                && endpoint.publicPath() == null
+                && "auth".equals(endpoint.serviceKey())
+                && "/internal/auth/v1/hris-navigation-policy-decisions/evaluate"
+                        .equals(endpoint.servicePath())
+                && !endpoint.requiresAuthentication()
+                && !endpoint.requiresCsrf()
+                && endpoint.expectedDecisionRevisionHeader() == null;
+    }
+
     private boolean highRiskStepUp(JsonNode route, Map<String, Boolean> capabilities) {
         for (JsonNode profile : route.path("accessProfiles")) {
             JsonNode required = profile.path("requiredAccess");
-            if ("CAPABILITY".equals(required.path("type").asText())
-                    && capabilities.getOrDefault(
-                            required.path("capabilityContractKey").asText(), false)) return true;
+            for (String capabilityKey : requiredCapabilityKeys(required)) {
+                Boolean activated = capabilities.get(capabilityKey);
+                if (activated == null) {
+                    throw new IllegalStateException(
+                            "A PRODUCT route references an unknown capability.");
+                }
+                if (activated) return true;
+            }
         }
         return false;
+    }
+
+    private boolean genericSessionStepUp(
+            JsonNode route,
+            long bundleVersion,
+            boolean highRiskStepUp,
+            boolean commandBoundStepUp) {
+        String key = route.path("routeContractKey").asText();
+        GenericSessionTopology topology = GENERIC_SESSION_STEP_UP_TOPOLOGIES.get(key);
+        if (topology == null) return false;
+        if (bundleVersion < 49 && V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS.contains(key)) {
+            return false;
+        }
+        JsonNode subject = route.path("subject");
+        JsonNode gateways = route.path("gatewayApiBindings");
+        JsonNode services = route.path("servicePepBindings");
+        JsonNode profiles = route.path("accessProfiles");
+        String bindingKey = key + ".binding.01";
+        boolean exact = highRiskStepUp
+                && !commandBoundStepUp
+                && !route.has("stepUpCommandBindings")
+                && "ACTIVE".equals(route.path("lifecycleState").asText())
+                && "PRODUCT".equals(subject.path("type").asText())
+                && "hcm".equals(subject.path("productKey").asText())
+                && topology.surfaceKey().equals(subject.path("surfaceKey").asText())
+                && topology.surfaceKey().equals(route.path("navigationContextId").asText())
+                && topology.routeKind().equals(route.path("routeKind").asText())
+                && ("DATA".equals(topology.routeKind())
+                        ? route.path("sideEffectFree").asBoolean(false)
+                        : route.path("sideEffectFree").isNull())
+                && gateways.isArray() && gateways.size() == 1
+                && services.isArray() && services.size() == 1
+                && bindingKey.equals(gateways.get(0).path("bindingKey").asText())
+                && topology.method().equals(gateways.get(0).path("method").asText())
+                && topology.publicPath().equals(gateways.get(0).path("path").asText())
+                && bindingKey.equals(services.get(0).path("bindingKey").asText())
+                && topology.serviceKey().equals(services.get(0).path("serviceKey").asText())
+                && topology.method().equals(services.get(0).path("method").asText())
+                && topology.servicePath().equals(services.get(0).path("path").asText())
+                && profiles.isArray()
+                && profiles.size() == topology.profileKeys().size();
+        if (exact) {
+            for (int index = 0; index < profiles.size(); index++) {
+                if (!topology.profileKeys().get(index)
+                        .equals(profiles.get(index).path("profileKey").asText())) {
+                    exact = false;
+                    break;
+                }
+            }
+        }
+        if (!exact) {
+            throw new IllegalStateException(
+                    "A PRODUCT generic session step-up topology is invalid: " + key);
+        }
+        return true;
+    }
+
+    private List<String> requiredCapabilityKeys(JsonNode required) {
+        String type = required.path("type").asText();
+        if ("POLICY".equals(type)) return List.of();
+        if ("CAPABILITY".equals(type)) {
+            String key = required.path("capabilityContractKey").asText();
+            if (key.isBlank()) {
+                throw new IllegalStateException("A PRODUCT capability reference is invalid.");
+            }
+            return List.of(key);
+        }
+        if (!"CAPABILITY_EXPRESSION".equals(type)
+                || !Set.of("ANY", "ALL").contains(required.path("mode").asText())
+                || !required.path("capabilityContractKeys").isArray()
+                || required.path("capabilityContractKeys").isEmpty()) {
+            throw new IllegalStateException("A PRODUCT required-access traversal is invalid.");
+        }
+        List<String> keys = new ArrayList<>();
+        for (JsonNode value : required.path("capabilityContractKeys")) {
+            if (!value.isTextual() || value.asText().isBlank()
+                    || keys.contains(value.asText())) {
+                throw new IllegalStateException(
+                        "A PRODUCT capability expression is invalid.");
+            }
+            keys.add(value.asText());
+        }
+        return List.copyOf(keys);
     }
 
     private Pattern compile(String template, JsonNode constraints) {
@@ -502,12 +704,24 @@ public final class GeneratedProductRouteCatalog {
             String routeKind,
             boolean stateChanging,
             boolean highRiskStepUp,
+            boolean commandBoundStepUp,
+            boolean genericSessionStepUp,
             Pattern structuralPattern,
             Pattern exactPattern,
             Map<String, QueryConstraint> queryConstraints) {
     }
 
     public record QueryConstraint(String kind, Set<String> values) {
+    }
+
+    private record GenericSessionTopology(
+            String surfaceKey,
+            String routeKind,
+            String method,
+            String publicPath,
+            String serviceKey,
+            String servicePath,
+            List<String> profileKeys) {
     }
 
     private record LegacyExemptBinding(String method, Pattern pathPattern) {

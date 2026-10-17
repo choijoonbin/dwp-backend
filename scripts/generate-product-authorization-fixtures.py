@@ -52,7 +52,7 @@ ALLOWED_OVERRIDE_REFS = {
 RESERVED_CONTRACTS = {"hcm.reference.publish", "hcm.integration.rotate-secret"}
 REGISTRY_VERSIONS = (
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
 )
 FIXED_GROUP_VERSIONS = {"CANARY": 1, "APPROVALS": 2, "HCM": 3}
 PRESERVED_V7_CATALOG_HASHES = {
@@ -712,6 +712,49 @@ def validate_monotonic_registry_lineage(
         normalized["accessProfiles"] = copy.deepcopy(inherited["accessProfiles"])
         return normalized == inherited
 
+    def is_v49_payroll_security_hardening(
+        version: int,
+        identity: tuple[str, str],
+        current: dict[str, Any],
+        inherited: dict[str, Any],
+    ) -> bool:
+        if version != 49:
+            return False
+        section, key = identity
+        capability_values = {
+            "hcm.operations.payroll-run.execute": ("CRITICAL", "STEPUP-MGMT-HIGH-V1"),
+            "hcm.operations.payroll-support.view": ("HIGH", "STEPUP-MGMT-HIGH-V1"),
+        }
+        if section == "capabilities" and key in capability_values:
+            expected_risk, expected_activation = capability_values[key]
+            if (current.get("riskTier"), current.get("activationPolicy")) \
+                    != (expected_risk, expected_activation):
+                return False
+            normalized = copy.deepcopy(current)
+            normalized["riskTier"] = inherited["riskTier"]
+            normalized["activationPolicy"] = inherited["activationPolicy"]
+            return descriptor_monotonic_contains(normalized, inherited)
+        calculate = "route.hcm.operations.payroll-run-calculate.action"
+        if section != "routes" or key != calculate:
+            return False
+        normalized = copy.deepcopy(current)
+        profiles = {
+            profile["profileKey"]: profile
+            for profile in normalized.get("accessProfiles", [])
+        }
+        inherited_profiles = {
+            profile["profileKey"]: profile
+            for profile in inherited.get("accessProfiles", [])
+        }
+        profile = profiles.get("payroll-run-operator", {})
+        if profile.get("activeAccessModes") != ["ELEVATED"]:
+            return False
+        profile["activeAccessModes"] = copy.deepcopy(
+            inherited_profiles["payroll-run-operator"]["activeAccessModes"]
+        )
+        normalized.pop("stepUpCommandBindings", None)
+        return normalized == inherited
+
     keyed_sections = list(DESCRIPTOR_SECTIONS.values()) + [
         ("authorityEndpoints", "endpointKey")
     ]
@@ -740,6 +783,9 @@ def validate_monotonic_registry_lineage(
                     version, identity, current[identity], record
                 )
                 and not is_v37_time_void_profile_removal(
+                    version, identity, current[identity], record
+                )
+                and not is_v49_payroll_security_hardening(
                     version, identity, current[identity], record
                 )
             )

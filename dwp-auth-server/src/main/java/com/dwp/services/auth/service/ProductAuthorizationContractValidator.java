@@ -255,6 +255,26 @@ public class ProductAuthorizationContractValidator {
                     value.requiredResponsibilityCode())
                     && "CONNECTOR_OR_LEGAL_ENTITY_SCOPE".equals(value.scopeResolver());
         }
+        if ("hcm.operations.organization.view".equals(value.contractKey())) {
+            return "HRIS_DUTY_ORGANIZATION_VIEWER".equals(
+                    value.requiredResponsibilityCode())
+                    && "ORGANIZATION_TARGET_POPULATION".equals(value.scopeResolver());
+        }
+        if ("hcm.operations.exception.view".equals(value.contractKey())) {
+            return "HRIS_DUTY_OPERATION_EXCEPTION_READER".equals(
+                    value.requiredResponsibilityCode())
+                    && "AUTHORIZED_PACKAGE_SCOPE".equals(value.scopeResolver());
+        }
+        if ("hcm.operations.time.close".equals(value.contractKey())) {
+            return "HRIS_DUTY_TIME_CLOSE_OPERATOR".equals(
+                    value.requiredResponsibilityCode())
+                    && "TIME_TARGET_POPULATION".equals(value.scopeResolver());
+        }
+        if ("hcm.operations.time.reopen".equals(value.contractKey())) {
+            return "HRIS_DUTY_TIME_REOPEN_OPERATOR".equals(
+                    value.requiredResponsibilityCode())
+                    && "TIME_TARGET_POPULATION".equals(value.scopeResolver());
+        }
         return "APP_CONFIG_ADMIN".equals(value.requiredResponsibilityCode());
     }
 

@@ -41,6 +41,8 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     public static final String CONTROL_PLANE_HEADER = "X-DWP-Control-Plane";
     public static final String WIDGET_OWNER_SCOPE_HEADER =
             "X-DWP-Widget-Owner-Product-Keys";
+    public static final String VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE =
+            VerifiedIdentityFilter.class.getName() + ".verifiedActiveAccessMode";
 
     private final SessionVerifier sessionVerifier;
     private final GatewayDenialAuditSink denialAudit;
@@ -61,7 +63,11 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         if (DeviceIdentityPlaneFilter.verified(exchange)) {
-            return chain.filter(exchange);
+            ServerHttpRequest sanitized = exchange.getRequest().mutate()
+                    .headers(headers -> headers.remove(
+                            ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER))
+                    .build();
+            return chain.filter(exchange.mutate().request(sanitized).build());
         }
         ServerHttpRequest sanitizedRequest = exchange.getRequest().mutate()
                 .headers(headers -> {
@@ -79,6 +85,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     headers.remove(LEGACY_ROLE_FALLBACK_HEADER);
                     headers.remove(CONTROL_PLANE_HEADER);
                     headers.remove(WIDGET_OWNER_SCOPE_HEADER);
+                    headers.remove(ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER);
                 })
                 .build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
@@ -108,6 +115,9 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_ID, identity.userId());
                     exchange.getAttributes().put(ApiHistoryAttributes.TENANT_ID, identity.tenantId());
                     exchange.getAttributes().put(ApiHistoryAttributes.AUTH_TYPE, "SESSION");
+                    sanitizedExchange.getAttributes().put(
+                            VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE,
+                            identity.activeAccessMode());
                     ServerHttpRequest verifiedRequest = sanitizedRequest.mutate()
                             .headers(headers -> {
                                 headers.set(USER_HEADER, identity.userId());

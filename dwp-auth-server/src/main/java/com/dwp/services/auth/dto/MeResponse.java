@@ -25,6 +25,7 @@ public class MeResponse {
     private Long tenantId;
     private String identityPlane;
     private UUID sessionFamilyId;
+    private String activeAccessMode;
     private String tenantCode;
     private String tenantName;
     private List<String> roles;

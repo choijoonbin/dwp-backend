@@ -13,8 +13,154 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestSupport {
+
+    private static final Set<String> GENERIC_SESSION_STEP_UP_ROUTES = Set.of(
+            "route.hcm.configuration.configuration-version.data",
+            "route.hcm.configuration.configurations.data",
+            "route.hcm.operations.payroll-population.page",
+            "route.hcm.operations.payroll-support.data",
+            "route.hcm.operations.payroll-run.data",
+            "route.hcm.operations.time-close-validate.action",
+            "route.hcm.operations.time-interpretation-run.action",
+            "route.hcm.operations.time-interpretation-trace.data",
+            "route.hcm.operations.time-payroll-handoff-create.action",
+            "route.hcm.operations.time-payroll-handoff.data",
+            "route.hcm.time.timecard-correction.action",
+            "route.hcm.time.timecard.data");
+
+    @Test
+    void v49PublishesOnlyTheExactTwelveGenericSessionStepUpRoutes() throws Exception {
+        GeneratedProductRouteCatalog latest = catalog(49);
+        assertThat(latest.routesForTesting().stream()
+                .filter(GeneratedProductRouteCatalog.Route::genericSessionStepUp)
+                .map(GeneratedProductRouteCatalog.Route::routeContractKey))
+                .containsExactlyInAnyOrderElementsOf(GENERIC_SESSION_STEP_UP_ROUTES);
+        assertThat(latest.routesForTesting().stream()
+                .filter(GeneratedProductRouteCatalog.Route::genericSessionStepUp))
+                .allSatisfy(route -> {
+                    assertThat(route.highRiskStepUp()).isTrue();
+                    assertThat(route.commandBoundStepUp()).isFalse();
+                });
+        for (String fresh : List.of(
+                "route.hcm.operations.payroll-run.action",
+                "route.hcm.operations.payroll-run-calculate.action",
+                "route.hcm.operations.time-close.action",
+                "route.hcm.operations.time-reopen.action")) {
+            assertThat(latest.routesForTesting().stream()
+                    .filter(route -> fresh.equals(route.routeContractKey()))
+                    .findFirst().orElseThrow().genericSessionStepUp()).as(fresh).isFalse();
+        }
+
+        ObjectNode drifted = bundle(49);
+        ((ObjectNode) route(drifted, "route.hcm.configuration.configurations.data")
+                .withArray("servicePepBindings").get(0))
+                .put("path", "/v1/admin/hris/configurations-drift");
+        assertCatalogInvalid(drifted, "generic session step-up topology");
+
+        ObjectNode thirteenth = bundle(49);
+        route(thirteenth, "route.hcm.operations.payroll-run-calculate.action")
+                .remove("stepUpCommandBindings");
+        assertCatalogInvalid(thirteenth, "generic session step-up route is not sealed");
+
+        ObjectNode missing = bundle(49);
+        ArrayNode routes = missing.withArray("routes");
+        for (int index = 0; index < routes.size(); index++) {
+            if ("route.hcm.operations.time-payroll-handoff.data"
+                    .equals(routes.get(index).path("routeContractKey").asText())) {
+                routes.remove(index);
+                break;
+            }
+        }
+        assertCatalogInvalid(missing, "closed set is incomplete");
+    }
+
+    private void assertCatalogInvalid(ObjectNode value, String message) throws Exception {
+        assertThatThrownBy(() -> new GeneratedProductRouteCatalog(
+                objectMapper,
+                new ByteArrayResource(objectMapper.writeValueAsBytes(value))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(message);
+    }
+
+    @Test
+    void v49LoadsTheExactInternalAuthorityEndpointWithoutPublishingIt() throws Exception {
+        GeneratedProductRouteCatalog latest = catalog(49);
+
+        assertThat(latest.authorityEndpointsForTesting()).hasSize(2);
+        assertThat(latest.authorityEndpoint(
+                "POST", "/api/auth/product-surface-step-up-challenges"))
+                .extracting(GeneratedProductRouteCatalog.AuthorityEndpoint::endpointKey)
+                .isEqualTo("product-surface-step-up-challenge.issue");
+        assertThat(latest.authorityEndpoint(
+                "POST", "/internal/auth/v1/hris-navigation-policy-decisions/evaluate"))
+                .isNull();
+
+        ObjectNode mixedTopology = bundle(49);
+        ObjectNode internal = (ObjectNode) mixedTopology.withArray("authorityEndpoints").get(1);
+        internal.put("publicPath", "/api/auth/hris-navigation-policy-decisions/evaluate");
+        assertInvalid(mixedTopology);
+    }
+
+    @Test
+    void v49TraversesDirectAnyAndAllActivatedCapabilitiesAndSeparatesFreshBindings()
+            throws Exception {
+        GeneratedProductRouteCatalog latest = catalog(49);
+        assertRoute(latest, "GET", "/api/payroll/v1/runs/run-1",
+                "route.hcm.operations.payroll-run.data", true);
+        assertThat(latest.match("GET", "/api/payroll/v1/runs/run-1")
+                .uniqueRoute().commandBoundStepUp()).isFalse();
+        assertRoute(latest, "POST", "/api/time/v1/close-periods/period-1/validations",
+                "route.hcm.operations.time-close-validate.action", true);
+        assertThat(latest.match("POST", "/api/time/v1/close-periods/period-1/validations")
+                .uniqueRoute().commandBoundStepUp()).isFalse();
+        for (List<String> binding : List.of(
+                List.of("POST", "/api/payroll/v1/runs",
+                        "route.hcm.operations.payroll-run.action"),
+                List.of("POST", "/api/payroll/v1/runs/run-1/attempts",
+                        "route.hcm.operations.payroll-run-calculate.action"),
+                List.of("POST", "/api/time/v1/close-periods/period-1/close",
+                        "route.hcm.operations.time-close.action"),
+                List.of("POST", "/api/time/v1/close-periods/period-1/reopen",
+                        "route.hcm.operations.time-reopen.action"))) {
+            var route = latest.match(binding.get(0), binding.get(1)).uniqueRoute();
+            assertThat(route.routeContractKey()).isEqualTo(binding.get(2));
+            assertThat(route.highRiskStepUp()).isTrue();
+            assertThat(route.commandBoundStepUp()).isTrue();
+        }
+
+        ObjectNode allExpression = bundle(49);
+        ObjectNode payrollRun = route(allExpression, "route.hcm.operations.payroll-run.data");
+        ((ObjectNode) payrollRun.withArray("accessProfiles").get(0)
+                .path("requiredAccess")).put("mode", "ALL");
+        GeneratedProductRouteCatalog allCatalog = new GeneratedProductRouteCatalog(
+                objectMapper, new ByteArrayResource(objectMapper.writeValueAsBytes(allExpression)));
+        assertThat(allCatalog.match("GET", "/api/payroll/v1/runs/run-1")
+                .uniqueRoute().highRiskStepUp()).isTrue();
+
+        ObjectNode unknownReference = bundle(49);
+        ObjectNode unknownRoute = route(
+                unknownReference, "route.hcm.operations.payroll-run.data");
+        ((ObjectNode) unknownRoute.withArray("accessProfiles").get(0)
+                .path("requiredAccess")).withArray("capabilityContractKeys")
+                .set(0, objectMapper.getNodeFactory().textNode("missing.capability"));
+        assertThatThrownBy(() -> new GeneratedProductRouteCatalog(
+                objectMapper,
+                new ByteArrayResource(objectMapper.writeValueAsBytes(unknownReference))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unknown capability");
+    }
+
+    private ObjectNode route(ObjectNode bundle, String routeKey) {
+        for (JsonNode route : bundle.withArray("routes")) {
+            if (routeKey.equals(route.path("routeContractKey").asText())) {
+                return (ObjectNode) route;
+            }
+        }
+        throw new IllegalArgumentException("Missing route: " + routeKey);
+    }
 
     @Test
     void v41GovernsExactPayrollRunPepsAndOnlyElevatesApprovalAndFinalize() {

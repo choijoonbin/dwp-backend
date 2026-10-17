@@ -82,6 +82,7 @@ class ProductSurfaceStepUpRuntimeSpringFixture {
         return new ProductSurfaceStepUpChallengeService(resolver, authority, sessions, mock(OidcService.class),
                 mock(StepUpBrowserBindingService.class), mapper, Clock.systemUTC(), keys.getPrivate(),
                 "https://auth.corp.example.com/product-surface-step-up", "stepup-latest-seven", "urn:dwp:acr:mfa",
-                Set.of("dwp-approval-server", "dwp-people-server"), 600, 300);
+                Set.of("dwp-approval-server", "dwp-payroll-server", "dwp-people-server"),
+                600, 300);
     }
 }

@@ -84,6 +84,22 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     private static final Set<String> HCM_AUDIT_READ_ROUTE_KEYS = Set.of(
             "route.hcm.audit.evidence.page",
             "route.hcm.audit.evidence-detail.data");
+    private static final Set<String> V49_TARGET_POPULATION_ROUTE_KEYS = Set.of(
+            "route.hcm.operations.organization-positions.page",
+            "route.hcm.operations.organization-graph.data",
+            "route.hcm.operations.payroll-population.page",
+            "route.hcm.operations.payroll-support.data",
+            "route.hcm.operations.payroll-run.action",
+            "route.hcm.operations.exception.data",
+            "route.hcm.operations.exception-detail.data",
+            "route.hcm.operations.time-command-center.page",
+            "route.hcm.operations.time-daily-close.page",
+            "route.hcm.operations.time-monthly-close.page",
+            "route.hcm.operations.time-close-validate.action",
+            "route.hcm.operations.time-close.action",
+            "route.hcm.operations.time-reopen.action",
+            "route.hcm.operations.time-payroll-handoff-create.action",
+            "route.hcm.operations.time-payroll-handoff.data");
     private static final Set<String> PAYROLL_OWNER_POPULATION_ROUTE_KEYS = Set.of(
             "route.hcm.operations.payroll-run-calculate.action",
             "route.hcm.operations.payroll-run.data",
@@ -227,7 +243,39 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             Map.entry("route.hcm.management.controlled-transfer.data",
                     "HRIS_INTEGRATION_ADMIN"),
             Map.entry("route.hcm.management.controlled-transfer-create.action",
-                    "HRIS_INTEGRATION_ADMIN"));
+                    "HRIS_INTEGRATION_ADMIN"),
+            Map.entry("route.hcm.operations.organization-positions.page",
+                    "HR_OPERATIONS"),
+            Map.entry("route.hcm.operations.organization-graph.data",
+                    "HR_OPERATIONS"),
+            Map.entry("route.hcm.operations.payroll-population.page",
+                    "PAYROLL_OPERATIONS"),
+            Map.entry("route.hcm.operations.payroll-support.data",
+                    "PAYROLL_OPERATIONS"),
+            Map.entry("route.hcm.operations.payroll-run.action",
+                    "PAYROLL_PROCESSING"),
+            Map.entry("route.hcm.configuration.settings-operations.page",
+                    "HRIS_CONFIGURATION"),
+            Map.entry("route.hcm.operations.exception.data",
+                    "HRIS_OPERATIONS"),
+            Map.entry("route.hcm.operations.exception-detail.data",
+                    "HRIS_OPERATIONS"),
+            Map.entry("route.hcm.operations.time-command-center.page",
+                    "TIME_OPERATIONS"),
+            Map.entry("route.hcm.operations.time-daily-close.page",
+                    "TIME_CLOSE"),
+            Map.entry("route.hcm.operations.time-monthly-close.page",
+                    "TIME_CLOSE"),
+            Map.entry("route.hcm.operations.time-close-validate.action",
+                    "WORK_TIME_PERIOD_CLOSURE"),
+            Map.entry("route.hcm.operations.time-close.action",
+                    "WORK_TIME_PERIOD_CLOSURE"),
+            Map.entry("route.hcm.operations.time-reopen.action",
+                    "WORK_TIME_PERIOD_CLOSURE"),
+            Map.entry("route.hcm.operations.time-payroll-handoff-create.action",
+                    "CLOSED_TIME_PAYROLL_TRANSFER"),
+            Map.entry("route.hcm.operations.time-payroll-handoff.data",
+                    "CLOSED_TIME_PAYROLL_TRANSFER"));
     private static final List<String> INTERNAL_HEADERS = List.of(
             ROUTE_HEADER, CURRENT_REVISION_HEADER, CURRENT_REVALIDATE_AT_HEADER,
             RESPONSE_REVISION_HEADER, CONTEXT_HEADER, SCOPE_HEADER, ACTIVE_ACCESS_MODE_HEADER,
@@ -367,8 +415,14 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             if (expected != null) headers.set(EXPECTED_REVISION_HEADER, expected);
         }).build();
         ServerWebExchange canonicalExchange = sanitizedExchange.mutate().request(canonical).build();
+        ProductSurfaceContextDtos.AccessMode verifiedMode = verifiedTenantAccessMode(
+                canonicalExchange);
+        if (verifiedMode == null) {
+            return error(canonicalExchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
+        }
         ProductSurfaceContextDtos.RequestContext requestContext = requestContext(canonical,
-                tenantId, actorId);
+                tenantId, actorId, verifiedMode);
         ProductSurfaceContextDtos.ProductEvaluationRequest request =
                 new ProductSurfaceContextDtos.ProductEvaluationRequest(
                         new ProductSurfaceContextDtos.Subject(
@@ -393,11 +447,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     private ProductSurfaceContextDtos.RequestContext requestContext(
             ServerHttpRequest request,
             long tenantId,
-            long actorId) {
+            long actorId,
+            ProductSurfaceContextDtos.AccessMode verifiedTenantMode) {
         String supportSession = request.getHeaders().getFirst(
                 SupportSessionContextFilter.SUPPORT_SESSION_HEADER);
         ProductSurfaceContextDtos.AccessMode mode = supportSession == null
-                ? ProductSurfaceContextDtos.AccessMode.NORMAL
+                ? verifiedTenantMode
                 : ProductSurfaceContextDtos.AccessMode.PROVIDER_SUPPORT;
         return new ProductSurfaceContextDtos.RequestContext(
                 tenantId, actorId, mode, supportSession,
@@ -411,6 +466,16 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 splitScopes(request.getHeaders().getFirst(VerifiedIdentityFilter.ROLES_HEADER)),
                 splitScopes(request.getHeaders().getFirst(
                         VerifiedIdentityFilter.PERMISSIONS_HEADER)));
+    }
+
+    private ProductSurfaceContextDtos.AccessMode verifiedTenantAccessMode(
+            ServerWebExchange exchange) {
+        Object value = exchange.getAttribute(
+                VerifiedIdentityFilter.VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE);
+        if (value == null) return ProductSurfaceContextDtos.AccessMode.NORMAL;
+        if ("NORMAL".equals(value)) return ProductSurfaceContextDtos.AccessMode.NORMAL;
+        if ("ELEVATED".equals(value)) return ProductSurfaceContextDtos.AccessMode.ELEVATED;
+        return null;
     }
 
     private Mono<Void> forwardOrDeny(
@@ -453,6 +518,31 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                     && trustedResult.scope() != null
                     && !blank(trustedResult.scope().key())
                     && "RESOURCE_SET".equals(trustedResult.scope().kind())
+                    && !blank(subjectPrincipal)
+                    && revisions != null
+                    && numericRevision("field-policy", revisions.policy()) != null
+                    && numericRevision("authorization", revisions.auth()) != null;
+            if (!completeChallenge) {
+                return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                        "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+            }
+            return error(exchange, HttpStatus.FORBIDDEN,
+                    "STEP_UP_REQUIRED", result.decisionRevision());
+        }
+        if (result.decision() == ProductSurfaceContextDtos.Decision.STEP_UP_REQUIRED
+                && route.genericSessionStepUp()) {
+            ProductSurfaceContextDtos.SourceRevisions revisions = trustedResult.revisions();
+            String subjectPrincipal = request.getHeaders().getFirst(
+                    VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER);
+            boolean completeChallenge = activeAccessMode
+                    == ProductSurfaceContextDtos.AccessMode.NORMAL
+                    && route.highRiskStepUp()
+                    && !route.commandBoundStepUp()
+                    && !blank(result.decisionRevision())
+                    && !blank(trustedResult.contextKey())
+                    && trustedResult.scope() != null
+                    && !blank(trustedResult.scope().key())
+                    && !blank(trustedResult.scope().kind())
                     && !blank(subjectPrincipal)
                     && revisions != null
                     && numericRevision("field-policy", revisions.policy()) != null
@@ -508,6 +598,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 || PAYROLL_OWNER_POPULATION_ROUTE_KEYS.contains(route.routeContractKey())
                 || PER_TIM_WAVE5_POPULATION_ROUTE_KEYS.contains(route.routeContractKey())
                 || CONTROLLED_TRANSFER_OWNER_ROUTE_KEYS.contains(route.routeContractKey())
+                || V49_TARGET_POPULATION_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_TENANT_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey());
         String populationKind = requiresPopulationKind && trustedResult.scope() != null

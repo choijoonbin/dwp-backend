@@ -1,6 +1,7 @@
 package com.dwp.gateway;
 
 import com.dwp.gateway.audit.GatewayDenialAuditSink;
+import com.dwp.gateway.filter.ProductSurfaceDecisionContextFilter;
 import com.dwp.gateway.filter.VerifiedIdentityFilter;
 import com.dwp.gateway.security.SessionVerifier;
 import com.dwp.gateway.security.VerifiedIdentity;
@@ -34,7 +35,8 @@ class VerifiedIdentityFilterTest {
                 "김민서",
                 true,
                 "40000000-0000-0000-0000-000000000001",
-                "TENANT"));
+                "TENANT",
+                "ELEVATED"));
         VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .get("/api/agent/v1/plans/preview")
@@ -53,6 +55,7 @@ class VerifiedIdentityFilterTest {
                 .header(VerifiedIdentityFilter.CONTROL_PLANE_HEADER, "spoofed")
                 .header(VerifiedIdentityFilter.WIDGET_OWNER_SCOPE_HEADER, "core.work")
                 .header(VerifiedIdentityFilter.LEGACY_ROLE_FALLBACK_HEADER, "false")
+                .header(ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER, "NORMAL")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
@@ -93,6 +96,11 @@ class VerifiedIdentityFilterTest {
                 VerifiedIdentityFilter.CONTROL_PLANE_HEADER)).isFalse();
         assertThat(forwarded.get().getHeaders().containsKey(
                 VerifiedIdentityFilter.WIDGET_OWNER_SCOPE_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER)).isFalse();
+        assertThat(exchange.<String>getAttribute(
+                VerifiedIdentityFilter.VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE))
+                .isEqualTo("ELEVATED");
     }
 
     @Test
