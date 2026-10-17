@@ -56,7 +56,8 @@ public class ProductSurfaceAuthorityService {
                 || !request.surfaceKey().equals(result.surfaceKey())) {
             return false;
         }
-        if (blank(result.authRevision()) || blank(result.policyRevision())) return false;
+        if (blank(result.authRevision()) || blank(result.policyRevision())
+                || blank(result.tenantControlRevision())) return false;
         if (result.decision() == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED) {
             return result.accessSource() != null
                     && !result.effectiveGrants().isEmpty()

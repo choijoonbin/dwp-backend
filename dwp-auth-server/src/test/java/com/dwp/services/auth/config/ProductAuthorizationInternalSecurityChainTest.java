@@ -49,6 +49,15 @@ class ProductAuthorizationInternalSecurityChainTest {
     private static final String OPERATIONS_READ_ROOT =
             ProductAuthorizationOperationsSecurityConfig.INTERNAL_PATH_PREFIX
                     + "/bundles/product-surfaces";
+    private static final String FEATURE_CHANGE =
+            ProductAuthorizationOperationsSecurityConfig.FEATURE_CONTROL_PATH_ROOT
+                    + "/global/HRIS_ORGANIZATION_POSITIONS/changes";
+    private static final String FEATURE_APPROVAL =
+            ProductAuthorizationOperationsSecurityConfig.FEATURE_CONTROL_PATH_ROOT
+                    + "/global/changes/00000000-0000-0000-0000-000000000001/approve";
+    private static final String FEATURE_ACTIVATION =
+            ProductAuthorizationOperationsSecurityConfig.FEATURE_CONTROL_PATH_ROOT
+                    + "/global/changes/00000000-0000-0000-0000-000000000001/activate";
 
     @Autowired
     private MockMvc mockMvc;
@@ -76,6 +85,7 @@ class ProductAuthorizationInternalSecurityChainTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post(OPERATIONS_ROOT + "/activation"))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(post(FEATURE_CHANGE)).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -87,6 +97,10 @@ class ProductAuthorizationInternalSecurityChainTest {
                             .cookie(new Cookie("DWP_SESSION", jwt)))
                     .andExpect(status().isUnauthorized());
             mockMvc.perform(post(OPERATIONS_ROOT + "/activation")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
+                            .cookie(new Cookie("DWP_SESSION", jwt)))
+                    .andExpect(status().isUnauthorized());
+            mockMvc.perform(post(FEATURE_CHANGE)
                             .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
                             .cookie(new Cookie("DWP_SESSION", jwt)))
                     .andExpect(status().isUnauthorized());
@@ -107,6 +121,8 @@ class ProductAuthorizationInternalSecurityChainTest {
                 .andExpect(status().isOk());
         mockMvc.perform(platformPost(OPERATIONS_ROOT + "/rollback"))
                 .andExpect(status().isOk());
+        mockMvc.perform(platformPost(FEATURE_CHANGE)).andExpect(status().isOk());
+        mockMvc.perform(platformPost(FEATURE_ACTIVATION)).andExpect(status().isOk());
     }
 
     @Test
@@ -135,6 +151,29 @@ class ProductAuthorizationInternalSecurityChainTest {
                                 "provider-approval-secret"))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post(OPERATIONS_ROOT + "/activation")
+                        .header(
+                                ProductAuthorizationOperationsSecurityConfig
+                                        .SERVICE_IDENTITY_HEADER,
+                                ProductAuthorizationOperationsSecurityConfig
+                                        .PROVIDER_SERVICE_IDENTITY)
+                        .header(
+                                ProductAuthorizationOperationsSecurityConfig
+                                        .APPROVAL_TOKEN_HEADER,
+                                "provider-approval-secret"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post(FEATURE_APPROVAL)
+                        .header(
+                                ProductAuthorizationOperationsSecurityConfig
+                                        .SERVICE_IDENTITY_HEADER,
+                                ProductAuthorizationOperationsSecurityConfig
+                                        .PROVIDER_SERVICE_IDENTITY)
+                        .header(
+                                ProductAuthorizationOperationsSecurityConfig
+                                        .APPROVAL_TOKEN_HEADER,
+                                "provider-approval-secret"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(FEATURE_ACTIVATION)
                         .header(
                                 ProductAuthorizationOperationsSecurityConfig
                                         .SERVICE_IDENTITY_HEADER,
@@ -218,7 +257,13 @@ class ProductAuthorizationInternalSecurityProbe {
             ProductAuthorizationOperationsSecurityConfig.INTERNAL_PATH_PREFIX
                     + "/bundles/{bundleKey}/versions/{version}/activation",
             ProductAuthorizationOperationsSecurityConfig.INTERNAL_PATH_PREFIX
-                    + "/bundles/{bundleKey}/versions/{version}/rollback"
+                    + "/bundles/{bundleKey}/versions/{version}/rollback",
+            ProductAuthorizationOperationsSecurityConfig.FEATURE_CONTROL_PATH_ROOT
+                    + "/global/{featureKey}/changes",
+            ProductAuthorizationOperationsSecurityConfig.FEATURE_CONTROL_PATH_ROOT
+                    + "/global/changes/{changeId}/approve",
+            ProductAuthorizationOperationsSecurityConfig.FEATURE_CONTROL_PATH_ROOT
+                    + "/global/changes/{changeId}/activate"
     })
     Map<String, Boolean> operate() {
         return Map.of("available", true);

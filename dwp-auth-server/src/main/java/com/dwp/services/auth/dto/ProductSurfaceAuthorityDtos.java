@@ -99,6 +99,7 @@ public final class ProductSurfaceAuthorityDtos {
             String reasonCode,
             String authRevision,
             String policyRevision,
+            String tenantControlRevision,
             String contextKey,
             String productKey,
             String surfaceKey,
@@ -123,10 +124,47 @@ public final class ProductSurfaceAuthorityDtos {
             scopes = scopes == null ? List.of() : List.copyOf(scopes);
         }
 
+        /**
+         * Source-compatible boundary for older unit fixtures and adapters.
+         *
+         * <p>The missing tenant-control revision is intentionally not synthesized. Runtime
+         * validation treats this compatibility path as untrusted and fails closed.
+         */
+        public AuthorityResult(
+                Decision decision,
+                String reasonCode,
+                String authRevision,
+                String policyRevision,
+                String contextKey,
+                String productKey,
+                String surfaceKey,
+                String plane,
+                AccessMode accessMode,
+                AccessSource accessSource,
+                String appResourceKey,
+                List<EffectiveGrant> effectiveGrants,
+                List<EffectiveScope> scopes,
+                String routeGrantRef,
+                boolean effectiveReadOnly,
+                boolean requiresProductEligibility,
+                OffsetDateTime validUntil,
+                OffsetDateTime expiredAt,
+                String requiredAssurance,
+                String requestPolicyRef,
+                OffsetDateTime revalidateAt,
+                String evidenceRef) {
+            this(decision, reasonCode, authRevision, policyRevision, null, contextKey,
+                    productKey, surfaceKey, plane, accessMode, accessSource, appResourceKey,
+                    effectiveGrants, scopes, routeGrantRef, effectiveReadOnly,
+                    requiresProductEligibility, validUntil, expiredAt, requiredAssurance,
+                    requestPolicyRef, revalidateAt, evidenceRef);
+        }
+
         public static AuthorityResult unavailable(EvaluateRequest request) {
             return new AuthorityResult(
                     Decision.AUTHORITY_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE",
+                    null,
                     null,
                     null,
                     null,

@@ -50,6 +50,7 @@ class ProductSurfaceAuthorityServiceTest {
                 null,
                 "auth-1",
                 "policy-1",
+                "tenant-control-1",
                 "context-1",
                 "approvals",
                 "approvals.other",
@@ -110,6 +111,26 @@ class ProductSurfaceAuthorityServiceTest {
     }
 
     @Test
+    void priorArityCompatibilityResultCannotBecomeTrustedWithoutTenantControlRevision() {
+        ProductSurfaceAuthorityDtos.AuthorityResult base = allowed();
+        ProductSurfaceAuthorityPort port = ignored -> new ProductSurfaceAuthorityDtos.AuthorityResult(
+                base.decision(), base.reasonCode(), base.authRevision(), base.policyRevision(),
+                base.contextKey(), base.productKey(), base.surfaceKey(), base.plane(),
+                base.accessMode(), base.accessSource(), base.appResourceKey(),
+                base.effectiveGrants(), base.scopes(), base.routeGrantRef(),
+                base.effectiveReadOnly(), base.requiresProductEligibility(),
+                base.validUntil(), base.expiredAt(), base.requiredAssurance(),
+                base.requestPolicyRef(), base.revalidateAt(), base.evidenceRef());
+
+        var result = service(Stream.of(port)).evaluate(
+                request("route.approvals.admin.forms.page"));
+
+        assertThat(result.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE);
+        assertThat(result.reasonCode()).isEqualTo("AUTHORITY_RESOLUTION_UNAVAILABLE");
+    }
+
+    @Test
     void preservesAClosedStepUpRequiredDirectRouteDecision() {
         ProductSurfaceAuthorityDtos.AuthorityResult base = allowed();
         ProductSurfaceAuthorityPort port = ignored -> new ProductSurfaceAuthorityDtos.AuthorityResult(
@@ -117,6 +138,7 @@ class ProductSurfaceAuthorityServiceTest {
                 "STEP_UP_REQUIRED",
                 base.authRevision(),
                 base.policyRevision(),
+                base.tenantControlRevision(),
                 base.contextKey(),
                 base.productKey(),
                 base.surfaceKey(),
@@ -175,6 +197,7 @@ class ProductSurfaceAuthorityServiceTest {
                 null,
                 "auth-1",
                 "policy-1",
+                "tenant-control-1",
                 "context-1",
                 "approvals",
                 "approvals.admin",

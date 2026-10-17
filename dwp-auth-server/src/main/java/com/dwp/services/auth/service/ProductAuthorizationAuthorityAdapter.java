@@ -5,10 +5,12 @@ import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
 import com.dwp.services.auth.tenantcapabilityoverride.TenantCapabilityOverrideReader;
+import com.dwp.services.auth.tenantfeatureactivation.TenantFeatureActivationReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -57,9 +59,11 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             ProductAuthorizationContractRepository repository,
             ProductAuthorizationIdentityEvidenceService evidenceService,
             ObjectProvider<TenantCapabilityOverrideReader> tenantCapabilityOverrides,
+            ObjectProvider<TenantFeatureActivationReader> tenantFeatureActivations,
             @Value("${dwp.auth.step-up.required-acr:}") String requiredAcr) {
         this(repository, evidenceService,
-                ProductAuthorizationDecisionSupport.from(tenantCapabilityOverrides), requiredAcr);
+                ProductAuthorizationDecisionSupport.from(
+                        tenantCapabilityOverrides, tenantFeatureActivations), requiredAcr);
     }
     public ProductAuthorizationAuthorityAdapter(
             ProductAuthorizationContractRepository repository,
@@ -85,6 +89,18 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 new ProductAuthorizationDecisionSupport(tenantCapabilityOverrides, clock),
                 requiredAcr);
     }
+    ProductAuthorizationAuthorityAdapter(
+            ProductAuthorizationContractRepository repository,
+            ProductAuthorizationIdentityEvidenceService evidenceService,
+            TenantCapabilityOverrideReader tenantCapabilityOverrides,
+            TenantFeatureActivationReader tenantFeatureActivations,
+            Clock clock,
+            String requiredAcr) {
+        this(repository, evidenceService,
+                new ProductAuthorizationDecisionSupport(
+                        tenantCapabilityOverrides, tenantFeatureActivations, clock),
+                requiredAcr);
+    }
     private ProductAuthorizationAuthorityAdapter(
             ProductAuthorizationContractRepository repository,
             ProductAuthorizationIdentityEvidenceService evidenceService,
@@ -96,7 +112,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         this.requiredAcr = requiredAcr;
     }
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public ProductSurfaceAuthorityDtos.AuthorityResult evaluate(
             ProductSurfaceAuthorityDtos.EvaluateRequest request) {
         ProductAuthorizationContractRepository.StoredBundle stored = repository
@@ -142,8 +158,26 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID,
                     "SCOPE_CONTEXT_EXPIRED");
         }
-        return decisionSupport.result(request, identity.revision(), policyRevision, contextKey,
-                revalidateAt, evaluation);
+        materialized = evaluation.allowed()
+                || evaluation.decision()
+                == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED;
+        TenantFeatureActivationReader.GateResult featureGate = decisionSupport.featureGate(
+                request, stored.version(), materialized);
+        String tenantControlRevision = decisionSupport.tenantControlRevision(
+                request.tenantId(), featureGate);
+        if (materialized && featureGate.state()
+                == TenantFeatureActivationReader.State.AUTHORITY_UNAVAILABLE) {
+            evaluation = Evaluation.denied(
+                    ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE");
+        } else if (materialized && !featureGate.preservesAuthority()) {
+            evaluation = Evaluation.denied(
+                    ProductSurfaceAuthorityDtos.Decision.ACTIVATION_REQUIRED,
+                    featureGate.reasonCode());
+        }
+        return decisionSupport.result(
+                request, identity.revision(), policyRevision, tenantControlRevision,
+                contextKey, revalidateAt, evaluation);
     }
 
     private Evaluation evaluateEntry(
