@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -82,12 +83,15 @@ class TimeCloseFeatureIsolationTest {
                 .withBean(TimeCloseApprovalVerifier.class, () -> approval)
                 .withBean(TimeCloseStepUpVerifier.class, () -> stepUp)
                 .withBean(TimeCloseActivationGate.class, () -> activation)
-                .withUserConfiguration(TimeCloseService.class)
+                .withUserConfiguration(
+                        TimeCloseService.class,
+                        TimeCloseCommandReceiptProvider.class)
                 .withPropertyValues("dwp.hris.time.close.enabled=true")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(TimeCloseService.class);
                     assertThat(context).hasSingleBean(TimeCloseReceiptOwnership.class);
+                    assertThat(context).hasSingleBean(TimeCloseCommandReceiptProvider.class);
                     assertThat(Arrays.stream(context.getBeanDefinitionNames())
                             .noneMatch(name -> name.toLowerCase(java.util.Locale.ROOT)
                                     .contains("timecard")))
@@ -160,6 +164,78 @@ class TimeCloseFeatureIsolationTest {
         verifyNoInteractions(projections);
     }
 
+    @Test
+    void trustedSharedReceiptDecisionProjectsIntoTheCloseDigestDomain() {
+        String gatewayScope = "hcm-scope-" + "7".repeat(40);
+        TimeClosePopulationProjectionResolver projections =
+                mock(TimeClosePopulationProjectionResolver.class);
+        when(projections.resolve(
+                TimeCloseTestFixtures.TENANT, 72L, gatewayScope,
+                TimeCloseTestFixtures.NOW)).thenReturn(Optional.of(
+                        new TimeClosePopulationProjectionResolver.Projection(
+                                TimeCloseTestFixtures.TENANT, 72L, gatewayScope,
+                                TimeCloseTestFixtures.POPULATION, 9L, 11L,
+                                TimeCloseTestFixtures.POPULATION_SOURCE_DIGEST,
+                                TimeCloseTestFixtures.GRANT_SOURCE_DIGEST,
+                                TimeCloseTestFixtures.NOW.plusSeconds(600))));
+        GatewayVerifiedTimeCloseOwnerAuthoritySource authority =
+                new GatewayVerifiedTimeCloseOwnerAuthoritySource(
+                        "trusted-gateway", true, Set.of(TimeCloseTestFixtures.TENANT),
+                        Clock.fixed(TimeCloseTestFixtures.NOW, ZoneOffset.UTC), projections);
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", "/v1/command-receipts/" + TimeCloseTestFixtures.RECEIPT);
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.SERVICE_TOKEN,
+                "trusted-gateway");
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.TENANT,
+                Long.toString(TimeCloseTestFixtures.TENANT));
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.ACTOR, "72");
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.SUBJECT,
+                TimeCloseTestFixtures.SUBJECT.toString());
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.PERMISSIONS,
+                "APP.HCM:VIEW,DATA.HRIS_COMMAND_RECEIPT:VIEW,"
+                        + TimeCloseOwnerRoute.HANDOFF_CREATE.permission());
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.RESPONSIBILITIES,
+                TimeCloseOwnerRoute.HANDOFF_CREATE.responsibility());
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.ROUTE,
+                "route.hcm.time.command-receipt.data");
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.CONTEXT,
+                "psc-" + "2".repeat(64));
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.SCOPE, gatewayScope);
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.ACCESS_MODE, "NORMAL");
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.CURRENT_REVISION,
+                TimeCloseTestFixtures.DECISION_REVISION);
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.REVALIDATE_AT,
+                TimeCloseTestFixtures.NOW.plusSeconds(300).toString());
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.CORRELATION,
+                TimeCloseTestFixtures.CORRELATION.toString());
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.FIELD_POLICY_REVISION,
+                "13");
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.AUTHORIZATION_REVISION,
+                "17");
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.POPULATION_KIND,
+                "TARGET_POPULATION");
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.PURPOSE,
+                "COMMAND_STATUS");
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.LEGAL_ENTITY,
+                TimeCloseTestFixtures.LEGAL_ENTITY.toString());
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.TIME_GROUP,
+                TimeCloseTestFixtures.TIME_GROUP.toString());
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.ROLLOUT_STATE, "110");
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.ROLLOUT_REVISION,
+                "rollout-" + "8".repeat(64));
+        request.addHeader(GatewayVerifiedTimeCloseOwnerAuthoritySource.ROLLOUT_COHORT,
+                "full");
+
+        assertThat(authority.verifyReceipt(request)).hasValueSatisfying(verified -> {
+            assertThat(verified.populationScopeDigest())
+                    .isEqualTo(TimeCloseTestFixtures.SCOPE_DIGEST);
+            assertThat(verified.responsibilities())
+                    .containsExactly(TimeCloseOwnerRoute.HANDOFF_CREATE.responsibility());
+            assertThat(verified.revalidateAt())
+                    .isEqualTo(TimeCloseTestFixtures.NOW.plusSeconds(300));
+        });
+    }
+
     private static void assertRuntimeAbsent(String... properties) {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
@@ -179,6 +255,8 @@ class TimeCloseFeatureIsolationTest {
                         TimeCloseService.class,
                         ClosedTimeResultService.class,
                         TimeCloseIaProjectionService.class,
+                        TimeCloseCommandReceiptAuthorityProvider.class,
+                        TimeCloseCommandReceiptProvider.class,
                         TimeCloseOwnerAccessFilter.class,
                         TimeCloseOwnerController.class,
                         TimeCloseOwnerProblemAdvice.class)
@@ -193,6 +271,10 @@ class TimeCloseFeatureIsolationTest {
                     assertThat(context).doesNotHaveBean(TimeCloseOwnerController.class);
                     assertThat(context).doesNotHaveBean(TimeCloseOwnerAccessFilter.class);
                     assertThat(context).doesNotHaveBean(TimeCloseActivationGate.class);
+                    assertThat(context).doesNotHaveBean(
+                            TimeCloseCommandReceiptProvider.class);
+                    assertThat(context).doesNotHaveBean(
+                            TimeCloseCommandReceiptAuthorityProvider.class);
                     verifyNoInteractions(jdbc, transactions);
                 });
     }

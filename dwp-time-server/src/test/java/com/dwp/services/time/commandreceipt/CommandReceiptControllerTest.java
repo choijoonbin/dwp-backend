@@ -12,11 +12,11 @@ import com.dwp.services.time.timecard.TimecardModels.PopulationKind;
 import com.dwp.services.time.timecard.TimecardModels.TimeCommandReceiptV1;
 import com.dwp.services.time.timecard.TimecardModels.TimecardAction;
 import com.dwp.services.time.timecard.TimecardModels.VerifiedTimecardRequest;
-import com.dwp.services.time.timecard.TimecardOwnerAccessFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -61,7 +61,7 @@ class CommandReceiptControllerTest {
 
         mockMvc.perform(get("/v1/command-receipts/{receiptId}", RECEIPT)
                         .requestAttr(
-                                TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
+                                CommandReceiptAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
                                 authority()))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
@@ -82,7 +82,7 @@ class CommandReceiptControllerTest {
         mockMvc.perform(get("/v1/command-receipts/{receiptId}", RECEIPT)
                         .header("X-Correlation-ID", CORRELATION)
                         .requestAttr(
-                                TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
+                                CommandReceiptAccessFilter.VERIFIED_REQUEST_ATTRIBUTE,
                                 authority()))
                 .andExpect(status().isNotFound())
                 .andExpect(header().string("Cache-Control", "no-store"))
@@ -125,7 +125,15 @@ class CommandReceiptControllerTest {
         };
     }
 
-    private VerifiedTimecardRequest authority() {
+    private VerifiedCommandReceiptRequest authority() {
+        VerifiedTimecardRequest timecard = timecardAuthority();
+        return new VerifiedCommandReceiptRequest(
+                timecard.tenantId(), timecard.correlationId(),
+                timecard.decisionRevision(), timecard.revalidateAt(),
+                Map.of("timecard", timecard));
+    }
+
+    private VerifiedTimecardRequest timecardAuthority() {
         UUID subject = UUID.fromString("17900000-0000-4000-8000-000000000014");
         UUID actorWorker = UUID.fromString("17900000-0000-4000-8000-000000000015");
         UUID population = UUID.fromString("17900000-0000-4000-8000-000000000016");

@@ -1,6 +1,7 @@
 package com.dwp.services.time.commandreceipt;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Tenant-scoped input shared by every command-receipt provider. */
@@ -27,5 +28,13 @@ public record CommandReceiptLookup(
                     "The command-receipt authority evidence is incompatible with the provider.");
         }
         return authorityType.cast(authorityEvidence);
+    }
+
+    /** Returns provider-native evidence from the shared verified request. */
+    public <T> Optional<T> providerAuthority(String providerId, Class<T> authorityType) {
+        if (!(authorityEvidence instanceof VerifiedCommandReceiptRequest verified)) {
+            return Optional.empty();
+        }
+        return verified.providerAuthority(providerId, authorityType);
     }
 }

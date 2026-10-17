@@ -189,6 +189,8 @@ final class GatewayVerifiedTimeCloseOwnerAuthoritySource
 
     private static final Set<String> ACCESS_MODES = Set.of("NORMAL", "ELEVATED");
     private static final Set<String> ROLLOUT_STATES = Set.of("110", "111");
+    private static final String RECEIPT_ROUTE =
+            "route.hcm.time.command-receipt.data";
 
     private final String expectedServiceToken;
     private final boolean productAuthorizationEnabled;
@@ -317,6 +319,85 @@ final class GatewayVerifiedTimeCloseOwnerAuthoritySource
                 scopeDigest, legalEntity, timeGroup, fieldRevision,
                 authorizationRevision, decisionRevision, purpose,
                 effectiveRevalidate, correlation, masked, omitted));
+    }
+
+    Optional<VerifiedTimeCloseReceiptRequest> verifyReceipt(
+            HttpServletRequest request) {
+        if (request == null || !productAuthorizationEnabled
+                || expectedServiceToken.isBlank()) {
+            throw unavailable("TIM close receipt authority is not configured");
+        }
+        if (!constantTimeEquals(expectedServiceToken, single(request, SERVICE_TOKEN, 512))) {
+            throw unavailable("Trusted Gateway identity is unavailable");
+        }
+        Long tenantId = positiveLong(single(request, TENANT, 64));
+        Long actorId = positiveLong(single(request, ACTOR, 64));
+        if (tenantId == null || actorId == null || !enrolledTenants.contains(tenantId)) {
+            return Optional.empty();
+        }
+        if (request.getHeader(SUPPORT_SESSION) != null) return Optional.empty();
+
+        Instant now = clock.instant();
+        String context = single(request, CONTEXT, 128);
+        String scope = single(request, SCOPE, 128);
+        String access = single(request, ACCESS_MODE, 32);
+        String decisionRevision = single(request, CURRENT_REVISION, 80);
+        Instant revalidateAt = instant(single(request, REVALIDATE_AT, 80));
+        UUID correlation = uuid(single(request, CORRELATION, 80));
+        UUID subject = uuid(single(request, SUBJECT, 80));
+        UUID legalEntity = uuid(single(request, LEGAL_ENTITY, 80));
+        UUID timeGroup = uuid(single(request, TIME_GROUP, 80));
+        Long fieldRevision = positiveLong(single(request, FIELD_POLICY_REVISION, 64));
+        Long authorizationRevision = positiveLong(
+                single(request, AUTHORIZATION_REVISION, 64));
+        if (!RECEIPT_ROUTE.equals(single(request, ROUTE, 256))
+                || context == null || !context.matches("psc-[0-9a-f]{64}")
+                || !HcmEligibilityScopeKey.isCanonical(scope)
+                || !ACCESS_MODES.contains(access)
+                || decisionRevision == null
+                || !decisionRevision.matches("psr-[0-9a-f]{64}")
+                || revalidateAt == null || !revalidateAt.isAfter(now)
+                || correlation == null || subject == null
+                || legalEntity == null || timeGroup == null
+                || fieldRevision == null || authorizationRevision == null
+                || !"TARGET_POPULATION".equals(single(request, POPULATION_KIND, 64))
+                || !"COMMAND_STATUS".equals(single(request, PURPOSE, 100))
+                || !ROLLOUT_STATES.contains(single(request, ROLLOUT_STATE, 16))
+                || !validRollout(single(request, ROLLOUT_REVISION, 80),
+                        single(request, ROLLOUT_COHORT, 64))) {
+            throw unavailable("Current TIM close receipt authority is stale or mismatched");
+        }
+        Set<String> permissions = tokens(request, PERMISSIONS, 100, true);
+        Set<String> responsibilities = tokens(request, RESPONSIBILITIES, 100, false);
+        if (permissions == null || responsibilities == null
+                || !permissions.contains("APP.HCM:VIEW")
+                || !permissions.contains("DATA.HRIS_COMMAND_RECEIPT:VIEW")) {
+            return Optional.empty();
+        }
+        if (!optionalTokens(request, MASKED, 1).isEmpty()
+                || !optionalTokens(request, OMITTED, 1).isEmpty()) {
+            throw unavailable("TIM close receipt field decision is invalid");
+        }
+        TimeClosePopulationProjectionResolver.Projection projection = projections.resolve(
+                        tenantId, actorId, scope, now)
+                .orElseThrow(() -> unavailable("TIM close population is unavailable"));
+        if (projection.tenantId() != tenantId || projection.actorId() != actorId
+                || !projection.gatewayScopeKey().equals(scope)
+                || !projection.validUntil().isAfter(now)) {
+            throw unavailable("TIM close population is stale or mismatched");
+        }
+        String scopeDigest = TimeCloseDigests.sha256(
+                "TimeClosePopulationScope.v1", tenantId,
+                projection.populationPublicId(), projection.populationRevision(),
+                projection.grantRevision(), projection.populationDigest(),
+                projection.grantDigest(), legalEntity, timeGroup);
+        Instant effectiveRevalidate = revalidateAt.isBefore(projection.validUntil())
+                ? revalidateAt : projection.validUntil();
+        return Optional.of(new VerifiedTimeCloseReceiptRequest(
+                tenantId, actorId, subject, permissions, responsibilities,
+                projection.populationPublicId(), projection.populationRevision(),
+                projection.grantRevision(), scopeDigest, fieldRevision,
+                authorizationRevision, decisionRevision, effectiveRevalidate, correlation));
     }
 
     @Override

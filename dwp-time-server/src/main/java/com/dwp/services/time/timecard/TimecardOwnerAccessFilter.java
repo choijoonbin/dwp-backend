@@ -3,9 +3,6 @@ package com.dwp.services.time.timecard;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import com.dwp.services.time.api.HrisTimeApiException;
-import com.dwp.services.time.api.HrisTimeProblemCode;
-import com.dwp.services.time.api.HrisTimeProblemWriter;
 import com.dwp.services.time.timecard.TimecardModels.VerifiedTimecardRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -38,28 +35,19 @@ public final class TimecardOwnerAccessFilter extends OncePerRequestFilter {
 
     private final TimecardOwnerAuthoritySource authoritySource;
     private final ObjectMapper objectMapper;
-    private final HrisTimeProblemWriter problemWriter;
 
     @Autowired
     public TimecardOwnerAccessFilter(
             TimecardOwnerAuthoritySource authoritySource,
-            ObjectMapper objectMapper,
-            HrisTimeProblemWriter problemWriter) {
+            ObjectMapper objectMapper) {
         this.authoritySource = Objects.requireNonNull(authoritySource, "authoritySource");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
-        this.problemWriter = Objects.requireNonNull(problemWriter, "problemWriter");
-    }
-
-    public TimecardOwnerAccessFilter(
-            TimecardOwnerAuthoritySource authoritySource, ObjectMapper objectMapper) {
-        this(authoritySource, objectMapper, new HrisTimeProblemWriter(objectMapper));
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return !path.startsWith("/v1/timecards/")
-                && !path.startsWith("/v1/command-receipts/");
+        return !path.startsWith("/v1/timecards/");
     }
 
     @Override
@@ -73,8 +61,7 @@ public final class TimecardOwnerAccessFilter extends OncePerRequestFilter {
                 .findFirst().orElse(null);
         if (route == null) {
             deny(request, response,
-                    request.getRequestURI().startsWith("/v1/command-receipts/")
-                            ? ErrorCode.INVALID_FORMAT : ErrorCode.FORBIDDEN,
+                    ErrorCode.FORBIDDEN,
                     "Exact TIM Timecard route authority is required.");
             return;
         }
@@ -116,13 +103,6 @@ public final class TimecardOwnerAccessFilter extends OncePerRequestFilter {
             ErrorCode code,
             String message)
             throws IOException {
-        if (request.getRequestURI().startsWith("/v1/command-receipts/")) {
-            problemWriter.write(
-                    request,
-                    response,
-                    new HrisTimeApiException(HrisTimeProblemCode.from(code)));
-            return;
-        }
         response.setStatus(code.getHttpStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(code, message));

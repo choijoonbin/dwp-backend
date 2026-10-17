@@ -41,6 +41,11 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     public static final String CONTROL_PLANE_HEADER = "X-DWP-Control-Plane";
     public static final String WIDGET_OWNER_SCOPE_HEADER =
             "X-DWP-Widget-Owner-Product-Keys";
+    public static final String RESPONSIBILITIES_HEADER = "X-DWP-Responsibilities";
+    public static final String LEGAL_ENTITY_PUBLIC_ID_HEADER =
+            "X-DWP-Legal-Entity-Public-ID";
+    public static final String TIME_GROUP_PUBLIC_ID_HEADER =
+            "X-DWP-Time-Group-Public-ID";
     public static final String VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE =
             VerifiedIdentityFilter.class.getName() + ".verifiedActiveAccessMode";
 
@@ -64,8 +69,13 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         if (DeviceIdentityPlaneFilter.verified(exchange)) {
             ServerHttpRequest sanitized = exchange.getRequest().mutate()
-                    .headers(headers -> headers.remove(
-                            ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER))
+                    .headers(headers -> {
+                        headers.remove(RESPONSIBILITIES_HEADER);
+                        headers.remove(LEGAL_ENTITY_PUBLIC_ID_HEADER);
+                        headers.remove(TIME_GROUP_PUBLIC_ID_HEADER);
+                        headers.remove(
+                                ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER);
+                    })
                     .build();
             return chain.filter(exchange.mutate().request(sanitized).build());
         }
@@ -85,6 +95,9 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     headers.remove(LEGACY_ROLE_FALLBACK_HEADER);
                     headers.remove(CONTROL_PLANE_HEADER);
                     headers.remove(WIDGET_OWNER_SCOPE_HEADER);
+                    headers.remove(RESPONSIBILITIES_HEADER);
+                    headers.remove(LEGAL_ENTITY_PUBLIC_ID_HEADER);
+                    headers.remove(TIME_GROUP_PUBLIC_ID_HEADER);
                     headers.remove(ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER);
                 })
                 .build();

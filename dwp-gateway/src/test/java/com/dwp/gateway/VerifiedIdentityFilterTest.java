@@ -54,6 +54,12 @@ class VerifiedIdentityFilterTest {
                 .header(VerifiedIdentityFilter.IDENTITY_PLANE_HEADER, "PROVIDER")
                 .header(VerifiedIdentityFilter.CONTROL_PLANE_HEADER, "spoofed")
                 .header(VerifiedIdentityFilter.WIDGET_OWNER_SCOPE_HEADER, "core.work")
+                .header(VerifiedIdentityFilter.RESPONSIBILITIES_HEADER,
+                        "HRIS_DUTY_TIME_CLOSE_OPERATOR")
+                .header(VerifiedIdentityFilter.LEGAL_ENTITY_PUBLIC_ID_HEADER,
+                        "70071000-0000-4000-8000-000000000011")
+                .header(VerifiedIdentityFilter.TIME_GROUP_PUBLIC_ID_HEADER,
+                        "70071000-0000-4000-8000-000000000012")
                 .header(VerifiedIdentityFilter.LEGACY_ROLE_FALLBACK_HEADER, "false")
                 .header(ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER, "NORMAL")
                 .build());
@@ -96,6 +102,12 @@ class VerifiedIdentityFilterTest {
                 VerifiedIdentityFilter.CONTROL_PLANE_HEADER)).isFalse();
         assertThat(forwarded.get().getHeaders().containsKey(
                 VerifiedIdentityFilter.WIDGET_OWNER_SCOPE_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.RESPONSIBILITIES_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.LEGAL_ENTITY_PUBLIC_ID_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.TIME_GROUP_PUBLIC_ID_HEADER)).isFalse();
         assertThat(forwarded.get().getHeaders().containsKey(
                 ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER)).isFalse();
         assertThat(exchange.<String>getAttribute(
@@ -168,6 +180,12 @@ class VerifiedIdentityFilterTest {
                         "APP_OWNER@APP.SPOOFED")
                 .header(VerifiedIdentityFilter.AUTH_SESSION_ID_HEADER, "spoofed")
                 .header(VerifiedIdentityFilter.IDENTITY_PLANE_HEADER, "PROVIDER")
+                .header(VerifiedIdentityFilter.RESPONSIBILITIES_HEADER,
+                        "HRIS_DUTY_TIME_CLOSE_OPERATOR")
+                .header(VerifiedIdentityFilter.LEGAL_ENTITY_PUBLIC_ID_HEADER,
+                        "70071000-0000-4000-8000-000000000011")
+                .header(VerifiedIdentityFilter.TIME_GROUP_PUBLIC_ID_HEADER,
+                        "70071000-0000-4000-8000-000000000012")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
@@ -189,6 +207,12 @@ class VerifiedIdentityFilterTest {
                 VerifiedIdentityFilter.AUTH_SESSION_ID_HEADER)).isFalse();
         assertThat(forwarded.get().getHeaders().containsKey(
                 VerifiedIdentityFilter.IDENTITY_PLANE_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.RESPONSIBILITIES_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.LEGAL_ENTITY_PUBLIC_ID_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.TIME_GROUP_PUBLIC_ID_HEADER)).isFalse();
     }
 
     @Test

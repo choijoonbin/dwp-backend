@@ -306,6 +306,9 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             AUTHORIZATION_REVISION_HEADER, POPULATION_KIND_HEADER,
             PURPOSE_HEADER, VERIFIED_LEGAL_ENTITY_HEADER,
             LEGAL_ENTITY_OWNER_EVIDENCE_HEADER,
+            VerifiedIdentityFilter.RESPONSIBILITIES_HEADER,
+            VerifiedIdentityFilter.LEGAL_ENTITY_PUBLIC_ID_HEADER,
+            VerifiedIdentityFilter.TIME_GROUP_PUBLIC_ID_HEADER,
             MASKED_FIELD_GROUPS_HEADER, OMITTED_FIELD_GROUPS_HEADER,
             "X-DWP-Current-Decision-Valid-Until");
 

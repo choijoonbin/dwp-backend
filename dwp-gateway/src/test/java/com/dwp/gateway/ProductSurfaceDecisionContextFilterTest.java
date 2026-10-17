@@ -924,7 +924,13 @@ class ProductSurfaceDecisionContextFilterTest {
                     .header(ProductSurfaceDecisionContextFilter.VERIFIED_LEGAL_ENTITY_HEADER,
                             "10000000-0000-4000-8000-000000000999")
                     .header(ProductSurfaceDecisionContextFilter.LEGAL_ENTITY_OWNER_EVIDENCE_HEADER,
-                            "CLIENT_FORGED");
+                            "CLIENT_FORGED")
+                    .header(VerifiedIdentityFilter.RESPONSIBILITIES_HEADER,
+                            "HRIS_DUTY_TIME_CLOSE_OPERATOR")
+                    .header(VerifiedIdentityFilter.LEGAL_ENTITY_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000998")
+                    .header(VerifiedIdentityFilter.TIME_GROUP_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000997");
             if (requestCase.command()) {
                 builder.header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
                         REVISION);
@@ -946,6 +952,12 @@ class ProductSurfaceDecisionContextFilterTest {
             assertThat(forwarded.get().getHeaders().containsKey(
                     ProductSurfaceDecisionContextFilter.LEGAL_ENTITY_OWNER_EVIDENCE_HEADER))
                     .isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    VerifiedIdentityFilter.RESPONSIBILITIES_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    VerifiedIdentityFilter.LEGAL_ENTITY_PUBLIC_ID_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    VerifiedIdentityFilter.TIME_GROUP_PUBLIC_ID_HEADER)).isFalse();
         }
     }
 

@@ -36,14 +36,19 @@ public final class TimecardCommandReceiptProvider implements CommandReceiptProvi
     @Override
     public boolean owns(CommandReceiptLookup lookup) {
         Objects.requireNonNull(lookup, "lookup");
+        if (lookup.providerAuthority(PROVIDER_ID, VerifiedTimecardRequest.class).isEmpty()) {
+            return false;
+        }
         return repository.findReceipt(lookup.tenantId(), lookup.receiptId()).isPresent();
     }
 
     @Override
     public Object receipt(CommandReceiptLookup lookup) {
         Objects.requireNonNull(lookup, "lookup");
-        VerifiedTimecardRequest authority =
-                lookup.requireAuthority(VerifiedTimecardRequest.class);
+        VerifiedTimecardRequest authority = lookup
+                .providerAuthority(PROVIDER_ID, VerifiedTimecardRequest.class)
+                .orElseThrow(() -> HrisTimeApiException.of(
+                        com.dwp.services.time.api.HrisTimeProblemCode.TARGET_NOT_DISCLOSED));
         try {
             return service.receipt(authority, lookup.receiptId());
         } catch (BaseException failure) {

@@ -11,12 +11,14 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.time.api.HrisTimeApiException;
 import com.dwp.services.time.api.HrisTimeProblemCode;
 import com.dwp.services.time.commandreceipt.CommandReceiptLookup;
+import com.dwp.services.time.commandreceipt.VerifiedCommandReceiptRequest;
 import com.dwp.services.time.timecard.TimecardModels.PopulationKind;
 import com.dwp.services.time.timecard.TimecardModels.TimeCommandReceiptV1;
 import com.dwp.services.time.timecard.TimecardModels.TimecardAction;
 import com.dwp.services.time.timecard.TimecardModels.VerifiedTimecardRequest;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,8 +61,7 @@ class TimecardCommandReceiptProviderTest {
         TimeCommandReceiptV1 receipt = receipt();
         when(service.receipt(authority, RECEIPT)).thenReturn(receipt);
 
-        assertThat(provider.receipt(new CommandReceiptLookup(
-                41, RECEIPT, CORRELATION, authority))).isSameAs(receipt);
+        assertThat(provider.receipt(lookup(authority))).isSameAs(receipt);
 
         verify(service).receipt(authority, RECEIPT);
     }
@@ -71,15 +72,22 @@ class TimecardCommandReceiptProviderTest {
         when(service.receipt(authority, RECEIPT)).thenThrow(
                 new BaseException(ErrorCode.NOT_FOUND, "sensitive receipt details"));
 
-        assertThatThrownBy(() -> provider.receipt(new CommandReceiptLookup(
-                41, RECEIPT, CORRELATION, authority)))
+        assertThatThrownBy(() -> provider.receipt(lookup(authority)))
                 .isInstanceOfSatisfying(HrisTimeApiException.class, failure ->
                         assertThat(failure.code())
                                 .isEqualTo(HrisTimeProblemCode.TARGET_NOT_DISCLOSED));
     }
 
     private CommandReceiptLookup lookup() {
-        return new CommandReceiptLookup(41, RECEIPT, CORRELATION, authority());
+        return lookup(authority());
+    }
+
+    private CommandReceiptLookup lookup(VerifiedTimecardRequest authority) {
+        return new CommandReceiptLookup(
+                41, RECEIPT, CORRELATION,
+                new VerifiedCommandReceiptRequest(
+                        41, CORRELATION, authority.decisionRevision(),
+                        authority.revalidateAt(), Map.of("timecard", authority)));
     }
 
     private TimecardModels.StoredTimecardReceipt mockStored() {

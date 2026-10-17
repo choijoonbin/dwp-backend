@@ -1,11 +1,10 @@
 package com.dwp.services.time.commandreceipt;
 
-import static com.dwp.services.time.timecard.TimecardOwnerAccessFilter.VERIFIED_REQUEST_ATTRIBUTE;
+import static com.dwp.services.time.commandreceipt.CommandReceiptAccessFilter.VERIFIED_REQUEST_ATTRIBUTE;
 
-import com.dwp.services.time.timecard.TimecardModels.VerifiedTimecardRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.UUID;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,10 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** Single HTTP owner for command-receipt lookup across Time providers. */
 @RestController
-@ConditionalOnProperty(
-        name = "dwp.hris.time.timecard.enabled",
-        havingValue = "true",
-        matchIfMissing = false)
+@ConditionalOnExpression(
+        "'${dwp.hris.time.timecard.enabled:false}' == 'true'"
+                + " || '${dwp.hris.time.close.enabled:false}' == 'true'")
 public final class CommandReceiptController {
 
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
@@ -34,7 +32,7 @@ public final class CommandReceiptController {
     @GetMapping("/v1/command-receipts/{receiptId}")
     public ResponseEntity<Object> receipt(
             @RequestAttribute(VERIFIED_REQUEST_ATTRIBUTE)
-            VerifiedTimecardRequest verified,
+            VerifiedCommandReceiptRequest verified,
             @PathVariable UUID receiptId) {
         Object receipt = registry.lookup(new CommandReceiptLookup(
                 verified.tenantId(), receiptId, verified.correlationId(), verified));
