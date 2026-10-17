@@ -218,6 +218,35 @@ class NavigationPolicyAggregateV2ServiceTest {
     }
 
     @Test
+    void v3PolicyBridgeIntersectsInstallationDeploymentAndTenantWithoutChangingV2Bytes()
+            throws Exception {
+        stubTenantPolicy();
+        when(eligibility.installedNodeIds(42)).thenReturn(Set.of(
+                "BASE:my-employment-documents", "BASE:my-hr-profile", "BASE:my-time"));
+        when(eligibility.deployedNodeIds(42)).thenReturn(Set.of(
+                "BASE:my-employment-documents", "BASE:my-hr-profile"));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of(
+                "BASE:my-employment-documents", List.of("/hr/me/employment-documents"),
+                // A POLICY alias from a forged PAGE provider remains excluded from public V2.
+                "BASE:my-hr-profile", List.of("/hr/me")));
+
+        EffectiveNavigation before = service.projection(runtime(null));
+        EffectiveNavigation bridged = service.projectionWithPolicyPaths(
+                runtime(null), Map.of(
+                        "BASE:my-hr-profile", List.of("/hr/me"),
+                        "BASE:my-time", List.of("/hr/time")));
+        EffectiveNavigation after = service.projection(runtime(null));
+
+        assertThat(effectiveNodes(before))
+                .containsExactly("BASE:my-employment-documents");
+        assertThat(effectiveNodes(bridged))
+                .containsExactly("BASE:my-hr-profile", "BASE:my-employment-documents");
+        assertThat(effectiveNodes(bridged)).doesNotContain("BASE:my-time");
+        assertThat(mapper.writeValueAsBytes(after))
+                .containsExactly(mapper.writeValueAsBytes(before));
+    }
+
+    @Test
     void enforcedStaleContextDeniesBeforeOwnerOrRepositoryAccess() {
         EffectiveNavigation result = service.projection(new RuntimeContext(
                 42, 101, UUID.randomUUID(), "APP.HCM:VIEW", "TENANT_ADMIN",

@@ -35,8 +35,8 @@ class HcmPlatformPepSecurityContractTest {
             registry);
 
     @Test
-    void loadsOnlyTheFortyOneExactSysCarrierBindings() {
-        assertThat(registry.bindingContracts()).hasSize(41)
+    void loadsOnlyTheFortyThreeExactSysCarrierBindings() {
+        assertThat(registry.bindingContracts()).hasSize(43)
                 .extracting(HcmPlatformPepRegistry.BindingContract::routeContractKey)
                 .contains(
                         "route.hcm.configuration.settings-reference.page",
@@ -57,8 +57,13 @@ class HcmPlatformPepSecurityContractTest {
                         "route.hcm.shell.navigation-deep-link-decision.data",
                         "route.hcm.shell.navigation-aggregate-legal-entity.data",
                         "route.hcm.shell.navigation-deep-link-decision-legal-entity.data",
+                        "route.hcm.shell.navigation-aggregate-v3.data",
+                        "route.hcm.shell.navigation-deep-link-decision-v3.data",
                         "route.hcm.configuration.navigation-policy-v2-workspace.data",
-                        "route.hcm.configuration.navigation-policy-v2-revision-publish.action");
+                        "route.hcm.configuration.navigation-policy-v2-revision-publish.action")
+                .doesNotContain(
+                        "route.hcm.shell.navigation-aggregate-v3-legal-entity.data",
+                        "route.hcm.shell.navigation-deep-link-decision-v3-legal-entity.data");
         assertThat(registry.governsPathFamily(
                 "/v1/admin/hris/configurations/c1/versions/2/publish")).isTrue();
         assertThat(registry.governsPathFamily("/v1/admin/users")).isFalse();
@@ -95,6 +100,12 @@ class HcmPlatformPepSecurityContractTest {
         assertThat(registry.governsPathFamily(
                 "/v2/hris/navigation/deep-link-decision")).isTrue();
         assertThat(registry.governsPathFamily(
+                "/v3/hris/navigation/projection")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v3/hris/navigation/deep-link-decision")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v3/hris/navigation/nearby")).isFalse();
+        assertThat(registry.governsPathFamily(
                 "/v2/hris/navigation/nearby")).isFalse();
         assertThat(registry.governsPathFamily(
                 "/v2/admin/hris/navigation-policies/workspace")).isTrue();
@@ -103,13 +114,17 @@ class HcmPlatformPepSecurityContractTest {
     }
 
     @Test
-    void navigationV2RuntimeRequiresExactShellCapabilityEntitlementAndDuty() throws Exception {
+    void navigationV2AndV3RuntimeRequireExactShellCapabilityEntitlementAndDuty()
+            throws Exception {
         for (String route : Set.of(
                 "route.hcm.shell.navigation-aggregate.data",
-                "route.hcm.shell.navigation-deep-link-decision.data")) {
-            String path = route.endsWith("aggregate.data")
-                    ? "/v2/hris/navigation/projection"
-                    : "/v2/hris/navigation/deep-link-decision";
+                "route.hcm.shell.navigation-deep-link-decision.data",
+                "route.hcm.shell.navigation-aggregate-v3.data",
+                "route.hcm.shell.navigation-deep-link-decision-v3.data")) {
+            String version = route.contains("-v3.") ? "/v3" : "/v2";
+            String path = version + (route.contains("navigation-aggregate")
+                    ? "/hris/navigation/projection"
+                    : "/hris/navigation/deep-link-decision");
             HcmPlatformPepRegistry.RequestEvidence allowed = navigationShellRequest(
                     path, route,
                     Set.of("APP.HCM:VIEW", "DATA.HRIS_APP_SHELL:VIEW"),

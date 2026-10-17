@@ -23,16 +23,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/** Closed Platform-owned HCM PEP projection for the append-only R5 navigation v45 carrier. */
+/** Closed Platform-owned HCM PEP projection for the append-only R6 navigation v46 carrier. */
 @Component
 public final class HcmPlatformPepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-platform-pep-v45.generated.json";
-    static final String REGISTRY_V45_CHECKSUM =
-            "6f41e17159104cd0fd721a13877611b6225bd6458cb2831f0f30e51573992e64";
-    static final String PROJECTION_V45_CHECKSUM =
-            "bd72d855d60378479fd0d8dc34b85cf6856d9f6ac3977afaeb78216e11308b71";
+            "product-authorization/hcm-platform-pep-v46.generated.json";
+    static final String REGISTRY_V46_CHECKSUM =
+            "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e";
+    static final String PROJECTION_V46_CHECKSUM =
+            "a3bf5dbd0438fe6cfa68c2d187521beacc98b275c35d12b26c60c41bf5d731fd";
     private static final String CONFIGURATION_ROOT = "/v1/admin/hris/configurations";
     private static final String WORKBENCH_PATH = "/v1/hris/workbench/settings-reference";
     private static final String NAVIGATION_POLICY_ROOT =
@@ -45,6 +45,10 @@ public final class HcmPlatformPepRegistry {
             "/v2/hris/navigation/projection";
     private static final String NAVIGATION_V2_DEEP_LINK_PATH =
             "/v2/hris/navigation/deep-link-decision";
+    private static final String NAVIGATION_V3_PROJECTION_PATH =
+            "/v3/hris/navigation/projection";
+    private static final String NAVIGATION_V3_DEEP_LINK_PATH =
+            "/v3/hris/navigation/deep-link-decision";
     private static final String HCM_AUDIT_EVENTS_ROOT =
             "/v1/admin/audit-control/events";
     private static final String EXPLORER_PATH = "/v1/hris/explorer";
@@ -137,6 +141,12 @@ public final class HcmPlatformPepRegistry {
                 || path.equals(NAVIGATION_V2_DEEP_LINK_PATH)
                 || path.startsWith(NAVIGATION_V2_DEEP_LINK_PATH + ";")
                 || path.startsWith(NAVIGATION_V2_DEEP_LINK_PATH + "%")
+                || path.equals(NAVIGATION_V3_PROJECTION_PATH)
+                || path.startsWith(NAVIGATION_V3_PROJECTION_PATH + ";")
+                || path.startsWith(NAVIGATION_V3_PROJECTION_PATH + "%")
+                || path.equals(NAVIGATION_V3_DEEP_LINK_PATH)
+                || path.startsWith(NAVIGATION_V3_DEEP_LINK_PATH + ";")
+                || path.startsWith(NAVIGATION_V3_DEEP_LINK_PATH + "%")
                 || path.equals(HCM_AUDIT_EVENTS_ROOT)
                 || path.startsWith(HCM_AUDIT_EVENTS_ROOT + "/")
                 || path.startsWith(HCM_AUDIT_EVENTS_ROOT + ";")
@@ -346,7 +356,7 @@ public final class HcmPlatformPepRegistry {
                         stepUp));
             }
         }
-        require(result.size() == 41, "HCM Platform SYS binding count changed");
+        require(result.size() == 43, "HCM Platform SYS binding count changed");
         return List.copyOf(result);
     }
 
@@ -385,16 +395,16 @@ public final class HcmPlatformPepRegistry {
     private void validateEnvelope(ObjectNode projection) {
         JsonNode registry = projection.path("registryRef");
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-platform-pep-v45".equals(
+                        && "hcm-platform-pep-v46".equals(
                         projection.path("projectionKey").asText())
                         && "platform".equals(projection.path("ownerServiceKey").asText())
                         && "product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 45
-                        && REGISTRY_V45_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 46
+                        && REGISTRY_V46_CHECKSUM.equals(registry.path("sha256").asText()),
                 "Unexpected HCM Platform PEP envelope");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 1046
-                        && projection.path("projectedRouteContractCount").asInt() == 48
-                        && projection.path("bindingPairCount").asInt() == 49
+        require(projection.path("sourceRegistryRouteCount").asInt() == 1048
+                        && projection.path("projectedRouteContractCount").asInt() == 50
+                        && projection.path("bindingPairCount").asInt() == 51
                         && requiredArray(projection, "capabilities").size() == 20
                         && requiredArray(projection, "accessPolicies").size() == 4
                         && requiredArray(projection, "entitlementExpressions").size() == 3
@@ -403,7 +413,7 @@ public final class HcmPlatformPepRegistry {
         ObjectNode payload = projection.deepCopy();
         JsonNode checksum = payload.remove("projectionChecksum");
         require(checksum != null
-                        && PROJECTION_V45_CHECKSUM.equals(checksum.asText())
+                        && PROJECTION_V46_CHECKSUM.equals(checksum.asText())
                         && checksum.asText().equals(sha256(payload)),
                 "HCM Platform projection checksum mismatch");
     }
@@ -447,7 +457,7 @@ public final class HcmPlatformPepRegistry {
         }
         Set<String> routeKeys = bindings.stream()
                 .map(Binding::routeContractKey).collect(Collectors.toUnmodifiableSet());
-        require(routeKeys.size() == 41
+        require(routeKeys.size() == 43
                         && routeKeys.contains("route.hcm.configuration.settings-reference.page")
                         && routeKeys.contains(
                         "route.hcm.configuration.configuration-version-publish.action")
@@ -477,13 +487,17 @@ public final class HcmPlatformPepRegistry {
                         && routeKeys.contains(
                                 "route.hcm.shell.navigation-deep-link-decision-legal-entity.data")
                         && routeKeys.contains(
+                                "route.hcm.shell.navigation-aggregate-v3.data")
+                        && routeKeys.contains(
+                                "route.hcm.shell.navigation-deep-link-decision-v3.data")
+                        && routeKeys.contains(
                         "route.hcm.configuration.navigation-policy-v2-workspace.data")
                         && routeKeys.contains(
                         "route.hcm.configuration.navigation-policy-v2-revision-publish.action"),
                 "HCM Platform SYS route closure changed");
         validateAuditClosure(projection);
         validateControlledTransferClosure(projection);
-        validateNavigationV2Closure(projection);
+        validateNavigationClosure(projection);
     }
 
     private void validateControlledTransferClosure(ObjectNode projection) {
@@ -541,7 +555,7 @@ public final class HcmPlatformPepRegistry {
         }
     }
 
-    private void validateNavigationV2Closure(ObjectNode projection) {
+    private void validateNavigationClosure(ObjectNode projection) {
         Map<String, ExpectedNavigationV2Binding> expected = Map.ofEntries(
                 Map.entry("route.hcm.shell.navigation-aggregate.data",
                         new ExpectedNavigationV2Binding(
@@ -560,6 +574,14 @@ public final class HcmPlatformPepRegistry {
                         new ExpectedNavigationV2Binding(
                                 "GET", NAVIGATION_V2_DEEP_LINK_PATH, "DATA",
                                 "hr-operations-reader", null, false)),
+                Map.entry("route.hcm.shell.navigation-aggregate-v3.data",
+                        new ExpectedNavigationV2Binding(
+                                "GET", NAVIGATION_V3_PROJECTION_PATH, "DATA",
+                                "navigation-shell-reader", "hcm.app.shell.view", false)),
+                Map.entry("route.hcm.shell.navigation-deep-link-decision-v3.data",
+                        new ExpectedNavigationV2Binding(
+                                "GET", NAVIGATION_V3_DEEP_LINK_PATH, "DATA",
+                                "navigation-shell-reader", "hcm.app.shell.view", false)),
                 Map.entry("route.hcm.configuration.navigation-policy-v2-workspace.data",
                         new ExpectedNavigationV2Binding(
                                 "GET", NAVIGATION_V2_POLICY_ROOT + "/workspace", "DATA",
@@ -612,7 +634,7 @@ public final class HcmPlatformPepRegistry {
             if (expected.containsKey(key)) routes.put(key, route);
         });
         require(routes.keySet().equals(expected.keySet()),
-                "Exact R5 navigation v2 route set is required");
+                "Exact R6 navigation route set is required");
         routes.forEach((key, route) -> {
             ExpectedNavigationV2Binding sealed = expected.get(key);
             ArrayNode profiles = requiredArray(route, "accessProfiles");
@@ -639,7 +661,7 @@ public final class HcmPlatformPepRegistry {
                             && sealed.routeKind().equals(route.path("routeKind").asText())
                             && sealed.profileKey().equals(profile.path("profileKey").asText())
                             && accessMatches,
-                    key + ": navigation v2 authority binding drifted");
+                    key + ": navigation authority binding drifted");
             if (tenantRuntime || legalEntityRuntime) {
                 String expectedScope = legalEntityRuntime ? "LEGAL_ENTITY" : "TENANT";
                 String expectedLegalEntityConstraint = legalEntityRuntime
@@ -675,7 +697,27 @@ public final class HcmPlatformPepRegistry {
                             && "dwp-platform-server".equals(
                             stepUps.get(0).path("audience").asText())
                             : !stepUps.isArray(),
-                    key + ": navigation v2 step-up binding drifted");
+                    key + ": navigation step-up binding drifted");
+            if (key.endsWith("-v3.data")) {
+                ArrayNode gatewayBindings = requiredArray(route, "gatewayApiBindings");
+                ArrayNode projections = requiredArray(
+                        profile, "responseProjectionBindings");
+                String aggregate = "route.hcm.shell.navigation-aggregate-v3.data";
+                String expectedGatewayPath = aggregate.equals(key)
+                        ? "/api/platform/v3/hris/navigation/projection"
+                        : "/api/platform/v3/hris/navigation/deep-link-decision";
+                String expectedSchema = aggregate.equals(key)
+                        ? "HrisNavigationAuthorityAggregateV3"
+                        : "HrisNavigationAuthorityDeepLinkDecisionV3";
+                require(gatewayBindings.size() == 1 && projections.size() == 1
+                                && expectedGatewayPath.equals(
+                                gatewayBindings.get(0).path("path").asText())
+                                && expectedSchema.equals(
+                                projections.get(0).path("responseSchemaKey").asText())
+                                && projections.get(0).path("projectionPolicyKey").asText()
+                                .endsWith(".exact-v46-policy-alias-set.projection.v3"),
+                        key + ": navigation v3 projection binding drifted");
+            }
         });
 
         JsonNode shell = capabilities.get("hcm.app.shell.view");
@@ -685,7 +727,7 @@ public final class HcmPlatformPepRegistry {
                         && "HRIS_DUTY_APP_SHELL_READER".equals(
                         shell.path("requiredResponsibilityCode").asText())
                         && "SELF".equals(shell.path("scopeResolver").asText()),
-                "R5 navigation shell authority drifted");
+                "R6 navigation shell authority drifted");
     }
 
     private record ExpectedNavigationV2Binding(

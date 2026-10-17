@@ -82,8 +82,15 @@ dwp:
       enabled: ${DWP_HRIS_NAVIGATION_POLICY_ENABLED:false}
       mode: ${DWP_HRIS_NAVIGATION_POLICY_MODE:OFF}
       enrolled-tenants: ${DWP_HRIS_NAVIGATION_POLICY_ENROLLED_TENANTS:}
-      installed-nodes: "${DWP_HRIS_NAVIGATION_POLICY_INSTALLED_NODES:BASE:my-employment-documents,BASE:hr-people,BASE:hr-employment-assignments,BASE:hr-organization-positions,BASE:hr-employee-change-requests,BASE:time-clock-ingestion,BASE:time-interpretation,BASE:time-exceptions,BASE:performance-review-operations,MODERN:hcm.operations.compensation-planning,BASE:settings-reference,BASE:settings-payroll}"
+      installed-nodes: "${DWP_HRIS_NAVIGATION_POLICY_INSTALLED_NODES:BASE:my-employment-documents,BASE:my-hr-profile,BASE:my-time,BASE:my-leave,BASE:my-pay-tax,BASE:my-goals-performance,BASE:my-hr-requests,BASE:hr-people,BASE:hr-employment-assignments,BASE:hr-organization-positions,BASE:hr-employee-change-requests,BASE:time-clock-ingestion,BASE:time-interpretation,BASE:time-exceptions,BASE:performance-review-operations,MODERN:hcm.operations.compensation-planning,BASE:settings-reference,BASE:settings-payroll}"
       deployed-nodes: "${DWP_HRIS_NAVIGATION_POLICY_DEPLOYED_NODES:BASE:my-employment-documents,BASE:hr-employment-assignments,BASE:hr-organization-positions}"
+      v3-enabled: ${DWP_HRIS_NAVIGATION_POLICY_V3_ENABLED:false}
+      v3-shadow-authority-evaluation-enabled: ${DWP_HRIS_NAVIGATION_V3_SHADOW_AUTHORITY_EVALUATION_ENABLED:false}
+      authority:
+        enabled: ${DWP_HRIS_NAVIGATION_AUTHORITY_ENABLED:false}
+        auth-base-url: ${DWP_HRIS_NAVIGATION_AUTH_BASE_URL:}
+        product-surface-token: ${DWP_HRIS_NAVIGATION_AUTH_PRODUCT_SURFACE_TOKEN:}
+        timeout: ${DWP_HRIS_NAVIGATION_AUTH_TIMEOUT:PT2S}
       legal-entity-owner:
         enabled: ${DWP_HRIS_NAVIGATION_LEGAL_ENTITY_OWNER_ENABLED:false}
         people-base-url: ${DWP_HRIS_NAVIGATION_PEOPLE_BASE_URL:}
