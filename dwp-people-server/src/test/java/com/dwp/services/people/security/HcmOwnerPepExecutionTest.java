@@ -369,6 +369,43 @@ class HcmOwnerPepExecutionTest {
                 "ORG_UNIT/LEGAL_ENTITY", "WORKFORCE_TARGET_POPULATION");
     }
 
+    @Test
+    void organizationPageAndDataRevalidateOnlyTheOwnerDerivedOrganizationRootScope() {
+        HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
+        HcmPopulationScopeService.ResolvedPopulation operations =
+                mock(HcmPopulationScopeService.ResolvedPopulation.class);
+        when(populations.requireOperations("READ")).thenReturn(operations);
+        HcmScopeSelectionValidator validator = new HcmScopeSelectionValidator(populations);
+        Set<String> predicate = Set.of("predicate.hcm-organization-graph-authority.v1");
+
+        validator.validate(authority(
+                "route.hcm.operations.organization-positions.page",
+                "PAGE", "organization-viewer", true, predicate,
+                Set.of("TARGET_POPULATION"), "hcm.operations.organization.view", "GET"));
+        validator.validate(authority(
+                "route.hcm.operations.organization-graph.data",
+                "DATA", "organization-viewer", true, predicate,
+                Set.of("TARGET_POPULATION"), "hcm.operations.organization.view", "GET"));
+
+        verify(populations, org.mockito.Mockito.times(2)).requireOperations("READ");
+        verify(populations, org.mockito.Mockito.times(2))
+                .requireField(operations, "ORGANIZATION");
+        verify(populations, org.mockito.Mockito.times(2)).requireTrustedScope(
+                operations, "hcm.operations", "TARGET_POPULATION",
+                "ORGANIZATION_TARGET_POPULATION");
+
+        assertThatThrownBy(() -> validator.validate(authority(
+                "route.hcm.operations.organization-graph.data",
+                "PAGE", "organization-viewer", true, predicate,
+                Set.of("TARGET_POPULATION"), "hcm.operations.organization.view", "GET")))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> validator.validate(authority(
+                "route.hcm.operations.organization-graph.data",
+                "DATA", "organization-viewer", true, predicate,
+                Set.of("OBJECT"), "hcm.operations.organization.view", "GET")))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
     private MockHttpServletRequestBuilder exact(
             MockHttpServletRequestBuilder request,
             String route,

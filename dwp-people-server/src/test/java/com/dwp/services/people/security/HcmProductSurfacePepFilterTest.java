@@ -7,11 +7,16 @@ import com.dwp.services.people.workforce.WorkforceCandidateService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,6 +25,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -35,18 +41,35 @@ class HcmProductSurfacePepFilterTest {
     private final HrService service = mock(HrService.class);
     private final WorkforceCandidateService candidates = mock(WorkforceCandidateService.class);
     private final HcmScopeSelectionValidator validator = mock(HcmScopeSelectionValidator.class);
+    private final Runnable organizationGraphService = mock(Runnable.class);
+    private final Runnable organizationGraphRepository = mock(Runnable.class);
+    private final Runnable organizationGraphOutbox = mock(Runnable.class);
+    private final AtomicInteger organizationGraphControllerCalls = new AtomicInteger();
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
-        reset(service, candidates, validator);
+        reset(service, candidates, validator, organizationGraphService,
+                organizationGraphRepository, organizationGraphOutbox);
+        organizationGraphControllerCalls.set(0);
+        mvc = mvcWithOrganizationFeature(true, "3");
+    }
+
+    private MockMvc mvcWithOrganizationFeature(
+            boolean organizationPositionsEnabled,
+            String enrolledTenants) {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         HcmV3PepRegistry registry = new HcmV3PepRegistry(mapper);
-        mvc = MockMvcBuilders.standaloneSetup(
-                        new HrController(service), new WorkforceCandidateController(candidates))
+        return MockMvcBuilders.standaloneSetup(
+                        new HrController(service), new WorkforceCandidateController(candidates),
+                        new OrganizationGraphProbeController(
+                                organizationGraphControllerCalls, organizationGraphService,
+                                organizationGraphRepository, organizationGraphOutbox))
                 .addFilters(
                         new PeopleSecurityFilter("people-token", mapper),
-                        new HcmProductSurfacePepFilter(true, registry, validator, mapper))
+                        new HcmProductSurfacePepFilter(
+                                true, registry, validator, mapper,
+                                organizationPositionsEnabled, enrolledTenants))
                 .build();
     }
 
@@ -65,6 +88,7 @@ class HcmProductSurfacePepFilterTest {
                         "route.hcm.personal.home.page"))
                 .andExpect(status().isForbidden());
         verify(service, never()).home();
+        verify(validator, never()).validate(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -177,6 +201,145 @@ class HcmProductSurfacePepFilterTest {
     }
 
     @Test
+    void organizationPageAndDataUseTheirExactTrustedRouteOnTheSharedGetPath()
+            throws Exception {
+        List<String> observedRoutes = new ArrayList<>();
+        doAnswer(invocation -> {
+            HcmV3PepRegistry.RouteAuthority authority = invocation.getArgument(0);
+            observedRoutes.add(authority.routeContractKey());
+            return null;
+        }).when(validator).validate(org.mockito.ArgumentMatchers.any());
+
+        for (String route : List.of(
+                "route.hcm.operations.organization-positions.page",
+                "route.hcm.operations.organization-graph.data")) {
+            mvc.perform(organizationExact(
+                            get("/v1/hris/organizations/graph"), route))
+                    .andExpect(status().isOk());
+        }
+
+        assertThat(observedRoutes).containsExactly(
+                "route.hcm.operations.organization-positions.page",
+                "route.hcm.operations.organization-graph.data");
+        assertThat(organizationGraphControllerCalls.get()).isEqualTo(2);
+        verify(organizationGraphService, org.mockito.Mockito.times(2)).run();
+        verify(organizationGraphRepository, org.mockito.Mockito.times(2)).run();
+        verify(organizationGraphOutbox, org.mockito.Mockito.times(2)).run();
+    }
+
+    @Test
+    void organizationFeatureAbsentFalseOrTenantUnenrolledHasOneOpaqueZeroCallDenial()
+            throws Exception {
+        List<OrganizationGateCase> gateCases = List.of(
+                new OrganizationGateCase("flag absent defaults false", false, ""),
+                new OrganizationGateCase("flag explicitly false", false, "3"),
+                new OrganizationGateCase("tenant unenrolled", true, "99"));
+        List<String> denials = new ArrayList<>();
+
+        for (OrganizationGateCase gateCase : gateCases) {
+            reset(validator, organizationGraphService, organizationGraphRepository,
+                    organizationGraphOutbox);
+            organizationGraphControllerCalls.set(0);
+            MockMvc gated = mvcWithOrganizationFeature(
+                    gateCase.enabled(), gateCase.enrolledTenants());
+
+            String denial = gated.perform(organizationExact(
+                            get("/v1/hris/organizations/graph"),
+                            "route.hcm.operations.organization-graph.data"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andReturn().getResponse().getContentAsString();
+
+            var denialPayload = new ObjectMapper().readTree(denial);
+            denials.add(denialPayload.path("errorCode").asText()
+                    + '|' + denialPayload.path("message").asText());
+            assertThat(organizationGraphControllerCalls.get())
+                    .as(gateCase.name()).isZero();
+            verifyNoInteractions(organizationGraphService, organizationGraphRepository,
+                    organizationGraphOutbox);
+            verify(validator, never()).validate(org.mockito.ArgumentMatchers.any());
+        }
+
+        assertThat(denials).allMatch(denials.getFirst()::equals);
+    }
+
+    @Test
+    void malformedOrganizationAuthorityNeverReachesTheControllerOrRepository()
+            throws Exception {
+        mvc.perform(organizationExact(
+                        get("/v1/hris/organizations/graph"),
+                        "route.hcm.operations.home.page"))
+                .andExpect(status().isForbidden());
+        mvc.perform(organizationExact(
+                        get("/v1/hris/organizations/graph/"),
+                        "route.hcm.operations.organization-graph.data"))
+                .andExpect(status().isForbidden());
+        mvc.perform(organizationExact(
+                        get(URI.create("/v1/hris/organizations/%67raph")),
+                        "route.hcm.operations.organization-graph.data"))
+                .andExpect(status().isForbidden());
+        mvc.perform(exact(
+                        get("/v1/hris/organizations/graph"),
+                        "route.hcm.operations.organization-graph.data",
+                        "APP.HCM:VIEW,DATA.HRIS_ORGANIZATION:VIEW",
+                        "HRIS_DUTY_ORGANIZATION_VIEWER@ORGANIZATION_TARGET_POPULATION")
+                        .header(HcmProductSurfacePepFilter.PURPOSE_HEADER, "HR_ADMIN")
+                        .header(HcmProductSurfacePepFilter.POPULATION_KIND_HEADER,
+                                "TARGET_POPULATION"))
+                .andExpect(status().isForbidden());
+        mvc.perform(exact(
+                        get("/v1/hris/organizations/graph"),
+                        "route.hcm.operations.organization-graph.data",
+                        "APP.HCM:VIEW,DATA.HRIS_ORGANIZATION:VIEW",
+                        "HRIS_DUTY_ORGANIZATION_VIEWER@OTHER_POPULATION")
+                        .header(HcmProductSurfacePepFilter.PURPOSE_HEADER, "HR_OPERATIONS")
+                        .header(HcmProductSurfacePepFilter.POPULATION_KIND_HEADER,
+                                "TARGET_POPULATION"))
+                .andExpect(status().isForbidden());
+        mvc.perform(organizationExact(
+                        get("/v1/hris/organizations/graph"),
+                        "route.hcm.operations.organization-graph.data")
+                        .header(HcmProductSurfacePepFilter.PURPOSE_HEADER, "HR_OPERATIONS"))
+                .andExpect(status().isForbidden());
+        mvc.perform(exact(
+                        get("/v1/hris/organizations/graph"),
+                        "route.hcm.operations.organization-graph.data",
+                        "APP.HCM:VIEW,DATA.HRIS_ORGANIZATION:VIEW",
+                        "HRIS_DUTY_ORGANIZATION_VIEWER@ORGANIZATION_TARGET_POPULATION")
+                        .header(HcmProductSurfacePepFilter.PURPOSE_HEADER, "HR_OPERATIONS")
+                        .header(HcmProductSurfacePepFilter.POPULATION_KIND_HEADER, "SELF"))
+                .andExpect(status().isForbidden());
+        mvc.perform(organizationExact(
+                        get("/v1/hris/organizations/graph"),
+                        "route.hcm.operations.organization-graph.data")
+                        .header(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER,
+                                "route.hcm.operations.organization-graph.data"))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(organizationExact(
+                        get("/v1/hris/organizations/graph"),
+                        "route.hcm.operations.organization-graph.data")
+                        .header(HcmProductSurfacePepFilter.CURRENT_SCOPE_HEADER,
+                                "stale-scope"))
+                .andExpect(status().isServiceUnavailable());
+
+        assertThat(organizationGraphControllerCalls.get()).isZero();
+        verifyNoInteractions(organizationGraphService, organizationGraphRepository,
+                organizationGraphOutbox);
+        verify(validator, never()).validate(org.mockito.ArgumentMatchers.any());
+
+        reset(validator);
+        org.mockito.Mockito.doThrow(new IllegalStateException("stale owner scope"))
+                .when(validator).validate(org.mockito.ArgumentMatchers.any());
+        mvc.perform(organizationExact(
+                        get("/v1/hris/organizations/graph"),
+                        "route.hcm.operations.organization-graph.data"))
+                .andExpect(status().isServiceUnavailable());
+
+        assertThat(organizationGraphControllerCalls.get()).isZero();
+        verifyNoInteractions(organizationGraphService, organizationGraphRepository,
+                organizationGraphOutbox);
+    }
+
+    @Test
     void providerPeopleBindingsRemainForbiddenAfterSupportScopeRetirement()
             throws Exception {
         List<SupportBinding> bindings = List.of(
@@ -255,6 +418,21 @@ class HcmProductSurfacePepFilterTest {
         return builder;
     }
 
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+            organizationExact(
+                    org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+                            request,
+                    String route) {
+        return exact(
+                request,
+                route,
+                "APP.HCM:VIEW,DATA.HRIS_ORGANIZATION:VIEW",
+                "HRIS_DUTY_ORGANIZATION_VIEWER@ORGANIZATION_TARGET_POPULATION")
+                .header(HcmProductSurfacePepFilter.PURPOSE_HEADER, "HR_OPERATIONS")
+                .header(HcmProductSurfacePepFilter.POPULATION_KIND_HEADER,
+                        "TARGET_POPULATION");
+    }
+
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder identity(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) {
         return identity(request, "APP.HCM:VIEW");
@@ -286,5 +464,40 @@ class HcmProductSurfacePepFilterTest {
     }
 
     private record SupportBinding(String uri, String route) {
+    }
+
+    private record OrganizationGateCase(
+            String name,
+            boolean enabled,
+            String enrolledTenants) {
+    }
+
+    @RestController
+    private static final class OrganizationGraphProbeController {
+
+        private final AtomicInteger controllerCalls;
+        private final Runnable service;
+        private final Runnable repository;
+        private final Runnable outbox;
+
+        private OrganizationGraphProbeController(
+                AtomicInteger controllerCalls,
+                Runnable service,
+                Runnable repository,
+                Runnable outbox) {
+            this.controllerCalls = controllerCalls;
+            this.service = service;
+            this.repository = repository;
+            this.outbox = outbox;
+        }
+
+        @GetMapping("/v1/hris/organizations/graph")
+        public Map<String, Boolean> graph() {
+            controllerCalls.incrementAndGet();
+            service.run();
+            repository.run();
+            outbox.run();
+            return Map.of("ok", true);
+        }
     }
 }

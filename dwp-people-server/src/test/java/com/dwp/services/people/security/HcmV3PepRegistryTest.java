@@ -1,10 +1,15 @@
 package com.dwp.services.people.security;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -14,11 +19,11 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV42PeopleClosure() {
-        assertThat(registry.bindingContracts()).hasSize(124);
+    void loadsTheExactV49PeopleClosureAndRetainsTheV42Bindings() throws IOException {
+        assertThat(registry.bindingContracts()).hasSize(130);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(97);
+                .distinct()).hasSize(103);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -38,7 +43,22 @@ class HcmV3PepRegistryTest {
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.operations.employee-change-request-apply.action")
                         && value.servicePath().equals(
-                        "/v1/hris/employee-change-requests/{requestPublicId}/apply"));
+                        "/v1/hris/employee-change-requests/{requestPublicId}/apply"))
+                .filteredOn(value -> value.servicePath()
+                        .equals("/v1/hris/organizations/graph"))
+                .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
+                .containsExactlyInAnyOrder(
+                        "route.hcm.operations.organization-graph.data",
+                        "route.hcm.operations.organization-positions.page");
+        Set<String> runtimeBindings = registry.bindingContracts().stream()
+                .map(value -> bindingKey(
+                        value.routeContractKey(), value.routeKind(),
+                        value.method(), value.servicePath()))
+                .collect(Collectors.toUnmodifiableSet());
+        Set<String> v42Bindings = fixtureBindings(
+                "product-authorization/hcm-people-pep-v42.generated.json");
+        assertThat(v42Bindings).hasSize(124);
+        assertThat(runtimeBindings).containsAll(v42Bindings);
         assertThat(registry.highRiskBindingContracts())
                 .hasSize(14)
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
@@ -58,7 +78,7 @@ class HcmV3PepRegistryTest {
                         "route.hcm.operations.employee-change-request-apply.action",
                         "route.hcm.operations.assignment-event-publish.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
-                .hasSize(17)
+                .hasSize(18)
                 .containsOnlyKeys(
                         "predicate.directory-visible-person.v1",
                         "predicate.hcm-configuration-scope.v1",
@@ -70,6 +90,7 @@ class HcmV3PepRegistryTest {
                         "predicate.hcm-employee-change-authority.v1",
                         "predicate.hcm-org-approval-sod.v1",
                         "predicate.hcm-org-publish-sod.v1",
+                        "predicate.hcm-organization-graph-authority.v1",
                         "predicate.hcm-performance-cycle-object.v1",
                         "predicate.hcm-performance-cycle-publish-sod.v1",
                         "predicate.hcm-performance-review-assignment.v1",
@@ -77,6 +98,66 @@ class HcmV3PepRegistryTest {
                         "predicate.people.object-version.v1",
                         "predicate.self-person.v1",
                         "predicate.team-target-population.v1");
+    }
+
+    @Test
+    void organizationPageAndDataShareOnlyTheWirePathNotTheirTrustedRouteIdentity() {
+        List<OrganizationRoute> routes = List.of(
+                new OrganizationRoute(
+                        "route.hcm.operations.organization-positions.page", "PAGE"),
+                new OrganizationRoute(
+                        "route.hcm.operations.organization-graph.data", "DATA"));
+
+        routes.forEach(route -> {
+            HcmV3PepRegistry.Decision decision = registry.authorize(
+                    organizationEvidence(route.route(), "/v1/hris/organizations/graph",
+                            "HR_OPERATIONS", "TARGET_POPULATION"));
+
+            assertThat(decision.allowed()).as(route.route()).isTrue();
+            assertThat(decision.authority().routeContractKey()).isEqualTo(route.route());
+            assertThat(decision.authority().routeKind()).isEqualTo(route.kind());
+            assertThat(decision.authority().profileKey()).isEqualTo("organization-viewer");
+            assertThat(decision.authority().readOnly()).isTrue();
+            assertThat(decision.authority().capabilityContractKey())
+                    .isEqualTo("hcm.operations.organization.view");
+            assertThat(decision.authority().predicatePolicyKeys())
+                    .containsExactly("predicate.hcm-organization-graph-authority.v1");
+            assertThat(decision.authority().targetBindingKinds())
+                    .containsExactly("TARGET_POPULATION");
+        });
+
+        assertThat(registry.authorize(organizationEvidence(
+                "route.hcm.operations.home.page", "/v1/hris/organizations/graph",
+                "HR_OPERATIONS", "TARGET_POPULATION")).denialCode())
+                .isEqualTo("UNKNOWN_METHOD_PATH_BINDING");
+        for (String path : List.of(
+                "/v1/hris/organizations/graph/",
+                "/v1/hris/organizations/%67raph",
+                "/v1/%68ris/organizations/graph")) {
+            assertThat(registry.owns("GET", path, null)).as(path).isTrue();
+            assertThat(registry.authorize(organizationEvidence(
+                    "route.hcm.operations.organization-graph.data", path,
+                    "HR_OPERATIONS", "TARGET_POPULATION")).denialCode())
+                    .as(path).isEqualTo("UNKNOWN_METHOD_PATH_BINDING");
+        }
+        assertThat(registry.authorize(organizationEvidence(
+                "route.hcm.operations.organization-graph.data",
+                "/v1/hris/organizations/graph", "HR_ADMIN", "TARGET_POPULATION"))
+                .denialCode()).isEqualTo("TRUSTED_PURPOSE_REQUIRED");
+        assertThat(registry.authorize(organizationEvidence(
+                "route.hcm.operations.organization-graph.data",
+                "/v1/hris/organizations/graph", "HR_OPERATIONS", "SELF"))
+                .denialCode()).isEqualTo("EXACT_ROUTE_AUTHORITY_REQUIRED");
+        assertThat(registry.authorize(organizationEvidence(
+                "route.hcm.operations.organization-graph.data",
+                "/v1/hris/organizations/graph", "HR_OPERATIONS", "TARGET_POPULATION",
+                "HRIS_DUTY_PAYROLL_VIEWER@ORGANIZATION_TARGET_POPULATION"))
+                .denialCode()).isEqualTo("EXACT_ROUTE_AUTHORITY_REQUIRED");
+        assertThat(registry.authorize(organizationEvidence(
+                "route.hcm.operations.organization-graph.data",
+                "/v1/hris/organizations/graph", "HR_OPERATIONS", "TARGET_POPULATION",
+                "HRIS_DUTY_ORGANIZATION_VIEWER@RS_HCM_OTHER_ORGANIZATION"))
+                .denialCode()).isEqualTo("EXACT_ROUTE_AUTHORITY_REQUIRED");
     }
 
     @Test
@@ -422,6 +503,51 @@ class HcmV3PepRegistryTest {
                             "PROVIDER_SUPPORT", Set.of(), binding.route(), binding.query()))
                     .allowed()).isFalse();
         });
+    }
+
+    private HcmV3PepRegistry.RequestEvidence organizationEvidence(
+            String route,
+            String path,
+            String purpose,
+            String populationKind) {
+        return organizationEvidence(
+                route, path, purpose, populationKind,
+                "HRIS_DUTY_ORGANIZATION_VIEWER@ORGANIZATION_TARGET_POPULATION");
+    }
+
+    private HcmV3PepRegistry.RequestEvidence organizationEvidence(
+            String route,
+            String path,
+            String purpose,
+            String populationKind,
+            String resourceRole) {
+        return new HcmV3PepRegistry.RequestEvidence(
+                "GET", path,
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_ORGANIZATION:VIEW"),
+                resourceRole,
+                "NORMAL", Set.of(), route, null, purpose, populationKind);
+    }
+
+    private Set<String> fixtureBindings(String resource) throws IOException {
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {
+            assertThat(input).isNotNull();
+            JsonNode root = new ObjectMapper().readTree(input);
+            Set<String> result = new LinkedHashSet<>();
+            root.path("routes").forEach(route -> route.path("servicePepBindings")
+                    .forEach(binding -> result.add(bindingKey(
+                            route.path("routeContractKey").asText(),
+                            route.path("routeKind").asText(),
+                            binding.path("method").asText(),
+                            binding.path("path").asText()))));
+            return Set.copyOf(result);
+        }
+    }
+
+    private String bindingKey(String route, String kind, String method, String path) {
+        return String.join("|", route, kind, method, path);
+    }
+
+    private record OrganizationRoute(String route, String kind) {
     }
 
     private record SupportBinding(
