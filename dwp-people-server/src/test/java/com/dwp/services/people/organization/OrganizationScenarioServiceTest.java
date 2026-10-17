@@ -1,13 +1,17 @@
 package com.dwp.services.people.organization;
 
 import com.dwp.core.audit.AuditOutboxRecorder;
+import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.hris.organization.OrganizationChangedOutbox;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -21,6 +25,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.springframework.test.util.ReflectionTestUtils;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,6 +45,12 @@ class OrganizationScenarioServiceTest {
     private final OrganizationScenarioDecisionService decisionService =
             mock(OrganizationScenarioDecisionService.class);
     private final AuditOutboxRecorder audit = mock(AuditOutboxRecorder.class);
+    private final OrganizationScenarioPublishTargetRepository publishTargets =
+            mock(OrganizationScenarioPublishTargetRepository.class);
+    private final OrganizationPublishRolloutGate publishRollout =
+            mock(OrganizationPublishRolloutGate.class);
+    private final OrganizationChangedOutbox organizationChangedOutbox =
+            mock(OrganizationChangedOutbox.class);
     private final OrganizationScenarioService service =
             new OrganizationScenarioService(repository, chartService, decisionService, audit);
 
@@ -386,6 +399,332 @@ class OrganizationScenarioServiceTest {
         verifyNoInteractions(audit);
     }
 
+    @Test
+    void enabledPublicationAppendsOneEventAfterPersistedPublicationUsingDatabaseEvidence() {
+        UUID root = UUID.randomUUID();
+        UUID oldParent = UUID.randomUUID();
+        UUID newParent = UUID.randomUUID();
+        UUID moved = UUID.randomUUID();
+        LocalDate effectiveDate = LocalDate.now().plusDays(30);
+        OrganizationChartDtos.OrganizationChart effective = chart(
+                effectiveDate,
+                root,
+                List.of(
+                        organization(root, "Company", null),
+                        organization(oldParent, "Old parent", root),
+                        organization(newParent, "New parent", root),
+                        organization(moved, "Moved", oldParent)),
+                List.of());
+        OrganizationChartDtos.OrganizationChart projected = chart(
+                effectiveDate,
+                root,
+                List.of(
+                        organization(root, "Company", null),
+                        organization(oldParent, "Old parent", root),
+                        organization(newParent, "New parent", root),
+                        organization(moved, "Moved", newParent)),
+                List.of());
+        OrganizationScenarioRepository.MoveRecord move =
+                new OrganizationScenarioRepository.MoveRecord(
+                        UUID.randomUUID(), moved, newParent);
+        PublicationFixture fixture = publicationFixture(
+                effective,
+                projected,
+                List.of(move),
+                List.of(),
+                List.of(),
+                List.of(),
+                "corr-published");
+
+        OrganizationScenarioDtos.Scenario result = fixture.service().publish(
+                fixture.scenarioId(),
+                new OrganizationScenarioDtos.PublishScenarioRequest(4L),
+                "corr-published");
+
+        assertThat(result).isSameAs(fixture.published());
+        ArgumentCaptor<List<UUID>> changed = ArgumentCaptor.forClass(List.class);
+        verify(organizationChangedOutbox).append(
+                eq(TENANT_ID),
+                eq(fixture.scenarioId()),
+                eq(5L),
+                eq(effectiveDate),
+                eq(fixture.publishedAt()),
+                changed.capture(),
+                eq(OrganizationBaselineFingerprint.compute(projected)),
+                eq("corr-published"));
+        assertThat(changed.getValue())
+                .containsExactlyInAnyOrder(moved, oldParent, newParent);
+        InOrder order = inOrder(repository, organizationChangedOutbox);
+        order.verify(repository).publish(
+                TENANT_ID, fixture.scenarioId(), fixture.validationRunId(),
+                USER_ID, 4L);
+        order.verify(repository).scenarios(TENANT_ID);
+        order.verify(organizationChangedOutbox).append(
+                eq(TENANT_ID), eq(fixture.scenarioId()), eq(5L),
+                eq(effectiveDate), eq(fixture.publishedAt()),
+                eq(changed.getValue()),
+                eq(OrganizationBaselineFingerprint.compute(projected)),
+                eq("corr-published"));
+    }
+
+    @Test
+    void positionOnlyPublicationInvalidatesCreateMoveCloseAndOldParentOwners() {
+        UUID root = UUID.randomUUID();
+        UUID movedOwner = UUID.randomUUID();
+        UUID oldParentOwner = UUID.randomUUID();
+        UUID newParentOwner = UUID.randomUUID();
+        UUID closedOwner = UUID.randomUUID();
+        UUID closedParentOwner = UUID.randomUUID();
+        UUID createdOwner = UUID.randomUUID();
+        UUID createdParentOwner = UUID.randomUUID();
+        UUID movedPosition = UUID.randomUUID();
+        UUID oldParentPosition = UUID.randomUUID();
+        UUID newParentPosition = UUID.randomUUID();
+        UUID closedPosition = UUID.randomUUID();
+        UUID closedParentPosition = UUID.randomUUID();
+        UUID createdPosition = UUID.randomUUID();
+        UUID createdParentPosition = UUID.randomUUID();
+        LocalDate effectiveDate = LocalDate.now().plusDays(30);
+        List<OrganizationChartDtos.Organization> organizations = List.of(
+                organization(root, "Company", null),
+                organization(movedOwner, "Moved owner", root),
+                organization(oldParentOwner, "Old parent owner", root),
+                organization(newParentOwner, "New parent owner", root),
+                organization(closedOwner, "Closed owner", root),
+                organization(closedParentOwner, "Closed parent owner", root),
+                organization(createdOwner, "Created owner", root),
+                organization(createdParentOwner, "Created parent owner", root));
+        OrganizationChartDtos.OrganizationChart effective = chart(
+                effectiveDate,
+                root,
+                organizations,
+                List.of(),
+                List.of(
+                        position(movedPosition, "MOVE", movedOwner,
+                                oldParentPosition, effectiveDate),
+                        position(oldParentPosition, "OLD-PARENT", oldParentOwner,
+                                null, effectiveDate),
+                        position(newParentPosition, "NEW-PARENT", newParentOwner,
+                                null, effectiveDate),
+                        position(closedPosition, "CLOSE", closedOwner,
+                                closedParentPosition, effectiveDate),
+                        position(closedParentPosition, "CLOSE-PARENT", closedParentOwner,
+                                null, effectiveDate),
+                        position(createdParentPosition, "CREATE-PARENT", createdParentOwner,
+                                null, effectiveDate)));
+        OrganizationChartDtos.OrganizationChart projected = chart(
+                effectiveDate,
+                root,
+                organizations,
+                List.of(),
+                List.of(
+                        position(movedPosition, "MOVE", movedOwner,
+                                newParentPosition, effectiveDate),
+                        position(oldParentPosition, "OLD-PARENT", oldParentOwner,
+                                null, effectiveDate),
+                        position(newParentPosition, "NEW-PARENT", newParentOwner,
+                                null, effectiveDate),
+                        position(closedParentPosition, "CLOSE-PARENT", closedParentOwner,
+                                null, effectiveDate),
+                        position(createdPosition, "CREATED", createdOwner,
+                                createdParentPosition, effectiveDate),
+                        position(createdParentPosition, "CREATE-PARENT", createdParentOwner,
+                                null, effectiveDate)));
+        OrganizationScenarioRepository.PositionMoveRecord move =
+                new OrganizationScenarioRepository.PositionMoveRecord(
+                        UUID.randomUUID(), movedPosition, newParentPosition);
+        OrganizationScenarioRepository.PositionCreateRecord create =
+                new OrganizationScenarioRepository.PositionCreateRecord(
+                        UUID.randomUUID(), createdPosition, "CREATED", "Created position",
+                        createdOwner, createdParentPosition, "REGULAR", "NORMAL",
+                        BigDecimal.ONE, null, null, effectiveDate);
+        OrganizationScenarioRepository.PositionCloseRecord close =
+                new OrganizationScenarioRepository.PositionCloseRecord(
+                        UUID.randomUUID(), closedPosition);
+        PublicationFixture fixture = publicationFixture(
+                effective,
+                projected,
+                List.of(),
+                List.of(move),
+                List.of(create),
+                List.of(close),
+                "corr-position-only");
+
+        fixture.service().publish(
+                fixture.scenarioId(),
+                new OrganizationScenarioDtos.PublishScenarioRequest(4L),
+                "corr-position-only");
+
+        ArgumentCaptor<List<UUID>> changed = ArgumentCaptor.forClass(List.class);
+        verify(organizationChangedOutbox).append(
+                eq(TENANT_ID), eq(fixture.scenarioId()), eq(5L),
+                eq(effectiveDate), eq(fixture.publishedAt()), changed.capture(),
+                eq(OrganizationBaselineFingerprint.compute(projected)),
+                eq("corr-position-only"));
+        assertThat(changed.getValue()).containsExactlyInAnyOrder(
+                movedOwner,
+                oldParentOwner,
+                newParentOwner,
+                closedOwner,
+                closedParentOwner,
+                createdOwner,
+                createdParentOwner);
+        assertThat(changed.getValue()).hasSizeLessThanOrEqualTo(1000);
+    }
+
+    @Test
+    void failedDomainPublicationAndClosedRolloutNeverAppendAnEvent() {
+        UUID root = UUID.randomUUID();
+        UUID child = UUID.randomUUID();
+        LocalDate effectiveDate = LocalDate.now().plusDays(30);
+        OrganizationChartDtos.OrganizationChart chart = chart(
+                effectiveDate,
+                root,
+                List.of(
+                        organization(root, "Company", null),
+                        organization(child, "Child", root)),
+                List.of());
+        PublicationFixture fixture = publicationFixture(
+                chart,
+                chart,
+                List.of(new OrganizationScenarioRepository.MoveRecord(
+                        UUID.randomUUID(), child, root)),
+                List.of(),
+                List.of(),
+                List.of(),
+                "corr-failed");
+        when(repository.publish(
+                TENANT_ID, fixture.scenarioId(), fixture.validationRunId(),
+                USER_ID, 4L)).thenReturn(false);
+
+        assertThatThrownBy(() -> fixture.service().publish(
+                fixture.scenarioId(),
+                new OrganizationScenarioDtos.PublishScenarioRequest(4L),
+                "corr-failed"))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("changed before publication");
+        verifyNoInteractions(organizationChangedOutbox);
+
+        org.mockito.Mockito.reset(
+                repository, chartService, decisionService, audit,
+                publishTargets, publishRollout, organizationChangedOutbox);
+        doThrow(new BaseException(ErrorCode.FORBIDDEN, "closed"))
+                .when(publishRollout).requireEnabled();
+        OrganizationScenarioService closed = publicationService();
+
+        assertThatThrownBy(() -> closed.publish(
+                UUID.randomUUID(),
+                new OrganizationScenarioDtos.PublishScenarioRequest(4L),
+                "corr-closed"))
+                .isInstanceOf(BaseException.class);
+        verifyNoInteractions(organizationChangedOutbox);
+        verifyNoInteractions(publishTargets);
+    }
+
+    @Test
+    void stalePublishVersionNeverMutatesTheDomainOrAppendsAnEvent() {
+        UUID scenarioId = UUID.randomUUID();
+        LocalDate effectiveDate = LocalDate.now().plusDays(30);
+        OrganizationScenarioRepository.ScenarioRecord scenario =
+                new OrganizationScenarioRepository.ScenarioRecord(
+                        scenarioId,
+                        "stale-publish",
+                        "Stale publish",
+                        LocalDate.now(),
+                        effectiveDate,
+                        fingerprintPlaceholder(),
+                        "APPROVED",
+                        USER_ID + 1,
+                        5L);
+        when(publishTargets.lock(TENANT_ID, scenarioId))
+                .thenReturn(Optional.of(scenario));
+
+        assertThatThrownBy(() -> publicationService().publish(
+                scenarioId,
+                new OrganizationScenarioDtos.PublishScenarioRequest(4L),
+                "corr-stale-publish"))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("changed");
+
+        verify(repository, never()).publish(
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong());
+        verifyNoInteractions(organizationChangedOutbox);
+    }
+
+    private PublicationFixture publicationFixture(
+            OrganizationChartDtos.OrganizationChart effective,
+            OrganizationChartDtos.OrganizationChart projected,
+            List<OrganizationScenarioRepository.MoveRecord> moves,
+            List<OrganizationScenarioRepository.PositionMoveRecord> positionMoves,
+            List<OrganizationScenarioRepository.PositionCreateRecord> positionCreates,
+            List<OrganizationScenarioRepository.PositionCloseRecord> positionCloses,
+            String correlationId) {
+        UUID scenarioId = UUID.randomUUID();
+        UUID validationRunId = UUID.randomUUID();
+        Instant publishedAt = Instant.parse("2026-10-17T05:30:00.123456Z");
+        LocalDate baselineDate = LocalDate.now();
+        UUID root = effective.company().organizationId();
+        OrganizationChartDtos.OrganizationChart baseline = chart(
+                baselineDate,
+                root,
+                effective.organizations(),
+                effective.relationships(),
+                effective.positions());
+        OrganizationScenarioRepository.ScenarioRecord scenario =
+                new OrganizationScenarioRepository.ScenarioRecord(
+                        scenarioId,
+                        "publish-test",
+                        "Publish test",
+                        baselineDate,
+                        effective.asOf(),
+                        OrganizationBaselineFingerprint.compute(baseline),
+                        "APPROVED",
+                        USER_ID + 1,
+                        4L);
+        OrganizationScenarioDtos.DecisionPack decision =
+                mock(OrganizationScenarioDtos.DecisionPack.class);
+        OrganizationScenarioDtos.Scenario published =
+                mock(OrganizationScenarioDtos.Scenario.class);
+        when(publishTargets.lock(TENANT_ID, scenarioId)).thenReturn(Optional.of(scenario));
+        when(decisionService.validateForWorkflow(
+                scenarioId, "PUBLISH", correlationId)).thenReturn(decision);
+        when(decision.blockingIssueCount()).thenReturn(0);
+        when(decision.validationRunId()).thenReturn(validationRunId);
+        when(chartService.get(baselineDate, null, 10)).thenReturn(baseline);
+        when(repository.moves(TENANT_ID, scenarioId)).thenReturn(moves);
+        when(repository.positionMoves(TENANT_ID, scenarioId)).thenReturn(positionMoves);
+        when(repository.positionCreates(TENANT_ID, scenarioId)).thenReturn(positionCreates);
+        when(repository.positionCloses(TENANT_ID, scenarioId)).thenReturn(positionCloses);
+        when(chartService.get(effective.asOf(), null, 10)).thenReturn(effective);
+        when(chartService.get(effective.asOf(), null, 12, scenarioId))
+                .thenReturn(projected);
+        when(repository.publish(
+                TENANT_ID, scenarioId, validationRunId, USER_ID, 4L)).thenReturn(true);
+        when(published.scenarioId()).thenReturn(scenarioId);
+        when(published.version()).thenReturn(5L);
+        when(published.publishedAt()).thenReturn(publishedAt);
+        when(repository.scenarios(TENANT_ID)).thenReturn(List.of(published));
+        return new PublicationFixture(
+                publicationService(), scenarioId, validationRunId,
+                publishedAt, published);
+    }
+
+    private OrganizationScenarioService publicationService() {
+        return new OrganizationScenarioService(
+                repository,
+                chartService,
+                decisionService,
+                audit,
+                null,
+                publishTargets,
+                publishRollout,
+                organizationChangedOutbox);
+    }
+
     private OrganizationScenarioRepository.ScenarioRecord scenario(
             UUID scenarioId,
             LocalDate effectiveDate,
@@ -438,6 +777,18 @@ class OrganizationScenarioServiceTest {
                 childId, parentId, "SUPERVISORY", true);
     }
 
+    private OrganizationChartDtos.Position position(
+            UUID id,
+            String key,
+            UUID organizationId,
+            UUID parentId,
+            LocalDate availabilityDate) {
+        return new OrganizationChartDtos.Position(
+                id, key, key, organizationId, parentId,
+                "OPEN", "REGULAR", "NORMAL", BigDecimal.ONE,
+                null, null, null, null, availabilityDate, List.of(), 0);
+    }
+
     private OrganizationChartDtos.OrganizationChart chart(
             LocalDate asOf,
             UUID rootId,
@@ -472,5 +823,13 @@ class OrganizationScenarioServiceTest {
 
     private String fingerprintPlaceholder() {
         return "0".repeat(64);
+    }
+
+    private record PublicationFixture(
+            OrganizationScenarioService service,
+            UUID scenarioId,
+            UUID validationRunId,
+            Instant publishedAt,
+            OrganizationScenarioDtos.Scenario published) {
     }
 }

@@ -35,6 +35,9 @@ import static com.dwp.services.people.organization.OrganizationChartMetrics.roun
 @Service
 public class OrganizationChartService {
 
+    private static final Set<String> ORGANIZATION_GRAPH_ROUTES = Set.of(
+            "route.hcm.operations.organization-positions.page",
+            "route.hcm.operations.organization-graph.data");
     private static final OrganizationChartDtos.DesignPolicy DEFAULT_POLICY =
             new OrganizationChartDtos.DesignPolicy(3, 9, 7, 20.0, 15.0);
 
@@ -85,6 +88,8 @@ public class OrganizationChartService {
 
     private WorkforceAccessPolicyService.Decision chartDecision() {
         HcmPepContext.Evidence evidence = HcmPepContext.current();
+        String routeContractKey = evidence == null
+                ? null : evidence.authority().routeContractKey();
         if (evidence != null && evidence.authority().routeContractKey()
                 .startsWith("route.hcm.management.org-")) {
             populationScopes.requireConfigurationScope();
@@ -96,6 +101,14 @@ public class OrganizationChartService {
         WorkforceAccessPolicyService.Decision decision = accessPolicyService.require("READ");
         HcmPopulationScopeService.ResolvedPopulation population =
                 populationScopes.requireOperations("READ");
+        if (routeContractKey != null
+                && ORGANIZATION_GRAPH_ROUTES.contains(routeContractKey)) {
+            populationScopes.requireField(population, "ORGANIZATION");
+            populationScopes.requireTrustedScope(
+                    population, "hcm.operations", "TARGET_POPULATION",
+                    "ORGANIZATION_TARGET_POPULATION");
+            return decision;
+        }
         populationScopes.requireTrustedScope(
                 population, "hcm.operations", "TARGET_POPULATION",
                 "WORKFORCE_TARGET_POPULATION", "ORG_UNIT/LEGAL_ENTITY");

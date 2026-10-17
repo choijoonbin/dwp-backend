@@ -4,6 +4,7 @@ import com.dwp.audit.AuditEvent;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.hris.organization.OrganizationChangedOutbox;
 import com.dwp.services.people.security.HcmHighRiskCommandGuard;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmStepUpHeaders;
@@ -14,12 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.dwp.services.people.organization.OrganizationScenarioGraphValidator.validateOrganizations;
 import static com.dwp.services.people.organization.OrganizationScenarioGraphValidator.validatePositionMoves;
@@ -34,6 +39,7 @@ public class OrganizationScenarioService {
     private final HcmHighRiskCommandGuard highRisk;
     private final OrganizationScenarioPublishTargetRepository publishTargets;
     private final OrganizationPublishRolloutGate publishRollout;
+    private final OrganizationChangedOutbox organizationChangedOutbox;
     @org.springframework.beans.factory.annotation.Autowired
     public OrganizationScenarioService(OrganizationScenarioRepository repository,
             OrganizationChartService chartService,
@@ -41,7 +47,8 @@ public class OrganizationScenarioService {
             AuditOutboxRecorder audit,
             HcmHighRiskCommandGuard highRisk,
             OrganizationScenarioPublishTargetRepository publishTargets,
-            OrganizationPublishRolloutGate publishRollout) {
+            OrganizationPublishRolloutGate publishRollout,
+            OrganizationChangedOutbox organizationChangedOutbox) {
         this.repository = repository;
         this.chartService = chartService;
         this.decisionService = decisionService;
@@ -49,13 +56,25 @@ public class OrganizationScenarioService {
         this.highRisk = highRisk;
         this.publishTargets = publishTargets;
         this.publishRollout = publishRollout;
+        this.organizationChangedOutbox = organizationChangedOutbox;
+    }
+
+    OrganizationScenarioService(OrganizationScenarioRepository repository,
+            OrganizationChartService chartService,
+            OrganizationScenarioDecisionService decisionService,
+            AuditOutboxRecorder audit,
+            HcmHighRiskCommandGuard highRisk,
+            OrganizationScenarioPublishTargetRepository publishTargets,
+            OrganizationPublishRolloutGate publishRollout) {
+        this(repository, chartService, decisionService, audit, highRisk,
+                publishTargets, publishRollout, null);
     }
 
     OrganizationScenarioService(OrganizationScenarioRepository repository,
             OrganizationChartService chartService,
             OrganizationScenarioDecisionService decisionService,
             AuditOutboxRecorder audit) {
-        this(repository, chartService, decisionService, audit, null, null, null);
+        this(repository, chartService, decisionService, audit, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -412,8 +431,9 @@ public class OrganizationScenarioService {
                 scenario.effectiveDate(), null, 10);
         validateOrganizations(effectiveChart, repository.moves(actor.tenantId(), scenarioId));
         validatePositionMoves(effectiveChart, repository.positionMoves(actor.tenantId(), scenarioId));
-        validateProjectedPositions(chartService.get(
-                scenario.effectiveDate(), null, 12, scenarioId));
+        OrganizationChartDtos.OrganizationChart projectedChart = chartService.get(
+                scenario.effectiveDate(), null, 12, scenarioId);
+        validateProjectedPositions(projectedChart);
         OrganizationScenarioDtos.DecisionPack validation = decisionService.validateForWorkflow(
                 scenarioId, "SUBMIT", correlationId);
         ensureNotBlocked(validation);
@@ -560,8 +580,9 @@ public class OrganizationScenarioService {
                 scenario.effectiveDate(), null, 10);
         validateOrganizations(effectiveChart, moves);
         validatePositionMoves(effectiveChart, positionMoves);
-        validateProjectedPositions(chartService.get(
-                scenario.effectiveDate(), null, 12, scenarioId));
+        OrganizationChartDtos.OrganizationChart projectedChart = chartService.get(
+                scenario.effectiveDate(), null, 12, scenarioId);
+        validateProjectedPositions(projectedChart);
         try {
             positionCreates.forEach(create -> repository.applyPositionCreate(
                     actor.tenantId(), create, scenario.effectiveDate(),
@@ -587,6 +608,23 @@ public class OrganizationScenarioService {
                     ErrorCode.RESOURCE_CONFLICT,
                     "The scenario changed before publication completed.");
         }
+        OrganizationScenarioDtos.Scenario published = requireSummary(
+                actor.tenantId(), scenarioId);
+        if (organizationChangedOutbox != null) {
+            organizationChangedOutbox.append(
+                    actor.tenantId(),
+                    scenarioId,
+                    published.version(),
+                    scenario.effectiveDate(),
+                    java.util.Objects.requireNonNull(
+                            published.publishedAt(),
+                            "Published scenario must have a publication time."),
+                    changedOrganizations(
+                            effectiveChart, projectedChart, moves, positionMoves,
+                            positionCreates, positionCloses),
+                    OrganizationBaselineFingerprint.compute(projectedChart),
+                    correlationId);
+        }
         recordAudit(actor, "organization.scenario.published", scenarioId, correlationId,
                 "CRITICAL", 90, Map.of(
                         "scenarioKey", scenario.scenarioKey(),
@@ -594,7 +632,85 @@ public class OrganizationScenarioService {
                         "validationRunId", evidenceId(validation),
                         "changeCount", moves.size() + positionMoves.size()
                                 + positionCreates.size() + positionCloses.size()));
-        return requireSummary(actor.tenantId(), scenarioId);
+        return published;
+    }
+
+    private List<UUID> changedOrganizations(
+            OrganizationChartDtos.OrganizationChart effectiveChart,
+            OrganizationChartDtos.OrganizationChart projectedChart,
+            List<OrganizationScenarioRepository.MoveRecord> moves,
+            List<OrganizationScenarioRepository.PositionMoveRecord> positionMoves,
+            List<OrganizationScenarioRepository.PositionCreateRecord> positionCreates,
+            List<OrganizationScenarioRepository.PositionCloseRecord> positionCloses) {
+        Map<UUID, OrganizationChartDtos.Organization> organizationById =
+                effectiveChart.organizations().stream().collect(Collectors.toMap(
+                        OrganizationChartDtos.Organization::organizationId,
+                        Function.identity(),
+                        (first, ignored) -> first));
+        Map<UUID, UUID> organizationByPosition = java.util.stream.Stream.concat(
+                        effectiveChart.positions().stream(),
+                        projectedChart.positions().stream())
+                .collect(Collectors.toMap(
+                        OrganizationChartDtos.Position::positionId,
+                        OrganizationChartDtos.Position::organizationId,
+                        (first, ignored) -> first));
+        Map<UUID, OrganizationChartDtos.Position> effectivePositionById =
+                effectiveChart.positions().stream().collect(Collectors.toMap(
+                        OrganizationChartDtos.Position::positionId,
+                        Function.identity(),
+                        (first, ignored) -> first));
+        Set<UUID> changed = new LinkedHashSet<>();
+        moves.forEach(move -> {
+            changed.add(move.organizationId());
+            changed.add(move.newParentId());
+            OrganizationChartDtos.Organization current = organizationById.get(
+                    move.organizationId());
+            if (current != null && current.parentOrganizationId() != null) {
+                changed.add(current.parentOrganizationId());
+            }
+        });
+        positionCreates.forEach(create -> {
+            changed.add(create.organizationId());
+            addPositionOrganization(changed, organizationByPosition,
+                    create.parentPositionId());
+        });
+        positionMoves.forEach(move -> {
+            addPositionAndParentOrganizations(
+                    changed, organizationByPosition, effectivePositionById,
+                    move.positionId());
+            addPositionOrganization(changed, organizationByPosition, move.newParentId());
+        });
+        positionCloses.forEach(close -> addPositionAndParentOrganizations(
+                changed, organizationByPosition, effectivePositionById,
+                close.positionId()));
+        if (changed.isEmpty()) {
+            throw new IllegalStateException(
+                    "Published organization scenario has no changed organization identity.");
+        }
+        return changed.stream()
+                .sorted(Comparator.comparing(UUID::toString))
+                .toList();
+    }
+
+    private void addPositionOrganization(
+            Set<UUID> changed,
+            Map<UUID, UUID> organizationByPosition,
+            UUID positionId) {
+        UUID organizationId = organizationByPosition.get(positionId);
+        if (organizationId != null) changed.add(organizationId);
+    }
+
+    private void addPositionAndParentOrganizations(
+            Set<UUID> changed,
+            Map<UUID, UUID> organizationByPosition,
+            Map<UUID, OrganizationChartDtos.Position> effectivePositionById,
+            UUID positionId) {
+        addPositionOrganization(changed, organizationByPosition, positionId);
+        OrganizationChartDtos.Position position = effectivePositionById.get(positionId);
+        if (position != null && position.reportsToPositionId() != null) {
+            addPositionOrganization(
+                    changed, organizationByPosition, position.reportsToPositionId());
+        }
     }
 
     private void ensureNotScheduledForClosure(

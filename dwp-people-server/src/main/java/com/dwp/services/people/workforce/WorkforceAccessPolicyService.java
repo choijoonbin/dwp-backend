@@ -21,7 +21,8 @@ import java.util.UUID;
 public class WorkforceAccessPolicyService {
 
     private static final Set<String> FIELD_GROUPS = Set.of(
-            "DIRECTORY", "WORKER_IDENTIFIERS", "EMPLOYMENT", "JOB_GRADE");
+            "DIRECTORY", "WORKER_IDENTIFIERS", "EMPLOYMENT", "JOB_GRADE",
+            "ORGANIZATION");
     private static final Set<String> ACTIONS = Set.of("READ", "EXPORT");
     private static final Set<String> GOVERNANCE_ROLES = Set.of("ADMIN", "TENANT_ADMIN");
     private static final String GOVERNANCE_PERMISSION = "ADMIN.WORKFORCE_ACCESS:MANAGE";

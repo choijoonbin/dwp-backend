@@ -8,6 +8,8 @@ import com.dwp.services.people.workforce.WorkforceAccessPolicyService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -18,6 +20,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -108,6 +112,67 @@ class OrganizationChartServiceTest {
         assertThat(result.company().organizationId()).isEqualTo(rootId);
         verify(populationScopes).requireConfigurationScope();
         verify(accessPolicyService, never()).require("READ");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "route.hcm.operations.organization-positions.page",
+            "route.hcm.operations.organization-graph.data"
+    })
+    void exactOrganizationGraphRoutesUseOnlyTheOrganizationResolver(String route) {
+        HcmV3PepRegistry.RouteAuthority authority = mock(
+                HcmV3PepRegistry.RouteAuthority.class);
+        when(authority.routeContractKey()).thenReturn(route);
+        ReflectionTestUtils.invokeMethod(HcmPepContext.class, "set",
+                new HcmPepContext.Evidence(
+                        authority, "psr-" + "a".repeat(64),
+                        OffsetDateTime.parse("2099-01-01T00:00:00Z"),
+                        "hcm.operations", "organization-scope", "110"));
+        WorkforceAccessPolicyService.Decision decision =
+                new WorkforceAccessPolicyService.Decision(
+                        true, Set.of(),
+                        Set.of("DIRECTORY", "EMPLOYMENT", "ORGANIZATION"),
+                        "READ");
+        HcmPopulationScopeService.ResolvedPopulation population =
+                mock(HcmPopulationScopeService.ResolvedPopulation.class);
+        when(accessPolicyService.require("READ")).thenReturn(decision);
+        when(populationScopes.requireOperations("READ")).thenReturn(population);
+        UUID rootId = UUID.randomUUID();
+        when(repository.organizations(TENANT_ID, AS_OF)).thenReturn(List.of(
+                root(rootId)));
+        when(repository.designPolicy(TENANT_ID)).thenReturn(Optional.empty());
+
+        OrganizationChartDtos.OrganizationChart result = service.get(
+                AS_OF, rootId, 1);
+
+        assertThat(result.company().organizationId()).isEqualTo(rootId);
+        verify(populationScopes).requireField(population, "ORGANIZATION");
+        verify(populationScopes).requireTrustedScope(
+                population, "hcm.operations", "TARGET_POPULATION",
+                "ORGANIZATION_TARGET_POPULATION");
+        verify(populationScopes, never()).requireTrustedScope(
+                eq(population), eq("hcm.operations"), eq("TARGET_POPULATION"),
+                eq("WORKFORCE_TARGET_POPULATION"), eq("ORG_UNIT/LEGAL_ENTITY"));
+    }
+
+    @Test
+    void legacyWorkforceChartKeepsItsExistingResolverAndDoesNotRequireOrganization() {
+        HcmPopulationScopeService.ResolvedPopulation population =
+                mock(HcmPopulationScopeService.ResolvedPopulation.class);
+        when(populationScopes.requireOperations("READ")).thenReturn(population);
+        UUID rootId = UUID.randomUUID();
+        when(repository.organizations(TENANT_ID, AS_OF)).thenReturn(List.of(
+                root(rootId)));
+        when(repository.designPolicy(TENANT_ID)).thenReturn(Optional.empty());
+
+        OrganizationChartDtos.OrganizationChart result = service.get(
+                AS_OF, rootId, 1);
+
+        assertThat(result.company().organizationId()).isEqualTo(rootId);
+        verify(populationScopes).requireTrustedScope(
+                population, "hcm.operations", "TARGET_POPULATION",
+                "WORKFORCE_TARGET_POPULATION", "ORG_UNIT/LEGAL_ENTITY");
+        verify(populationScopes, never()).requireField(any(), eq("ORGANIZATION"));
     }
 
     @Test
@@ -228,5 +293,12 @@ class OrganizationChartServiceTest {
                 "SEOUL",
                 "Seoul",
                 workerNumber.toLowerCase() + "@sk.com");
+    }
+
+    private OrganizationChartRepository.OrganizationRow root(UUID rootId) {
+        return new OrganizationChartRepository.OrganizationRow(
+                1L, rootId, "ROOT", "SKAX", "SKAX", "COMPANY",
+                "Company", 10, true, "Company", "CC-0000", "RED",
+                null, null);
     }
 }
