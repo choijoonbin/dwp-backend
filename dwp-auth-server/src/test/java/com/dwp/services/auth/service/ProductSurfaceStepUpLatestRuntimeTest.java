@@ -7,6 +7,7 @@ import com.dwp.services.auth.config.ProductAuthorizationSeedLoader;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.dwp.services.auth.dto.ProductSurfaceStepUpDtos;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
+import com.dwp.services.auth.tenantfeatureactivation.TenantFeatureActivationReader;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -89,6 +90,9 @@ class ProductSurfaceStepUpLatestRuntimeTest {
                 "actual-stepup-configuration", java.util.Map.of("dwp.auth.step-up.required-acr", ACR)));
         context.registerBean(javax.sql.DataSource.class, () -> source);
         context.registerBean(KeyPair.class, () -> keys);
+        context.registerBean(TenantFeatureActivationReader.class, () -> request ->
+                TenantFeatureActivationReader.GateResult.ungoverned(
+                        request.routeContractKey()));
         context.register(ProductSurfaceStepUpRuntimeSpringFixture.class, ProductAuthorizationAuthorityAdapter.class);
         context.refresh();
         jdbc = context.getBean(JdbcTemplate.class); transactions = context.getBean(TransactionTemplate.class);
@@ -124,7 +128,8 @@ class ProductSurfaceStepUpLatestRuntimeTest {
     @Test
     void latestSevenIssuesAnExactlyBoundSignedChallengeUsingCurrentDatabaseAuthority() throws Exception {
         var authority = currentAuthority();
-        assertThat(authority.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        assertThat(authority.decision()).as(authority.reasonCode())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
         assertThat(authority.requiredAssurance()).isEqualTo(ACR);
         assertThat(authority.effectiveReadOnly()).isFalse();
         assertThat(authority.policyRevision()).contains("policy-7-6-fe9721ef");
@@ -586,6 +591,39 @@ class ProductSurfaceStepUpLatestRuntimeTest {
     }
 
     @Test
+    void genuineV52SealedRuntimeResolvesBothCertificateProfilesAtRouteWideHigh() {
+        rollback(() -> {
+            var contracts = context.getBean(ProductAuthorizationContractService.class);
+            contracts.approve(KEY, 52L, "test-checker");
+            contracts.activate(KEY, 52L, "test-release",
+                    repository.findActivePointer(KEY).orElseThrow().revision());
+
+            var request = certificateIssueRequest();
+            var operations = resolver.resolve(request);
+            var self = resolver.resolveForCapability(
+                    request, "hcm.personal.certificate.request");
+
+            assertThat(operations.bundleVersion()).isEqualTo(52L);
+            assertThat(operations.bundleChecksum()).isEqualTo(
+                    "b33fbf968e71f97b09fa497fdfad7d2f6854199170b79fd1602a0ea604977346");
+            assertThat(operations.routeContractKey())
+                    .isEqualTo("route.hcm.operations.certificate-issue.action");
+            assertThat(operations.capabilityContractKey())
+                    .isEqualTo("hcm.operations.certificate.issue");
+            assertThat(self.capabilityContractKey())
+                    .isEqualTo("hcm.personal.certificate.request");
+            assertThat(operations.activationPolicy()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+            assertThat(self.activationPolicy()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+            assertThat(operations.targetType()).isEqualTo("PERSON");
+            assertThat(operations.targetIdBodyFields()).containsExactly("personPublicId");
+            assertThat(operations.expectedObjectVersionSource()).isEqualTo("COMMAND_HEADER");
+            assertThat(operations.expectedObjectVersionName())
+                    .isEqualTo("X-DWP-Expected-Object-Version");
+            assertThat(operations.audience()).isEqualTo("dwp-people-server");
+        });
+    }
+
+    @Test
     void genuineFourteenAllowsOnlyNonPublishingReviewRejectionWithoutStepUp() {
         rollback(() -> {
             var contracts = context.getBean(ProductAuthorizationContractService.class);
@@ -763,6 +801,16 @@ class ProductSurfaceStepUpLatestRuntimeTest {
                 "opaque-context", "TIME_PERIOD_50", "TIME_PERIOD", periodId, 9L,
                 "time-close-50-" + suffix, JSON.createObjectNode(), null,
                 "/hr/operations/time");
+    }
+
+    private static ProductSurfaceStepUpDtos.IssueRequest certificateIssueRequest() {
+        String person = "00000000-0000-4000-8000-000000000052";
+        return new ProductSurfaceStepUpDtos.IssueRequest(
+                "POST", "/api/people/v1/hris/certificates", "opaque-context",
+                "hrm009-selected-scope", "PERSON", person, 3L,
+                "hrm009-certificate-issue-52",
+                JSON.createObjectNode().put("personPublicId", person), null,
+                "/hr/operations/people/certificates-documents");
     }
 
     @Test

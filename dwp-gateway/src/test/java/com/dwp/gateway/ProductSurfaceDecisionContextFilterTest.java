@@ -266,6 +266,134 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void hrm009SameWireReadsUseDataAuthorityAndExactTrustedOwnerEvidence() {
+        record Case(
+                String path,
+                String route,
+                String purpose,
+                String fieldPolicy,
+                String populationKind) { }
+        List<Case> cases = List.of(
+                new Case(
+                        "/api/people/v1/hris/workbench/self-service/requests",
+                        "route.hcm.personal.requests.data",
+                        "EMPLOYEE_SELF_SERVICE", "hrm009.iaq-003.fields.v1", "SELF"),
+                new Case(
+                        "/api/people/v1/hris/workbench/operations/certificates/documents",
+                        "route.hcm.operations.certificates-documents.data",
+                        "HR_OPERATIONS", "hrm009.iaq-010.fields.v1", "LEGAL_ENTITY"));
+        String subject = "10000000-0000-4000-8000-000000000041";
+
+        for (Case requestCase : cases) {
+            GeneratedProductRouteCatalog.Match match = catalog.match("GET", requestCase.path());
+            assertThat(match.status()).as(requestCase.path())
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(match.routes()).as(requestCase.path()).hasSize(2);
+            assertThat(match.uniqueRoute().routeContractKey()).isEqualTo(requestCase.route());
+
+            ProductSurfaceContextAggregationService authority = authority(
+                    "LEGAL_ENTITY".equals(requestCase.populationKind())
+                            ? allowedWave2("TARGET_POPULATION", "LEGAL_ENTITY")
+                            : allowedWave2(requestCase.populationKind()));
+            MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(requestCase.path())
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER, subject)
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER,
+                            "client.forged.fields")
+                    .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                            "CLIENT_FORGED"));
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter(authority).filter(exchange, filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(requestCase.path()).isNotNull();
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                    .isEqualTo(requestCase.route());
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                    .isEqualTo(requestCase.purpose());
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER))
+                    .isEqualTo(requestCase.fieldPolicy());
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                    .isEqualTo(requestCase.populationKind());
+        }
+    }
+
+    @Test
+    void hrm009OperationsReadRejectsUnsealedTargetPopulationDisplay() {
+        String path = "/api/people/v1/hris/workbench/operations/certificates/documents";
+        ProductSurfaceContextAggregationService authority = authority(
+                allowedWave2("TARGET_POPULATION", "WORKFORCE_TARGET_POPULATION"));
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(path)
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041"));
+        AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+        filter(authority).filter(exchange, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isFalse();
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(exchange)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
+    }
+
+    @Test
+    void hrm009SharedActionIsRouteWideHighAndNeverGetsStaticPurposeOrFieldPolicy() {
+        String path = "/api/people/v1/hris/certificates";
+        GeneratedProductRouteCatalog.Route route = catalog.match("POST", path).uniqueRoute();
+        assertThat(route).isNotNull();
+        assertThat(route.routeContractKey())
+                .isEqualTo("route.hcm.operations.certificate-issue.action");
+        assertThat(route.stateChanging()).isTrue();
+        assertThat(route.highRiskStepUp()).isTrue();
+        assertThat(route.commandBoundStepUp()).isTrue();
+
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.post(path)
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041")
+                .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER, REVISION)
+                .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED")
+                .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER,
+                        "client.forged.fields")
+                .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                        "TEAM_MANAGEMENT"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter(authority(allowedWave2("SELF"))).filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceDecisionContextFilter.PURPOSE_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER)).isEqualTo("SELF");
+    }
+
+    @Test
     void wave2HrmAndPayPurposesAreGatewayOwned() {
         ProductSurfaceDecisionContextFilter filter = filter(authority(
                 allowedWave2("LEGAL_ENTITY")));
@@ -2027,9 +2155,15 @@ class ProductSurfaceDecisionContextFilterTest {
 
     private ProductSurfaceContextAggregationService.TrustedProductEvaluation allowedWave2(
             String scopeKind) {
+        return allowedWave2(scopeKind, scopeKind);
+    }
+
+    private ProductSurfaceContextAggregationService.TrustedProductEvaluation allowedWave2(
+            String scopeKind,
+            String displayName) {
         ProductSurfaceContextDtos.EffectiveScope scope =
                 new ProductSurfaceContextDtos.EffectiveScope(
-                        HCM_DERIVED_SCOPE, scopeKind, scopeKind, true, false, REVALIDATE_AT);
+                        HCM_DERIVED_SCOPE, scopeKind, displayName, true, false, REVALIDATE_AT);
         String contextKey = "psc-" + "d".repeat(64);
         ProductSurfaceContextDtos.EffectiveContext context =
                 new ProductSurfaceContextDtos.EffectiveContext(

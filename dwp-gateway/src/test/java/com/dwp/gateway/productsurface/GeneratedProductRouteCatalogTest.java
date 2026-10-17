@@ -32,6 +32,45 @@ class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestS
             "route.hcm.time.timecard.data");
 
     @Test
+    void v52CanonicalizesHrm009SameWireReadsAndSealsTheSingleHighAction() {
+        GeneratedProductRouteCatalog latest = catalog(52);
+        record Pair(String path, String dataRoute, String equivalenceKey) { }
+        for (Pair pair : List.of(
+                new Pair(
+                        "/api/people/v1/hris/workbench/self-service/requests",
+                        "route.hcm.personal.requests.data",
+                        "wire-authority.hcm.personal.requests.v1"),
+                new Pair(
+                        "/api/people/v1/hris/workbench/operations/certificates/documents",
+                        "route.hcm.operations.certificates-documents.data",
+                        "wire-authority.hcm.operations.certificates-documents.v1"))) {
+            GeneratedProductRouteCatalog.Match match = latest.match("GET", pair.path());
+            assertThat(match.status()).as(pair.path())
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(match.routes()).as(pair.path()).hasSize(2)
+                    .allSatisfy(route -> assertThat(route.authorizationEquivalenceKey())
+                            .isEqualTo(pair.equivalenceKey()));
+            assertThat(match.uniqueRoute()).isNotNull().satisfies(route -> {
+                assertThat(route.routeContractKey()).isEqualTo(pair.dataRoute());
+                assertThat(route.routeKind()).isEqualTo("DATA");
+                assertThat(route.stateChanging()).isFalse();
+            });
+        }
+
+        GeneratedProductRouteCatalog.Route action = latest.match(
+                "POST", "/api/people/v1/hris/certificates").uniqueRoute();
+        assertThat(action).isNotNull().satisfies(route -> {
+            assertThat(route.routeContractKey())
+                    .isEqualTo("route.hcm.operations.certificate-issue.action");
+            assertThat(route.routeKind()).isEqualTo("ACTION");
+            assertThat(route.stateChanging()).isTrue();
+            assertThat(route.highRiskStepUp()).isTrue();
+            assertThat(route.commandBoundStepUp()).isTrue();
+            assertThat(route.genericSessionStepUp()).isFalse();
+        });
+    }
+
+    @Test
     void v51RoutesHrmWirePairsButNeverPublishesAuthorizationOnlySysPages() {
         GeneratedProductRouteCatalog latest = catalog(51);
         assertThat(latest.match("GET",

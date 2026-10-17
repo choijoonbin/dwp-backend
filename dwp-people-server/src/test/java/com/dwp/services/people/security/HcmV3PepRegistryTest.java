@@ -19,11 +19,95 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV51PeopleClosureAndRetainsTheV42Bindings() throws IOException {
-        assertThat(registry.bindingContracts()).hasSize(136);
+    void hrm009UsesTrustedScopeToSelectProfilesAndKeepsTheSharedActionHigh() {
+        HcmV3PepRegistry.Decision selfRead = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET", "/v1/hris/workbench/self-service/requests",
+                        Set.of("APP.HCM:VIEW", "DATA.HRIS_SELF_REQUEST:VIEW"),
+                        null, "NORMAL", Set.of(),
+                        "route.hcm.personal.requests.data", null,
+                        "EMPLOYEE_SELF_SERVICE", "SELF"));
+        assertThat(selfRead.allowed()).isTrue();
+        assertThat(selfRead.authority().profileKey()).isEqualTo("self-request-reader");
+        assertThat(selfRead.authority().projectionPolicyKey()).isEqualTo(
+                "route.hcm.personal.requests.data.self-request-reader.projection.v1");
+        assertThat(selfRead.authority().responseSchemaKey())
+                .isEqualTo("Hrm009SelfRequestsProjectionV1");
+
+        HcmV3PepRegistry.Decision operationsRead = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET", "/v1/hris/workbench/operations/certificates/documents",
+                        Set.of("APP.HCM:VIEW", "DATA.HRIS_WORKFORCE:VIEW"),
+                        null, "NORMAL", Set.of(),
+                        "route.hcm.operations.certificates-documents.data", null,
+                        "HR_OPERATIONS", "ORG_UNIT"));
+        assertThat(operationsRead.allowed()).isTrue();
+        assertThat(operationsRead.authority().profileKey())
+                .isEqualTo("people-operations-reader");
+        assertThat(operationsRead.authority().projectionPolicyKey()).isEqualTo(
+                "route.hcm.operations.certificates-documents.data."
+                        + "people-operations-reader.projection.v1");
+        assertThat(operationsRead.authority().responseSchemaKey())
+                .isEqualTo("Hrm009CertificatesDocumentsProjectionV1");
+        assertThat(registry.authorize(new HcmV3PepRegistry.RequestEvidence(
+                "GET", "/v1/hris/workbench/operations/certificates/documents",
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_WORKFORCE:VIEW"),
+                null, "NORMAL", Set.of(),
+                "route.hcm.operations.certificates-documents.data", null,
+                "HR_OPERATIONS", "TARGET_POPULATION")).denialCode())
+                .isEqualTo("EXACT_ROUTE_AUTHORITY_REQUIRED");
+        assertThat(registry.authorize(new HcmV3PepRegistry.RequestEvidence(
+                "GET", "/v1/hris/workbench/operations/certificates/documents",
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_WORKFORCE:VIEW"),
+                null, "NORMAL", Set.of(),
+                "route.hcm.operations.certificates-documents.data", null,
+                "CLIENT_FORGED", "ORG_UNIT")).denialCode())
+                .isEqualTo("TRUSTED_PURPOSE_REQUIRED");
+
+        Set<String> dualPermissions = Set.of(
+                "APP.HCM:VIEW",
+                "ACTION.HRIS_CERTIFICATE:CREATE",
+                "ACTION.HRIS_CERTIFICATE:ISSUE");
+        HcmV3PepRegistry.Decision selfAction = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "POST", "/v1/hris/certificates", dualPermissions,
+                        null, "NORMAL", Set.of(),
+                        "route.hcm.operations.certificate-issue.action", null,
+                        null, "SELF"));
+        HcmV3PepRegistry.Decision operationsAction = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "POST", "/v1/hris/certificates", dualPermissions,
+                        null, "NORMAL", Set.of(),
+                        "route.hcm.operations.certificate-issue.action", null,
+                        null, "TARGET_POPULATION"));
+        assertThat(selfAction.allowed()).isTrue();
+        assertThat(selfAction.authority().profileKey())
+                .isEqualTo("certificate-self-requester");
+        assertThat(operationsAction.allowed()).isTrue();
+        assertThat(operationsAction.authority().profileKey())
+                .isEqualTo("certificate-operations-issuer");
+        for (HcmV3PepRegistry.Decision decision : List.of(selfAction, operationsAction)) {
+            assertThat(decision.authority().activationPolicy())
+                    .isEqualTo("STEPUP-MGMT-HIGH-V1");
+            assertThat(decision.authority().highRisk()).isTrue();
+            assertThat(decision.authority().stepUpBinding().targetType()).isEqualTo("PERSON");
+            assertThat(decision.authority().stepUpBinding().targetIdPathParameter()).isNull();
+            assertThat(decision.authority().stepUpBinding().targetIdBodyFields())
+                    .containsExactly("personPublicId");
+        }
+        assertThat(registry.authorize(new HcmV3PepRegistry.RequestEvidence(
+                "POST", "/v1/hris/certificates", dualPermissions,
+                null, "NORMAL", Set.of(),
+                "route.hcm.operations.certificate-issue.action", null,
+                "TEAM_MANAGEMENT", "TEAM_MANAGEMENT")).allowed()).isFalse();
+    }
+
+    @Test
+    void loadsTheExactV52PeopleClosureAndRetainsTheV42Bindings() throws IOException {
+        assertThat(registry.bindingContracts()).hasSize(141);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(109);
+                .distinct()).hasSize(114);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -72,7 +156,7 @@ class HcmV3PepRegistryTest {
         assertThat(v42Bindings).hasSize(124);
         assertThat(runtimeBindings).containsAll(v42Bindings);
         assertThat(registry.highRiskBindingContracts())
-                .hasSize(14)
+                .hasSize(15)
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
                 .containsExactlyInAnyOrder(
                         "route.hcm.management.org-publish.action",
@@ -88,7 +172,8 @@ class HcmV3PepRegistryTest {
                         "route.hcm.operations.compensation-snapshot-publish.action",
                         "route.hcm.operations.assignment-proposal-submit.action",
                         "route.hcm.operations.employee-change-request-apply.action",
-                        "route.hcm.operations.assignment-event-publish.action");
+                        "route.hcm.operations.assignment-event-publish.action",
+                        "route.hcm.operations.certificate-issue.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
                 .hasSize(18)
                 .containsOnlyKeys(

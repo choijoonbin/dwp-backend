@@ -14,6 +14,27 @@ class ProductAuthorizationReleaseLineageTest {
             new ProductAuthorizationContractValidator(mapper);
 
     @Test
+    void acceptsThePinnedV51AndHrm009V52Successor() throws Exception {
+        try (var v51Input = new ClassPathResource(
+                "product-authorization/product-surfaces-v1.bundle-v51.generated.json")
+                .getInputStream();
+             var v52Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v52.generated.json")
+                     .getInputStream()) {
+            var v51 = validator.validateDocument(v51Input);
+            var v52 = validator.validateDocument(v52Input);
+            assertThat(v51.checksum()).isEqualTo(
+                    "3beda5c13a3af0e265ace4533a3afcee3691c2b7486465dcf46156e58ae5ed2c");
+            assertThat(v51.capabilities()).hasSize(265);
+            assertThat(v51.routes()).hasSize(1087);
+            assertThat(v52.checksum()).isEqualTo(
+                    "b33fbf968e71f97b09fa497fdfad7d2f6854199170b79fd1602a0ea604977346");
+            assertThat(v52.capabilities()).hasSize(268);
+            assertThat(v52.routes()).hasSize(1092);
+        }
+    }
+
+    @Test
     void preservesV33ThroughV49AndAcceptsOnlyThePinnedTim007V50() throws Exception {
         try (var v33Input = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v33.generated.json")

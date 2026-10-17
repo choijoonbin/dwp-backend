@@ -240,7 +240,7 @@ class CertificateAuthorizationTest {
                 CertificateAuthority.SELF_PROFILE);
         assertThat(selfDecision.capability()).isEqualTo(
                 CertificateAuthority.SELF_CAPABILITY);
-        verify(selfPopulations).requireSelfScope("hcm.personal");
+        verify(selfPopulations).requireSelfScope("hcm.operations");
 
         HcmPopulationScopeService operationsPopulations =
                 mock(HcmPopulationScopeService.class);

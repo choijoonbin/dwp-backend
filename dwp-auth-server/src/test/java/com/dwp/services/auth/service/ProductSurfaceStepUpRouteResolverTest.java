@@ -153,6 +153,27 @@ class ProductSurfaceStepUpRouteResolverTest {
     }
 
     @Test
+    void v52SharedCertificateRouteKeepsTheOperationsProfileAsDeterministicDefault()
+            throws Exception {
+        ProductAuthorizationContractDtos.BundleContract v52 = readContract(52);
+        var capabilities = v52.capabilities().stream().collect(Collectors.toMap(
+                ProductAuthorizationContractDtos.CapabilityContract::contractKey,
+                Function.identity()));
+        var route = v52.routes().stream()
+                .filter(value -> "route.hcm.operations.certificate-issue.action"
+                        .equals(value.routeContractKey()))
+                .findFirst().orElseThrow();
+
+        assertThat(route.accessProfiles())
+                .extracting(ProductAuthorizationContractDtos.AccessProfile::profileKey)
+                .containsExactly(
+                        "certificate-operations-issuer",
+                        "certificate-self-requester");
+        assertThat(resolver.capabilityProfile(route, capabilities).profileKey())
+                .isEqualTo("certificate-operations-issuer");
+    }
+
+    @Test
     void remainsUnavailableWithoutAnActiveW1aV2Bundle() {
         when(repository.findActive("product-surfaces")).thenReturn(Optional.empty());
         String target = UUID.randomUUID().toString();

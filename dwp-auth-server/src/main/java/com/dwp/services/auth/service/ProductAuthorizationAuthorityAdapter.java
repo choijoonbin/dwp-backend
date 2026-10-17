@@ -37,6 +37,10 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
     private static final Set<String> HCM_EMPLOYEE_CHANGE_MULTI_PROFILE_ROUTES = Set.of(
             "route.hcm.operations.employee-change-request-create.action",
             "route.hcm.operations.employee-change-request-submit.action");
+    private static final String HCM_CERTIFICATE_SHARED_ACTION_ROUTE =
+            "route.hcm.operations.certificate-issue.action";
+    private static final String HCM_CERTIFICATE_ROUTE_STEP_UP_POLICY =
+            "STEPUP-MGMT-HIGH-V1";
     private static final Set<String> GENERIC_SESSION_PROFILE_ALTERNATIVE_ROUTES = Set.of(
             "route.hcm.configuration.configuration-version.data",
             "route.hcm.configuration.configurations.data",
@@ -412,6 +416,9 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         if (PERFORMANCE_REVIEW_DUAL_PROFILE_ROUTES.contains(request.routeContractKey())) {
             return true;
         }
+        if (HCM_CERTIFICATE_SHARED_ACTION_ROUTE.equals(request.routeContractKey())) {
+            return true;
+        }
         // Gateway traffic can carry a People-derived hcm-scope-* selection. The R2 source
         // selector is the pre-intersection scope-* value used by the dedicated origin bridge.
         return HCM_PRODUCT.equals(request.productKey())
@@ -509,7 +516,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             return evaluateHcmAuditCapability(request, identity, capability,
                     profile.predicatePolicyKeys());
         }
-        return switch (access.type()) {
+        Evaluation result = switch (access.type()) {
             case "CAPABILITY" -> evaluateCapability(
                     request,
                     registry,
@@ -541,6 +548,62 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             default -> throw new IllegalStateException(
                     "Unknown route required access type: " + access.type());
         };
+        return enforceCertificateRouteHighAssurance(request, route, result);
+    }
+
+    /**
+     * The one HRM-009 command route intentionally has two atomic-duty profiles. The
+     * self capability has a MEDIUM baseline, but the shared wire route is HIGH. A
+     * normal-mode self grant must therefore be challenge-eligible just like the
+     * operations grant; capability precedence must never downgrade route assurance.
+     */
+    private Evaluation enforceCertificateRouteHighAssurance(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            Evaluation result) {
+        if (!HCM_CERTIFICATE_SHARED_ACTION_ROUTE.equals(route.routeContractKey())
+                || !result.allowed()
+                || request.activeAccessMode()
+                != ProductSurfaceAuthorityDtos.AccessMode.NORMAL) {
+            return result;
+        }
+        if (result.effectiveReadOnly() || result.grants().isEmpty()
+                || result.grants().stream().anyMatch(grant ->
+                !(grant instanceof ProductSurfaceAuthorityDtos.CapabilityGrant))) {
+            return Evaluation.denied(
+                    ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE,
+                    "HRM009_SHARED_ROUTE_ASSURANCE_INVALID");
+        }
+        List<ProductSurfaceAuthorityDtos.EffectiveGrant> eligible = result.grants().stream()
+                .map(grant -> {
+                    ProductSurfaceAuthorityDtos.CapabilityGrant capability =
+                            (ProductSurfaceAuthorityDtos.CapabilityGrant) grant;
+                    return (ProductSurfaceAuthorityDtos.EffectiveGrant)
+                            new ProductSurfaceAuthorityDtos.CapabilityGrant(
+                                    capability.capabilityContractKey(),
+                                    capability.resolvedCapabilityCode(),
+                                    capability.authorityMode(),
+                                    capability.predicatePolicyKeys(),
+                                    capability.responsibilityRequirement(),
+                                    capability.responsibility(),
+                                    capability.scopeKeys(),
+                                    capability.requiresProductEntitlement(),
+                                    capability.readOnly(),
+                                    ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE,
+                                    capability.validUntil());
+                })
+                .toList();
+        return Evaluation.challenge(
+                ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED,
+                "STEP_UP_REQUIRED",
+                HCM_CERTIFICATE_ROUTE_STEP_UP_POLICY,
+                requiredAcr,
+                result.accessSource(),
+                eligible,
+                result.scopes(),
+                false,
+                result.validUntil(),
+                result.appResourceKey());
     }
 
     private List<ProductSurfaceAuthorityDtos.EffectiveScope> singleSelfEntryPolicyScopes(

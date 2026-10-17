@@ -269,6 +269,75 @@ class ProductSurfaceStepUpChallengeServiceTest {
                         .isEqualTo(ErrorCode.STEP_UP_REQUIRED));
     }
 
+    @Test
+    void sharedHrm009RouteRebindsTheChallengeToTheSelectedSelfProfile()
+            throws Exception {
+        String person = UUID.randomUUID().toString();
+        ObjectNode payload = objectMapper.createObjectNode()
+                .put("personPublicId", person)
+                .put("certificateType", "EMPLOYMENT");
+        var selfRequest = new ProductSurfaceStepUpDtos.IssueRequest(
+                "POST", "/api/people/v1/hris/certificates",
+                "hrm009-context", "hrm009-self-scope", "PERSON", person, 4L,
+                UUID.randomUUID().toString(), payload, null, "/hr/me/requests");
+        var operationsResolution = new ProductSurfaceStepUpRouteResolver.Resolution(
+                "route.hcm.operations.certificate-issue.action", "hcm", "hcm.operations",
+                "hcm.operations.certificate.issue", "STEPUP-MGMT-HIGH-V1",
+                "WORKFORCE_TARGET_POPULATION", "people", "dwp-people-server",
+                "PERSON", null, List.of("personPublicId"), "COMMAND_HEADER",
+                "X-DWP-Expected-Object-Version", 52,
+                "b33fbf968e71f97b09fa497fdfad7d2f6854199170b79fd1602a0ea604977346", 8);
+        var selfResolution = new ProductSurfaceStepUpRouteResolver.Resolution(
+                operationsResolution.routeContractKey(), "hcm", "hcm.operations",
+                "hcm.personal.certificate.request", "STEPUP-MGMT-HIGH-V1",
+                "SELF", "people", "dwp-people-server", "PERSON", null,
+                List.of("personPublicId"), "COMMAND_HEADER",
+                "X-DWP-Expected-Object-Version", 52,
+                operationsResolution.bundleChecksum(), 8);
+        OffsetDateTime validUntil = OffsetDateTime.ofInstant(
+                NOW.plusSeconds(900), ZoneOffset.UTC);
+        var scope = new ProductSurfaceAuthorityDtos.EffectiveScope(
+                "hrm009-self-scope", "SELF", "Self", true, false, validUntil);
+        var grant = new ProductSurfaceAuthorityDtos.CapabilityGrant(
+                "hcm.personal.certificate.request", "ACTION.HRIS_CERTIFICATE:CREATE",
+                ProductSurfaceAuthorityDtos.CapabilityAuthorityMode.PERMISSION_AND_RELATIONSHIP,
+                List.of("predicate.self-person.v1", "predicate.people.object-version.v1"),
+                ProductSurfaceAuthorityDtos.ResponsibilityRequirement.NOT_REQUIRED,
+                null, List.of(scope.key()), false, false,
+                ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE, validUntil);
+        var selfAuthority = new ProductSurfaceAuthorityDtos.AuthorityResult(
+                ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED,
+                "STEP_UP_REQUIRED", "auth-revision", "policy-revision",
+                "hrm009-context", "hcm", "hcm.operations", "management",
+                ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                ProductSurfaceAuthorityDtos.AccessSource.MANAGEMENT,
+                "ACTION.HRIS_CERTIFICATE", List.of(grant), List.of(scope),
+                "hrm009-route-grant", false, false, validUntil, null,
+                REQUIRED_ACR, "STEPUP-MGMT-HIGH-V1", validUntil, "evidence");
+        when(routeResolver.resolve(selfRequest)).thenReturn(operationsResolution);
+        when(routeResolver.resolveForCapability(
+                selfRequest, "hcm.personal.certificate.request"))
+                .thenReturn(selfResolution);
+        when(authorityService.evaluate(any())).thenReturn(selfAuthority);
+        when(sessionService.requireFreshAssurance(
+                any(), eq(ACTOR_ID), eq(TENANT_ID), eq(REQUIRED_ACR), eq(600L)))
+                .thenReturn(new AuthSessionService.AssuranceEvidence(
+                        "OIDC_STEP_UP", NOW.minusSeconds(30), REQUIRED_ACR,
+                        List.of("mfa", "otp", "pwd")));
+
+        var outcome = (ProductSurfaceStepUpChallengeService.Issued) service.issue(
+                ACTOR_ID, TENANT_ID, jwt(), parsed(selfRequest),
+                revision("auth-revision", "policy-revision"),
+                new MockHttpServletResponse());
+        JsonNode claims = objectMapper.readTree(Base64.getUrlDecoder().decode(
+                outcome.response().challenge().split("\\.")[1]));
+        assertThat(claims.path("capability_contract_key").asText())
+                .isEqualTo("hcm.personal.certificate.request");
+        assertThat(claims.path("activation_policy").asText())
+                .isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertThat(claims.path("scope_ref").asText()).isEqualTo("hrm009-self-scope");
+    }
+
     private ProductSurfaceAuthorityDtos.AuthorityResult authority(
             String contextKey,
             String scopeKey) {

@@ -61,6 +61,10 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
     private static final Set<String> TENANT_ACCESS_MODES = Set.of("NORMAL", "ELEVATED");
     private static final String ORGANIZATION_GRAPH_PATH =
             "/v1/hris/organizations/graph";
+    private static final String HRM009_ACTION_ROUTE =
+            "route.hcm.operations.certificate-issue.action";
+    private static final String HRM009_SELF_PROFILE = "certificate-self-requester";
+    private static final String HRM009_OPERATIONS_PROFILE = "certificate-operations-issuer";
 
     private final boolean productAuthorizationV3Enabled;
     private final HcmV3PepRegistry registry;
@@ -182,6 +186,12 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             return;
         }
         Set<String> permissions = parse(request.getHeader(PeopleSecurityHeaders.PERMISSIONS));
+        String inboundPurpose = exactHeader(request, PURPOSE_HEADER);
+        if (HRM009_ACTION_ROUTE.equals(trustedRoute) && inboundPurpose != null) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Caller-supplied HRM-009 purpose evidence is not accepted.");
+            return;
+        }
         HcmV3PepRegistry.Decision decision = registry.authorize(
                 new HcmV3PepRegistry.RequestEvidence(
                         request.getMethod(), request.getRequestURI(), permissions,
@@ -189,7 +199,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
                         activeAccessMode,
                         parse(request.getHeader(PeopleSecurityHeaders.SUPPORT_SCOPES)),
                         trustedRoute, request.getQueryString(),
-                        exactHeader(request, PURPOSE_HEADER),
+                        inboundPurpose,
                         exactHeader(request, POPULATION_KIND_HEADER)));
         if (!decision.allowed()) {
             writeError(response, ErrorCode.FORBIDDEN,
@@ -214,10 +224,16 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             }
         }
 
+        String trustedPurpose = trustedPurpose(decision.authority(), inboundPurpose);
+        if (HRM009_ACTION_ROUTE.equals(trustedRoute) && trustedPurpose == null) {
+            writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Trusted HRM-009 profile purpose is unavailable.");
+            return;
+        }
         HcmPepContext.set(new HcmPepContext.Evidence(
                 decision.authority(), currentRevision, currentRevalidateAt,
                 trustedContext, trustedScope, state, activeAccessMode,
-                exactHeader(request, PURPOSE_HEADER),
+                trustedPurpose,
                 exactHeader(request, FIELD_POLICY_KEY_HEADER)));
         try {
             scopeValidator.validate(decision.authority());
@@ -249,6 +265,20 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
     private boolean validCurrentDecision(String revision, OffsetDateTime validUntil) {
         return revision != null && revision.matches("psr-[a-f0-9]{64}")
                 && validUntil != null && validUntil.isAfter(OffsetDateTime.now());
+    }
+
+    private String trustedPurpose(
+            HcmV3PepRegistry.RouteAuthority authority,
+            String forwardedPurpose) {
+        if (authority == null || !HRM009_ACTION_ROUTE.equals(
+                authority.routeContractKey())) {
+            return forwardedPurpose;
+        }
+        return switch (authority.profileKey()) {
+            case HRM009_SELF_PROFILE -> "EMPLOYEE_SELF_SERVICE";
+            case HRM009_OPERATIONS_PROFILE -> "HR_OPERATIONS";
+            default -> null;
+        };
     }
 
     private boolean organizationPositionsUnavailable(HttpServletRequest request) {

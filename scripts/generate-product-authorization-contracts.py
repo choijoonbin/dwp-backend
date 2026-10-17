@@ -248,12 +248,24 @@ HCM_PLATFORM_PEP_V51_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
 HCM_PAYROLL_PEP_V51_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
     "hcm-payroll-pep-v51.generated.json"
 )
+HCM_PEOPLE_PEP_V52_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v52.generated.json"
+)
+HCM_TIME_PEP_V52_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
+    "hcm-time-pep-v52.generated.json"
+)
+HCM_PLATFORM_PEP_V52_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v52.generated.json"
+)
+HCM_PAYROLL_PEP_V52_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
+    "hcm-payroll-pep-v52.generated.json"
+)
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 52))
+BUNDLE_VERSIONS = tuple(range(1, 53))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -389,6 +401,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 81, "routes": 1079, "PAGE": 144, "DATA": 326, "ACTION": 609},
     51: {"capabilities": 265, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 81, "routes": 1087, "PAGE": 149, "DATA": 329, "ACTION": 609},
+    52: {"capabilities": 268, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 81, "routes": 1092, "PAGE": 151, "DATA": 331, "ACTION": 610},
 }
 
 V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
@@ -626,6 +640,9 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     46: "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e",
     47: "925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e",
     48: "9fd324cd67ede1f02cc8ac33c08ad880ec6e283f99f5d7aa50e0e514545aa043",
+    49: "5c1dccdc27d8b260fbf001de5695e983a7107072824a8087038340d0d84cbc60",
+    50: "c52222caad2749c4048c694f6582e157f6ab1184f73237f0944c3d88807a2760",
+    51: "3beda5c13a3af0e265ace4533a3afcee3691c2b7486465dcf46156e58ae5ed2c",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -4200,6 +4217,10 @@ def verify_no_out_of_lineage_artifacts() -> None:
         HCM_TIME_PEP_V51_OUTPUT,
         HCM_PLATFORM_PEP_V51_OUTPUT,
         HCM_PAYROLL_PEP_V51_OUTPUT,
+        HCM_PEOPLE_PEP_V52_OUTPUT,
+        HCM_TIME_PEP_V52_OUTPUT,
+        HCM_PLATFORM_PEP_V52_OUTPUT,
+        HCM_PAYROLL_PEP_V52_OUTPUT,
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -5010,6 +5031,50 @@ def main() -> int:
             version=51,
             product_key="hcm",
         )
+        hcm_people_pep_v52 = build_approvals_pep(
+            snapshots[51], "people", "hcm-people-pep-v52",
+            {
+                "routes": 114, "bindings": 141,
+                "routeKinds": {"ACTION": 49, "DATA": 25, "PAGE": 40},
+                "capabilities": 57, "accessPolicies": 5,
+                "entitlementExpressions": 3, "predicatePolicies": 18,
+            },
+            version=52,
+            product_key="hcm",
+        )
+        hcm_time_pep_v52 = build_approvals_pep(
+            snapshots[51], "time", "hcm-time-pep-v52",
+            {
+                "routes": 29, "bindings": 29,
+                "routeKinds": {"ACTION": 16, "DATA": 6, "PAGE": 7},
+                "capabilities": 15, "accessPolicies": 0,
+                "entitlementExpressions": 0, "predicatePolicies": 9,
+            },
+            version=52,
+            product_key="hcm",
+        )
+        hcm_platform_pep_v52 = build_approvals_pep(
+            snapshots[51], "platform", "hcm-platform-pep-v52",
+            {
+                "routes": 53, "bindings": 54,
+                "routeKinds": {"ACTION": 27, "DATA": 19, "PAGE": 7},
+                "capabilities": 21, "accessPolicies": 4,
+                "entitlementExpressions": 3, "predicatePolicies": 11,
+            },
+            version=52,
+            product_key="hcm",
+        )
+        hcm_payroll_pep_v52 = build_approvals_pep(
+            snapshots[51], "payroll", "hcm-payroll-pep-v52",
+            {
+                "routes": 34, "bindings": 34,
+                "routeKinds": {"ACTION": 21, "DATA": 11, "PAGE": 2},
+                "capabilities": 16, "accessPolicies": 0,
+                "entitlementExpressions": 0, "predicatePolicies": 8,
+            },
+            version=52,
+            product_key="hcm",
+        )
     except ContractError as exc:
         print(f"authorization contract error: {exc}", file=sys.stderr)
         return 1
@@ -5296,6 +5361,26 @@ def main() -> int:
                 render(hcm_payroll_pep_v51),
                 args.check,
             ),
+            write_or_check(
+                HCM_PEOPLE_PEP_V52_OUTPUT,
+                render(hcm_people_pep_v52),
+                args.check,
+            ),
+            write_or_check(
+                HCM_TIME_PEP_V52_OUTPUT,
+                render(hcm_time_pep_v52),
+                args.check,
+            ),
+            write_or_check(
+                HCM_PLATFORM_PEP_V52_OUTPUT,
+                render(hcm_platform_pep_v52),
+                args.check,
+            ),
+            write_or_check(
+                HCM_PAYROLL_PEP_V52_OUTPUT,
+                render(hcm_payroll_pep_v52),
+                args.check,
+            ),
         ]
     )
     if not all(outcomes):
@@ -5420,6 +5505,10 @@ def main() -> int:
         verify_approvals_pep(HCM_TIME_PEP_V51_OUTPUT, hcm_time_pep_v51)
         verify_approvals_pep(HCM_PLATFORM_PEP_V51_OUTPUT, hcm_platform_pep_v51)
         verify_approvals_pep(HCM_PAYROLL_PEP_V51_OUTPUT, hcm_payroll_pep_v51)
+        verify_approvals_pep(HCM_PEOPLE_PEP_V52_OUTPUT, hcm_people_pep_v52)
+        verify_approvals_pep(HCM_TIME_PEP_V52_OUTPUT, hcm_time_pep_v52)
+        verify_approvals_pep(HCM_PLATFORM_PEP_V52_OUTPUT, hcm_platform_pep_v52)
+        verify_approvals_pep(HCM_PAYROLL_PEP_V52_OUTPUT, hcm_payroll_pep_v52)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1
