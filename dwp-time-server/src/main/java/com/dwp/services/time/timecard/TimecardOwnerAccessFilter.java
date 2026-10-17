@@ -3,6 +3,9 @@ package com.dwp.services.time.timecard;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.time.api.HrisTimeApiException;
+import com.dwp.services.time.api.HrisTimeProblemCode;
+import com.dwp.services.time.api.HrisTimeProblemWriter;
 import com.dwp.services.time.timecard.TimecardModels.VerifiedTimecardRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -13,6 +16,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -34,11 +38,21 @@ public final class TimecardOwnerAccessFilter extends OncePerRequestFilter {
 
     private final TimecardOwnerAuthoritySource authoritySource;
     private final ObjectMapper objectMapper;
+    private final HrisTimeProblemWriter problemWriter;
+
+    @Autowired
+    public TimecardOwnerAccessFilter(
+            TimecardOwnerAuthoritySource authoritySource,
+            ObjectMapper objectMapper,
+            HrisTimeProblemWriter problemWriter) {
+        this.authoritySource = Objects.requireNonNull(authoritySource, "authoritySource");
+        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+        this.problemWriter = Objects.requireNonNull(problemWriter, "problemWriter");
+    }
 
     public TimecardOwnerAccessFilter(
             TimecardOwnerAuthoritySource authoritySource, ObjectMapper objectMapper) {
-        this.authoritySource = Objects.requireNonNull(authoritySource, "authoritySource");
-        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+        this(authoritySource, objectMapper, new HrisTimeProblemWriter(objectMapper));
     }
 
     @Override
@@ -58,7 +72,9 @@ public final class TimecardOwnerAccessFilter extends OncePerRequestFilter {
                         request.getMethod(), request.getRequestURI()))
                 .findFirst().orElse(null);
         if (route == null) {
-            deny(response, ErrorCode.FORBIDDEN,
+            deny(request, response,
+                    request.getRequestURI().startsWith("/v1/command-receipts/")
+                            ? ErrorCode.INVALID_FORMAT : ErrorCode.FORBIDDEN,
                     "Exact TIM Timecard route authority is required.");
             return;
         }
@@ -70,12 +86,12 @@ public final class TimecardOwnerAccessFilter extends OncePerRequestFilter {
             ErrorCode code = failure.getErrorCode() == ErrorCode.DECISION_REVISION_CONFLICT
                     ? ErrorCode.DECISION_REVISION_CONFLICT
                     : ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE;
-            deny(response, code, code == ErrorCode.DECISION_REVISION_CONFLICT
+            deny(request, response, code, code == ErrorCode.DECISION_REVISION_CONFLICT
                     ? "TIM Timecard authority changed after the client decision."
                     : "Trusted TIM Timecard authority is unavailable.");
             return;
         } catch (RuntimeException unavailable) {
-            deny(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+            deny(request, response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                     "Trusted TIM Timecard authority is unavailable.");
             return;
         }
@@ -84,7 +100,7 @@ public final class TimecardOwnerAccessFilter extends OncePerRequestFilter {
                 || !verified.actions().contains(route.action())
                 || !route.accepts(verified.populationKind(), verified.permissions())
                 || !route.requiredPurpose().equals(verified.purposeCode())) {
-            deny(response, ErrorCode.FORBIDDEN,
+            deny(request, response, ErrorCode.FORBIDDEN,
                     "The selected TIM Timecard scope is not authorized.");
             return;
         }
@@ -94,8 +110,19 @@ public final class TimecardOwnerAccessFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private void deny(HttpServletResponse response, ErrorCode code, String message)
+    private void deny(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            ErrorCode code,
+            String message)
             throws IOException {
+        if (request.getRequestURI().startsWith("/v1/command-receipts/")) {
+            problemWriter.write(
+                    request,
+                    response,
+                    new HrisTimeApiException(HrisTimeProblemCode.from(code)));
+            return;
+        }
         response.setStatus(code.getHttpStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(code, message));

@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Raw pinned OpenAPI owner boundary for PEP-TIM-011/012/013/014/028. */
+/** Raw pinned OpenAPI owner boundary for PEP-TIM-011/012/013/014. */
 @RestController
 @Validated
 @ConditionalOnProperty(
@@ -131,15 +131,6 @@ public final class TimecardOwnerController {
         return ResponseEntity.accepted().body(service.decide(
                 verified, timecardId, idempotencyKey, parseVersion(ifMatch),
                 strictCommand(commandJson, TimecardDecisionCommandV1.class)));
-    }
-
-    @Operation(operationId = "getTimeCommandReceipt")
-    @GetMapping("/v1/command-receipts/{receiptId}")
-    public TimeCommandReceiptV1 receipt(
-            @RequestAttribute(VERIFIED_REQUEST_ATTRIBUTE)
-            VerifiedTimecardRequest verified,
-            @PathVariable UUID receiptId) {
-        return service.receipt(verified, receiptId);
     }
 
     static long parseVersion(String ifMatch) {
