@@ -321,13 +321,13 @@ public class NavigationPolicyAggregateV2LifecycleService {
 
     private void validateForScope(long tenantId, AggregatePolicyDocument policy) {
         try {
-            NavigationPolicyAggregateV2Canonical.validate(policy);
+            NavigationPolicyTopologySuccessor.validate(policy);
             if (policy.scopeKind() == ScopeKind.LEGAL_ENTITY) {
                 AggregateRevisionView tenant = repository.findPublishedRevision(
                                 tenantId, ScopeKind.TENANT, null)
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "HRIS_NAV_V2_TENANT_BASELINE_REQUIRED"));
-                NavigationPolicyAggregateV2Canonical.validateRestrictiveOverlay(
+                NavigationPolicyTopologySuccessor.validateRestrictiveOverlay(
                         tenant.policy(), policy);
             }
         } catch (IllegalArgumentException exception) {

@@ -170,6 +170,26 @@ class NavigationPolicyRuntimeControlsTest {
         assertThat(provider.v47PageAuthorizedPath(
                 "BASE:pay-command-center", "/hr/operations/pay",
                 Set.of("DATA.HR_PAY:VIEW"))).isFalse();
+
+        Map<String, List<String>> controlledExportPaths =
+                provider.v47PageAuthorizedPaths(Set.of(
+                        "ACTION.WORKFORCE_CONTROLLED_EXPORT:VIEW"));
+        assertThat(controlledExportPaths).containsOnlyKeys(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID);
+        assertThat(controlledExportPaths.get(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID))
+                .containsExactly("/hr/data/exports");
+        assertThat(provider.v47PageAuthorizedPath(
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID,
+                "/hr/data/exports",
+                Set.of("ACTION.WORKFORCE_CONTROLLED_EXPORT:VIEW"))).isTrue();
+        assertThat(provider.v47PageAuthorizedPaths(Set.of("APP.HCM:VIEW")))
+                .doesNotContainKey(
+                        NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID);
+        assertThat(provider.v47PageAuthorizedPaths(Set.of(
+                "DATA_GOVERNANCE_READ", "ADMIN.AUDIT_VIEW:VIEW")))
+                .doesNotContainKey(
+                        NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID);
     }
 
     @Test
@@ -191,6 +211,7 @@ class NavigationPolicyRuntimeControlsTest {
                         + "BASE:hr-organization-positions}")
                 .contains("v3-enabled: ${DWP_HRIS_NAVIGATION_POLICY_V3_ENABLED:false}")
                 .contains("enabled: ${DWP_HRIS_NAVIGATION_AUTHORITY_ENABLED:false}")
+                .doesNotContain(NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID)
                 .doesNotContain("DWP_HRIS_NAVIGATION_POLICY_DEPLOYED_NODES:"
                         + "BASE:my-employment-documents,BASE:hr-people");
         ServerNavigationPolicyEligibilityProvider defaults =

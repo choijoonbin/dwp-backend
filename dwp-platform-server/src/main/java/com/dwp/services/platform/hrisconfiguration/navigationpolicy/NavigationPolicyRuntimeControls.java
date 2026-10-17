@@ -82,11 +82,15 @@ final class ServerNavigationPolicyEligibilityProvider
             "BASE:time-work-plans",
             "BASE:time-leave-operations",
             "BASE:performance-goal-cycles");
+    static final Set<String> R7C1_PAGE_IMPLEMENTATION_NODE_IDS = Set.of(
+            NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID);
     static final Set<String> IMPLEMENTATION_NODE_IDS = implementationNodeIds();
     private static final Map<String, Set<String>> EXACT_PAGE_ROUTE_PERMISSION =
             exactPageRoutePermissionMap();
     private static final Map<String, Set<String>> R6C_EXACT_PAGE_ROUTE_PERMISSION =
             r6cExactPageRoutePermissionMap();
+    private static final Map<String, Set<String>> R7C1_EXACT_PAGE_ROUTE_PERMISSION =
+            r7c1ExactPageRoutePermissionMap();
     private static final Map<String, NavigationPolicyRuntimeOwnerOverlay.PageAuthorityContract>
             R6C_OWNER_PAGE_CONTRACTS = r6cOwnerPageContracts();
     private final Set<String> installed;
@@ -146,6 +150,8 @@ final class ServerNavigationPolicyEligibilityProvider
         LinkedHashMap<String, List<String>> result = new LinkedHashMap<>();
         canonical.forEach((nodeId, paths) -> result.put(
                 nodeId, ownerPaths.getOrDefault(nodeId, paths)));
+        authorizedPaths(R7C1_EXACT_PAGE_ROUTE_PERMISSION,
+                normalizedPermissions(trustedPermissions)).forEach(result::put);
         return Collections.unmodifiableMap(result);
     }
 
@@ -185,7 +191,7 @@ final class ServerNavigationPolicyEligibilityProvider
         return Collections.unmodifiableMap(result);
     }
 
-    /** Reorders and restricts any v47 adapter output to the six closed R6-C PAGE nodes. */
+    /** Reorders and restricts any v47 adapter output to the closed R6-C and R7-C1 PAGE nodes. */
     static Map<String, List<String>> sealV47AuthorizedPaths(
             Map<String, List<String>> candidatePaths) {
         if (candidatePaths == null || candidatePaths.isEmpty()) return Map.of();
@@ -197,6 +203,15 @@ final class ServerNavigationPolicyEligibilityProvider
             List<String> candidates = candidatePaths.get(nodeId);
             if (candidates == null || !candidates.contains(path)) return;
             canonical.put(nodeId, List.of(path));
+        });
+        R7C1_EXACT_PAGE_ROUTE_PERMISSION.keySet().forEach(key -> {
+            int separator = key.indexOf('\n');
+            String nodeId = key.substring(0, separator);
+            String path = key.substring(separator + 1);
+            List<String> candidates = candidatePaths.get(nodeId);
+            if (candidates != null && candidates.contains(path)) {
+                canonical.put(nodeId, List.of(path));
+            }
         });
         LinkedHashMap<String, List<String>> ownerCandidates = new LinkedHashMap<>();
         R6C_OWNER_PAGE_CONTRACTS.keySet().forEach(nodeId -> {
@@ -284,6 +299,19 @@ final class ServerNavigationPolicyEligibilityProvider
         return Collections.unmodifiableMap(result);
     }
 
+    private static Map<String, Set<String>> r7c1ExactPageRoutePermissionMap() {
+        LinkedHashMap<String, Set<String>> result = new LinkedHashMap<>();
+        exact(result, NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID,
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_ROUTE,
+                NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_PAGE_AUTHORITY.permission());
+        LinkedHashSet<String> nodes = new LinkedHashSet<>();
+        result.keySet().forEach(key -> nodes.add(key.substring(0, key.indexOf('\n'))));
+        if (!nodes.equals(R7C1_PAGE_IMPLEMENTATION_NODE_IDS)) {
+            throw new IllegalStateException("HRIS_NAV_R7C1_PAGE_CATALOG_DRIFT");
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
     private static Map<String, NavigationPolicyRuntimeOwnerOverlay.PageAuthorityContract>
     r6cOwnerPageContracts() {
         LinkedHashMap<String, NavigationPolicyRuntimeOwnerOverlay.PageAuthorityContract> result =
@@ -324,6 +352,7 @@ final class ServerNavigationPolicyEligibilityProvider
         LinkedHashSet<String> result = new LinkedHashSet<>(PAGE_IMPLEMENTATION_NODE_IDS);
         result.addAll(POLICY_IMPLEMENTATION_NODE_IDS);
         result.addAll(R6C_PAGE_IMPLEMENTATION_NODE_IDS);
+        result.addAll(R7C1_PAGE_IMPLEMENTATION_NODE_IDS);
         return Set.copyOf(result);
     }
 

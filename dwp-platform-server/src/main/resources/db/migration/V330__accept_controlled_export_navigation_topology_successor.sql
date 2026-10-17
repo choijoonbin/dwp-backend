@@ -17,7 +17,7 @@ ALTER TABLE hris_navigation_policy_v2_revisions
             OR
             (topology_revision = 'HRIS-IA-99-WB7-G46-N98-R6'
              AND topology_sha256 =
-                 '4c87028ffa39c65e3e551f0c334aee8d2e1c1719dc39e4efcaa4b642dce3cd1e')
+                 '4ac4b5411d804888ff1a4bd0373c70419b698a0abe43d0de43bd646966cfe166')
         )
         AND ia_register_sha256 =
             'ab506a2bb2f80c8ab81a4b9d575374d6bda83b312d11dce07495d4812bdf4686'

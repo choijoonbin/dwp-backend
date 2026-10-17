@@ -10,6 +10,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NavigationPolicyAggregateV2MigrationContractTest {
 
     @Test
+    void v330LeasesExactAppendOnlyTopologyPairsWithoutBackfill() throws Exception {
+        String sql = Files.readString(Path.of(
+                "src/main/resources/db/migration/"
+                        + "V330__accept_controlled_export_navigation_topology_successor.sql"));
+
+        assertThat(sql)
+                .contains("DROP CONSTRAINT ck_hris_navigation_policy_v2_revision")
+                .contains("ADD CONSTRAINT ck_hris_navigation_policy_v2_revision")
+                .contains(NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION)
+                .contains(NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256)
+                .contains(NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION)
+                .contains(NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256)
+                .contains("OR")
+                .doesNotContain("UPDATE hris_navigation_policy_v2_revisions")
+                .doesNotContain("DELETE FROM hris_navigation_policy_v2_revisions")
+                .doesNotContain("INSERT INTO hris_navigation_policy_v2_revisions");
+    }
+
+    @Test
     void v329OwnsAggregateLifecycleAndExplicitlyPreservesV1Evidence() throws Exception {
         String sql = Files.readString(Path.of(
                 "src/main/resources/db/migration/"

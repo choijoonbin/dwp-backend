@@ -187,7 +187,7 @@ public class NavigationPolicyAggregateV2Service {
         }
         if (overlay != null) {
             try {
-                NavigationPolicyAggregateV2Canonical.validateRestrictiveOverlay(
+                NavigationPolicyTopologySuccessor.validateRestrictiveOverlay(
                         tenant.policy(), overlay.policy());
             } catch (IllegalArgumentException exception) {
                 return denied(EnforcementState.DENIED_MISSING_POLICY,
@@ -203,8 +203,8 @@ public class NavigationPolicyAggregateV2Service {
                     "TRUSTED_CONTEXT_STALE_AT_COMPLETION");
         }
         return new EffectiveNavigation(
-                SCHEMA_VERSION, NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
-                NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256,
+                SCHEMA_VERSION, NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256,
                 NavigationPolicyAggregateV2Canonical.IA_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.SHELL_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.TASK_GROUP_REGISTER_SHA256,
@@ -284,7 +284,7 @@ public class NavigationPolicyAggregateV2Service {
             return deniedDeepLink(nodeId, current.revisionPin(),
                     "TRUSTED_CONTEXT_STALE_AT_COMPLETION");
         }
-        String canonical = NavigationPolicyAggregateV2Canonical.CANONICAL_ROUTES.get(nodeId);
+        String canonical = NavigationPolicyTopologySuccessor.CANONICAL_ROUTES.get(nodeId);
         String admittedTarget = effectiveNode.routeAliases().contains(canonical)
                 ? canonical : requestedPath;
         return new DeepLinkDecision(
@@ -315,10 +315,8 @@ public class NavigationPolicyAggregateV2Service {
                 || revision.revisionNumber() < 1 || revision.publishedAt() == null
                 || revision.payloadDigest() == null
                 || !revision.payloadDigest().matches("^[a-f0-9]{64}$")
-                || !NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION.equals(
-                revision.topologyRevision())
-                || !NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256.equals(
-                revision.topologySha256())
+                || !NavigationPolicyTopologySuccessor.supportsTopology(
+                revision.topologyRevision(), revision.topologySha256())
                 || !NavigationPolicyAggregateV2Canonical.IA_REGISTER_SHA256.equals(
                 revision.iaRegisterSha256())
                 || !NavigationPolicyAggregateV2Canonical.SHELL_REGISTER_SHA256.equals(
@@ -327,15 +325,30 @@ public class NavigationPolicyAggregateV2Service {
                 revision.taskGroupRegisterSha256())
                 || !NavigationPolicyAggregateV2Canonical.GENERATED_IA_SHA256.equals(
                 revision.generatedIaSha256())
+                || (isHistoricalTopology(revision)
+                && policyContainsSuccessorNode(revision.policy()))
                 || revision.policy().scopeKind() != expectedScope
                 || !java.util.Objects.equals(
                 revision.policy().legalEntityPublicId(), expectedLegalEntity)) return false;
         try {
-            NavigationPolicyAggregateV2Canonical.validate(revision.policy());
+            NavigationPolicyTopologySuccessor.validate(revision.policy());
             return revision.payloadDigest().equals(digest(revision.policy()));
         } catch (IllegalArgumentException ignored) {
             return false;
         }
+    }
+
+    private boolean isHistoricalTopology(PublishedAggregate revision) {
+        return NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION.equals(
+                revision.topologyRevision())
+                && NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256.equals(
+                revision.topologySha256());
+    }
+
+    private boolean policyContainsSuccessorNode(AggregatePolicyDocument policy) {
+        return policy.workbenches().stream()
+                .flatMap(workbench -> workbench.enabledNodeIds().stream())
+                .anyMatch(NavigationPolicyTopologySuccessor.CONTROLLED_EXPORT_NODE_ID::equals);
     }
 
     private EffectiveNavigation unrestricted(
@@ -346,13 +359,13 @@ public class NavigationPolicyAggregateV2Service {
             PublishedAggregate tenant,
             PublishedAggregate overlay) {
         AggregatePolicyDocument canonical =
-                NavigationPolicyAggregateV2Canonical.canonicalPolicy(
+                NavigationPolicyTopologySuccessor.canonicalPolicy(
                         ScopeKind.TENANT, null, RolloutMode.OFF);
         List<EffectiveWorkbench> workbenches = effectiveWorkbenches(
                 canonical, null, installed, deployed, authorizedPaths);
         return new EffectiveNavigation(
-                SCHEMA_VERSION, NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
-                NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256,
+                SCHEMA_VERSION, NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256,
                 NavigationPolicyAggregateV2Canonical.IA_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.SHELL_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.TASK_GROUP_REGISTER_SHA256,
@@ -370,8 +383,8 @@ public class NavigationPolicyAggregateV2Service {
 
     private EffectiveNavigation denied(EnforcementState state, String reason) {
         return new EffectiveNavigation(
-                SCHEMA_VERSION, NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
-                NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256,
+                SCHEMA_VERSION, NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION,
+                NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256,
                 NavigationPolicyAggregateV2Canonical.IA_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.SHELL_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.TASK_GROUP_REGISTER_SHA256,
@@ -391,7 +404,7 @@ public class NavigationPolicyAggregateV2Service {
                 ? Map.of() : policies(overlay);
         List<EffectiveWorkbench> result = new ArrayList<>();
         for (NavigationPolicyAggregateV2Canonical.Workbench canonical
-                : NavigationPolicyAggregateV2Canonical.WORKBENCHES) {
+                : NavigationPolicyTopologySuccessor.WORKBENCHES) {
             WorkbenchPolicy baseline = tenantPolicies.get(canonical.id());
             WorkbenchPolicy restricted = overlayPolicies.getOrDefault(
                     canonical.id(), baseline);
@@ -451,8 +464,8 @@ public class NavigationPolicyAggregateV2Service {
             List<EffectiveWorkbench> workbenches) {
         LinkedHashMap<String, Object> material = new LinkedHashMap<>();
         material.put("schemaVersion", SCHEMA_VERSION);
-        material.put("topologyRevision", NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION);
-        material.put("topologySha256", NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256);
+        material.put("topologyRevision", NavigationPolicyTopologySuccessor.TOPOLOGY_REVISION);
+        material.put("topologySha256", NavigationPolicyTopologySuccessor.TOPOLOGY_SHA256);
         material.put("iaRegisterSha256", NavigationPolicyAggregateV2Canonical.IA_REGISTER_SHA256);
         material.put("shellRegisterSha256", NavigationPolicyAggregateV2Canonical.SHELL_REGISTER_SHA256);
         material.put("taskGroupRegisterSha256", NavigationPolicyAggregateV2Canonical.TASK_GROUP_REGISTER_SHA256);
