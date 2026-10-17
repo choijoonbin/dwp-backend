@@ -1,5 +1,6 @@
 package com.dwp.services.auth.tenantfeatureactivation;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +16,7 @@ public class TenantFeatureActivationService {
     private final TenantFeatureActivationControlRepository repository;
     private final Clock clock;
 
+    @Autowired
     public TenantFeatureActivationService(TenantFeatureActivationControlRepository repository) {
         this(repository, Clock.systemUTC());
     }

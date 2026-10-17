@@ -10,6 +10,7 @@ import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
 import com.dwp.services.auth.repository.UserRepository;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -78,6 +79,7 @@ public class HrisNavigationPolicyDecisionService {
     private final UserRepository users;
     private final Clock clock;
 
+    @Autowired
     public HrisNavigationPolicyDecisionService(
             ObjectProvider<ProductSurfaceAuthorityPort> authorityPorts,
             ProductAuthorizationContractRepository contracts,
