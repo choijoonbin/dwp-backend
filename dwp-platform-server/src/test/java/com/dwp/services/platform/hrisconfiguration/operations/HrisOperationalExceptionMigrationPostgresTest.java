@@ -1,6 +1,8 @@
 package com.dwp.services.platform.hrisconfiguration.operations;
 
+import com.dwp.core.common.ErrorCode;
 import com.dwp.core.event.DomainEventEnvelope;
+import com.dwp.core.exception.BaseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.flywaydb.core.Flyway;
@@ -24,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -204,6 +207,53 @@ class HrisOperationalExceptionMigrationPostgresTest {
                 asOf, null, 100));
         assertThat(foreign).isNotNull();
         assertThat(foreign.items()).isEmpty();
+    }
+
+    @Test
+    void detailLookupFailsClosedForCrossSourcePublicIdCollision() {
+        String schema = "sys002_v331_detail_collision";
+        PGSimpleDataSource source = dataSource();
+        Flyway flyway = flyway(source, schema, "331").load();
+        flyway.clean();
+        flyway.migrate();
+        source.setCurrentSchema(schema);
+        JdbcTemplate jdbc = new JdbcTemplate(source);
+        JdbcHrisOperationalExceptionRepository repository =
+                new JdbcHrisOperationalExceptionRepository(
+                        new NamedParameterJdbcTemplate(source),
+                        new DataSourceTransactionManager(source));
+        TransactionTemplate transactions = new TransactionTemplate(
+                new DataSourceTransactionManager(source));
+
+        Optional<Projection> missing = transactions.execute(ignored -> repository.find(
+                42, Set.of(OwnerModule.HRM, OwnerModule.PAY), EXCEPTION_ID));
+        assertThat(missing).isEmpty();
+
+        transactions.executeWithoutResult(ignored -> {
+            tenant(jdbc, 42);
+            assertThat(jdbc.update(insertSql(), EXCEPTION_ID,
+                    "urn:dwp:hris:hrm:assignment:" + EXCEPTION_ID,
+                    CORRELATION_ID)).isEqualTo(1);
+        });
+        Optional<Projection> unique = transactions.execute(ignored -> repository.find(
+                42, Set.of(OwnerModule.HRM, OwnerModule.PAY), EXCEPTION_ID));
+        assertThat(unique).isPresent();
+        assertThat(unique.orElseThrow().ownerModule()).isEqualTo(OwnerModule.HRM);
+
+        transactions.executeWithoutResult(ignored -> {
+            tenant(jdbc, 42);
+            assertThat(jdbc.update(payCollisionInsertSql(), EXCEPTION_ID,
+                    "urn:dwp:hris:pay:payroll:" + EXCEPTION_ID,
+                    CORRELATION_ID)).isEqualTo(1);
+        });
+        assertThatThrownBy(() -> transactions.execute(ignored -> repository.find(
+                42, Set.of(OwnerModule.HRM), EXCEPTION_ID)))
+                .isInstanceOfSatisfying(BaseException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(
+                            ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+                    assertThat(exception.getMessage()).isEqualTo(
+                            "The HRIS exception detail is unavailable");
+                });
     }
 
     private void assertDatabaseGuardsAndRls(
@@ -413,6 +463,25 @@ class HrisOperationalExceptionMigrationPostgresTest {
                     ARRAY['urn:dwp:hris:evidence:domain-event:' ||
                         '40000000-0000-4000-8000-000000000040'],
                     ?, repeat('a', 64), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 1)
+                """;
+    }
+
+    private String payCollisionInsertSql() {
+        return """
+                INSERT INTO hris_operational_exception_projection (
+                    tenant_id, exception_public_id, event_source, owner_service,
+                    owner_module, source_ref, source_revision, exception_type,
+                    severity, internal_state, code, summary_key, owner_route_key,
+                    evidence_refs, correlation_id, event_digest,
+                    first_observed_at, last_observed_at, occurrence_count, version)
+                VALUES (42, ?, 'urn:dwp:payroll:operational-exception',
+                    'dwp-payroll-server', 'PAY', ?, 1, 'PAYROLL_PROCESSING',
+                    'HIGH', 'OPEN', 'PAY_RUN_STALLED',
+                    'hris.operations.exception.pay.payroll-stalled',
+                    'route.hcm.operations.pay.page',
+                    ARRAY['urn:dwp:hris:evidence:domain-event:' ||
+                        '50000000-0000-4000-8000-000000000050'],
+                    ?, repeat('d', 64), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 1)
                 """;
     }
 

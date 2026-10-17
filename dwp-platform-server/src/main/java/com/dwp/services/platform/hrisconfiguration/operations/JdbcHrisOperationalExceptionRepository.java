@@ -1,5 +1,7 @@
 package com.dwp.services.platform.hrisconfiguration.operations;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -356,22 +358,43 @@ class JdbcHrisOperationalExceptionRepository
             Set<OwnerModule> ownerModules,
             UUID exceptionPublicId) {
         bindTenant(tenantId);
-        return jdbc.query("""
+        List<LookupCandidate> matches = jdbc.query("""
+                WITH candidates AS (
+                    SELECT tenant_id, exception_public_id, event_source,
+                           owner_service, owner_module, source_ref, source_revision,
+                           exception_type, severity, internal_state, code,
+                           summary_key, owner_route_key, evidence_refs,
+                           correlation_id, event_digest, first_observed_at,
+                           last_observed_at, occurrence_count, version,
+                           COUNT(*) OVER () AS public_id_match_count
+                      FROM hris_operational_exception_projection
+                     WHERE tenant_id = :tenantId
+                       AND exception_public_id = :exceptionPublicId
+                )
                 SELECT tenant_id, exception_public_id, event_source, owner_service,
                        owner_module, source_ref, source_revision, exception_type,
                        severity, internal_state, code, summary_key, owner_route_key,
                        evidence_refs, correlation_id, event_digest,
-                       first_observed_at, last_observed_at, occurrence_count, version
-                  FROM hris_operational_exception_projection
-                 WHERE tenant_id = :tenantId
-                   AND owner_module IN (:ownerModules)
-                   AND exception_public_id = :exceptionPublicId
+                       first_observed_at, last_observed_at, occurrence_count,
+                       version, public_id_match_count
+                  FROM candidates
+                 WHERE owner_module IN (:ownerModules)
+                 ORDER BY event_source
+                 LIMIT 2
                 """, new MapSqlParameterSource()
                 .addValue("tenantId", tenantId)
                 .addValue("ownerModules", ownerModules.stream()
                         .map(Enum::name).toList())
                 .addValue("exceptionPublicId", exceptionPublicId),
-                this::projection).stream().findFirst();
+                (rs, row) -> new LookupCandidate(
+                        projection(rs, row), rs.getLong("public_id_match_count")));
+        if (matches.isEmpty()) return Optional.empty();
+        if (matches.size() != 1 || matches.getFirst().publicIdMatchCount() != 1) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "The HRIS exception detail is unavailable");
+        }
+        return Optional.of(matches.getFirst().projection());
     }
 
     @Override
@@ -584,5 +607,10 @@ class JdbcHrisOperationalExceptionRepository
             long resolved,
             long highImpact,
             OffsetDateTime lastRefresh) {
+    }
+
+    private record LookupCandidate(
+            Projection projection,
+            long publicIdMatchCount) {
     }
 }
