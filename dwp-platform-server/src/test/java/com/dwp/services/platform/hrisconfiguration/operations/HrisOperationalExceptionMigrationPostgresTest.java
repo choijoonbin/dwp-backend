@@ -256,6 +256,49 @@ class HrisOperationalExceptionMigrationPostgresTest {
                 });
     }
 
+    @Test
+    void listFailsClosedForCrossSourcePublicIdCollisionAtLimitBoundary() {
+        String schema = "sys002_v331_list_collision";
+        PGSimpleDataSource source = dataSource();
+        Flyway flyway = flyway(source, schema, "331").load();
+        flyway.clean();
+        flyway.migrate();
+        source.setCurrentSchema(schema);
+        JdbcTemplate jdbc = new JdbcTemplate(source);
+        JdbcHrisOperationalExceptionRepository repository =
+                new JdbcHrisOperationalExceptionRepository(
+                        new NamedParameterJdbcTemplate(source),
+                        new DataSourceTransactionManager(source));
+        TransactionTemplate transactions = new TransactionTemplate(
+                new DataSourceTransactionManager(source));
+
+        transactions.executeWithoutResult(ignored -> {
+            tenant(jdbc, 42);
+            assertThat(jdbc.update(insertSql(), EXCEPTION_ID,
+                    "urn:dwp:hris:hrm:assignment:" + EXCEPTION_ID,
+                    CORRELATION_ID)).isEqualTo(1);
+            assertThat(jdbc.update(payCollisionInsertSql(), EXCEPTION_ID,
+                    "urn:dwp:hris:pay:payroll:" + EXCEPTION_ID,
+                    CORRELATION_ID)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("""
+                    SELECT COUNT(DISTINCT last_observed_at)
+                      FROM hris_operational_exception_projection
+                     WHERE tenant_id = 42
+                       AND exception_public_id = ?
+                    """, Integer.class, EXCEPTION_ID)).isOne();
+        });
+
+        assertThatThrownBy(() -> transactions.execute(ignored -> repository.list(
+                42, Set.of(OwnerModule.HRM), OwnerModule.HRM, null, null,
+                OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(1), null, 1)))
+                .isInstanceOfSatisfying(BaseException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(
+                            ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+                    assertThat(exception.getMessage()).isEqualTo(
+                            "The HRIS exception list is unavailable");
+                });
+    }
+
     private void assertDatabaseGuardsAndRls(
             JdbcTemplate jdbc, PGSimpleDataSource source, String schema) {
         TransactionTemplate transactions = new TransactionTemplate(

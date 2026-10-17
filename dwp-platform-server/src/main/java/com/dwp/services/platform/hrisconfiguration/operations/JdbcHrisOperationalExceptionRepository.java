@@ -328,20 +328,62 @@ class JdbcHrisOperationalExceptionRepository
             parameters.addValue("afterObservedAt", after.lastObservedAt())
                     .addValue("afterExceptionId", after.exceptionPublicId());
         }
-        List<Projection> rows = jdbc.query("""
-                SELECT tenant_id, exception_public_id, event_source, owner_service,
-                       owner_module, source_ref, source_revision, exception_type,
-                       severity, internal_state, code, summary_key, owner_route_key,
-                       evidence_refs, correlation_id, event_digest,
-                       first_observed_at, last_observed_at, occurrence_count, version
-                  FROM hris_operational_exception_projection
-                 WHERE tenant_id = :tenantId
-                   AND owner_module IN (:ownerModules)
-                   AND last_observed_at <= :asOf
+        List<ListCandidate> candidates = jdbc.query("""
+                WITH tenant_scope AS MATERIALIZED (
+                    SELECT tenant_id, exception_public_id, event_source,
+                           owner_service, owner_module, source_ref, source_revision,
+                           exception_type, severity, internal_state, code,
+                           summary_key, owner_route_key, evidence_refs,
+                           correlation_id, event_digest, first_observed_at,
+                           last_observed_at, occurrence_count, version,
+                           COUNT(*) OVER (PARTITION BY exception_public_id)
+                               AS public_id_match_count
+                      FROM hris_operational_exception_projection
+                     WHERE tenant_id = :tenantId
+                ), collision AS (
+                    SELECT COALESCE(BOOL_OR(public_id_match_count > 1), FALSE)
+                               AS public_id_collision
+                      FROM tenant_scope
+                ), page AS (
+                    SELECT tenant_id, exception_public_id, event_source,
+                           owner_service, owner_module, source_ref, source_revision,
+                           exception_type, severity, internal_state, code,
+                           summary_key, owner_route_key, evidence_refs,
+                           correlation_id, event_digest, first_observed_at,
+                           last_observed_at, occurrence_count, version
+                      FROM tenant_scope
+                     WHERE owner_module IN (:ownerModules)
+                       AND last_observed_at <= :asOf
                 """ + filters + cursor + """
-                 ORDER BY last_observed_at DESC, exception_public_id DESC
-                 LIMIT :limit
-                """, parameters, this::projection);
+                     ORDER BY last_observed_at DESC, exception_public_id DESC
+                     LIMIT :limit
+                )
+                SELECT page.tenant_id, page.exception_public_id,
+                       page.event_source, page.owner_service, page.owner_module,
+                       page.source_ref, page.source_revision, page.exception_type,
+                       page.severity, page.internal_state, page.code,
+                       page.summary_key, page.owner_route_key, page.evidence_refs,
+                       page.correlation_id, page.event_digest,
+                       page.first_observed_at, page.last_observed_at,
+                       page.occurrence_count, page.version,
+                       collision.public_id_collision
+                  FROM collision
+                  LEFT JOIN page ON TRUE
+                 ORDER BY page.last_observed_at DESC NULLS LAST,
+                          page.exception_public_id DESC NULLS LAST
+                """, parameters, (rs, row) -> new ListCandidate(
+                rs.getObject("exception_public_id") == null
+                        ? null : projection(rs, row),
+                rs.getBoolean("public_id_collision")));
+        if (candidates.getFirst().publicIdCollision()) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "The HRIS exception list is unavailable");
+        }
+        List<Projection> rows = candidates.stream()
+                .map(ListCandidate::projection)
+                .filter(projection -> projection != null)
+                .toList();
         boolean more = rows.size() > limit;
         List<Projection> page = more
                 ? List.copyOf(rows.subList(0, limit)) : List.copyOf(rows);
@@ -612,5 +654,10 @@ class JdbcHrisOperationalExceptionRepository
     private record LookupCandidate(
             Projection projection,
             long publicIdMatchCount) {
+    }
+
+    private record ListCandidate(
+            Projection projection,
+            boolean publicIdCollision) {
     }
 }
