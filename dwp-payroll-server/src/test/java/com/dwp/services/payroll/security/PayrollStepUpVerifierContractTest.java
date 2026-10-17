@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -194,6 +195,60 @@ class PayrollStepUpVerifierContractTest {
                 token(binding, AUDIENCE, NOW.plusSeconds(300),
                         generator.generateKeyPair()),
                 ErrorCode.STEP_UP_CHALLENGE_MISMATCH);
+    }
+
+    @Test
+    void preparationBindingUsesTheSameVerifierAndCanonicalFeatureCondition()
+            throws Exception {
+        UUID preparationId = UUID.fromString(
+                "00000000-0000-0000-0000-000000001399");
+        Map<String, Object> payload = Map.of(
+                "preparationId", preparationId,
+                "runType", "REGULAR",
+                "payrollEntityId", UUID.fromString(
+                        "00000000-0000-0000-0000-000000001103"),
+                "payGroupId", UUID.fromString(
+                        "00000000-0000-0000-0000-000000001104"),
+                "payPeriodId", UUID.fromString(
+                        "00000000-0000-0000-0000-000000001398"),
+                "asOf", NOW,
+                "inputSnapshotDigest", "d".repeat(64));
+        ProductSurfaceStepUpChallengeVerifier.CommandBinding binding =
+                new ProductSurfaceStepUpChallengeVerifier.CommandBinding(
+                        17, 3,
+                        "route.hcm.operations.payroll-run.action",
+                        "PAYROLL_PROCESSING", "STEPUP-MGMT-HIGH-V1",
+                        "hcm.operations.payroll-run.execute",
+                        "scope-key-prepare", "PAYROLL_RUN_PREPARATION",
+                        preparationId.toString(), 0,
+                        "POST", "/api/payroll/v1/runs", "prepare-key-0001",
+                        verifier.payloadSha256(payload), DECISION);
+
+        ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge verified =
+                verifier.verify(
+                        token(binding, AUDIENCE, NOW.plusSeconds(300), keyPair),
+                        binding);
+        assertThat(verified.challengeId()).isEqualTo("pay-challenge-1");
+        ProductSurfaceStepUpChallengeVerifier.CommandBinding wrongPayload =
+                new ProductSurfaceStepUpChallengeVerifier.CommandBinding(
+                        binding.actorUserId(), binding.tenantId(),
+                        binding.commandContractKey(), binding.contextKey(),
+                        binding.activationPolicy(), binding.capabilityContractKey(),
+                        binding.scopeRef(), binding.targetType(), binding.targetId(),
+                        binding.targetVersion(), binding.commandMethod(),
+                        binding.commandPath(), binding.idempotencyKey(),
+                        verifier.payloadSha256(Map.of("tampered", true)),
+                        binding.decisionRevision());
+        assertCode(() -> verifier.verify(
+                        token(wrongPayload, AUDIENCE, NOW.plusSeconds(300), keyPair),
+                        binding),
+                ErrorCode.STEP_UP_CHALLENGE_MISMATCH);
+
+        ConditionalOnExpression condition = PayrollStepUpVerifier.class
+                .getAnnotation(ConditionalOnExpression.class);
+        assertThat(condition.value())
+                .contains("dwp.features.HRIS_PAYROLL_RUN_PREPARE.enabled")
+                .contains("dwp.hris.payroll.calculation.enabled");
     }
 
     private void assertMismatch(
