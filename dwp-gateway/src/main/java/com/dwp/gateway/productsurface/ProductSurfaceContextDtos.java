@@ -106,7 +106,22 @@ public final class ProductSurfaceContextDtos {
             String policy,
             String productRelationship,
             String targetPopulation,
+            String tenantControl,
             String support) {
+
+        /**
+         * Source-compatible constructor for callers that have not yet crossed the contract-v2
+         * trust boundary. A null tenant-control revision is deliberately untrusted and is rejected
+         * by product-surface aggregation and forwarding.
+         */
+        public SourceRevisions(
+                String auth,
+                String policy,
+                String productRelationship,
+                String targetPopulation,
+                String support) {
+            this(auth, policy, productRelationship, targetPopulation, null, support);
+        }
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -322,6 +337,7 @@ public final class ProductSurfaceContextDtos {
             String reasonCode,
             String authRevision,
             String policyRevision,
+            String tenantControlRevision,
             String contextKey,
             String productKey,
             String surfaceKey,
@@ -344,6 +360,59 @@ public final class ProductSurfaceContextDtos {
         AuthorityResult {
             effectiveGrants = effectiveGrants == null ? List.of() : List.copyOf(effectiveGrants);
             scopes = scopes == null ? List.of() : List.copyOf(scopes);
+        }
+
+        /**
+         * Source-compatible constructor for pre-v2 fixtures and clients. The missing revision is
+         * not trusted: validation must convert this compatibility shape to authority unavailable.
+         */
+        AuthorityResult(
+                Decision decision,
+                String reasonCode,
+                String authRevision,
+                String policyRevision,
+                String contextKey,
+                String productKey,
+                String surfaceKey,
+                String plane,
+                AccessMode accessMode,
+                AccessSource accessSource,
+                String appResourceKey,
+                List<EffectiveGrant> effectiveGrants,
+                List<EffectiveScope> scopes,
+                String routeGrantRef,
+                boolean effectiveReadOnly,
+                boolean requiresProductEligibility,
+                OffsetDateTime validUntil,
+                OffsetDateTime expiredAt,
+                String requiredAssurance,
+                String requestPolicyRef,
+                OffsetDateTime revalidateAt,
+                String evidenceRef) {
+            this(
+                    decision,
+                    reasonCode,
+                    authRevision,
+                    policyRevision,
+                    null,
+                    contextKey,
+                    productKey,
+                    surfaceKey,
+                    plane,
+                    accessMode,
+                    accessSource,
+                    appResourceKey,
+                    effectiveGrants,
+                    scopes,
+                    routeGrantRef,
+                    effectiveReadOnly,
+                    requiresProductEligibility,
+                    validUntil,
+                    expiredAt,
+                    requiredAssurance,
+                    requestPolicyRef,
+                    revalidateAt,
+                    evidenceRef);
         }
     }
 

@@ -67,6 +67,29 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.workplace.work.home-read-model.data",
             "route.workplace.work.home-shadow-receipt.action",
             "route.workplace.work.home-widget-action-execute.action");
+    /**
+     * Default-off tenant-feature routes authorized by decision
+     * HRIS-WAVE7-TENANT-FEATURE-ACTIVATION-20261017-R1. This closed set is deliberately
+     * code-owned: rollout state, tenant identity, environment or operator configuration cannot
+     * bypass direct Auth evaluation.
+     */
+    private static final Set<String> TENANT_FEATURE_GOVERNED_ROUTE_KEYS = Set.of(
+            "route.hcm.operations.organization-positions.page",
+            "route.hcm.operations.organization-graph.data",
+            "route.hcm.configuration.settings-operations.page",
+            "route.hcm.operations.exception.data",
+            "route.hcm.operations.exception-detail.data",
+            "route.hcm.operations.payroll-population.page",
+            "route.hcm.operations.payroll-support.data",
+            "route.hcm.operations.payroll-run.action",
+            "route.hcm.operations.time-command-center.page",
+            "route.hcm.operations.time-daily-close.page",
+            "route.hcm.operations.time-monthly-close.page",
+            "route.hcm.operations.time-close-validate.action",
+            "route.hcm.operations.time-close.action",
+            "route.hcm.operations.time-reopen.action",
+            "route.hcm.operations.time-payroll-handoff-create.action",
+            "route.hcm.operations.time-payroll-handoff.data");
     private static final Set<String> TIM_WAVE2_ROUTE_KEYS = Set.of(
             "route.hcm.operations.time-interpretation.page",
             "route.hcm.operations.time-interpretation-run.action",
@@ -392,11 +415,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             return error(sanitizedExchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
         }
-        // State 100 normally bypasses the product PEP. Home Runtime shadow reads are the
-        // deliberate exception: the owner contract requires recipient-bound authority
-        // evidence even while the legacy UI remains authoritative. State 000 stays a hard
-        // compatibility bypass and every non-Home product preserves the existing behavior.
-        if (rollout.charAt(1) == '0' && !requiresHomeShadowAuthority(rollout, route)) {
+        // States 000 and 100 normally bypass the product PEP. Home Runtime shadow reads and the
+        // exact tenant-feature closed set are deliberate exceptions: both require direct Auth
+        // evidence before an owner can be reached.
+        if (rollout.charAt(1) == '0'
+                && !requiresHomeShadowAuthority(rollout, route)
+                && !TENANT_FEATURE_GOVERNED_ROUTE_KEYS.contains(route.routeContractKey())) {
             return chain.filter(sanitizedExchange);
         }
 
@@ -487,17 +511,25 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             String expected,
             ProductSurfaceContextDtos.AccessMode activeAccessMode) {
         ProductSurfaceContextDtos.ProductEvaluationData result = trustedResult.data();
+        ProductSurfaceContextDtos.SourceRevisions trustedRevisions = trustedResult.revisions();
+        if (trustedRevisions == null || blank(trustedRevisions.tenantControl())) {
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+        }
         if (trustedResult.authRouteProductNotRegistered()
                 && result.decision() == ProductSurfaceContextDtos.Decision.ROUTE_DENIED
                 && "PRODUCT_NOT_REGISTERED".equals(result.reasonCode())) {
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
-        if (route.stateChanging() && expected == null) {
+        boolean allowed = result.decision() == ProductSurfaceContextDtos.Decision.ALLOWED;
+        if (route.stateChanging() && expected == null
+                && (allowed
+                        || result.decision()
+                                == ProductSurfaceContextDtos.Decision.STEP_UP_REQUIRED)) {
             return error(exchange, HttpStatus.CONFLICT,
                     "DECISION_REVISION_CONFLICT", result.decisionRevision());
         }
-        boolean allowed = result.decision() == ProductSurfaceContextDtos.Decision.ALLOWED;
         if (result.decision() == ProductSurfaceContextDtos.Decision.STEP_UP_REQUIRED
                 && HCM_AUDIT_READ_ROUTE_KEYS.contains(route.routeContractKey())) {
             // These two ELEVATED-only reads deliberately have no command binding. NORMAL may
