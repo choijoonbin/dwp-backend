@@ -46,6 +46,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
     static final String CURRENT_SCOPE_HEADER = "X-DWP-Context-Scope-Key";
     static final String POPULATION_KIND_HEADER = "X-DWP-Population-Kind";
     static final String PURPOSE_HEADER = "X-Purpose-Code";
+    static final String FIELD_POLICY_KEY_HEADER = "X-DWP-Field-Policy-Key";
     static final String EXPECTED_DECISION_REVISION_HEADER =
             "X-DWP-Expected-Decision-Revision";
     static final String RESPONSE_DECISION_REVISION_HEADER = "X-DWP-Decision-Revision";
@@ -215,7 +216,9 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
 
         HcmPepContext.set(new HcmPepContext.Evidence(
                 decision.authority(), currentRevision, currentRevalidateAt,
-                trustedContext, trustedScope, state, activeAccessMode));
+                trustedContext, trustedScope, state, activeAccessMode,
+                exactHeader(request, PURPOSE_HEADER),
+                exactHeader(request, FIELD_POLICY_KEY_HEADER)));
         try {
             scopeValidator.validate(decision.authority());
         } catch (BaseException exception) {

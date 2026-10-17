@@ -37,7 +37,7 @@ class TenantFeatureActivationV259PostgresTest {
         fresh.clean();
         fresh.migrate();
         JdbcTemplate jdbc = new JdbcTemplate(source);
-        assertCatalogOnly(jdbc);
+        assertCatalogOnly(jdbc, 6, 24);
 
         flyway(source, null).clean();
         flyway(source, "258").migrate();
@@ -47,7 +47,7 @@ class TenantFeatureActivationV259PostgresTest {
                    AND table_name = 'sys_product_feature_activation_policies'
                 """, Integer.class)).isZero();
         flyway(source, "259").migrate();
-        assertCatalogOnly(jdbc);
+        assertCatalogOnly(jdbc, 4, 16);
 
         TenantFeatureActivationRepository reader =
                 new TenantFeatureActivationRepository(jdbc);
@@ -202,21 +202,41 @@ class TenantFeatureActivationV259PostgresTest {
                 """, Long.class, FEATURE)).isEqualTo(2L);
     }
 
-    private void assertCatalogOnly(JdbcTemplate jdbc) {
+    @Test
+    void v260MinimumBundle51IsAValidDefaultOffSuccessor() {
+        PGSimpleDataSource source = source();
+        Flyway flyway = flyway(source, null);
+        flyway.clean();
+        flyway.migrate();
+        JdbcTemplate jdbc = new JdbcTemplate(source);
+        assertCatalogOnly(jdbc, 6, 24);
+        Long tenantId = jdbc.queryForObject(
+                "SELECT tenant_id FROM com_tenants ORDER BY tenant_id LIMIT 1", Long.class);
+        var result = new TenantFeatureActivationRepository(jdbc).evaluate(
+                new TenantFeatureActivationReader.GateRequest(
+                        tenantId, "hcm", "hcm.team",
+                        "route.hcm.team.people-changes.data", 51, NOW));
+        assertThat(result.state()).isEqualTo(
+                TenantFeatureActivationReader.State.FEATURE_NOT_ACTIVATED);
+        assertThat(result.reasonCode()).isEqualTo("TENANT_APP_ADOPTION_REQUIRED");
+        assertThat(result.featureKey()).isEqualTo("HRIS_HRM_APPOINTMENT_WORKBENCH");
+    }
+
+    private void assertCatalogOnly(JdbcTemplate jdbc, int policies, int routes) {
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM sys_product_feature_activation_policies",
-                Integer.class)).isEqualTo(4);
+                Integer.class)).isEqualTo(policies);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM sys_product_feature_activation_policies
                  WHERE baseline_state = 'OFF' AND product_key = 'hcm'
-                   AND app_resource_key = 'APP.HCM' AND minimum_bundle_version = 50
-                """, Integer.class)).isEqualTo(4);
+                   AND app_resource_key = 'APP.HCM' AND minimum_bundle_version >= 50
+                """, Integer.class)).isEqualTo(policies);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM sys_product_feature_route_bindings",
-                Integer.class)).isEqualTo(16);
+                Integer.class)).isEqualTo(routes);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM sys_product_feature_route_owners",
-                Integer.class)).isEqualTo(16);
+                Integer.class)).isEqualTo(routes);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM auth_product_feature_activation_changes",
                 Integer.class)).isZero();

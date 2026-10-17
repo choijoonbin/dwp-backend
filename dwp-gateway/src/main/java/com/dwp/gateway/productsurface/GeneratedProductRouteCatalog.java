@@ -301,6 +301,17 @@ public final class GeneratedProductRouteCatalog {
                 JsonNode subject = route.path("subject");
                 if (!"ACTIVE".equals(route.path("lifecycleState").asText())
                         || !"PRODUCT".equals(subject.path("type").asText())) continue;
+                if ("AUTHORIZATION_ONLY".equals(route.path("bindingMode").asText())) {
+                    if (!"PAGE".equals(route.path("routeKind").asText())
+                            || !route.path("gatewayApiBindings").isArray()
+                            || !route.path("gatewayApiBindings").isEmpty()
+                            || !route.path("servicePepBindings").isArray()
+                            || !route.path("servicePepBindings").isEmpty()) {
+                        throw new IllegalStateException(
+                                "An authorization-only PRODUCT PAGE has network bindings.");
+                    }
+                    continue;
+                }
                 boolean stateChanging = "ACTION".equals(route.path("routeKind").asText())
                         && !route.path("sideEffectFree").asBoolean(false);
                 boolean highRiskStepUp = highRiskStepUp(route, highRiskCapabilities);

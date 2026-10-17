@@ -25,6 +25,9 @@ final class ProductAuthorizationRouteContractValidator {
         String key = route.routeContractKey();
         revision(route.owner(), route.policyVersion(), route.lifecycleState(), key);
         require(ROUTE_KINDS.contains(route.routeKind()), key + ": invalid route kind.");
+        String bindingMode = route.bindingMode() == null ? "NETWORK" : route.bindingMode();
+        require(Set.of("NETWORK", "AUTHORIZATION_ONLY").contains(bindingMode),
+                key + ": invalid binding mode.");
         require(CONTEXT_PATTERN.matcher(route.navigationContextId()).matches()
                         && !route.navigationContextId().contains("_"),
                 key + ": invalid navigation context.");
@@ -49,6 +52,22 @@ final class ProductAuthorizationRouteContractValidator {
         if ("ACTION".equals(route.routeKind())) {
             require(route.sideEffectFree() == null,
                     key + ": ACTION cannot be side-effect-free DATA.");
+        }
+        if ("AUTHORIZATION_ONLY".equals(bindingMode)) {
+            require("PAGE".equals(route.routeKind())
+                            && "PRODUCT".equals(route.subject().type())
+                            && route.sideEffectFree() == null
+                            && nullSafe(route.gatewayApiBindings()).isEmpty()
+                            && nullSafe(route.servicePepBindings()).isEmpty()
+                            && route.authorizationEquivalenceKey() == null
+                            && nullSafe(route.stepUpCommandBindings()).isEmpty(),
+                    key + ": invalid authorization-only PAGE envelope.");
+            require(Set.of("HRIS_CONFIGURATION", "TEAM_MANAGEMENT")
+                            .contains(route.purposeCode()),
+                    key + ": authorization-only PAGE purpose is required.");
+        } else {
+            require(route.purposeCode() == null,
+                    key + ": network route purpose is forbidden.");
         }
         validateBindings(route);
         validateProfiles(route, capabilities, policies, predicates,
@@ -126,7 +145,10 @@ final class ProductAuthorizationRouteContractValidator {
                 route.servicePepBindings(),
                 ProductAuthorizationContractDtos.ServicePepBinding::bindingKey,
                 key + " service binding");
-        require(!gateway.isEmpty() && gateway.keySet().equals(service.keySet()),
+        boolean authorizationOnly = "AUTHORIZATION_ONLY".equals(route.bindingMode());
+        require(authorizationOnly
+                        ? gateway.isEmpty() && service.isEmpty()
+                        : !gateway.isEmpty() && gateway.keySet().equals(service.keySet()),
                 key + ": public/service binding pair mismatch.");
         gateway.forEach((bindingKey, publicBinding) -> {
             ProductAuthorizationContractDtos.ServicePepBinding pep = service.get(bindingKey);
@@ -208,7 +230,7 @@ final class ProductAuthorizationRouteContractValidator {
                 routeKey + ": access profiles are required.");
         Set<String> profileKeys = new HashSet<>();
         Set<Integer> precedences = new HashSet<>();
-        Set<String> bindingKeys = route.gatewayApiBindings().stream()
+        Set<String> bindingKeys = nullSafe(route.gatewayApiBindings()).stream()
                 .map(ProductAuthorizationContractDtos.GatewayBinding::bindingKey)
                 .collect(Collectors.toSet());
         for (ProductAuthorizationContractDtos.AccessProfile profile : route.accessProfiles()) {
@@ -293,6 +315,11 @@ final class ProductAuthorizationRouteContractValidator {
             String profileRef) {
         List<ProductAuthorizationContractDtos.ResponseProjectionBinding> projections =
                 nullSafe(profile.responseProjectionBindings());
+        if ("AUTHORIZATION_ONLY".equals(route.bindingMode())) {
+            require(projections.isEmpty(),
+                    profileRef + ": authorization-only PAGE projection is forbidden.");
+            return;
+        }
         if ("ACTION".equals(route.routeKind())) {
             require(projections.isEmpty(), profileRef + ": ACTION projection is forbidden.");
             return;

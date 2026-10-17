@@ -44,15 +44,25 @@ class Hrm007AuthorityTest {
     }
 
     @Test
-    void routeContractKeyIsNotGuessedButThePublicContractIsClosed() {
+    void exactGeneratedDataTupleIsRequired() {
         Hrm007QueryDefinition definition = Hrm007QueryDefinition.APPOINTMENTS;
         HcmPepContext.Evidence evidence = evidence(definition);
         assertThat(evidence.authority().routeContractKey())
-                .isEqualTo("control.v51.unadmitted.route-key");
+                .isEqualTo(definition.routeContractKey());
 
         assertThat(authority(
                 definition, actor(definition, true), evidence,
                 population(definition)).authorize(definition)).isNotNull();
+
+        HcmV3PepRegistry.RouteAuthority wrong = authorityTuple(
+                definition, "route.hcm.operations.people-appointments.page",
+                definition.routeProfileKey(), definition.bindingKey(),
+                definition.projectionPolicyKey(), definition.responseSchemaKey(),
+                definition.capability(), definition.predicatePolicyKeys());
+        assertOpaque(() -> authority(definition, actor(definition, true),
+                trustedEvidence(definition, wrong, definition.purpose(),
+                        definition.fieldPolicyKey(), NOW.plusSeconds(60)),
+                population(definition)).authorize(definition));
     }
 
     @Test
@@ -133,6 +143,51 @@ class Hrm007AuthorityTest {
     }
 
     @Test
+    void wrongProfileBindingProjectionSchemaPurposeAndFieldPolicyShareOpaqueDenial() {
+        Hrm007QueryDefinition definition = Hrm007QueryDefinition.PEOPLE_CHANGES;
+        var actor = actor(definition, true);
+        var population = population(definition);
+        java.util.List<HcmPepContext.Evidence> wrong = java.util.List.of(
+                trustedEvidence(definition, authorityTuple(definition,
+                        definition.routeContractKey(), "wrong-profile", definition.bindingKey(),
+                        definition.projectionPolicyKey(), definition.responseSchemaKey(),
+                        definition.capability(), definition.predicatePolicyKeys()),
+                        definition.purpose(), definition.fieldPolicyKey(), NOW.plusSeconds(60)),
+                trustedEvidence(definition, authorityTuple(definition,
+                        definition.routeContractKey(), definition.routeProfileKey(),
+                        "wrong-binding", definition.projectionPolicyKey(),
+                        definition.responseSchemaKey(), definition.capability(),
+                        definition.predicatePolicyKeys()), definition.purpose(),
+                        definition.fieldPolicyKey(), NOW.plusSeconds(60)),
+                trustedEvidence(definition, authorityTuple(definition,
+                        definition.routeContractKey(), definition.routeProfileKey(),
+                        definition.bindingKey(), "wrong-projection",
+                        definition.responseSchemaKey(), definition.capability(),
+                        definition.predicatePolicyKeys()), definition.purpose(),
+                        definition.fieldPolicyKey(), NOW.plusSeconds(60)),
+                trustedEvidence(definition, authorityTuple(definition,
+                        definition.routeContractKey(), definition.routeProfileKey(),
+                        definition.bindingKey(), definition.projectionPolicyKey(),
+                        "wrong-schema", definition.capability(),
+                        definition.predicatePolicyKeys()), definition.purpose(),
+                        definition.fieldPolicyKey(), NOW.plusSeconds(60)),
+                trustedEvidence(definition, authorityTuple(definition,
+                        definition.routeContractKey(), definition.routeProfileKey(),
+                        definition.bindingKey(), definition.projectionPolicyKey(),
+                        definition.responseSchemaKey(), definition.capability(),
+                        definition.predicatePolicyKeys()), "WRONG_PURPOSE",
+                        definition.fieldPolicyKey(), NOW.plusSeconds(60)),
+                trustedEvidence(definition, authorityTuple(definition,
+                        definition.routeContractKey(), definition.routeProfileKey(),
+                        definition.bindingKey(), definition.projectionPolicyKey(),
+                        definition.responseSchemaKey(), definition.capability(),
+                        definition.predicatePolicyKeys()), definition.purpose(),
+                        "wrong-field-policy", NOW.plusSeconds(60)));
+        wrong.forEach(value -> assertOpaque(() -> authority(
+                definition, actor, value, population).authorize(definition)));
+    }
+
+    @Test
     void configurationRejectsEveryScopeShapeNotProducedByItsResolver() {
         Hrm007QueryDefinition definition = Hrm007QueryDefinition.PEOPLE_EMPLOYMENT;
         Set<Hrm007Authority.TargetPopulation> invalid = Set.of(
@@ -199,15 +254,49 @@ class Hrm007AuthorityTest {
             String publicPath,
             Instant revalidateAt,
             Set<String> predicatePolicyKeys) {
-        HcmV3PepRegistry.RouteAuthority route = new HcmV3PepRegistry.RouteAuthority(
-                "control.v51.unadmitted.route-key", "PAGE", "sealed-reader", true,
+        HcmV3PepRegistry.RouteAuthority route = authorityTuple(
+                definition, definition.routeContractKey(), definition.routeProfileKey(),
+                definition.bindingKey(), definition.projectionPolicyKey(),
+                definition.responseSchemaKey(), capability, predicatePolicyKeys);
+        if (!definition.browserPath().equals(publicPath)) {
+            route = new HcmV3PepRegistry.RouteAuthority(
+                    route.routeContractKey(), route.routeKind(), route.profileKey(),
+                    route.readOnly(), route.predicatePolicyKeys(), route.targetBindingKinds(),
+                    route.bindingKey(), route.capabilityContractKey(), route.activationPolicy(),
+                    route.method(), publicPath, route.stepUpBinding(),
+                    route.projectionPolicyKey(), route.responseSchemaKey());
+        }
+        return trustedEvidence(definition, route, definition.purpose(),
+                definition.fieldPolicyKey(), revalidateAt);
+    }
+
+    private HcmV3PepRegistry.RouteAuthority authorityTuple(
+            Hrm007QueryDefinition definition,
+            String routeKey,
+            String profileKey,
+            String bindingKey,
+            String projectionPolicyKey,
+            String responseSchemaKey,
+            String capability,
+            Set<String> predicatePolicyKeys) {
+        return new HcmV3PepRegistry.RouteAuthority(
+                routeKey, "DATA", profileKey, true,
                 predicatePolicyKeys, definition.targetBindingKinds(),
-                "control.v51.unadmitted.binding", capability, "ACTIVE", "GET",
-                publicPath, null, "control.v51.projection", "control.v51.schema");
+                bindingKey, capability, null, "GET",
+                definition.browserPath(), null, projectionPolicyKey, responseSchemaKey);
+    }
+
+    private HcmPepContext.Evidence trustedEvidence(
+            Hrm007QueryDefinition definition,
+            HcmV3PepRegistry.RouteAuthority route,
+            String purpose,
+            String fieldPolicyKey,
+            Instant revalidateAt) {
         return new HcmPepContext.Evidence(
                 route, "psr-" + "c".repeat(64),
                 OffsetDateTime.ofInstant(revalidateAt, ZoneOffset.UTC),
-                "psc-" + "a".repeat(64), "hcm-scope-" + "b".repeat(40), "111");
+                "psc-" + "a".repeat(64), "hcm-scope-" + "b".repeat(40), "111",
+                "NORMAL", purpose, fieldPolicyKey);
     }
 
     private Hrm007Authority.TargetPopulation population(

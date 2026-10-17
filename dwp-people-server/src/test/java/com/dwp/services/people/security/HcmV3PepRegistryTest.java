@@ -19,11 +19,11 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV49PeopleClosureAndRetainsTheV42Bindings() throws IOException {
-        assertThat(registry.bindingContracts()).hasSize(130);
+    void loadsTheExactV51PeopleClosureAndRetainsTheV42Bindings() throws IOException {
+        assertThat(registry.bindingContracts()).hasSize(136);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(103);
+                .distinct()).hasSize(109);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -44,6 +44,18 @@ class HcmV3PepRegistryTest {
                         .equals("route.hcm.operations.employee-change-request-apply.action")
                         && value.servicePath().equals(
                         "/v1/hris/employee-change-requests/{requestPublicId}/apply"))
+                .anyMatch(value -> value.routeContractKey()
+                        .equals("route.hcm.team.people-changes.data")
+                        && value.servicePath().equals(
+                        "/v1/hris/workbench/team/people-changes"))
+                .anyMatch(value -> value.routeContractKey()
+                        .equals("route.hcm.operations.people-appointments.data")
+                        && value.servicePath().equals(
+                        "/v1/hris/workbench/operations/appointments"))
+                .anyMatch(value -> value.routeContractKey()
+                        .equals("route.hcm.configuration.people-employment.data")
+                        && value.servicePath().equals(
+                        "/v1/hris/workbench/configuration/people-employment"))
                 .filteredOn(value -> value.servicePath()
                         .equals("/v1/hris/organizations/graph"))
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)

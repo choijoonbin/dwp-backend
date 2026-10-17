@@ -62944,6 +62944,65 @@
       "entitlementExpressions": [],
       "predicatePolicies": [],
       "routes": []
+    },
+    {
+      "version": 51,
+      "capabilities": [
+        {
+          "contractKey": "hcm.team.people-change.view", "productKey": "hcm", "surfaceKey": "hcm.team", "resolvedCapabilityCode": "DATA.HRIS_PEOPLE_CHANGE_REQUEST:VIEW", "resourceKey": "DATA.HRIS_PEOPLE_CHANGE_REQUEST", "action": "VIEW", "mappingVersion": 1, "requiresProductEntitlement": false, "authorityMode": "PERMISSION_AND_RELATIONSHIP", "scopeResolver": "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION", "riskTier": "HIGH", "activationPolicy": null, "responsibilityRequirement": "NOT_REQUIRED", "sodPolicyId": null, "legacySource": null, "sunsetAt": null, "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "hcm.configuration.workflow.view", "productKey": "hcm", "surfaceKey": "hcm.management", "resolvedCapabilityCode": "CONFIG.HRIS_WORKBENCH:VIEW", "resourceKey": "CONFIG.HRIS_WORKBENCH", "action": "VIEW", "mappingVersion": 1, "requiresProductEntitlement": false, "authorityMode": "PERMISSION_AND_RELATIONSHIP", "scopeResolver": "APP_RESOURCE_SET:RS_HCM_CONFIG", "riskTier": "HIGH", "activationPolicy": null, "responsibilityRequirement": "NOT_REQUIRED", "sodPolicyId": null, "legacySource": null, "sunsetAt": null, "owner": "HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "hcm.team.members.view", "productKey": "hcm", "surfaceKey": "hcm.team", "resolvedCapabilityCode": "DATA.HRIS_WORKFORCE:VIEW", "resourceKey": "DATA.HRIS_WORKFORCE", "action": "VIEW", "mappingVersion": 1, "requiresProductEntitlement": false, "authorityMode": "PERMISSION_AND_RELATIONSHIP", "scopeResolver": "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION", "riskTier": "HIGH", "activationPolicy": null, "responsibilityRequirement": "NOT_REQUIRED", "sodPolicyId": null, "legacySource": null, "sunsetAt": null, "owner": "HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.hcm.team.people-changes.page", "authorizationEquivalenceKey": "wire-authority.hcm.team.people-changes.v1", "navigationContextId": "hcm.team", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.team"}, "routeKind": "PAGE", "sideEffectFree": null, "uiRouteId": "hcm.team.people-changes", "uiRoutePattern": "/hr/team/people-changes",
+          "accessProfiles": [{"profileKey": "team-people-change-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.team.people-change.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.team-target-population.v1"], "projectionPolicyKey": "route.hcm.team.people-changes.page.team-people-change-reader.projection.v1", "responseSchemaKey": "Hrm007PeopleChangesProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.team.people-changes.page.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/team/people-changes", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.team.people-changes.page.binding.01", "method": "GET", "path": "/v1/hris/workbench/team/people-changes", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.team.people-changes.data", "authorizationEquivalenceKey": "wire-authority.hcm.team.people-changes.v1", "navigationContextId": "hcm.team", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.team"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "team-people-change-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.team.people-change.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.team-target-population.v1"], "projectionPolicyKey": "route.hcm.team.people-changes.data.team-people-change-reader.projection.v1", "responseSchemaKey": "Hrm007PeopleChangesProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.team.people-changes.data.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/team/people-changes", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.team.people-changes.data.binding.01", "method": "GET", "path": "/v1/hris/workbench/team/people-changes", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.people-appointments.page", "authorizationEquivalenceKey": "wire-authority.hcm.operations.people-appointments.v1", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "PAGE", "sideEffectFree": null, "uiRouteId": "hcm.operations.people-appointments", "uiRoutePattern": "/hr/operations/people/appointments",
+          "accessProfiles": [{"profileKey": "people-operations-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.people.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-visible-person.v1"], "projectionPolicyKey": "route.hcm.operations.people-appointments.page.people-operations-reader.projection.v1", "responseSchemaKey": "Hrm007AppointmentsProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.people-appointments.page.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/operations/appointments", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.people-appointments.page.binding.01", "method": "GET", "path": "/v1/hris/workbench/operations/appointments", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.people-appointments.data", "authorizationEquivalenceKey": "wire-authority.hcm.operations.people-appointments.v1", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "people-operations-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.people.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-visible-person.v1"], "projectionPolicyKey": "route.hcm.operations.people-appointments.data.people-operations-reader.projection.v1", "responseSchemaKey": "Hrm007AppointmentsProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.people-appointments.data.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/operations/appointments", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.people-appointments.data.binding.01", "method": "GET", "path": "/v1/hris/workbench/operations/appointments", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.configuration.people-employment.page", "authorizationEquivalenceKey": "wire-authority.hcm.configuration.people-employment.v1", "navigationContextId": "hcm.management", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.management"}, "routeKind": "PAGE", "sideEffectFree": null, "uiRouteId": "hcm.management.people-employment", "uiRoutePattern": "/hr/settings/people-employment",
+          "accessProfiles": [{"profileKey": "configuration-workbench-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.configuration.workbench.view"}, "targetBindingKinds": ["CONFIG_SCOPE"], "predicatePolicyKeys": ["predicate.hcm-configuration-scope.v1"], "projectionPolicyKey": "route.hcm.configuration.people-employment.page.configuration-workbench-reader.projection.v1", "responseSchemaKey": "Hrm007PeopleEmploymentProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.configuration.people-employment.page.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/configuration/people-employment", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.configuration.people-employment.page.binding.01", "method": "GET", "path": "/v1/hris/workbench/configuration/people-employment", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.configuration.people-employment.data", "authorizationEquivalenceKey": "wire-authority.hcm.configuration.people-employment.v1", "navigationContextId": "hcm.management", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.management"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "configuration-workbench-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.configuration.workbench.view"}, "targetBindingKinds": ["CONFIG_SCOPE"], "predicatePolicyKeys": ["predicate.hcm-configuration-scope.v1"], "projectionPolicyKey": "route.hcm.configuration.people-employment.data.configuration-workbench-reader.projection.v1", "responseSchemaKey": "Hrm007PeopleEmploymentProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.configuration.people-employment.data.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/configuration/people-employment", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.configuration.people-employment.data.binding.01", "method": "GET", "path": "/v1/hris/workbench/configuration/people-employment", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.configuration.workflow.page", "bindingMode": "AUTHORIZATION_ONLY", "purposeCode": "HRIS_CONFIGURATION", "navigationContextId": "hcm.management", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.management"}, "routeKind": "PAGE", "sideEffectFree": null, "uiRouteId": "hcm.management.workflow", "uiRoutePattern": "/hr/settings/workflow",
+          "accessProfiles": [{"profileKey": "hris-workflow-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.configuration.workflow.view"}, "targetBindingKinds": ["CONFIG_SCOPE"], "predicatePolicyKeys": ["predicate.hcm-configuration-scope.v1"], "readOnly": true}],
+          "gatewayApiBindings": [], "servicePepBindings": [], "owner": "HCM + Approvals + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.team.delegation.page", "bindingMode": "AUTHORIZATION_ONLY", "purposeCode": "TEAM_MANAGEMENT", "navigationContextId": "hcm.team", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.team"}, "routeKind": "PAGE", "sideEffectFree": null, "uiRouteId": "hcm.team.delegation", "uiRoutePattern": "/hr/team/delegation",
+          "accessProfiles": [{"profileKey": "hris-delegation-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.team.members.view"}, "targetBindingKinds": ["RELATIONSHIP", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.team-target-population.v1"], "readOnly": true}],
+          "gatewayApiBindings": [], "servicePepBindings": [], "owner": "HCM + Approvals + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {

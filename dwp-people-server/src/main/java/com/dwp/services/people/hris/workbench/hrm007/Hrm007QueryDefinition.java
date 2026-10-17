@@ -13,6 +13,12 @@ public enum Hrm007QueryDefinition {
             "/v1/hris/workbench/team/people-changes",
             "/api/people/v1/hris/workbench/team/people-changes",
             "/hr/team/people-changes",
+            "route.hcm.team.people-changes.data",
+            "team-people-change-reader",
+            "route.hcm.team.people-changes.data.binding.01",
+            "route.hcm.team.people-changes.data.team-people-change-reader.projection.v1",
+            "Hrm007PeopleChangesProjectionV1",
+            "hrm007.iaq-005.fields.v1",
             "hcm.team.people-change.view",
             "HRIS_LINE_MANAGER",
             "HRIS_DUTY_MANAGER_PEOPLE_CHANGE_READER",
@@ -33,6 +39,12 @@ public enum Hrm007QueryDefinition {
             "/v1/hris/workbench/operations/appointments",
             "/api/people/v1/hris/workbench/operations/appointments",
             "/hr/operations/people/appointments",
+            "route.hcm.operations.people-appointments.data",
+            "people-operations-reader",
+            "route.hcm.operations.people-appointments.data.binding.01",
+            "route.hcm.operations.people-appointments.data.people-operations-reader.projection.v1",
+            "Hrm007AppointmentsProjectionV1",
+            "hrm007.iaq-007.fields.v1",
             "hcm.operations.people.view",
             "HRIS_HR_BUSINESS_PARTNER",
             "HRIS_DUTY_CORE_VIEWER",
@@ -53,11 +65,17 @@ public enum Hrm007QueryDefinition {
             "/v1/hris/workbench/configuration/people-employment",
             "/api/people/v1/hris/workbench/configuration/people-employment",
             "/hr/settings/people-employment",
+            "route.hcm.configuration.people-employment.data",
+            "configuration-workbench-reader",
+            "route.hcm.configuration.people-employment.data.binding.01",
+            "route.hcm.configuration.people-employment.data.configuration-workbench-reader.projection.v1",
+            "Hrm007PeopleEmploymentProjectionV1",
+            "hrm007.iaq-013.fields.v1",
             "hcm.configuration.workbench.view",
             "HRIS_CONFIG_AUTHOR",
             "HRIS_DUTY_CONFIGURATION_WORKBENCH_READER",
             "HRIS_CONFIGURATION",
-            Set.of("CONFIG_SCOPE", "POLICY_NODE", "LEGAL_ENTITY"),
+            Set.of("CONFIG_SCOPE"),
             Set.of("CONFIG_SCOPE"),
             Set.of("predicate.hcm-configuration-scope.v1"),
             List.of("POLICY_METADATA", "EMPLOYMENT_RULE", "IMPACT_SUMMARY"),
@@ -73,8 +91,14 @@ public enum Hrm007QueryDefinition {
     private final String ownerPath;
     private final String browserPath;
     private final String deepLinkRoute;
+    private final String routeContractKey;
+    private final String routeProfileKey;
+    private final String bindingKey;
+    private final String projectionPolicyKey;
+    private final String responseSchemaKey;
+    private final String fieldPolicyKey;
     private final String capability;
-    private final String profile;
+    private final String businessRole;
     private final String duty;
     private final String purpose;
     private final Set<String> populations;
@@ -90,8 +114,14 @@ public enum Hrm007QueryDefinition {
             String ownerPath,
             String browserPath,
             String deepLinkRoute,
+            String routeContractKey,
+            String routeProfileKey,
+            String bindingKey,
+            String projectionPolicyKey,
+            String responseSchemaKey,
+            String fieldPolicyKey,
             String capability,
-            String profile,
+            String businessRole,
             String duty,
             String purpose,
             Set<String> populations,
@@ -105,8 +135,14 @@ public enum Hrm007QueryDefinition {
         this.ownerPath = ownerPath;
         this.browserPath = browserPath;
         this.deepLinkRoute = deepLinkRoute;
+        this.routeContractKey = routeContractKey;
+        this.routeProfileKey = routeProfileKey;
+        this.bindingKey = bindingKey;
+        this.projectionPolicyKey = projectionPolicyKey;
+        this.responseSchemaKey = responseSchemaKey;
+        this.fieldPolicyKey = fieldPolicyKey;
         this.capability = capability;
-        this.profile = profile;
+        this.businessRole = businessRole;
         this.duty = duty;
         this.purpose = purpose;
         this.populations = Set.copyOf(populations);
@@ -140,13 +176,27 @@ public enum Hrm007QueryDefinition {
         return deepLinkRoute;
     }
 
+    public String routeContractKey() { return routeContractKey; }
+
+    public String routeProfileKey() { return routeProfileKey; }
+
+    public String bindingKey() { return bindingKey; }
+
+    public String projectionPolicyKey() { return projectionPolicyKey; }
+
+    public String responseSchemaKey() { return responseSchemaKey; }
+
+    public String fieldPolicyKey() { return fieldPolicyKey; }
+
     public String capability() {
         return capability;
     }
 
     public String profile() {
-        return profile;
+        return businessRole;
     }
+
+    public String businessRole() { return businessRole; }
 
     public String duty() {
         return duty;

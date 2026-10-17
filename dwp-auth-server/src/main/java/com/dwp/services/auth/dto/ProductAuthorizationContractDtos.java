@@ -164,6 +164,8 @@ public final class ProductAuthorizationContractDtos {
             String navigationContextId,
             RouteSubject subject,
             String routeKind,
+            String bindingMode,
+            String purposeCode,
             Boolean sideEffectFree,
             String uiRouteId,
             String uiRoutePattern,

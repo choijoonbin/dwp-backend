@@ -30,9 +30,8 @@ import java.util.function.Supplier;
 
 /**
  * Adapts trusted gateway evidence and live owner-side populations to the three
- * closed HRM-007 query definitions. Route keys are deliberately not guessed:
- * the adapter verifies the generated capability, method, read-only mode,
- * public binding, projection binding, and target binding instead.
+ * closed HRM-007 query definitions. The adapter verifies the exact generated DATA route,
+ * route profile, binding, projection/schema, field policy, purpose and target binding.
  */
 @Component
 @ConditionalOnProperty(prefix = Hrm007RolloutGate.PREFIX, name = "enabled",
@@ -79,23 +78,25 @@ final class Hrm007Authority {
             throw denied("Trusted authority evidence is unavailable.");
         }
         requireSubject(actor);
-        if (!actor.roles().contains(definition.profile())
+        if (!actor.roles().contains(definition.businessRole())
                 || !actor.roles().contains(definition.duty())) {
             throw denied("The required HRIS profile and duty are unavailable.");
         }
         requireEvidence(evidence);
         HcmV3PepRegistry.RouteAuthority route = evidence.authority();
         if (route == null
-                || !"PAGE".equals(route.routeKind())
+                || !"DATA".equals(route.routeKind())
+                || !definition.routeContractKey().equals(route.routeContractKey())
+                || !definition.routeProfileKey().equals(route.profileKey())
                 || !route.readOnly()
                 || !"GET".equals(route.method())
                 || !definition.browserPath().equals(route.publicPath())
                 || !definition.capability().equals(route.capabilityContractKey())
-                || route.bindingKey() == null || route.bindingKey().isBlank()
-                || route.projectionPolicyKey() == null
-                || route.projectionPolicyKey().isBlank()
-                || route.responseSchemaKey() == null
-                || route.responseSchemaKey().isBlank()
+                || !definition.bindingKey().equals(route.bindingKey())
+                || !definition.projectionPolicyKey().equals(route.projectionPolicyKey())
+                || !definition.responseSchemaKey().equals(route.responseSchemaKey())
+                || !definition.purpose().equals(evidence.purpose())
+                || !definition.fieldPolicyKey().equals(evidence.fieldPolicyKey())
                 || !definition.predicatePolicyKeys().equals(
                 route.predicatePolicyKeys())
                 || !definition.targetBindingKinds().equals(route.targetBindingKinds())) {

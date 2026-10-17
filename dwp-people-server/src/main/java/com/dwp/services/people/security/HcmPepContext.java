@@ -37,7 +37,21 @@ public final class HcmPepContext {
             String contextKey,
             String scopeKey,
             String rolloutState,
-            String activeAccessMode) {
+            String activeAccessMode,
+            String purpose,
+            String fieldPolicyKey) {
+
+        public Evidence(
+                HcmV3PepRegistry.RouteAuthority authority,
+                String decisionRevision,
+                OffsetDateTime revalidateAt,
+                String contextKey,
+                String scopeKey,
+                String rolloutState,
+                String activeAccessMode) {
+            this(authority, decisionRevision, revalidateAt, contextKey, scopeKey,
+                    rolloutState, activeAccessMode, null, null);
+        }
 
         public Evidence(
                 HcmV3PepRegistry.RouteAuthority authority,
@@ -47,7 +61,7 @@ public final class HcmPepContext {
                 String scopeKey,
                 String rolloutState) {
             this(authority, decisionRevision, revalidateAt, contextKey, scopeKey,
-                    rolloutState, "NORMAL");
+                    rolloutState, "NORMAL", null, null);
         }
     }
 }

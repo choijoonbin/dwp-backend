@@ -211,7 +211,7 @@ public class ProductAuthorizationContractValidator {
     private void validateTim007ProjectionSchemaMetadata(
             long bundleVersion,
             Map<String, ProductAuthorizationContractDtos.GovernedRoute> routes) {
-        if (bundleVersion != 50) return;
+        if (bundleVersion < 50) return;
         TIM007_V50_PROJECTIONS.forEach((routeKey, seal) -> {
             ProductAuthorizationContractDtos.GovernedRoute route = routes.get(routeKey);
             require(route != null, routeKey + ": missing TIM-007 v50 projection route.");
@@ -238,7 +238,7 @@ public class ProductAuthorizationContractValidator {
             long bundleVersion,
             ProductAuthorizationContractDtos.GovernedRoute route) {
         Tim007ProjectionSeal seal = TIM007_V50_PROJECTIONS.get(route.routeContractKey());
-        if (bundleVersion != 50 || seal == null) return route;
+        if (bundleVersion < 50 || seal == null) return route;
         List<ProductAuthorizationContractDtos.AccessProfile> profiles = route.accessProfiles()
                 .stream()
                 .map(profile -> seal.profileKey().equals(profile.profileKey())
@@ -251,7 +251,8 @@ public class ProductAuthorizationContractValidator {
                 .toList();
         return new ProductAuthorizationContractDtos.GovernedRoute(
                 route.routeContractKey(), route.navigationContextId(), route.subject(),
-                route.routeKind(), route.sideEffectFree(), route.uiRouteId(),
+                route.routeKind(), route.bindingMode(), route.purposeCode(),
+                route.sideEffectFree(), route.uiRouteId(),
                 route.uiRoutePattern(), profiles, route.gatewayApiBindings(),
                 route.servicePepBindings(), route.authorizationEquivalenceKey(),
                 route.stepUpCommandBindings(), route.consumedApiRouteContractKeys(),

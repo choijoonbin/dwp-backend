@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Runtime-only, closed People PEP projection generated from the shared HRIS v49 registry.
+ * Runtime-only, closed People PEP projection generated from the shared HRIS v51 registry.
  * Provider-support profiles are parsed to detect contract drift, but they are not a service
  * readiness signal: {@link HcmProductSurfacePepFilter} denies them until the trusted request
  * carries the contractual legal-entity population boundary as well as the support session.
@@ -34,11 +34,11 @@ import java.util.stream.Collectors;
 public final class HcmV3PepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-people-pep-v49.generated.json";
-    static final String REGISTRY_V49_CHECKSUM =
-            "5c1dccdc27d8b260fbf001de5695e983a7107072824a8087038340d0d84cbc60";
-    static final String PROJECTION_V49_CHECKSUM =
-            "3346929f550830ee236af702be33da2e58ccfbd0704c44d820f5d8f98a33739a";
+            "product-authorization/hcm-people-pep-v51.generated.json";
+    static final String REGISTRY_V51_CHECKSUM =
+            "3beda5c13a3af0e265ace4533a3afcee3691c2b7486465dcf46156e58ae5ed2c";
+    static final String PROJECTION_V51_CHECKSUM =
+            "d94ff0bf853089279713ad3e40432e47fd3311539c612acf218d24d2210d80d0";
     static final String ORGANIZATION_RESPONSIBILITY_BOUNDARY =
             "ORGANIZATION_TARGET_POPULATION";
     private static final Set<String> ORGANIZATION_GRAPH_ROUTES = Set.of(
@@ -53,7 +53,13 @@ public final class HcmV3PepRegistry {
             Map.entry("route.hcm.operations.performance-multirater-surveys.page",
                     "PERFORMANCE_OPERATIONS"),
             Map.entry("route.hcm.operations.organization-graph.data", "HR_OPERATIONS"),
-            Map.entry("route.hcm.operations.organization-positions.page", "HR_OPERATIONS"));
+            Map.entry("route.hcm.operations.organization-positions.page", "HR_OPERATIONS"),
+            Map.entry("route.hcm.team.people-changes.page", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.team.people-changes.data", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.people-appointments.page", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.people-appointments.data", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.configuration.people-employment.page", "HRIS_CONFIGURATION"),
+            Map.entry("route.hcm.configuration.people-employment.data", "HRIS_CONFIGURATION"));
 
     private final ObjectMapper objectMapper;
     private final Map<String, JsonNode> capabilities;
@@ -124,6 +130,20 @@ public final class HcmV3PepRegistry {
         if (ORGANIZATION_GRAPH_ROUTES.contains(binding.routeContractKey())) {
             return "organization-viewer".equals(profile.profileKey())
                     && "TARGET_POPULATION".equals(evidence.trustedPopulationKind());
+        }
+        if (binding.routeContractKey().startsWith("route.hcm.team.people-changes.")) {
+            return "team-people-change-reader".equals(profile.profileKey())
+                    && "TARGET_POPULATION".equals(evidence.trustedPopulationKind());
+        }
+        if (binding.routeContractKey().startsWith(
+                "route.hcm.operations.people-appointments.")) {
+            return "people-operations-reader".equals(profile.profileKey())
+                    && "TARGET_POPULATION".equals(evidence.trustedPopulationKind());
+        }
+        if (binding.routeContractKey().startsWith(
+                "route.hcm.configuration.people-employment.")) {
+            return "configuration-workbench-reader".equals(profile.profileKey())
+                    && "CONFIG_SCOPE".equals(evidence.trustedPopulationKind());
         }
         if (!TRUSTED_PURPOSE_BY_ROUTE.containsKey(binding.routeContractKey())) return true;
         String expected = switch (profile.profileKey()) {
@@ -391,7 +411,7 @@ public final class HcmV3PepRegistry {
                             ? route.path("stepUpCommandBindings").size() : 0),
                     routeKey + ": invalid step-up binding closure");
         }
-        require(result.size() == 130, "HCM People PEP binding count changed");
+        require(result.size() == 136, "HCM People PEP binding count changed");
         return List.copyOf(result);
     }
 
@@ -418,28 +438,28 @@ public final class HcmV3PepRegistry {
 
     private void validateEnvelope(ObjectNode projection) {
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-people-pep-v49".equals(projection.path("projectionKey").asText())
+                        && "hcm-people-pep-v51".equals(projection.path("projectionKey").asText())
                         && "people".equals(projection.path("ownerServiceKey").asText()),
                 "Unexpected HCM People PEP envelope");
         JsonNode registry = projection.path("registryRef");
         require("product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 49
-                        && REGISTRY_V49_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 51
+                        && REGISTRY_V51_CHECKSUM.equals(registry.path("sha256").asText()),
                 "HCM People registry reference mismatch");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 1079
-                        && projection.path("projectedRouteContractCount").asInt() == 103
-                        && projection.path("bindingPairCount").asInt() == 130,
+        require(projection.path("sourceRegistryRouteCount").asInt() == 1087
+                        && projection.path("projectedRouteContractCount").asInt() == 109
+                        && projection.path("bindingPairCount").asInt() == 136,
                 "HCM People release counts changed");
         ObjectNode payload = projection.deepCopy();
         JsonNode checksum = payload.remove("projectionChecksum");
         require(checksum != null
-                        && PROJECTION_V49_CHECKSUM.equals(checksum.asText())
-                        && PROJECTION_V49_CHECKSUM.equals(sha256(payload)),
+                        && PROJECTION_V51_CHECKSUM.equals(checksum.asText())
+                        && PROJECTION_V51_CHECKSUM.equals(sha256(payload)),
                 "HCM People projection checksum mismatch");
     }
 
     private void validateClosure(ObjectNode projection) {
-        require(capabilities.size() == 52 && policies.size() == 5
+        require(capabilities.size() == 54 && policies.size() == 5
                         && expressions.size() == 3 && predicates.size() == 18,
                 "HCM People descriptor closure count changed");
         Set<String> routes = new LinkedHashSet<>();

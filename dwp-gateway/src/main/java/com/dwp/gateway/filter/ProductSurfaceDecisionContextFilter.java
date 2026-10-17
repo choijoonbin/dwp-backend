@@ -49,6 +49,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "X-DWP-Subject-Principal-Public-ID";
     public static final String FIELD_POLICY_REVISION_HEADER =
             "X-DWP-Field-Policy-Revision";
+    public static final String FIELD_POLICY_KEY_HEADER = "X-DWP-Field-Policy-Key";
     public static final String AUTHORIZATION_REVISION_HEADER =
             "X-DWP-Authorization-Revision";
     public static final String POPULATION_KIND_HEADER = "X-DWP-Population-Kind";
@@ -90,6 +91,13 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.operations.time-reopen.action",
             "route.hcm.operations.time-payroll-handoff-create.action",
             "route.hcm.operations.time-payroll-handoff.data");
+    private static final Set<String> HRM007_ENTRY_QUERY_ROUTE_KEYS = Set.of(
+            "route.hcm.team.people-changes.page",
+            "route.hcm.team.people-changes.data",
+            "route.hcm.operations.people-appointments.page",
+            "route.hcm.operations.people-appointments.data",
+            "route.hcm.configuration.people-employment.page",
+            "route.hcm.configuration.people-employment.data");
     private static final Set<String> TIM_WAVE2_ROUTE_KEYS = Set.of(
             "route.hcm.operations.time-interpretation.page",
             "route.hcm.operations.time-interpretation-run.action",
@@ -140,6 +148,13 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.shell.navigation-deep-link-decision-legal-entity.data");
     private static final Set<String> CONTROLLED_TRANSFER_POPULATION_KINDS = Set.of(
             "CONNECTOR_SET", "LEGAL_ENTITY");
+    private static final Map<String, String> HRM007_FIELD_POLICY_BY_ROUTE = Map.of(
+            "route.hcm.team.people-changes.page", "hrm007.iaq-005.fields.v1",
+            "route.hcm.team.people-changes.data", "hrm007.iaq-005.fields.v1",
+            "route.hcm.operations.people-appointments.page", "hrm007.iaq-007.fields.v1",
+            "route.hcm.operations.people-appointments.data", "hrm007.iaq-007.fields.v1",
+            "route.hcm.configuration.people-employment.page", "hrm007.iaq-013.fields.v1",
+            "route.hcm.configuration.people-employment.data", "hrm007.iaq-013.fields.v1");
     private static final Map<String, String> WAVE2_OWNER_PURPOSE_BY_ROUTE = Map.ofEntries(
             Map.entry("route.hcm.personal.employment-documents.page", "HR_LIFECYCLE"),
             Map.entry("route.hcm.operations.employment-assignments.page", "HR_LIFECYCLE"),
@@ -149,6 +164,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             Map.entry("route.hcm.operations.assignment-event-publish.action", "HR_LIFECYCLE"),
             Map.entry("route.hcm.operations.assignment-event-detail.data", "HR_LIFECYCLE"),
             Map.entry("route.hcm.operations.assignment-command-receipt.data", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.team.people-changes.page", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.team.people-changes.data", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.people-appointments.page", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.operations.people-appointments.data", "HR_LIFECYCLE"),
+            Map.entry("route.hcm.configuration.people-employment.page", "HRIS_CONFIGURATION"),
+            Map.entry("route.hcm.configuration.people-employment.data", "HRIS_CONFIGURATION"),
             Map.entry("route.hcm.operations.time-interpretation.page", "TIME_OPERATIONS"),
             Map.entry("route.hcm.operations.time-interpretation-run.action", "TIME_INTERPRETATION"),
             Map.entry("route.hcm.operations.time-interpretation-trace.data", "TIME_INTERPRETATION"),
@@ -423,7 +444,8 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         // evidence before an owner can be reached.
         if (rollout.charAt(1) == '0'
                 && !requiresHomeShadowAuthority(rollout, route)
-                && !TENANT_FEATURE_GOVERNED_ROUTE_KEYS.contains(route.routeContractKey())) {
+                && !TENANT_FEATURE_GOVERNED_ROUTE_KEYS.contains(route.routeContractKey())
+                && !HRM007_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())) {
             return chain.filter(sanitizedExchange);
         }
 
@@ -622,6 +644,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         ProductSurfaceContextDtos.SourceRevisions revisions = trustedResult.revisions();
         String fieldPolicyRevision = revisions == null
                 ? null : numericRevision("field-policy", revisions.policy());
+        String fieldPolicyKey = HRM007_FIELD_POLICY_BY_ROUTE.get(route.routeContractKey());
         String authorizationRevision = revisions == null
                 ? null : numericRevision("authorization", revisions.auth());
         if (purpose != null && (blank(subjectPrincipal)
@@ -634,6 +657,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 || PER_TIM_WAVE5_POPULATION_ROUTE_KEYS.contains(route.routeContractKey())
                 || CONTROLLED_TRANSFER_OWNER_ROUTE_KEYS.contains(route.routeContractKey())
                 || V49_TARGET_POPULATION_ROUTE_KEYS.contains(route.routeContractKey())
+                || HRM007_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_TENANT_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey());
         String populationKind = requiresPopulationKind && trustedResult.scope() != null
@@ -669,6 +693,9 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 headers.set(SUBJECT_PRINCIPAL_HEADER, subjectPrincipal);
                 headers.set(FIELD_POLICY_REVISION_HEADER, fieldPolicyRevision);
                 headers.set(AUTHORIZATION_REVISION_HEADER, authorizationRevision);
+                if (fieldPolicyKey != null) {
+                    headers.set(FIELD_POLICY_KEY_HEADER, fieldPolicyKey);
+                }
             }
             if (populationKind != null) {
                 headers.set(POPULATION_KIND_HEADER, populationKind);

@@ -32,6 +32,27 @@ class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestS
             "route.hcm.time.timecard.data");
 
     @Test
+    void v51RoutesHrmWirePairsButNeverPublishesAuthorizationOnlySysPages() {
+        GeneratedProductRouteCatalog latest = catalog(51);
+        assertThat(latest.match("GET",
+                "/api/people/v1/hris/workbench/team/people-changes").uniqueRoute()
+                .routeContractKey()).isEqualTo("route.hcm.team.people-changes.data");
+        assertThat(latest.match("GET",
+                "/api/people/v1/hris/workbench/operations/appointments").uniqueRoute()
+                .routeContractKey()).isEqualTo(
+                        "route.hcm.operations.people-appointments.data");
+        assertThat(latest.match("GET",
+                "/api/people/v1/hris/workbench/configuration/people-employment")
+                .uniqueRoute().routeContractKey()).isEqualTo(
+                        "route.hcm.configuration.people-employment.data");
+        assertThat(latest.routesForTesting())
+                .noneMatch(route -> Set.of(
+                        "route.hcm.configuration.workflow.page",
+                        "route.hcm.team.delegation.page")
+                        .contains(route.routeContractKey()));
+    }
+
+    @Test
     void v49PublishesOnlyTheExactTwelveGenericSessionStepUpRoutes() throws Exception {
         GeneratedProductRouteCatalog latest = catalog(49);
         assertThat(latest.routesForTesting().stream()

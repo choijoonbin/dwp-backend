@@ -178,7 +178,7 @@ public class TenantFeatureActivationRepository implements TenantFeatureActivatio
             GateRequest request,
             String stateRevision) {
         String source = String.join("|",
-                "v259",
+                binding.minimumBundleVersion() < 51 ? "v259" : "v260",
                 binding.featureKey(),
                 String.valueOf(binding.policyVersion()),
                 binding.productKey(),
@@ -233,7 +233,7 @@ public class TenantFeatureActivationRepository implements TenantFeatureActivatio
                     && surfaceKey != null && surfaceKey.equals(request.surfaceKey())
                     && "APP.HCM".equals(appResourceKey)
                     && policyVersion > 0
-                    && minimumBundleVersion == 50
+                    && minimumBundleVersion >= 50
                     && request.bundleVersion() >= minimumBundleVersion
                     && List.of("PAGE", "DATA", "ACTION").contains(routeKind)
                     && "PRODUCT".equals(subjectType)

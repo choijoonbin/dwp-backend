@@ -56,6 +56,15 @@ final class HcmScopeSelectionValidator {
             java.util.Set.of(
                     "route.hcm.operations.organization-graph.data",
                     "route.hcm.operations.organization-positions.page");
+    private static final java.util.Set<String> HRM007_TEAM_ROUTES = java.util.Set.of(
+            "route.hcm.team.people-changes.page",
+            "route.hcm.team.people-changes.data");
+    private static final java.util.Set<String> HRM007_OPERATIONS_ROUTES = java.util.Set.of(
+            "route.hcm.operations.people-appointments.page",
+            "route.hcm.operations.people-appointments.data");
+    private static final java.util.Set<String> HRM007_CONFIGURATION_ROUTES = java.util.Set.of(
+            "route.hcm.configuration.people-employment.page",
+            "route.hcm.configuration.people-employment.data");
 
     private final HcmPopulationScopeService populations;
 
@@ -94,6 +103,35 @@ final class HcmScopeSelectionValidator {
         }
         if (ORGANIZATION_GRAPH_ROUTES.contains(route)) {
             validateOrganizationGraph(authority);
+            return;
+        }
+        if (HRM007_TEAM_ROUTES.contains(route)) {
+            validateHrm007(authority, "team-people-change-reader",
+                    "hcm.team.people-change.view", "predicate.team-target-population.v1",
+                    java.util.Set.of("TARGET_POPULATION"));
+            HcmPopulationScopeService.ResolvedPopulation population = populations.requireTeam();
+            populations.requireTrustedScope(population, "hcm.team", "TARGET_POPULATION",
+                    "TEAM/ORG_UNIT",
+                    "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION");
+            return;
+        }
+        if (HRM007_OPERATIONS_ROUTES.contains(route)) {
+            validateHrm007(authority, "people-operations-reader",
+                    "hcm.operations.people.view",
+                    "predicate.hcm-workforce-visible-person.v1",
+                    java.util.Set.of("TARGET_POPULATION"));
+            HcmPopulationScopeService.ResolvedPopulation population =
+                    populations.requireOperations("READ");
+            populations.requireTrustedScope(population, "hcm.operations", "TARGET_POPULATION",
+                    "ORG_UNIT/LEGAL_ENTITY", "WORKFORCE_TARGET_POPULATION");
+            return;
+        }
+        if (HRM007_CONFIGURATION_ROUTES.contains(route)) {
+            validateHrm007(authority, "configuration-workbench-reader",
+                    "hcm.configuration.workbench.view",
+                    "predicate.hcm-configuration-scope.v1",
+                    java.util.Set.of("CONFIG_SCOPE"));
+            populations.requireConfigurationScope();
             return;
         }
         if (java.util.Set.of(
@@ -187,6 +225,24 @@ final class HcmScopeSelectionValidator {
         populations.requireTrustedScope(
                 population, "hcm.operations", "TARGET_POPULATION",
                 "ORGANIZATION_TARGET_POPULATION");
+    }
+
+    private void validateHrm007(
+            HcmV3PepRegistry.RouteAuthority authority,
+            String profileKey,
+            String capabilityKey,
+            String predicateKey,
+            java.util.Set<String> targetKinds) {
+        String expectedKind = authority.routeContractKey().endsWith(".page") ? "PAGE" : "DATA";
+        if (!expectedKind.equals(authority.routeKind())
+                || !profileKey.equals(authority.profileKey())
+                || !authority.readOnly()
+                || !"GET".equals(authority.method())
+                || !capabilityKey.equals(authority.capabilityContractKey())
+                || !java.util.Set.of(predicateKey).equals(authority.predicatePolicyKeys())
+                || !targetKinds.equals(authority.targetBindingKinds())) {
+            throw new IllegalStateException("HRM-007 entry-query scope profile changed.");
+        }
     }
 
     private void validateEmployeeChangeMutation(HcmV3PepRegistry.RouteAuthority authority) {
