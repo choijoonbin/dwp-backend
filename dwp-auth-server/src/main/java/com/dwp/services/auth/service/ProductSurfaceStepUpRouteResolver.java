@@ -27,9 +27,10 @@ public class ProductSurfaceStepUpRouteResolver {
 
     private static final String BUNDLE_KEY = "product-surfaces";
     private static final java.util.Set<Long> STEP_UP_RUNTIME_BUNDLE_VERSIONS =
-            java.util.Set.of(2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 32L);
+            java.util.Set.of(2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L,
+                    14L, 15L, 16L, 32L, 49L);
     private static final java.util.Set<Long> SEALED_RUNTIME_BUNDLE_VERSIONS =
-            java.util.Set.of(9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 32L);
+            java.util.Set.of(9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 32L, 49L);
     private static final String AUTHORITY_ENDPOINT_KEY =
             "product-surface-step-up-challenge.issue";
     private static final String AUTHORITY_PUBLIC_PATH =
@@ -95,11 +96,12 @@ public class ProductSurfaceStepUpRouteResolver {
             throw mismatch("Command method/path is not uniquely registered for step-up.");
         }
         ResolvedRoute resolved = matches.getFirst();
-        ProductAuthorizationContractDtos.AccessProfile profile = capabilityProfile(resolved.route());
         Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities =
                 safe(contract.capabilities()).stream().collect(Collectors.toUnmodifiableMap(
                         ProductAuthorizationContractDtos.CapabilityContract::contractKey,
                         Function.identity()));
+        ProductAuthorizationContractDtos.AccessProfile profile = capabilityProfile(
+                resolved.route(), capabilities);
         ProductAuthorizationContractDtos.CapabilityContract capability = capabilities.get(
                 profile.requiredAccess().capabilityContractKey());
         if (capability == null || !"ACTIVE".equals(capability.lifecycleState())
@@ -182,18 +184,26 @@ public class ProductSurfaceStepUpRouteResolver {
         return Optional.of(new ResolvedRoute(route, gateway, stepUp, Map.copyOf(parameters)));
     }
 
-    private ProductAuthorizationContractDtos.AccessProfile capabilityProfile(
-            ProductAuthorizationContractDtos.GovernedRoute route) {
+    ProductAuthorizationContractDtos.AccessProfile capabilityProfile(
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities) {
+        if (PayrollV49ElevatedAuthorityPolicy.COMMAND_ROUTES.contains(
+                route.routeContractKey())) {
+            if (!PayrollV49ElevatedAuthorityPolicy.isExactCommandRoute(route, capabilities)) {
+                throw unavailable();
+            }
+            return route.accessProfiles().getFirst();
+        }
         List<ProductAuthorizationContractDtos.AccessProfile> profiles =
                 safe(route.accessProfiles()).stream()
                         .filter(value -> safe(value.activeAccessModes()).contains("NORMAL"))
                         .filter(value -> value.requiredAccess() != null)
                         .filter(value -> "CAPABILITY".equals(value.requiredAccess().type()))
                         .toList();
+        if (profiles.isEmpty()) throw unavailable();
         int precedence = profiles.stream()
                 .mapToInt(ProductAuthorizationContractDtos.AccessProfile::precedence)
-                .max()
-                .orElseThrow(this::unavailable);
+                .max().orElseThrow(this::unavailable);
         List<ProductAuthorizationContractDtos.AccessProfile> winners = profiles.stream()
                 .filter(value -> value.precedence() == precedence)
                 .toList();

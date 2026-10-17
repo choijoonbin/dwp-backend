@@ -6,6 +6,7 @@ import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceStepUpDtos;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -106,6 +109,47 @@ class ProductSurfaceStepUpRouteResolverTest {
                 .isInstanceOf(BaseException.class)
                 .satisfies(error -> assertThat(((BaseException) error).getErrorCode())
                         .isEqualTo(ErrorCode.STEP_UP_CHALLENGE_MISMATCH));
+    }
+
+    @Test
+    void v49PayrollCommandSelectionRejectsAnyNormalProfileDrift() throws Exception {
+        ProductAuthorizationContractDtos.BundleContract v49 = readContract(49);
+        var capabilities = v49.capabilities().stream().collect(Collectors.toMap(
+                ProductAuthorizationContractDtos.CapabilityContract::contractKey,
+                Function.identity()));
+        for (String routeKey : PayrollV49ElevatedAuthorityPolicy.COMMAND_ROUTES) {
+            var route = v49.routes().stream()
+                    .filter(value -> routeKey.equals(value.routeContractKey()))
+                    .findFirst().orElseThrow();
+            assertThat(resolver.capabilityProfile(route, capabilities).activeAccessModes())
+                    .as(routeKey).containsExactly("ELEVATED");
+
+            ObjectNode drifted = objectMapper.valueToTree(route);
+            ObjectNode profile = (ObjectNode) drifted.withArray("accessProfiles").get(0);
+            profile.set("activeAccessModes",
+                    objectMapper.createArrayNode().add("NORMAL").add("ELEVATED"));
+            var normalDrift = objectMapper.treeToValue(
+                    drifted, ProductAuthorizationContractDtos.GovernedRoute.class);
+            assertThatThrownBy(() -> resolver.capabilityProfile(normalDrift, capabilities))
+                    .as(routeKey + " mode drift")
+                    .isInstanceOfSatisfying(BaseException.class, error ->
+                            assertThat(error.getErrorCode())
+                                    .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+
+            ObjectNode injected = objectMapper.valueToTree(route);
+            ArrayNode profiles = injected.withArray("accessProfiles");
+            ObjectNode alternate = profiles.get(0).deepCopy();
+            alternate.put("profileKey", "injected-normal");
+            alternate.set("activeAccessModes", objectMapper.createArrayNode().add("NORMAL"));
+            profiles.add(alternate);
+            var injectedNormal = objectMapper.treeToValue(
+                    injected, ProductAuthorizationContractDtos.GovernedRoute.class);
+            assertThatThrownBy(() -> resolver.capabilityProfile(injectedNormal, capabilities))
+                    .as(routeKey + " injected profile")
+                    .isInstanceOfSatisfying(BaseException.class, error ->
+                            assertThat(error.getErrorCode())
+                                    .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+        }
     }
 
     @Test

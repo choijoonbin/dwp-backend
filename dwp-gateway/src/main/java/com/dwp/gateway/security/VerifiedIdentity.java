@@ -13,7 +13,25 @@ public record VerifiedIdentity(
         String displayName,
         boolean legacyRoleFallbackAllowed,
         String sessionFamilyId,
-        String identityPlane) {
+        String identityPlane,
+        String activeAccessMode) {
+
+    public VerifiedIdentity(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            List<String> permissions,
+            List<String> groupRefs,
+            List<String> resourceRoles,
+            String personPublicId,
+            String displayName,
+            boolean legacyRoleFallbackAllowed,
+            String sessionFamilyId,
+            String identityPlane) {
+        this(userId, tenantId, roles, permissions, groupRefs, resourceRoles,
+                personPublicId, displayName, legacyRoleFallbackAllowed,
+                sessionFamilyId, identityPlane, "NORMAL");
+    }
 
     public VerifiedIdentity(
             String userId,
@@ -21,7 +39,7 @@ public record VerifiedIdentity(
             List<String> roles,
             String identityPlane) {
         this(userId, tenantId, roles, List.of(), List.of(), List.of(), null, null,
-                false, null, identityPlane);
+                false, null, identityPlane, "NORMAL");
     }
 
     public VerifiedIdentity {
@@ -45,6 +63,10 @@ public record VerifiedIdentity(
         if (!"PROVIDER".equals(identityPlane) && !"TENANT".equals(identityPlane)) {
             throw new IllegalArgumentException(
                     "identityPlane is required and must be PROVIDER or TENANT");
+        }
+        if (!"NORMAL".equals(activeAccessMode) && !"ELEVATED".equals(activeAccessMode)) {
+            throw new IllegalArgumentException(
+                    "activeAccessMode is required and must be NORMAL or ELEVATED");
         }
         requireNoProviderResourceRoles(identityPlane, resourceRoles);
 

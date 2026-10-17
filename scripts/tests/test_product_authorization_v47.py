@@ -12,7 +12,7 @@ PLATFORM_PEP = (
 )
 V46_SHA256 = "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e"
 V47_SHA256 = "925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e"
-V48_SHA256 = "9fd324cd67ede1f02cc8ac33c08ad880ec6e283f99f5d7aa50e0e514545aa043"
+V49_SHA256 = "5c1dccdc27d8b260fbf001de5695e983a7107072824a8087038340d0d84cbc60"
 V47_PEP_SHA256 = "4afb76601a7c0e3dbf7647b075ad17433ca70107f825071584c4f3ba1bb1caae"
 
 EXPECTED = {
@@ -49,8 +49,8 @@ class ProductAuthorizationV47Test(unittest.TestCase):
         cls.v47 = json.loads(
             (CONTRACTS / "product-surfaces-v1.bundle-v47.json").read_text()
         )
-        cls.v48 = json.loads(
-            (CONTRACTS / "product-surfaces-v1.bundle-v48.json").read_text()
+        cls.v49 = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v49.json").read_text()
         )
         cls.routes = {route["routeContractKey"]: route for route in cls.v47["routes"]}
 
@@ -100,14 +100,14 @@ class ProductAuthorizationV47Test(unittest.TestCase):
         self.assertEqual({"domain": {"kind": "FIXED", "value": "ABSENCE"}},
                          leave_route["gatewayApiBindings"][0]["pathParameterConstraints"])
 
-    def test_latest_alias_advances_to_v48_while_platform_pep_remains_pinned_to_v47(self) -> None:
+    def test_latest_alias_advances_to_v49_while_historical_platform_pep_remains_pinned_to_v47(self) -> None:
         alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
         seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
         projection = json.loads(PLATFORM_PEP.read_text())
-        self.assertEqual(self.v48, alias)
-        self.assertEqual(self.v48, seed)
-        self.assertEqual((48, V48_SHA256), (
+        self.assertEqual(self.v49, alias)
+        self.assertEqual(self.v49, seed)
+        self.assertEqual((49, V49_SHA256), (
             index["latestVersion"], index["latestChecksum"]
         ))
         self.assertEqual({

@@ -5,6 +5,8 @@ import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -970,6 +972,190 @@ class ProductAuthorizationAuthorityAdapterTest {
         assertThat(conflicted.routeGrantRef()).isNull();
     }
 
+    @Test
+    void payrollSupportReadsChallengeNormalAndEvaluateElevatedAgainstExactAuthority()
+            throws Exception {
+        useContract("product-surfaces-v1.bundle-v49.generated.json");
+        evidence(Set.of("DATA.HRIS_PAYROLL_STATUS:VIEW"), List.of());
+
+        for (String route : PayrollV49ElevatedAuthorityPolicy.READ_ROUTES) {
+            ProductSurfaceAuthorityDtos.AuthorityResult challenge = evaluate(
+                    "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                    route, null, null, null, null, List.of());
+            assertThat(challenge.decision()).as(route)
+                    .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+            assertThat(challenge.requiredAssurance()).as(route)
+                    .isEqualTo("urn:dwp:acr:mfa");
+            assertThat(challenge.effectiveReadOnly()).as(route).isTrue();
+            assertThat(challenge.scopes()).as(route).singleElement().satisfies(scope -> {
+                assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+                assertThat(scope.readOnly()).isTrue();
+            });
+
+            ProductSurfaceAuthorityDtos.AuthorityResult elevated = evaluate(
+                    "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                    route, null, null, null, null, List.of());
+            assertThat(elevated.decision()).as(route)
+                    .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+            assertThat(elevated.routeGrantRef()).as(route).startsWith("grant-");
+            assertThat(elevated.effectiveGrants()).as(route).singleElement()
+                    .isInstanceOfSatisfying(
+                            ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                            grant -> {
+                                assertThat(grant.capabilityContractKey())
+                                        .isEqualTo(PayrollV49ElevatedAuthorityPolicy
+                                                .SUPPORT_CAPABILITY);
+                                assertThat(grant.predicatePolicyKeys())
+                                        .containsExactly(
+                                                PayrollV49ElevatedAuthorityPolicy
+                                                        .POPULATION_PREDICATE);
+                                assertThat(grant.activationState())
+                                        .isEqualTo(ProductSurfaceAuthorityDtos.ActivationState
+                                                .ACTIVE);
+                                assertThat(grant.readOnly()).isTrue();
+                            });
+        }
+
+        evidence(Set.of("ACTION.HRIS_PAYROLL_RUN:EXECUTE"), List.of());
+        for (String route : PayrollV49ElevatedAuthorityPolicy.COMMAND_ROUTES) {
+            ProductSurfaceAuthorityDtos.AuthorityResult challenge = evaluate(
+                    "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                    route, null, null, null, null, List.of());
+            assertThat(challenge.decision()).as(route)
+                    .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+            assertThat(challenge.requiredAssurance()).as(route)
+                    .isEqualTo("urn:dwp:acr:mfa");
+            assertThat(challenge.effectiveReadOnly()).as(route).isFalse();
+            assertThat(challenge.effectiveGrants()).as(route).singleElement()
+                    .isInstanceOfSatisfying(
+                            ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                            grant -> assertThat(grant.capabilityContractKey())
+                                    .isEqualTo(PayrollV49ElevatedAuthorityPolicy
+                                            .RUN_CAPABILITY));
+
+            ProductSurfaceAuthorityDtos.AuthorityResult elevated = evaluate(
+                    "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                    route, null, null, null, null, List.of());
+            assertThat(elevated.decision()).as(route)
+                    .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        }
+
+        evidence(Set.of("DATA.HRIS_PAYROLL_STATUS:VIEW"), List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult expressionChallenge = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.payroll-run.data",
+                null, null, null, null, List.of());
+        assertThat(expressionChallenge.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        assertThat(expressionChallenge.requestPolicyRef())
+                .isEqualTo("STEPUP-MGMT-HIGH-V1");
+        ProductSurfaceAuthorityDtos.AuthorityResult expressionElevated = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                "route.hcm.operations.payroll-run.data",
+                null, null, null, null, List.of());
+        assertThat(expressionElevated.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+
+        evidence(Set.of(), List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult unqualified = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.payroll-support.data",
+                null, null, null, null, List.of());
+        assertThat(unqualified.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED)
+                .isNotEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+
+        evidence(Set.of("DATA.HRIS_PAYROLL_STATUS:VIEW"), List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult stale = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.payroll-support.data",
+                "psc-client-forged", null, null, null, List.of());
+        assertThat(stale.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+    }
+
+    @Test
+    void capabilityExpressionReductionIsPermutationIndependentForAnyAndAll()
+            throws Exception {
+        String route = "route.hcm.configuration.configurations.data";
+        Set<String> both = Set.of(
+                "CONFIG.HRIS_POLICY:UPDATE", "ACTION.HRIS_POLICY_PUBLISH:PUBLISH");
+
+        ProductSurfaceAuthorityDtos.AuthorityResult anyAllowedForward = expressionResult(
+                false, "ANY", both, route);
+        ProductSurfaceAuthorityDtos.AuthorityResult anyAllowedReverse = expressionResult(
+                true, "ANY", both, route);
+        assertThat(anyAllowedForward).isEqualTo(anyAllowedReverse);
+        assertThat(anyAllowedForward.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+
+        Set<String> activatedOnly = Set.of("ACTION.HRIS_POLICY_PUBLISH:PUBLISH");
+        ProductSurfaceAuthorityDtos.AuthorityResult anyChallengeForward = expressionResult(
+                false, "ANY", activatedOnly, route);
+        ProductSurfaceAuthorityDtos.AuthorityResult anyChallengeReverse = expressionResult(
+                true, "ANY", activatedOnly, route);
+        assertThat(anyChallengeForward).isEqualTo(anyChallengeReverse);
+        assertThat(anyChallengeForward.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+
+        ProductSurfaceAuthorityDtos.AuthorityResult allHardDenyForward = expressionResult(
+                false, "ALL", activatedOnly, route);
+        ProductSurfaceAuthorityDtos.AuthorityResult allHardDenyReverse = expressionResult(
+                true, "ALL", activatedOnly, route);
+        assertThat(allHardDenyForward).isEqualTo(allHardDenyReverse);
+        assertThat(allHardDenyForward.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
+
+        ProductSurfaceAuthorityDtos.AuthorityResult allChallengeForward = expressionResult(
+                false, "ALL", both, route);
+        ProductSurfaceAuthorityDtos.AuthorityResult allChallengeReverse = expressionResult(
+                true, "ALL", both, route);
+        assertThat(allChallengeForward).isEqualTo(allChallengeReverse);
+        assertThat(allChallengeForward.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+
+        ProductSurfaceAuthorityDtos.AuthorityResult elevatedForward = expressionResult(
+                false, "ANY", both, route, ProductSurfaceAuthorityDtos.AccessMode.ELEVATED);
+        ProductSurfaceAuthorityDtos.AuthorityResult elevatedReverse = expressionResult(
+                true, "ANY", both, route, ProductSurfaceAuthorityDtos.AccessMode.ELEVATED);
+        assertThat(elevatedForward).isEqualTo(elevatedReverse);
+        assertThat(elevatedForward.effectiveGrants())
+                .filteredOn(ProductSurfaceAuthorityDtos.CapabilityGrant.class::isInstance)
+                .map(ProductSurfaceAuthorityDtos.CapabilityGrant.class::cast)
+                .extracting(ProductSurfaceAuthorityDtos.CapabilityGrant::capabilityContractKey)
+                .containsExactly(
+                        "hcm.configuration.policy.publish",
+                        "hcm.configuration.policy.update");
+    }
+
+    @Test
+    void grandfatheredMultiProfileRouteAllowsAnApplicableNonActivatedAlternative()
+            throws Exception {
+        useContract("product-surfaces-v1.bundle-v49.generated.json");
+        evidence(Set.of("DATA.HR_TIME:UPDATE", "DATA.HR_TIME:VIEW"), List.of());
+
+        ProductSurfaceAuthorityDtos.AuthorityResult allowed = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.time.timecard.data",
+                null, null, null, null, List.of());
+
+        assertThat(allowed.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(allowed.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.capabilityContractKey())
+                                .isEqualTo("hcm.personal.time.view"));
+
+        evidence(Set.of("DATA.HR_TIME:UPDATE"), List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult decisiveChallenge = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.time.timecard.data",
+                null, null, null, null, List.of());
+        assertThat(decisiveChallenge.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+    }
+
     private void evidence(
             Set<String> permissions,
             List<AppGovernanceDtos.ResourceRole> responsibilities) {
@@ -977,12 +1163,16 @@ class ProductAuthorizationAuthorityAdapterTest {
     }
 
     private void useContract(String resource) throws IOException {
-        org.mockito.Mockito.reset(repository);
         ProductAuthorizationContractDtos.BundleContract contract = new ObjectMapper()
                 .findAndRegisterModules()
                 .readValue(getClass().getResourceAsStream(
                                 "/product-authorization/" + resource),
                         ProductAuthorizationContractDtos.BundleContract.class);
+        useContract(contract);
+    }
+
+    private void useContract(ProductAuthorizationContractDtos.BundleContract contract) {
+        org.mockito.Mockito.reset(repository);
         UUID bundleId = UUID.fromString("22222222-2222-2222-2222-222222222222");
         OffsetDateTime now = OffsetDateTime.now(CLOCK);
         ProductAuthorizationContractRepository.StoredBundle stored =
@@ -998,6 +1188,56 @@ class ProductAuthorizationAuthorityAdapterTest {
                         "product-surfaces", bundleId, contract.version(), "release", now)));
         adapter = new ProductAuthorizationAuthorityAdapter(
                 repository, evidenceService, CLOCK, "urn:dwp:acr:mfa");
+    }
+
+    private ProductSurfaceAuthorityDtos.AuthorityResult expressionResult(
+            boolean reverse,
+            String mode,
+            Set<String> permissions,
+            String routeKey) throws Exception {
+        return expressionResult(reverse, mode, permissions, routeKey,
+                ProductSurfaceAuthorityDtos.AccessMode.NORMAL);
+    }
+
+    private ProductSurfaceAuthorityDtos.AuthorityResult expressionResult(
+            boolean reverse,
+            String mode,
+            Set<String> permissions,
+            String routeKey,
+            ProductSurfaceAuthorityDtos.AccessMode accessMode) throws Exception {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        ObjectNode document;
+        try (var input = getClass().getResourceAsStream(
+                "/product-authorization/product-surfaces-v1.bundle-v49.generated.json")) {
+            document = (ObjectNode) mapper.readTree(input);
+        }
+        ObjectNode route = null;
+        for (var candidate : document.withArray("routes")) {
+            if (routeKey.equals(candidate.path("routeContractKey").asText())) {
+                route = (ObjectNode) candidate;
+                break;
+            }
+        }
+        if (route == null) throw new IllegalArgumentException("Missing route: " + routeKey);
+        ObjectNode requiredAccess = (ObjectNode) route.withArray("accessProfiles")
+                .get(0).path("requiredAccess");
+        requiredAccess.put("mode", mode);
+        ArrayNode keys = mapper.createArrayNode();
+        List<String> canonical = List.of(
+                "hcm.configuration.policy.publish",
+                "hcm.configuration.policy.update");
+        if (reverse) {
+            keys.add(canonical.get(1)).add(canonical.get(0));
+        } else {
+            keys.add(canonical.get(0)).add(canonical.get(1));
+        }
+        requiredAccess.set("capabilityContractKeys", keys);
+        useContract(mapper.treeToValue(
+                document, ProductAuthorizationContractDtos.BundleContract.class));
+        evidence(permissions, List.of());
+        return evaluate(
+                "hcm", "hcm.management", accessMode, routeKey,
+                null, null, null, null, List.of());
     }
 
     private void assertTargetPopulationCapabilityScope(

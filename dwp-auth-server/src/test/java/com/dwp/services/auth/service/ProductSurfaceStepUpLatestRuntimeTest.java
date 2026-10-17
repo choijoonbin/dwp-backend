@@ -509,6 +509,44 @@ class ProductSurfaceStepUpLatestRuntimeTest {
     }
 
     @Test
+    void genuineV49SealedRuntimeResolvesOnlyTheExactPayrollPrepareAndCalculateCommands() {
+        rollback(() -> {
+            var contracts = context.getBean(ProductAuthorizationContractService.class);
+            contracts.approve(KEY, 49L, "test-checker");
+            contracts.activate(KEY, 49L, "test-release",
+                    repository.findActivePointer(KEY).orElseThrow().revision());
+
+            var prepare = resolver.resolve(payrollPrepareRequest());
+            assertThat(prepare.bundleVersion()).isEqualTo(49L);
+            assertThat(prepare.bundleChecksum()).isEqualTo(
+                    "5c1dccdc27d8b260fbf001de5695e983a7107072824a8087038340d0d84cbc60");
+            assertThat(prepare.routeContractKey())
+                    .isEqualTo("route.hcm.operations.payroll-run.action");
+            assertThat(prepare.capabilityContractKey())
+                    .isEqualTo("hcm.operations.payroll-run.execute");
+            assertThat(prepare.targetType()).isEqualTo("PAYROLL_RUN_PREPARATION");
+            assertThat(prepare.targetIdBodyFields()).containsExactly("preparationId");
+            assertThat(prepare.audience()).isEqualTo("dwp-payroll-server");
+
+            var calculate = resolver.resolve(payrollCalculateRequest());
+            assertThat(calculate.bundleVersion()).isEqualTo(49L);
+            assertThat(calculate.routeContractKey())
+                    .isEqualTo("route.hcm.operations.payroll-run-calculate.action");
+            assertThat(calculate.capabilityContractKey())
+                    .isEqualTo("hcm.operations.payroll-run.execute");
+            assertThat(calculate.targetType()).isEqualTo("PAYROLL_RUN");
+            assertThat(calculate.targetIdPathParameter()).isEqualTo("runId");
+            assertThat(calculate.audience()).isEqualTo("dwp-payroll-server");
+
+            assertThatThrownBy(() -> new ProductSurfaceStepUpRouteResolver(repository)
+                    .resolve(payrollPrepareRequest()))
+                    .isInstanceOfSatisfying(BaseException.class, error ->
+                            assertThat(error.getErrorCode())
+                                    .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+        });
+    }
+
+    @Test
     void genuineFourteenAllowsOnlyNonPublishingReviewRejectionWithoutStepUp() {
         rollback(() -> {
             var contracts = context.getBean(ProductAuthorizationContractService.class);
@@ -536,8 +574,8 @@ class ProductSurfaceStepUpLatestRuntimeTest {
     }
 
     @Test
-    void arbitraryThirtyFiveCannotResolveOrIssueFromAnActualActiveDatabasePointer() {
-        for (long version : List.of(35L)) {
+    void arbitraryFiftyCannotResolveOrIssueFromAnActualActiveDatabasePointer() {
+        for (long version : List.of(50L)) {
             rollback(() -> {
                 jdbc.update("""
                         INSERT INTO auth_product_authorization_bundle(bundle_key,version,bundle_status,
@@ -661,6 +699,22 @@ class ProductSurfaceStepUpLatestRuntimeTest {
 
     private static ProductSurfaceAuthorityDtos.AuthorityResult currentAuthority() {
         return currentAuthority(request(null, null), ROUTE);
+    }
+
+    private static ProductSurfaceStepUpDtos.IssueRequest payrollPrepareRequest() {
+        return new ProductSurfaceStepUpDtos.IssueRequest(
+                "POST", "/api/payroll/v1/runs", "opaque-context", "PAY_GROUP_49",
+                "PAYROLL_RUN_PREPARATION", "preparation-49", 7L,
+                "payroll-prepare-49", JSON.createObjectNode()
+                .put("preparationId", "preparation-49"), null, "/hr/operations/payroll");
+    }
+
+    private static ProductSurfaceStepUpDtos.IssueRequest payrollCalculateRequest() {
+        return new ProductSurfaceStepUpDtos.IssueRequest(
+                "POST", "/api/payroll/v1/runs/run-49/attempts", "opaque-context",
+                "PAY_GROUP_49", "PAYROLL_RUN", "run-49", 7L,
+                "payroll-calculate-49", JSON.createObjectNode(), null,
+                "/hr/operations/payroll");
     }
 
     @Test

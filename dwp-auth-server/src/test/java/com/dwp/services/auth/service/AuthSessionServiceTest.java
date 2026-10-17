@@ -253,6 +253,85 @@ class AuthSessionServiceTest {
                 .containsExactly("mfa", "otp", "pwd");
     }
 
+    @Test
+    void resolvesElevatedOnlyFromTheExactActiveDatabaseSessionAssurance() {
+        AuthSession current = activeSession(Instant.now().minusSeconds(60));
+        current.setAuthenticationMethod("OIDC_STEP_UP");
+        current.setAuthenticatedAt(Instant.now().minusSeconds(30));
+        current.setAssuranceAcr("urn:dwp:acr:mfa");
+        current.setAssuranceAmr(List.of("mfa", "otp", "pwd"));
+        when(repository.findByTokenId(current.getTokenId()))
+                .thenReturn(Optional.of(current));
+
+        assertThat(service.resolveActiveAccessMode(
+                jwt(current), current.getUserId(), current.getTenantId(),
+                "urn:dwp:acr:mfa", 600))
+                .isEqualTo(AuthSessionService.ActiveAccessMode.ELEVATED);
+    }
+
+    @Test
+    void deterministicallyDowngradesNonCanonicalOrStaleAssuranceToNormal() {
+        AuthSession current = activeSession(Instant.now().minusSeconds(60));
+        current.setAuthenticationMethod("OIDC_STEP_UP");
+        current.setAuthenticatedAt(Instant.now().minusSeconds(30));
+        current.setAssuranceAcr("urn:dwp:acr:mfa");
+        current.setAssuranceAmr(List.of("mfa", "otp"));
+        when(repository.findByTokenId(current.getTokenId()))
+                .thenReturn(Optional.of(current));
+
+        current.setAuthenticationMethod("OIDC");
+        assertThat(resolveMode(current)).isEqualTo(AuthSessionService.ActiveAccessMode.NORMAL);
+        current.setAuthenticationMethod("OIDC_STEP_UP");
+        current.setAssuranceAcr("urn:dwp:acr:other");
+        assertThat(resolveMode(current)).isEqualTo(AuthSessionService.ActiveAccessMode.NORMAL);
+        current.setAssuranceAcr("urn:dwp:acr:mfa");
+        current.setAssuranceAmr(List.of("otp", "pwd"));
+        assertThat(resolveMode(current)).isEqualTo(AuthSessionService.ActiveAccessMode.NORMAL);
+        current.setAssuranceAmr(List.of("mfa", "otp"));
+        current.setAuthenticatedAt(Instant.now().minusSeconds(601));
+        assertThat(resolveMode(current)).isEqualTo(AuthSessionService.ActiveAccessMode.NORMAL);
+    }
+
+    @Test
+    void rejectsMissingInactiveOrIdentityMismatchedSessionsInsteadOfDowngrading() {
+        AuthSession current = activeSession(Instant.now().minusSeconds(60));
+        when(repository.findByTokenId(current.getTokenId()))
+                .thenReturn(Optional.empty());
+        assertThatThrownBy(() -> resolveMode(current))
+                .isInstanceOfSatisfying(BaseException.class, error -> assertThat(
+                        error.getErrorCode()).isEqualTo(ErrorCode.TOKEN_INVALID));
+
+        when(repository.findByTokenId(current.getTokenId()))
+                .thenReturn(Optional.of(current));
+        current.setRevokedAt(Instant.now().minusSeconds(1));
+        assertThatThrownBy(() -> resolveMode(current))
+                .isInstanceOfSatisfying(BaseException.class, error -> assertThat(
+                        error.getErrorCode()).isEqualTo(ErrorCode.TOKEN_INVALID));
+
+        current.setRevokedAt(null);
+        current.setSessionFamilyId(UUID.randomUUID());
+        Jwt foreignFamily = Jwt.withTokenValue("token")
+                .header("alg", "HS256")
+                .subject(String.valueOf(current.getUserId()))
+                .claim("jti", current.getTokenId())
+                .claim("tenant_id", String.valueOf(current.getTenantId()))
+                .claim("sid", UUID.randomUUID().toString())
+                .issuedAt(Instant.now())
+                .expiresAt(current.getExpiresAt())
+                .build();
+        assertThatThrownBy(() -> service.resolveActiveAccessMode(
+                foreignFamily, current.getUserId(), current.getTenantId(),
+                "urn:dwp:acr:mfa", 600))
+                .isInstanceOfSatisfying(BaseException.class, error -> assertThat(
+                        error.getErrorCode()).isEqualTo(ErrorCode.TOKEN_INVALID));
+    }
+
+    private AuthSessionService.ActiveAccessMode resolveMode(AuthSession session) {
+        return service.resolveActiveAccessMode(
+                jwt(session), session.getUserId(), session.getTenantId(),
+                "urn:dwp:acr:mfa", 600);
+    }
+
     private AuthSession activeSession(Instant issuedAt) {
         Instant now = Instant.now();
         return AuthSession.builder()

@@ -573,6 +573,101 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void exactTwelveGenericSessionRoutesChallengeNormalWithoutOwnerForwarding() {
+        record Case(String method, String path, boolean command) {}
+        List<Case> cases = List.of(
+                new Case("GET",
+                        "/api/platform/v1/admin/hris/configurations/config-49/versions/v49",
+                        false),
+                new Case("GET", "/api/platform/v1/admin/hris/configurations", false),
+                new Case("GET", "/api/payroll/v1/workbench/population", false),
+                new Case("GET", "/api/payroll/v1/runs/run-49", false),
+                new Case("POST", "/api/time/v1/close-periods/period-49/validations", true),
+                new Case("POST", "/api/time/v1/interpretation-runs", true),
+                new Case("GET", "/api/time/v1/interpretation-runs/run-49/trace", false),
+                new Case("POST", "/api/time/v1/close-periods/period-49/payroll-handoffs", true),
+                new Case("GET", "/api/time/v1/payroll-handoffs/handoff-49", false),
+                new Case("POST", "/api/time/v1/timecards/timecard-49/corrections", true),
+                new Case("GET", "/api/time/v1/timecards/timecard-49", false));
+
+        for (Case requestCase : cases) {
+            ProductSurfaceDecisionContextFilter filter = filter(authority(
+                    stepUpWave2("TARGET_POPULATION")));
+            MockServerHttpRequest.BaseBuilder<?> builder = MockServerHttpRequest.method(
+                            HttpMethod.valueOf(requestCase.method()), requestCase.path())
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000041");
+            if (requestCase.command()) {
+                builder.header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                        REVISION);
+            }
+            MockServerWebExchange exchange = exchange(builder);
+            AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+            filter.filter(exchange, ignored -> {
+                forwarded.set(true);
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(requestCase.path()).isFalse();
+            assertThat(exchange.getResponse().getStatusCode()).as(requestCase.path())
+                    .isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(body(exchange)).as(requestCase.path()).contains("STEP_UP_REQUIRED");
+        }
+    }
+
+    @Test
+    void v49ElevatedSessionReevaluatesAndOnlyAllowedReachesTheOwner() {
+        String path = "/api/payroll/v1/runs/run-49";
+        MockServerHttpRequest.BaseBuilder<?> request = MockServerHttpRequest.get(path)
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041");
+        MockServerWebExchange challenged = exchange(request);
+        challenged.getAttributes().put(
+                VerifiedIdentityFilter.VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE, "ELEVATED");
+        AtomicReference<Boolean> challengedForwarded = new AtomicReference<>(false);
+
+        filter(authority(stepUpWave2("TARGET_POPULATION"))).filter(challenged, ignored -> {
+            challengedForwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(challengedForwarded.get()).isFalse();
+        assertThat(challenged.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(challenged)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE")
+                .doesNotContain("STEP_UP_REQUIRED");
+
+        ProductSurfaceContextAggregationService allowedAuthority = authority(
+                allowedWave2("TARGET_POPULATION"));
+        MockServerWebExchange allowed = exchange(request);
+        allowed.getAttributes().put(
+                VerifiedIdentityFilter.VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE, "ELEVATED");
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+        ArgumentCaptor<ProductSurfaceContextDtos.RequestContext> context =
+                ArgumentCaptor.forClass(ProductSurfaceContextDtos.RequestContext.class);
+
+        filter(allowedAuthority).filter(allowed, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        verify(allowedAuthority).evaluateProductTrusted(context.capture(), any());
+        assertThat(context.getValue().activeAccessMode())
+                .isEqualTo(ProductSurfaceContextDtos.AccessMode.ELEVATED);
+        assertThat(forwarded.get().getHeaders().get(
+                ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER))
+                .containsExactly("ELEVATED");
+    }
+
+    @Test
     void payrollRunRoutesStripSpoofedEvidenceAndInjectExactTrustedOwnerContext() {
         String runId = "10000000-0000-4000-8000-000000000201";
         String receiptId = "10000000-0000-4000-8000-000000000202";
@@ -667,10 +762,12 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
-    void payrollApprovalAndFinalizePreserveGeneratedStepUpForwarding() {
+    void payrollFreshCommandsPreserveGeneratedStepUpForwarding() {
         String runId = "10000000-0000-4000-8000-000000000203";
         String subject = "10000000-0000-4000-8000-000000000041";
         List<String> paths = List.of(
+                "/api/payroll/v1/runs",
+                "/api/payroll/v1/runs/" + runId + "/attempts",
                 "/api/payroll/v1/runs/" + runId + "/approvals",
                 "/api/payroll/v1/runs/" + runId + "/finalize");
 
@@ -1376,15 +1473,44 @@ class ProductSurfaceDecisionContextFilterTest {
                         "ELEVATED"));
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
+        ArgumentCaptor<ProductSurfaceContextDtos.RequestContext> context =
+                ArgumentCaptor.forClass(ProductSurfaceContextDtos.RequestContext.class);
 
         filter.filter(exchange, filtered -> {
             forwarded.set(filtered.getRequest());
             return Mono.empty();
         }).block();
 
+        verify(authority).evaluateProductTrusted(context.capture(), any());
+        assertThat(context.getValue().activeAccessMode())
+                .isEqualTo(ProductSurfaceContextDtos.AccessMode.NORMAL);
         assertThat(forwarded.get().getHeaders().get(
                 ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER))
                 .containsExactly("NORMAL");
+    }
+
+    @Test
+    void malformedServerOwnedAccessModeFailsClosedBeforeAuthorityEvaluation() {
+        ProductSurfaceContextAggregationService authority = authority(allowed());
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/approvals/v1/home")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+        exchange.getAttributes().put(
+                VerifiedIdentityFilter.VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE, "elevated");
+        AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+        filter(authority).filter(exchange, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isFalse();
+        verify(authority, never()).evaluateProductTrusted(any(), any());
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(exchange)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
     }
 
     @Test

@@ -35,6 +35,13 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
     private static final Set<String> HCM_EMPLOYEE_CHANGE_MULTI_PROFILE_ROUTES = Set.of(
             "route.hcm.operations.employee-change-request-create.action",
             "route.hcm.operations.employee-change-request-submit.action");
+    private static final Set<String> GENERIC_SESSION_PROFILE_ALTERNATIVE_ROUTES = Set.of(
+            "route.hcm.configuration.configuration-version.data",
+            "route.hcm.configuration.configurations.data",
+            "route.hcm.operations.time-interpretation-run.action",
+            "route.hcm.operations.time-interpretation-trace.data",
+            "route.hcm.time.timecard-correction.action",
+            "route.hcm.time.timecard.data");
     private static final String HCM_PRODUCT = "hcm";
     private static final String HCM_UTILITY_SURFACE = "hcm.utility";
     private static final String HCM_EXPLORER_RECEIPT_ROUTE =
@@ -300,7 +307,10 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                         || HcmAuditAuthorityPolicy.isNormalChallengeCandidate(
                                 request, route,
                                 registry.capabilitiesByKey().get(
-                                        HcmAuditAuthorityPolicy.CAPABILITY)))
+                                        HcmAuditAuthorityPolicy.CAPABILITY))
+                        || PayrollV49ElevatedAuthorityPolicy
+                        .isNormalChallengeCandidate(
+                                request, route, registry.capabilitiesByKey()))
                 .sorted(Comparator.comparingInt(
                         ProductAuthorizationContractDtos.AccessProfile::precedence).reversed())
                 .toList();
@@ -318,6 +328,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         List<ProductSurfaceAuthorityDtos.EffectiveScope> directEntryScopes =
                 singleSelfEntryPolicyScopes(request, registry, identity);
         Evaluation firstDenial = null;
+        Evaluation deferredGenericChallenge = null;
         boolean allowedProfileScopeMismatch = false;
         for (ProductAuthorizationContractDtos.AccessProfile profile : profiles) {
             Evaluation result = evaluateProfile(
@@ -336,11 +347,21 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     allowedProfileScopeMismatch = true;
                     continue;
                 }
-                return routed(request, identity, route,
+                Evaluation routed = routed(request, identity, route,
                         rebindUtilityShellSelf(request, registry, result));
+                if (result.allowed()
+                        || !GENERIC_SESSION_PROFILE_ALTERNATIVE_ROUTES.contains(
+                        route.routeContractKey())) {
+                    return routed;
+                }
+                if (deferredGenericChallenge == null) {
+                    deferredGenericChallenge = routed;
+                }
+                continue;
             }
             if (firstDenial == null) firstDenial = result;
         }
+        if (deferredGenericChallenge != null) return deferredGenericChallenge;
         if (allowedProfileScopeMismatch) {
             return Evaluation.denied(
                     ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID,
@@ -670,27 +691,44 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             List<String> predicates,
             boolean readOnly,
             List<ProductSurfaceAuthorityDtos.EffectiveScope> entryPolicyScopes) {
-        if (keys == null || keys.isEmpty() || !Set.of("ANY", "ALL").contains(mode)) {
+        if (keys == null || keys.isEmpty() || !Set.of("ANY", "ALL").contains(mode)
+                || keys.stream().anyMatch(key -> key == null || key.isBlank()
+                || !registry.capabilitiesByKey().containsKey(key))
+                || new java.util.HashSet<>(keys).size() != keys.size()) {
             throw new IllegalStateException("Capability expression is empty or invalid");
         }
+        List<String> canonicalKeys = keys.stream().sorted().toList();
         List<Evaluation> allowed = new ArrayList<>();
-        Evaluation typedDeny = null;
-        for (String key : keys) {
+        Evaluation challenge = null;
+        Evaluation hardDeny = null;
+        for (String key : canonicalKeys) {
             Evaluation result = evaluateCapability(
                     request, registry, identity, registry.capabilitiesByKey().get(key),
                     predicates, readOnly, entryPolicyScopes);
             if (result.allowed()) allowed.add(result);
-            else if (typedDeny == null) typedDeny = result;
+            else if (result.decision()
+                    == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED) {
+                if (challenge == null) challenge = result;
+            } else if (hardDeny == null) {
+                hardDeny = result;
+            }
         }
-        if (("ANY".equals(mode) && !allowed.isEmpty())
-                || ("ALL".equals(mode) && allowed.size() == keys.size())) {
-            return combine(allowed);
+        if ("ANY".equals(mode)) {
+            if (!allowed.isEmpty()) return combine(allowed);
+            if (challenge != null) return challenge;
+            return hardDeny == null
+                    ? Evaluation.denied(
+                            ProductSurfaceAuthorityDtos.Decision.SURFACE_DENIED,
+                            "SURFACE_CAPABILITY_REQUIRED")
+                    : hardDeny;
         }
-        return typedDeny == null
-                ? Evaluation.denied(
+        if (hardDeny != null) return hardDeny;
+        if (challenge != null) return challenge;
+        return allowed.size() == canonicalKeys.size()
+                ? combine(allowed)
+                : Evaluation.denied(
                         ProductSurfaceAuthorityDtos.Decision.SURFACE_DENIED,
-                        "SURFACE_CAPABILITY_REQUIRED")
-                : typedDeny;
+                        "SURFACE_CAPABILITY_REQUIRED");
     }
 
     private Evaluation evaluateCapability(

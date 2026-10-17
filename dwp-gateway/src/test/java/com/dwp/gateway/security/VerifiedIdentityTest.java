@@ -38,6 +38,23 @@ class VerifiedIdentityTest {
         assertThat(identity.resourceRoles()).isEmpty();
     }
 
+    @Test
+    void activeAccessModeIsExactAndDefaultsOnlyThroughCompatibilityConstructors() {
+        assertThat(identity("TENANT", List.of("WORKSPACE_MEMBER"), List.of())
+                .activeAccessMode()).isEqualTo("NORMAL");
+        assertThat(new VerifiedIdentity(
+                "7", "1", List.of("WORKSPACE_MEMBER"), List.of(), List.of(), List.of(),
+                null, null, false, null, "TENANT", "ELEVATED").activeAccessMode())
+                .isEqualTo("ELEVATED");
+        for (String invalid : java.util.Arrays.asList(null, "", "elevated", "UNKNOWN")) {
+            assertThatThrownBy(() -> new VerifiedIdentity(
+                    "7", "1", List.of("WORKSPACE_MEMBER"), List.of(), List.of(), List.of(),
+                    null, null, false, null, "TENANT", invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("activeAccessMode");
+        }
+    }
+
     private VerifiedIdentity identity(
             String identityPlane,
             List<String> roles,
