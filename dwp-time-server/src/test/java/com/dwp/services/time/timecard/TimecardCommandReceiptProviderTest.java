@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.dwp.core.common.ErrorCode;
@@ -16,9 +17,11 @@ import com.dwp.services.time.timecard.TimecardModels.PopulationKind;
 import com.dwp.services.time.timecard.TimecardModels.TimeCommandReceiptV1;
 import com.dwp.services.time.timecard.TimecardModels.TimecardAction;
 import com.dwp.services.time.timecard.TimecardModels.VerifiedTimecardRequest;
+import java.time.Clock;
 import java.time.Instant;
-import java.util.Optional;
+import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,7 +45,8 @@ class TimecardCommandReceiptProviderTest {
     void setUp() {
         repository = mock(TimecardRepository.class);
         service = mock(TimecardService.class);
-        provider = new TimecardCommandReceiptProvider(repository, service);
+        provider = new TimecardCommandReceiptProvider(
+                repository, service, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -78,16 +82,38 @@ class TimecardCommandReceiptProviderTest {
                                 .isEqualTo(HrisTimeProblemCode.TARGET_NOT_DISCLOSED));
     }
 
+    @Test
+    void commonOrNativeAuthorityAtExpiryBoundaryStopsBeforeStorage() {
+        VerifiedTimecardRequest commonFresh = authority(NOW.plusSeconds(1));
+        VerifiedTimecardRequest nativeExpired = authority(NOW);
+        CommandReceiptLookup commonExpired = lookup(
+                commonFresh, NOW);
+        CommandReceiptLookup providerExpired = lookup(
+                nativeExpired, NOW.plusSeconds(1));
+
+        assertThat(provider.owns(commonExpired)).isFalse();
+        assertThat(provider.owns(providerExpired)).isFalse();
+        assertOpaque(() -> provider.receipt(commonExpired));
+        assertOpaque(() -> provider.receipt(providerExpired));
+
+        verifyNoInteractions(repository, service);
+    }
+
     private CommandReceiptLookup lookup() {
         return lookup(authority());
     }
 
     private CommandReceiptLookup lookup(VerifiedTimecardRequest authority) {
+        return lookup(authority, authority.revalidateAt());
+    }
+
+    private CommandReceiptLookup lookup(
+            VerifiedTimecardRequest authority, Instant commonRevalidateAt) {
         return new CommandReceiptLookup(
                 41, RECEIPT, CORRELATION,
                 new VerifiedCommandReceiptRequest(
                         41, CORRELATION, authority.decisionRevision(),
-                        authority.revalidateAt(), Map.of("timecard", authority)));
+                        commonRevalidateAt, Map.of("timecard", authority)));
     }
 
     private TimecardModels.StoredTimecardReceipt mockStored() {
@@ -117,6 +143,10 @@ class TimecardCommandReceiptProviderTest {
     }
 
     private VerifiedTimecardRequest authority() {
+        return authority(NOW.plusSeconds(300));
+    }
+
+    private VerifiedTimecardRequest authority(Instant revalidateAt) {
         UUID subject = UUID.fromString("17900000-0000-4000-8000-000000000034");
         UUID actorWorker = UUID.fromString("17900000-0000-4000-8000-000000000035");
         UUID population = UUID.fromString("17900000-0000-4000-8000-000000000036");
@@ -137,10 +167,17 @@ class TimecardCommandReceiptProviderTest {
                 "COMMAND_STATUS",
                 23,
                 "psr-" + "b".repeat(64),
-                NOW.plusSeconds(300),
+                revalidateAt,
                 CORRELATION,
                 Set.of(worker),
                 Set.of(),
                 Set.of());
+    }
+
+    private void assertOpaque(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+        assertThatThrownBy(call)
+                .isInstanceOfSatisfying(HrisTimeApiException.class, failure ->
+                        assertThat(failure.code())
+                                .isEqualTo(HrisTimeProblemCode.TARGET_NOT_DISCLOSED));
     }
 }

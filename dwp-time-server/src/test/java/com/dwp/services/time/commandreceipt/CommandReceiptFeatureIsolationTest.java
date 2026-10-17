@@ -8,11 +8,18 @@ import com.dwp.services.time.api.HrisTimeProblemWriter;
 import com.dwp.services.time.close.TimeCloseActivationGate;
 import com.dwp.services.time.close.TimeCloseCommandReceiptProvider;
 import com.dwp.services.time.close.TimeCloseReceiptOwnership;
+import com.dwp.services.time.timecard.TimecardCommandReceiptProvider;
+import com.dwp.services.time.timecard.TimecardOwnerAuthoritySource;
+import com.dwp.services.time.timecard.TimecardRepository;
+import com.dwp.services.time.timecard.TimecardService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 class CommandReceiptFeatureIsolationTest {
 
@@ -61,6 +68,40 @@ class CommandReceiptFeatureIsolationTest {
                 });
     }
 
+    @Test
+    void timecardOnlyBootRegistersSharedBoundaryAndTimecardProvidersWithoutClose() {
+        TimecardOwnerAuthoritySource authoritySource = mock(TimecardOwnerAuthoritySource.class);
+        TimecardRepository repository = mock(TimecardRepository.class);
+        TimecardService service = mock(TimecardService.class);
+
+        baseRunner()
+                .withBean(TimecardOwnerAuthoritySource.class, () -> authoritySource)
+                .withBean(TimecardRepository.class, () -> repository)
+                .withBean(TimecardService.class, () -> service)
+                .withUserConfiguration(
+                        timecardAuthorityProviderType(),
+                        TimecardCommandReceiptProvider.class,
+                        ProviderRegistryConfiguration.class)
+                .withPropertyValues(
+                        "dwp.hris.time.timecard.enabled=true",
+                        "dwp.hris.time.close.enabled=false")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(CommandReceiptController.class);
+                    assertThat(context).hasSingleBean(CommandReceiptAccessFilter.class);
+                    assertThat(context).hasSingleBean(TimecardCommandReceiptProvider.class);
+                    assertThat(context).doesNotHaveBean(TimeCloseCommandReceiptProvider.class);
+                    assertThat(context).doesNotHaveBean(TimeCloseReceiptOwnership.class);
+                    assertThat(context).doesNotHaveBean(TimeCloseActivationGate.class);
+                    Map<String, CommandReceiptAuthorityProvider> authorities =
+                            context.getBeansOfType(CommandReceiptAuthorityProvider.class);
+                    assertThat(authorities.values())
+                            .singleElement()
+                            .extracting(CommandReceiptAuthorityProvider::providerId)
+                            .isEqualTo("timecard");
+                });
+    }
+
     private static ApplicationContextRunner baseRunner() {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         return new ApplicationContextRunner()
@@ -71,5 +112,27 @@ class CommandReceiptFeatureIsolationTest {
                 .withUserConfiguration(
                         CommandReceiptController.class,
                         CommandReceiptAccessFilter.class);
+    }
+
+    private static Class<?> timecardAuthorityProviderType() {
+        try {
+            return Class.forName(
+                    "com.dwp.services.time.timecard.TimecardCommandReceiptAuthorityProvider");
+        } catch (ClassNotFoundException missing) {
+            throw new IllegalStateException(
+                    "Timecard receipt authority provider is missing", missing);
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class ProviderRegistryConfiguration {
+
+        @Bean(destroyMethod = "close")
+        CommandReceiptProviderRegistry commandReceiptProviderRegistry(
+                List<CommandReceiptProvider> providers,
+                CommandReceiptAuditSink auditSink) {
+            return new CommandReceiptProviderRegistry(
+                    providers, auditSink, Duration.ofSeconds(1));
+        }
     }
 }
