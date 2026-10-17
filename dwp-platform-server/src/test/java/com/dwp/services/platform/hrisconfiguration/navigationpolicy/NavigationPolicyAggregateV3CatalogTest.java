@@ -26,7 +26,7 @@ class NavigationPolicyAggregateV3CatalogTest {
     private static final String SNAPSHOT = "snapshot-" + "1".repeat(64);
     private static final String DECISION = "decision-" + "2".repeat(64);
     private static final String AUTH = "auth-" + "3".repeat(64);
-    private static final String POLICY = "policy-46-9-" + "4".repeat(64);
+    private static final String POLICY = "policy-47-9-" + "4".repeat(64);
     private static final String RELATIONSHIP = "relationship-" + "5".repeat(64);
     private static final OffsetDateTime FRESH_UNTIL = NOW.plusMinutes(5);
 

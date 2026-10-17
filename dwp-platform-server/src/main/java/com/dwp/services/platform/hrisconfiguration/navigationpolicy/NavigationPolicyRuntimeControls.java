@@ -75,9 +75,20 @@ final class ServerNavigationPolicyEligibilityProvider
             "BASE:my-pay-tax",
             "BASE:my-goals-performance",
             "BASE:my-hr-requests");
+    static final Set<String> R6C_PAGE_IMPLEMENTATION_NODE_IDS = Set.of(
+            "BASE:team-time",
+            "BASE:team-leave",
+            "BASE:hr-operations-home",
+            "BASE:time-work-plans",
+            "BASE:time-leave-operations",
+            "BASE:performance-goal-cycles");
     static final Set<String> IMPLEMENTATION_NODE_IDS = implementationNodeIds();
     private static final Map<String, Set<String>> EXACT_PAGE_ROUTE_PERMISSION =
             exactPageRoutePermissionMap();
+    private static final Map<String, Set<String>> R6C_EXACT_PAGE_ROUTE_PERMISSION =
+            r6cExactPageRoutePermissionMap();
+    private static final Map<String, NavigationPolicyRuntimeOwnerOverlay.PageAuthorityContract>
+            R6C_OWNER_PAGE_CONTRACTS = r6cOwnerPageContracts();
     private final Set<String> installed;
     private final Set<String> deployed;
 
@@ -115,9 +126,34 @@ final class ServerNavigationPolicyEligibilityProvider
     @Override
     public Map<String, List<String>> pageAuthorizedPaths(
             Set<String> trustedPermissions) {
-        Set<String> normalized = normalizedPermissions(trustedPermissions);
+        return authorizedPaths(
+                EXACT_PAGE_ROUTE_PERMISSION, normalizedPermissions(trustedPermissions));
+    }
+
+    @Override
+    public Map<String, List<String>> v47PageAuthorizedPaths(
+            Set<String> trustedPermissions) {
+        Map<String, List<String>> canonical = authorizedPaths(
+                R6C_EXACT_PAGE_ROUTE_PERMISSION,
+                normalizedPermissions(trustedPermissions));
+        LinkedHashMap<String, List<String>> ownerCandidates = new LinkedHashMap<>();
+        R6C_OWNER_PAGE_CONTRACTS.keySet().forEach(nodeId -> {
+            List<String> paths = canonical.get(nodeId);
+            if (paths != null) ownerCandidates.put(nodeId, paths);
+        });
+        Map<String, List<String>> ownerPaths = NavigationPolicyRuntimeOwnerOverlay.seal(
+                Collections.unmodifiableMap(ownerCandidates), R6C_OWNER_PAGE_CONTRACTS);
         LinkedHashMap<String, List<String>> result = new LinkedHashMap<>();
-        EXACT_PAGE_ROUTE_PERMISSION.forEach((key, required) -> {
+        canonical.forEach((nodeId, paths) -> result.put(
+                nodeId, ownerPaths.getOrDefault(nodeId, paths)));
+        return Collections.unmodifiableMap(result);
+    }
+
+    private static Map<String, List<String>> authorizedPaths(
+            Map<String, Set<String>> catalog,
+            Set<String> normalized) {
+        LinkedHashMap<String, List<String>> result = new LinkedHashMap<>();
+        catalog.forEach((key, required) -> {
             if (required.stream().noneMatch(normalized::contains)) return;
             int separator = key.indexOf('\n');
             String nodeId = key.substring(0, separator);
@@ -146,6 +182,32 @@ final class ServerNavigationPolicyEligibilityProvider
             paths.add(path);
             result.put(nodeId, List.copyOf(paths));
         });
+        return Collections.unmodifiableMap(result);
+    }
+
+    /** Reorders and restricts any v47 adapter output to the six closed R6-C PAGE nodes. */
+    static Map<String, List<String>> sealV47AuthorizedPaths(
+            Map<String, List<String>> candidatePaths) {
+        if (candidatePaths == null || candidatePaths.isEmpty()) return Map.of();
+        LinkedHashMap<String, List<String>> canonical = new LinkedHashMap<>();
+        R6C_EXACT_PAGE_ROUTE_PERMISSION.keySet().forEach(key -> {
+            int separator = key.indexOf('\n');
+            String nodeId = key.substring(0, separator);
+            String path = key.substring(separator + 1);
+            List<String> candidates = candidatePaths.get(nodeId);
+            if (candidates == null || !candidates.contains(path)) return;
+            canonical.put(nodeId, List.of(path));
+        });
+        LinkedHashMap<String, List<String>> ownerCandidates = new LinkedHashMap<>();
+        R6C_OWNER_PAGE_CONTRACTS.keySet().forEach(nodeId -> {
+            List<String> paths = canonical.get(nodeId);
+            if (paths != null) ownerCandidates.put(nodeId, paths);
+        });
+        Map<String, List<String>> ownerPaths = NavigationPolicyRuntimeOwnerOverlay.seal(
+                Collections.unmodifiableMap(ownerCandidates), R6C_OWNER_PAGE_CONTRACTS);
+        LinkedHashMap<String, List<String>> result = new LinkedHashMap<>();
+        canonical.forEach((nodeId, paths) -> result.put(
+                nodeId, ownerPaths.getOrDefault(nodeId, paths)));
         return Collections.unmodifiableMap(result);
     }
 
@@ -201,9 +263,67 @@ final class ServerNavigationPolicyEligibilityProvider
         return Collections.unmodifiableMap(result);
     }
 
+    private static Map<String, Set<String>> r6cExactPageRoutePermissionMap() {
+        LinkedHashMap<String, Set<String>> result = new LinkedHashMap<>();
+        exact(result, "BASE:team-time", "/hr/team/time", "DATA.HR_TIME:VIEW");
+        exact(result, "BASE:team-leave", "/hr/team/leave", "DATA.HR_ABSENCE:VIEW");
+        exact(result, "BASE:hr-operations-home", "/hr/operations/home",
+                "DATA.WORKFORCE:VIEW", "DATA.HR_TIME:VIEW", "DATA.HR_ABSENCE:VIEW",
+                "DATA.HR_BENEFITS:VIEW", "DATA.HR_PAY:VIEW", "DATA.HR_TALENT:VIEW");
+        exact(result, "BASE:time-work-plans", "/hr/operations/time/work-plans",
+                "DATA.HR_TIME:VIEW");
+        exact(result, "BASE:time-leave-operations",
+                "/hr/operations/time/leave-operations", "DATA.HR_ABSENCE:VIEW");
+        exact(result, "BASE:performance-goal-cycles",
+                "/hr/operations/performance/goal-cycles", "DATA.HR_TALENT:VIEW");
+        LinkedHashSet<String> nodes = new LinkedHashSet<>();
+        result.keySet().forEach(key -> nodes.add(key.substring(0, key.indexOf('\n'))));
+        if (!nodes.equals(R6C_PAGE_IMPLEMENTATION_NODE_IDS)) {
+            throw new IllegalStateException("HRIS_NAV_R6C_PAGE_CATALOG_DRIFT");
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    private static Map<String, NavigationPolicyRuntimeOwnerOverlay.PageAuthorityContract>
+    r6cOwnerPageContracts() {
+        LinkedHashMap<String, NavigationPolicyRuntimeOwnerOverlay.PageAuthorityContract> result =
+                new LinkedHashMap<>();
+        ownerContract(result, "BASE:team-time", "/hr/team/time",
+                "route.hcm.team.time.page", "/api/people/v1/hr/team/time",
+                "/v1/hr/team/time");
+        ownerContract(result, "BASE:team-leave", "/hr/team/leave",
+                "route.hcm.team.leave.page", "/api/people/v1/hr/team/absence",
+                "/v1/hr/team/absence");
+        ownerContract(result, "BASE:time-leave-operations",
+                "/hr/operations/time/leave-operations",
+                "route.hcm.operations.time-leave-operations.page",
+                "/api/people/v1/hr/operations/{domain=ABSENCE}",
+                "/v1/hr/operations/{domain=ABSENCE}");
+        ownerContract(result, "BASE:hr-operations-home", "/hr/operations/home",
+                "route.hcm.operations.home.page",
+                "/api/people/v1/workforce/operations/overview",
+                "/v1/workforce/operations/overview");
+        return Collections.unmodifiableMap(result);
+    }
+
+    private static void ownerContract(
+            Map<String, NavigationPolicyRuntimeOwnerOverlay.PageAuthorityContract> target,
+            String nodeId,
+            String canonicalPath,
+            String routeContractKey,
+            String gatewayPath,
+            String servicePath) {
+        target.put(nodeId, new NavigationPolicyRuntimeOwnerOverlay.PageAuthorityContract(
+                nodeId, canonicalPath, routeContractKey, "GET", gatewayPath,
+                "people", servicePath,
+                NavigationPolicyRuntimeOwnerOverlay.REGISTRY_VERSION,
+                NavigationPolicyRuntimeOwnerOverlay.REGISTRY_CHECKSUM));
+    }
+
     private static Set<String> implementationNodeIds() {
         LinkedHashSet<String> result = new LinkedHashSet<>(PAGE_IMPLEMENTATION_NODE_IDS);
         result.addAll(POLICY_IMPLEMENTATION_NODE_IDS);
+        result.addAll(R6C_PAGE_IMPLEMENTATION_NODE_IDS);
         return Set.copyOf(result);
     }
 

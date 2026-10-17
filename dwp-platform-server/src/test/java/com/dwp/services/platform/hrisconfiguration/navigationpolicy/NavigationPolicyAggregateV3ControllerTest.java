@@ -58,7 +58,7 @@ class NavigationPolicyAggregateV3ControllerTest {
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(header().string("Pragma", "no-cache"))
                 .andExpect(jsonPath("$.data.schemaVersion").value("3"))
-                .andExpect(jsonPath("$.data.authorizationRegistryVersion").value(46))
+                .andExpect(jsonPath("$.data.authorizationRegistryVersion").value(47))
                 .andExpect(jsonPath("$.data.authorizationRegistryChecksum").value(
                         NavigationPolicyAggregateV3Catalog.REGISTRY_CHECKSUM))
                 .andExpect(jsonPath("$.data.enforcementState").value("OFF"))
@@ -208,6 +208,9 @@ class NavigationPolicyAggregateV3ControllerTest {
                 NavigationPolicyAggregateV2Canonical.GENERATED_IA_SHA256,
                 NavigationPolicyAggregateV3Catalog.REGISTRY_VERSION,
                 NavigationPolicyAggregateV3Catalog.REGISTRY_CHECKSUM,
+                NavigationPolicyRuntimeOwnerOverlay.REVISION,
+                NavigationPolicyRuntimeOwnerOverlay.CHECKSUM,
+                List.of(),
                 EnforcementState.OFF, false, null, null, null, null,
                 CONTEXT_SCOPE, null, null, null, null, null, null, null,
                 0, List.of(), List.of(new EffectiveWorkbench(

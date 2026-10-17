@@ -35,4 +35,17 @@ public interface NavigationPolicyEligibilityProvider {
         return pageAuthorizedPaths(trustedPermissions)
                 .getOrDefault(nodeId, List.of()).contains(path);
     }
+
+    /** R6-C v47 PAGE additions; kept out of aggregate-v2 so v46 behavior stays closed. */
+    default Map<String, List<String>> v47PageAuthorizedPaths(
+            Set<String> trustedPermissions) {
+        return Map.of();
+    }
+
+    default boolean v47PageAuthorizedPath(
+            String nodeId, String path, Set<String> trustedPermissions) {
+        return pageAuthorizedPath(nodeId, path, trustedPermissions)
+                || v47PageAuthorizedPaths(trustedPermissions)
+                .getOrDefault(nodeId, List.of()).contains(path);
+    }
 }

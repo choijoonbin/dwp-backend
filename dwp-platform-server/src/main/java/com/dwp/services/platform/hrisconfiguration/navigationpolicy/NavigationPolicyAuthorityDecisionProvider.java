@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Trusted Auth boundary for the R6-B exact POLICY route carrier.
+ * Trusted Auth boundary for the R6-C exact POLICY route carrier.
  *
  * <p>The request deliberately has no candidate route, node or path fields. Auth owns the closed
- * v46 candidate set and returns all six decisions from one atomic snapshot.
+ * v47 candidate set and returns the unchanged six decisions from one atomic snapshot.
  */
 public interface NavigationPolicyAuthorityDecisionProvider {
 

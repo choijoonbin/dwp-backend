@@ -9,7 +9,7 @@ import java.util.UUID;
 import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyAggregateV2Dtos.EffectiveWorkbench;
 import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyDtos.EnforcementState;
 
-/** Tenant-SELF aggregate-v3 wire contract for the R6-B v46 authority carrier. */
+/** Tenant-SELF aggregate-v3 wire contract for the R6-C v47 authority carrier. */
 public final class NavigationPolicyAggregateV3Dtos {
 
     public static final String SCHEMA_VERSION = "3";
@@ -39,6 +39,26 @@ public final class NavigationPolicyAggregateV3Dtos {
             OffsetDateTime freshUntil) {
     }
 
+    public record RuntimeOwnerFirstReadBinding(
+            String method,
+            String gatewayPath,
+            String serviceKey,
+            String servicePath) {
+    }
+
+    public record RuntimeOwnerOverlayRecord(
+            String nodeId,
+            String historicalOwner,
+            String effectiveRuntimeOwner,
+            String canonicalPath,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String compatibilityPath,
+            String routeContractKey,
+            RuntimeOwnerFirstReadBinding firstReadBinding,
+            long registryVersion,
+            String registryChecksum,
+            String evidenceDigest) {
+    }
+
     public record EffectiveNavigationV3(
             String schemaVersion,
             String topologyRevision,
@@ -49,6 +69,9 @@ public final class NavigationPolicyAggregateV3Dtos {
             String generatedIaSha256,
             long authorizationRegistryVersion,
             String authorizationRegistryChecksum,
+            String runtimeOwnerOverlayRevision,
+            String runtimeOwnerOverlayChecksum,
+            List<RuntimeOwnerOverlayRecord> runtimeOwnerOverlayRecords,
             EnforcementState enforcementState,
             boolean policyEnforced,
             @JsonInclude(JsonInclude.Include.NON_NULL) UUID tenantPolicyId,
@@ -70,6 +93,7 @@ public final class NavigationPolicyAggregateV3Dtos {
             OffsetDateTime evaluatedAt) {
 
         public EffectiveNavigationV3 {
+            runtimeOwnerOverlayRecords = List.copyOf(runtimeOwnerOverlayRecords);
             admittedPolicyRoutes = List.copyOf(admittedPolicyRoutes);
             workbenches = List.copyOf(workbenches);
         }

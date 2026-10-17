@@ -30,15 +30,15 @@ import java.util.regex.Pattern;
 import static com.dwp.services.auth.service.ProductAuthorizationAuthoritySupport.digest;
 
 /**
- * Auth-owned R6-B decision carrier. The candidate paths are deliberately compiled into this
+ * Auth-owned R6-C decision carrier. The candidate paths are deliberately compiled into this
  * service; an HTTP caller can provide freshness expectations but cannot inject an alias.
  */
 @Service
 public class HrisNavigationPolicyDecisionService {
 
-    public static final long REGISTRY_VERSION = 46;
+    public static final long REGISTRY_VERSION = 47;
     public static final String REGISTRY_CHECKSUM =
-            "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e";
+            "925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e";
     private static final String BUNDLE_KEY = "product-surfaces";
     private static final String PRODUCT = "hcm";
     private static final String SURFACE = "hcm.personal";
@@ -106,7 +106,7 @@ public class HrisNavigationPolicyDecisionService {
         } catch (RuntimeException exception) {
             throw new BaseException(
                     ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                    "The exact v46 HRIS navigation POLICY authority is unavailable.",
+                    "The exact v47 HRIS navigation POLICY authority is unavailable.",
                     exception);
         }
     }
@@ -395,7 +395,7 @@ public class HrisNavigationPolicyDecisionService {
     private static BaseException unavailable() {
         return new BaseException(
                 ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                "The exact v46 HRIS navigation POLICY authority is unavailable.");
+                "The exact v47 HRIS navigation POLICY authority is unavailable.");
     }
 
     private record Candidate(

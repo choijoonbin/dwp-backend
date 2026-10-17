@@ -68,7 +68,7 @@ class AuthNavigationPolicyAuthorityDecisionProviderTest {
                           "activeAccessMode": "NORMAL",
                           "expectedPersonPublicId": "00000000-0000-4000-8000-000000000101",
                           "expectedScopeKey": "%s",
-                          "expectedRegistryVersion": 46,
+                          "expectedRegistryVersion": 47,
                           "expectedRegistryChecksum": "%s"
                         }
                         """.formatted(
@@ -78,7 +78,7 @@ class AuthNavigationPolicyAuthorityDecisionProviderTest {
 
         AuthoritySnapshot result = provider.evaluate(request());
 
-        assertThat(result.registryVersion()).isEqualTo(46);
+        assertThat(result.registryVersion()).isEqualTo(47);
         assertThat(result.registryChecksum()).isEqualTo(
                 NavigationPolicyAggregateV3Catalog.REGISTRY_CHECKSUM);
         assertThat(result.decisions()).hasSize(6);
@@ -103,8 +103,8 @@ class AuthNavigationPolicyAuthorityDecisionProviderTest {
 
         setUp();
         String duplicate = valid.replaceFirst(
-                "\"registryVersion\":46",
-                "\"registryVersion\":46,\"registryVersion\":46");
+                "\"registryVersion\":47",
+                "\"registryVersion\":47,\"registryVersion\":47");
         server.expect(requestTo(AUTH_URL
                         + AuthNavigationPolicyAuthorityDecisionProvider.PATH))
                 .andRespond(withSuccess(duplicate, MediaType.APPLICATION_JSON));
@@ -154,7 +154,7 @@ class AuthNavigationPolicyAuthorityDecisionProviderTest {
         String snapshot = "snapshot-" + "1".repeat(64);
         String decision = "decision-" + "2".repeat(64);
         String auth = "auth-" + "3".repeat(64);
-        String policy = "policy-46-9-" + "4".repeat(64);
+        String policy = "policy-47-9-" + "4".repeat(64);
         String relationship = "relationship-" + "5".repeat(64);
         List<RouteDecision> decisions = NavigationPolicyAggregateV3Catalog.ROUTES.stream()
                 .map(spec -> new RouteDecision(
