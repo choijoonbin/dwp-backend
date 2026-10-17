@@ -83,14 +83,16 @@ public class NavigationPolicyAggregateV2Service {
         }
         Set<String> installed = eligibilityProvider.installedNodeIds(context.tenantId());
         Set<String> deployed = eligibilityProvider.deployedNodeIds(context.tenantId());
-        Set<String> authorized = eligibilityProvider.pageAuthorizedNodeIds(
-                permissions(context.permissions()));
+        Set<String> trustedPermissions = permissions(context.permissions());
+        Map<String, List<String>> authorizedPaths =
+                ServerNavigationPolicyEligibilityProvider.sealAuthorizedPaths(
+                        eligibilityProvider.pageAuthorizedPaths(trustedPermissions));
 
         if (!enrollment.enrolled() || mode == RolloutMode.OFF) {
             return unrestricted(
                     enrollment.enrolled() ? EnforcementState.OFF
                             : EnforcementState.NOT_ENROLLED,
-                    installed, deployed, authorized, null, null);
+                    installed, deployed, authorizedPaths, null, null);
         }
         UUID requestedLegalEntity = context.requestedLegalEntityPublicId();
         UUID legalEntity = requestedLegalEntity == null ? null
@@ -108,7 +110,7 @@ public class NavigationPolicyAggregateV2Service {
                     ? denied(EnforcementState.DENIED_STALE_CONTEXT,
                     "TRUSTED_CONTEXT_STALE")
                     : unrestricted(EnforcementState.SHADOW, installed, deployed,
-                    authorized, null, null);
+                    authorizedPaths, null, null);
         }
 
         PublishedAggregate tenant = repository.findPublished(
@@ -121,14 +123,14 @@ public class NavigationPolicyAggregateV2Service {
                     ? denied(EnforcementState.DENIED_MISSING_POLICY,
                     "TENANT_AGGREGATE_BASELINE_MISSING")
                     : unrestricted(EnforcementState.SHADOW, installed, deployed,
-                    authorized, null, null);
+                    authorizedPaths, null, null);
         }
         if (legalEntity != null && overlay == null) {
             return mode == RolloutMode.ENFORCED
                     ? denied(EnforcementState.DENIED_MISSING_POLICY,
                     "LEGAL_ENTITY_AGGREGATE_OVERLAY_MISSING")
                     : unrestricted(EnforcementState.SHADOW, installed, deployed,
-                    authorized, tenant, null);
+                    authorizedPaths, tenant, null);
         }
         if (!validPublished(tenant, ScopeKind.TENANT, null)
                 || overlay != null && !validPublished(
@@ -137,11 +139,11 @@ public class NavigationPolicyAggregateV2Service {
                     ? denied(EnforcementState.DENIED_MISSING_POLICY,
                     "AGGREGATE_POLICY_INVALID")
                     : unrestricted(EnforcementState.SHADOW, installed, deployed,
-                    authorized, tenant, overlay);
+                    authorizedPaths, tenant, overlay);
         }
         if (mode == RolloutMode.SHADOW) {
             return unrestricted(EnforcementState.SHADOW, installed, deployed,
-                    authorized, tenant, overlay);
+                    authorizedPaths, tenant, overlay);
         }
         if (tenant.policy().rolloutMode() != RolloutMode.ENFORCED) {
             return denied(EnforcementState.DENIED_MISSING_POLICY,
@@ -158,7 +160,7 @@ public class NavigationPolicyAggregateV2Service {
         }
         List<EffectiveWorkbench> workbenches = effectiveWorkbenches(
                 tenant.policy(), overlay == null ? null : overlay.policy(),
-                installed, deployed, authorized);
+                installed, deployed, authorizedPaths);
         OffsetDateTime evaluatedAt = now();
         if (!context.revalidateAt().isAfter(evaluatedAt)) {
             return denied(EnforcementState.DENIED_STALE_CONTEXT,
@@ -175,7 +177,7 @@ public class NavigationPolicyAggregateV2Service {
                 tenant.policyId(), tenant.revisionId(), tenant.revisionNumber(),
                 overlay == null ? null : overlay.revisionId(),
                 overlay == null ? null : overlay.revisionNumber(),
-                revisionPin(tenant, overlay),
+                revisionPin(tenant, overlay, workbenches),
                 workbenches,
                 null, evaluatedAt);
     }
@@ -210,16 +212,16 @@ public class NavigationPolicyAggregateV2Service {
                         || requestedPath.startsWith(excluded + "/"))) {
             return deniedDeepLink(nodeId, current.revisionPin(), "PATH_EXCLUDED");
         }
-        String canonical = NavigationPolicyAggregateV2Canonical.CANONICAL_ROUTES.get(nodeId);
-        String compatibilityNode =
-                NavigationPolicyAggregateV2Canonical.COMPATIBILITY_ROUTES.get(requestedPath);
-        boolean exactRoute = canonical != null && canonical.equals(requestedPath);
-        boolean exactCompatibility = nodeId != null && nodeId.equals(compatibilityNode);
-        if (!exactRoute && !exactCompatibility) {
-            return deniedDeepLink(nodeId, current.revisionPin(), "ROUTE_NOT_SEALED");
-        }
         if (!permitsDeepLink(current, presentedRevisionPin, nodeId)) {
             return deniedDeepLink(nodeId, current.revisionPin(), "NODE_OR_PIN_DENIED");
+        }
+        EffectiveNode effectiveNode = current.workbenches().stream()
+                .flatMap(workbench -> workbench.groups().stream())
+                .flatMap(group -> group.nodes().stream())
+                .filter(node -> node.nodeId().equals(nodeId))
+                .findFirst().orElse(null);
+        if (effectiveNode == null || !effectiveNode.routeAliases().contains(requestedPath)) {
+            return deniedDeepLink(nodeId, current.revisionPin(), "ROUTE_NOT_ADMITTED");
         }
         if (!eligibilityProvider.pageAuthorizedPath(
                 nodeId, requestedPath, permissions(context.permissions()))) {
@@ -230,8 +232,12 @@ public class NavigationPolicyAggregateV2Service {
             return deniedDeepLink(nodeId, current.revisionPin(),
                     "TRUSTED_CONTEXT_STALE_AT_COMPLETION");
         }
+        String canonical = NavigationPolicyAggregateV2Canonical.CANONICAL_ROUTES.get(nodeId);
+        String admittedTarget = effectiveNode.routeAliases().contains(canonical)
+                ? canonical : requestedPath;
         return new DeepLinkDecision(
-                true, nodeId, canonical, current.revisionPin(), null);
+                true, nodeId, admittedTarget,
+                current.revisionPin(), null);
     }
 
     private DeepLinkDecision deniedDeepLink(
@@ -284,12 +290,14 @@ public class NavigationPolicyAggregateV2Service {
             EnforcementState state,
             Set<String> installed,
             Set<String> deployed,
-            Set<String> authorized,
+            Map<String, List<String>> authorizedPaths,
             PublishedAggregate tenant,
             PublishedAggregate overlay) {
         AggregatePolicyDocument canonical =
                 NavigationPolicyAggregateV2Canonical.canonicalPolicy(
                         ScopeKind.TENANT, null, RolloutMode.OFF);
+        List<EffectiveWorkbench> workbenches = effectiveWorkbenches(
+                canonical, null, installed, deployed, authorizedPaths);
         return new EffectiveNavigation(
                 SCHEMA_VERSION, NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
                 NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256,
@@ -303,8 +311,8 @@ public class NavigationPolicyAggregateV2Service {
                 tenant == null ? null : tenant.revisionNumber(),
                 overlay == null ? null : overlay.revisionId(),
                 overlay == null ? null : overlay.revisionNumber(),
-                tenant == null ? null : revisionPin(tenant, overlay),
-                effectiveWorkbenches(canonical, null, installed, deployed, authorized),
+                tenant == null ? null : revisionPin(tenant, overlay, workbenches),
+                workbenches,
                 null, now());
     }
 
@@ -325,7 +333,7 @@ public class NavigationPolicyAggregateV2Service {
             AggregatePolicyDocument overlay,
             Set<String> installed,
             Set<String> deployed,
-            Set<String> authorized) {
+            Map<String, List<String>> authorizedPaths) {
         Map<String, WorkbenchPolicy> tenantPolicies = policies(tenant);
         Map<String, WorkbenchPolicy> overlayPolicies = overlay == null
                 ? Map.of() : policies(overlay);
@@ -349,10 +357,14 @@ public class NavigationPolicyAggregateV2Service {
                 List<EffectiveNode> nodes = new ArrayList<>();
                 for (int nodeOrder = 0; nodeOrder < group.nodeIds().size(); nodeOrder++) {
                     String nodeId = group.nodeIds().get(nodeOrder);
+                    List<String> routeAliases = authorizedPaths.getOrDefault(
+                            nodeId, List.of());
                     if (baselineNodes.contains(nodeId) && restrictedNodes.contains(nodeId)
                             && installed.contains(nodeId) && deployed.contains(nodeId)
-                            && authorized.contains(nodeId)) {
-                        nodes.add(new EffectiveNode(nodeId, nodeOrder));
+                            && ServerNavigationPolicyEligibilityProvider
+                            .IMPLEMENTATION_NODE_IDS.contains(nodeId)
+                            && !routeAliases.isEmpty()) {
+                        nodes.add(new EffectiveNode(nodeId, nodeOrder, routeAliases));
                     }
                 }
                 if (nodes.isEmpty()) continue;
@@ -382,7 +394,9 @@ public class NavigationPolicyAggregateV2Service {
     }
 
     private String revisionPin(
-            PublishedAggregate tenant, PublishedAggregate overlay) {
+            PublishedAggregate tenant,
+            PublishedAggregate overlay,
+            List<EffectiveWorkbench> workbenches) {
         LinkedHashMap<String, Object> material = new LinkedHashMap<>();
         material.put("schemaVersion", SCHEMA_VERSION);
         material.put("topologyRevision", NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION);
@@ -399,6 +413,12 @@ public class NavigationPolicyAggregateV2Service {
             material.put("legalEntityRevisionNumber", overlay.revisionNumber());
             material.put("legalEntityDigest", overlay.payloadDigest());
         }
+        List<List<Object>> effectivePaths = workbenches.stream()
+                .flatMap(workbench -> workbench.groups().stream())
+                .flatMap(group -> group.nodes().stream())
+                .map(node -> List.<Object>of(node.nodeId(), node.routeAliases()))
+                .toList();
+        material.put("effectivePaths", effectivePaths);
         return "nav-v2-" + digest(material);
     }
 

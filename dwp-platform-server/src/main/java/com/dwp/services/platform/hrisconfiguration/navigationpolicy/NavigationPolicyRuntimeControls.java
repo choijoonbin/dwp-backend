@@ -5,9 +5,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -42,10 +45,21 @@ class NavigationPolicyRuntimeControls {
 final class ServerNavigationPolicyEligibilityProvider
         implements NavigationPolicyEligibilityProvider {
 
+    static final Set<String> IMPLEMENTATION_NODE_IDS = Set.of(
+            "BASE:my-employment-documents",
+            "BASE:hr-people",
+            "BASE:hr-employment-assignments",
+            "BASE:hr-organization-positions",
+            "BASE:hr-employee-change-requests",
+            "BASE:time-clock-ingestion",
+            "BASE:time-interpretation",
+            "BASE:time-exceptions",
+            "BASE:performance-review-operations",
+            "MODERN:hcm.operations.compensation-planning",
+            "BASE:settings-reference",
+            "BASE:settings-payroll");
     private static final Map<String, Set<String>> EXACT_PAGE_ROUTE_PERMISSION =
             exactPageRoutePermissionMap();
-    private static final Map<String, Set<String>> NODE_PERMISSION =
-            nodePermissionMap(EXACT_PAGE_ROUTE_PERMISSION);
     private final Set<String> installed;
     private final Set<String> deployed;
 
@@ -58,10 +72,10 @@ final class ServerNavigationPolicyEligibilityProvider
             String installedNodeIds,
             String deployedNodeIds) {
         this.installed = tokens(installedNodeIds).stream()
-                .filter(ServerNavigationPolicyEligibilityProvider::canonicalNode)
+                .filter(IMPLEMENTATION_NODE_IDS::contains)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
         this.deployed = tokens(deployedNodeIds).stream()
-                .filter(ServerNavigationPolicyEligibilityProvider::canonicalNode)
+                .filter(IMPLEMENTATION_NODE_IDS::contains)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
@@ -77,21 +91,44 @@ final class ServerNavigationPolicyEligibilityProvider
 
     @Override
     public Set<String> pageAuthorizedNodeIds(Set<String> trustedPermissions) {
-        Set<String> normalized = normalizedPermissions(trustedPermissions);
-        return NODE_PERMISSION.entrySet().stream()
-                .filter(entry -> entry.getValue().stream().anyMatch(normalized::contains))
-                .map(Map.Entry::getKey)
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return pageAuthorizedPaths(trustedPermissions).keySet();
     }
 
     @Override
-    public boolean pageAuthorizedPath(
-            String nodeId, String path, Set<String> trustedPermissions) {
-        if (nodeId == null || path == null) return false;
-        Set<String> required = EXACT_PAGE_ROUTE_PERMISSION.get(routeKey(nodeId, path));
-        if (required == null || required.isEmpty()) return false;
+    public Map<String, List<String>> pageAuthorizedPaths(
+            Set<String> trustedPermissions) {
         Set<String> normalized = normalizedPermissions(trustedPermissions);
-        return required.stream().anyMatch(normalized::contains);
+        LinkedHashMap<String, List<String>> result = new LinkedHashMap<>();
+        EXACT_PAGE_ROUTE_PERMISSION.forEach((key, required) -> {
+            if (required.stream().noneMatch(normalized::contains)) return;
+            int separator = key.indexOf('\n');
+            String nodeId = key.substring(0, separator);
+            String path = key.substring(separator + 1);
+            ArrayList<String> paths = new ArrayList<>(
+                    result.getOrDefault(nodeId, List.of()));
+            paths.add(path);
+            result.put(nodeId, List.copyOf(paths));
+        });
+        return Collections.unmodifiableMap(result);
+    }
+
+    /** Reorders and restricts any authority adapter output to the sealed R6-A PAGE catalog. */
+    static Map<String, List<String>> sealAuthorizedPaths(
+            Map<String, List<String>> candidatePaths) {
+        if (candidatePaths == null || candidatePaths.isEmpty()) return Map.of();
+        LinkedHashMap<String, List<String>> result = new LinkedHashMap<>();
+        EXACT_PAGE_ROUTE_PERMISSION.keySet().forEach(key -> {
+            int separator = key.indexOf('\n');
+            String nodeId = key.substring(0, separator);
+            String path = key.substring(separator + 1);
+            List<String> candidates = candidatePaths.get(nodeId);
+            if (candidates == null || !candidates.contains(path)) return;
+            ArrayList<String> paths = new ArrayList<>(
+                    result.getOrDefault(nodeId, List.of()));
+            paths.add(path);
+            result.put(nodeId, List.copyOf(paths));
+        });
+        return Collections.unmodifiableMap(result);
     }
 
     private static Map<String, Set<String>> exactPageRoutePermissionMap() {
@@ -100,11 +137,6 @@ final class ServerNavigationPolicyEligibilityProvider
         // POLICY routes and planned placeholders are deliberately absent and therefore fail closed.
         exact(result, "BASE:my-employment-documents", "/hr/me/employment-documents",
                 "DATA.HRIS_SELF_PROFILE:VIEW");
-        exact(result, "BASE:team-time", "/hr/team/time", "DATA.HR_TIME:VIEW");
-        exact(result, "BASE:team-leave", "/hr/team/absence", "DATA.HR_ABSENCE:VIEW");
-        exact(result, "BASE:hr-operations-home", "/hr/operations",
-                "DATA.WORKFORCE:VIEW", "DATA.HR_TIME:VIEW", "DATA.HR_ABSENCE:VIEW",
-                "DATA.HR_BENEFITS:VIEW", "DATA.HR_PAY:VIEW", "DATA.HR_TALENT:VIEW");
         exact(result, "BASE:hr-people", "/hr/operations/people", "DATA.WORKFORCE:VIEW");
         exact(result, "BASE:hr-employment-assignments",
                 "/hr/operations/people/employment-assignments",
@@ -116,24 +148,14 @@ final class ServerNavigationPolicyEligibilityProvider
         exact(result, "BASE:hr-employee-change-requests",
                 "/hr/operations/people/employee-change-requests",
                 "DATA.HRIS_WORKFORCE:VIEW");
-        exact(result, "BASE:time-command-center", "/hr/operations/time",
-                "DATA.HR_TIME:VIEW");
         exact(result, "BASE:time-clock-ingestion", "/hr/operations/time/clock-ingestion",
                 "DATA.HR_TIME:VIEW");
         exact(result, "BASE:time-interpretation", "/hr/operations/time/interpretation",
                 "DATA.HR_TIME:VIEW");
         exact(result, "BASE:time-exceptions", "/hr/operations/time/exceptions",
                 "DATA.HR_TIME:VIEW");
-        exact(result, "BASE:time-leave-operations", "/hr/operations/absence",
-                "DATA.HR_ABSENCE:VIEW");
-        exact(result, "BASE:pay-command-center", "/hr/operations/pay",
-                "DATA.HR_PAY:VIEW");
-        exact(result, "BASE:performance-command-center", "/hr/operations/talent",
-                "DATA.HR_TALENT:VIEW");
         exact(result, "BASE:performance-review-operations",
                 "/hr/operations/performance/review-operations", "DATA.HR_TALENT:VIEW");
-        exact(result, "BASE:performance-multirater-surveys",
-                "/hr/operations/performance/multirater-surveys", "DATA.HR_TALENT:VIEW");
         exact(result, "MODERN:hcm.operations.compensation-planning",
                 "/hr/operations/performance/compensation-planning",
                 "DATA.HRIS_COMPENSATION_PLAN:VIEW");
@@ -141,18 +163,12 @@ final class ServerNavigationPolicyEligibilityProvider
                 "CONFIG.HRIS_WORKBENCH:VIEW");
         exact(result, "BASE:settings-payroll", "/hr/settings/payroll",
                 "CONFIG.HRIS_WORKBENCH:VIEW");
-        exact(result, "BASE:dwp-governance",
-                "/admin/governance/audit-overview?product=HCM",
-                "ADMIN.AUDIT_VIEW:VIEW");
-        exact(result, "BASE:dwp-governance",
-                "/admin/governance/audit-overview?product=HCM&tab=overview",
-                "ADMIN.AUDIT_VIEW:VIEW");
-        exact(result, "BASE:dwp-governance",
-                "/hr/data/exports", "ACTION.WORKFORCE_CONTROLLED_EXPORT:VIEW");
+        LinkedHashSet<String> routeNodes = new LinkedHashSet<>();
         result.keySet().forEach(key -> {
             int separator = key.indexOf('\n');
             String nodeId = key.substring(0, separator);
             String path = key.substring(separator + 1);
+            routeNodes.add(nodeId);
             boolean canonical = path.equals(
                     NavigationPolicyAggregateV2Canonical.CANONICAL_ROUTES.get(nodeId));
             boolean compatible = nodeId.equals(
@@ -161,23 +177,10 @@ final class ServerNavigationPolicyEligibilityProvider
                 throw new IllegalStateException("HRIS_NAV_POLICY_PAGE_ROUTE_NOT_SEALED");
             }
         });
-        return Map.copyOf(result);
-    }
-
-    private static Map<String, Set<String>> nodePermissionMap(
-            Map<String, Set<String>> exactRoutes) {
-        LinkedHashMap<String, Set<String>> result = new LinkedHashMap<>();
-        exactRoutes.forEach((key, permissions) -> {
-            String nodeId = key.substring(0, key.indexOf('\n'));
-            LinkedHashSet<String> merged = new LinkedHashSet<>(
-                    result.getOrDefault(nodeId, Set.of()));
-            merged.addAll(permissions);
-            result.put(nodeId, Set.copyOf(merged));
-        });
-        if (!NavigationPolicyAggregateV2Canonical.NODE_IDS.containsAll(result.keySet())) {
-            throw new IllegalStateException("HRIS_NAV_POLICY_PAGE_NODE_NOT_CANONICAL");
+        if (!routeNodes.equals(IMPLEMENTATION_NODE_IDS)) {
+            throw new IllegalStateException("HRIS_NAV_POLICY_IMPLEMENTATION_CATALOG_DRIFT");
         }
-        return Map.copyOf(result);
+        return Collections.unmodifiableMap(result);
     }
 
     private static void exact(
@@ -198,11 +201,6 @@ final class ServerNavigationPolicyEligibilityProvider
                 .filter(java.util.Objects::nonNull)
                 .map(value -> value.toUpperCase(Locale.ROOT))
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-    }
-
-    private static boolean canonicalNode(String nodeId) {
-        return NavigationPolicyCanonical.NODE_IDS.contains(nodeId)
-                || NavigationPolicyAggregateV2Canonical.NODE_IDS.contains(nodeId);
     }
 
     private static Set<String> tokens(String value) {

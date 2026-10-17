@@ -1,11 +1,12 @@
 package com.dwp.services.platform.hrisconfiguration.navigationpolicy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -28,14 +30,13 @@ import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.Navig
 import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyDtos.ScopeKind;
 import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyService.RuntimeContext;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import org.mockito.ArgumentCaptor;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NavigationPolicyAggregateV2ServiceTest {
 
@@ -71,29 +72,33 @@ class NavigationPolicyAggregateV2ServiceTest {
                 NavigationPolicyAggregateV2CanonicalTest.disableNode(
                         NavigationPolicyAggregateV2CanonicalTest.policy(
                                 ScopeKind.LEGAL_ENTITY, LEGAL_ENTITY),
-                        "BASE:my-leave");
+                        "BASE:hr-people");
         when(repository.findPublished(42, ScopeKind.TENANT, null))
                 .thenReturn(Optional.of(published(tenantPolicy, 2, "100")));
         when(repository.findPublished(42, ScopeKind.LEGAL_ENTITY, LEGAL_ENTITY))
                 .thenReturn(Optional.of(published(overlayPolicy, 7, "200")));
         when(eligibility.installedNodeIds(42)).thenReturn(Set.of(
-                "BASE:my-time", "BASE:my-leave", "BASE:my-pay-tax"));
+                "BASE:my-employment-documents", "BASE:hr-people",
+                "BASE:hr-employment-assignments"));
         when(eligibility.deployedNodeIds(42)).thenReturn(Set.of(
-                "BASE:my-time", "BASE:my-leave"));
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(Set.of(
-                "BASE:my-leave", "BASE:my-pay-tax"));
+                "BASE:hr-people", "BASE:hr-employment-assignments"));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of(
+                "BASE:hr-people", List.of("/hr/operations/people"),
+                "BASE:hr-employment-assignments",
+                List.of("/hr/operations/people/employment-assignments")));
 
         EffectiveNavigation result = service.projection(runtime(LEGAL_ENTITY));
 
         assertThat(result.enforcementState()).isEqualTo(EnforcementState.ENFORCED);
         assertThat(result.tenantRevisionNumber()).isEqualTo(2);
         assertThat(result.legalEntityRevisionNumber()).isEqualTo(7);
-        assertThat(result.tenantRevisionId()).isNotNull();
-        assertThat(result.legalEntityRevisionId()).isNotNull();
         assertThat(result.generatedIaSha256()).isEqualTo(
                 NavigationPolicyAggregateV2Canonical.GENERATED_IA_SHA256);
         assertThat(result.revisionPin()).matches("^nav-v2-[a-f0-9]{64}$");
-        assertThat(result.workbenches()).isEmpty();
+        assertThat(effectiveNodes(result))
+                .containsExactly("BASE:hr-employment-assignments");
+        assertThat(findNode(result, "BASE:hr-employment-assignments").routeAliases())
+                .containsExactly("/hr/operations/people/employment-assignments");
         ArgumentCaptor<LegalEntityContextResolver.OwnerRequest> owner =
                 ArgumentCaptor.forClass(LegalEntityContextResolver.OwnerRequest.class);
         verify(legalResolver).resolve(owner.capture());
@@ -104,31 +109,36 @@ class NavigationPolicyAggregateV2ServiceTest {
 
     @Test
     void preservesCanonicalOrdersGapsAndFallsBackToFirstEffectiveDescendant() {
-        AggregatePolicyDocument tenantPolicy =
-                NavigationPolicyAggregateV2CanonicalTest.policy(ScopeKind.TENANT, null);
-        when(repository.findPublished(42, ScopeKind.TENANT, null))
-                .thenReturn(Optional.of(published(tenantPolicy, 1, "100")));
-        when(eligibility.installedNodeIds(42)).thenReturn(Set.of("BASE:my-leave"));
-        when(eligibility.deployedNodeIds(42)).thenReturn(Set.of("BASE:my-leave"));
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(Set.of("BASE:my-leave"));
+        stubTenantPolicy();
+        when(eligibility.installedNodeIds(42))
+                .thenReturn(Set.of("BASE:my-employment-documents"));
+        when(eligibility.deployedNodeIds(42))
+                .thenReturn(Set.of("BASE:my-employment-documents"));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of(
+                "BASE:my-employment-documents",
+                List.of("/hr/me/employment-documents")));
 
         EffectiveNavigation result = service.projection(runtime(null));
 
         assertThat(result.workbenches()).singleElement().satisfies(workbench -> {
             assertThat(workbench.workbenchId()).isEqualTo("HRIS-WB-MY-HR");
             assertThat(workbench.displayOrder()).isEqualTo(1);
-            assertThat(workbench.landingNodeId()).isEqualTo("BASE:my-leave");
+            assertThat(workbench.landingNodeId())
+                    .isEqualTo("BASE:my-employment-documents");
             assertThat(workbench.groups()).singleElement().satisfies(group -> {
-                assertThat(group.groupId()).isEqualTo("MY-03");
-                assertThat(group.displayOrder()).isEqualTo(2);
-                assertThat(group.defaultNodeId()).isEqualTo("BASE:my-leave");
-                assertThat(group.nodes().getFirst().displayOrder()).isEqualTo(1);
+                assertThat(group.groupId()).isEqualTo("MY-02");
+                assertThat(group.displayOrder()).isEqualTo(1);
+                assertThat(group.defaultNodeId())
+                        .isEqualTo("BASE:my-employment-documents");
+                assertThat(group.nodes().getFirst().displayOrder()).isZero();
+                assertThat(group.nodes().getFirst().routeAliases())
+                        .containsExactly("/hr/me/employment-documents");
             });
         });
     }
 
     @Test
-    void clientListReorderingCannotChangeServerOwnedProjectionOrder() {
+    void clientListReorderingCannotChangeServerOwnedProjectionOrRouteOrder() {
         AggregatePolicyDocument canonical =
                 NavigationPolicyAggregateV2CanonicalTest.policy(ScopeKind.TENANT, null);
         List<WorkbenchPolicy> reordered = canonical.workbenches().stream()
@@ -146,39 +156,41 @@ class NavigationPolicyAggregateV2ServiceTest {
                 canonical.legalEntityPublicId(), canonical.rolloutMode(), reordered);
         when(repository.findPublished(42, ScopeKind.TENANT, null))
                 .thenReturn(Optional.of(published(input, 1, "100")));
-        when(eligibility.installedNodeIds(42)).thenReturn(
-                NavigationPolicyAggregateV2Canonical.NODE_IDS);
-        when(eligibility.deployedNodeIds(42)).thenReturn(
-                NavigationPolicyAggregateV2Canonical.NODE_IDS);
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(
-                NavigationPolicyAggregateV2Canonical.NODE_IDS);
+        when(eligibility.installedNodeIds(42)).thenReturn(implementationNodes());
+        when(eligibility.deployedNodeIds(42)).thenReturn(implementationNodes());
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(auditedPaths());
 
         EffectiveNavigation result = service.projection(runtime(null));
 
         assertThat(result.workbenches())
                 .extracting(EffectiveWorkbench::workbenchId)
                 .containsExactly(
-                        "HRIS-WB-MY-HR", "HRIS-WB-TEAM", "HRIS-WB-HR-OPERATIONS",
-                        "HRIS-WB-TIME", "HRIS-WB-PAYROLL", "HRIS-WB-PERFORMANCE",
-                        "HRIS-WB-SETTINGS");
-        assertThat(result.workbenches().getFirst().groups())
+                        "HRIS-WB-MY-HR", "HRIS-WB-HR-OPERATIONS", "HRIS-WB-TIME",
+                        "HRIS-WB-PERFORMANCE", "HRIS-WB-SETTINGS");
+        assertThat(result.workbenches().get(2).groups())
                 .extracting(EffectiveGroup::groupId)
-                .containsExactly("MY-01", "MY-02", "MY-03", "MY-04", "MY-05", "MY-06");
-        assertThat(result.workbenches().getFirst().groups().get(2).nodes())
+                .containsExactly("TIME-03", "TIME-04");
+        assertThat(result.workbenches().get(2).groups().getFirst().nodes())
                 .extracting(EffectiveNode::nodeId)
-                .containsExactly("BASE:my-time", "BASE:my-leave");
+                .containsExactly("BASE:time-clock-ingestion", "BASE:time-interpretation");
+        assertThat(findNode(result, "BASE:hr-employment-assignments").routeAliases())
+                .containsExactly(
+                        "/hr/operations/people/employment-assignments",
+                        "/hr/operations/assignments");
     }
 
     @Test
-    void notEnrolledStillUsesInstalledDeployedAndPageIntersectionWithoutPolicyLookup() {
+    void notEnrolledStillUsesExactImplementationIntersectionWithoutPolicyLookup() {
         when(rollout.enrollment(42)).thenReturn(
                 new NavigationPolicyRolloutProvider.RuntimeEnrollment(
                         false, RolloutMode.OFF));
         when(eligibility.installedNodeIds(42)).thenReturn(Set.of(
-                "BASE:my-hr-profile", "BASE:my-time"));
+                "BASE:my-employment-documents", "BASE:my-time"));
         when(eligibility.deployedNodeIds(42)).thenReturn(Set.of("BASE:my-time"));
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(Set.of(
-                "BASE:my-hr-profile"));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of(
+                "BASE:my-employment-documents",
+                List.of("/hr/me/employment-documents"),
+                "BASE:my-time", List.of("/hr/time")));
 
         EffectiveNavigation result = service.projection(runtime(LEGAL_ENTITY));
 
@@ -186,6 +198,23 @@ class NavigationPolicyAggregateV2ServiceTest {
         assertThat(result.workbenches()).isEmpty();
         verify(repository, never()).findPublished(anyLong(), any(), any());
         verify(legalResolver, never()).resolve(any());
+    }
+
+    @Test
+    void configuredPolicyOrOwnerMismatchNodesCannotEscapeImplementationAllowlist() {
+        stubTenantPolicy();
+        when(eligibility.installedNodeIds(42)).thenReturn(Set.of(
+                "BASE:my-time", "BASE:team-time", "BASE:pay-command-center"));
+        when(eligibility.deployedNodeIds(42)).thenReturn(Set.of(
+                "BASE:my-time", "BASE:team-time", "BASE:pay-command-center"));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of(
+                "BASE:my-time", List.of("/hr/time"),
+                "BASE:team-time", List.of("/hr/team/time"),
+                "BASE:pay-command-center", List.of("/hr/operations/pay")));
+
+        EffectiveNavigation result = service.projection(runtime(null));
+
+        assertThat(result.workbenches()).isEmpty();
     }
 
     @Test
@@ -203,16 +232,10 @@ class NavigationPolicyAggregateV2ServiceTest {
 
     @Test
     void enforcedCompletionTimeRevalidationClosesToctouWindow() {
-        AggregatePolicyDocument policy =
-                NavigationPolicyAggregateV2CanonicalTest.policy(ScopeKind.TENANT, null);
-        when(repository.findPublished(42, ScopeKind.TENANT, null))
-                .thenReturn(Optional.of(published(policy, 1, "100")));
-        when(eligibility.installedNodeIds(42)).thenReturn(
-                NavigationPolicyAggregateV2Canonical.NODE_IDS);
-        when(eligibility.deployedNodeIds(42)).thenReturn(
-                NavigationPolicyAggregateV2Canonical.NODE_IDS);
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(
-                NavigationPolicyAggregateV2Canonical.NODE_IDS);
+        stubTenantPolicy();
+        when(eligibility.installedNodeIds(42)).thenReturn(implementationNodes());
+        when(eligibility.deployedNodeIds(42)).thenReturn(implementationNodes());
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(auditedPaths());
         service = service(new AdvancingClock(
                 NOW.toInstant(), NOW.toInstant(), NOW.plusMinutes(2).toInstant()));
 
@@ -232,8 +255,7 @@ class NavigationPolicyAggregateV2ServiceTest {
         AggregatePolicyDocument policy =
                 NavigationPolicyAggregateV2CanonicalTest.policy(ScopeKind.TENANT, null);
         PublishedAggregate corrupt = new PublishedAggregate(
-                UUID.randomUUID(), UUID.randomUUID(), 1, policy,
-                "f".repeat(64),
+                UUID.randomUUID(), UUID.randomUUID(), 1, policy, "f".repeat(64),
                 NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
                 NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256,
                 NavigationPolicyAggregateV2Canonical.IA_REGISTER_SHA256,
@@ -245,7 +267,7 @@ class NavigationPolicyAggregateV2ServiceTest {
                 .thenReturn(Optional.of(corrupt));
         when(eligibility.installedNodeIds(42)).thenReturn(Set.of());
         when(eligibility.deployedNodeIds(42)).thenReturn(Set.of());
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(Set.of());
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of());
 
         EffectiveNavigation corruptResult = service.projection(runtime(null));
         assertThat(corruptResult.enforcementState())
@@ -262,15 +284,12 @@ class NavigationPolicyAggregateV2ServiceTest {
 
     @Test
     void selectedLegalEntityMissingOverlayFailsClosedWhenEnforced() {
-        AggregatePolicyDocument policy =
-                NavigationPolicyAggregateV2CanonicalTest.policy(ScopeKind.TENANT, null);
-        when(repository.findPublished(42, ScopeKind.TENANT, null))
-                .thenReturn(Optional.of(published(policy, 1, "100")));
+        stubTenantPolicy();
         when(repository.findPublished(42, ScopeKind.LEGAL_ENTITY, LEGAL_ENTITY))
                 .thenReturn(Optional.empty());
         when(eligibility.installedNodeIds(42)).thenReturn(Set.of());
         when(eligibility.deployedNodeIds(42)).thenReturn(Set.of());
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(Set.of());
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of());
 
         EffectiveNavigation result = service.projection(runtime(LEGAL_ENTITY));
 
@@ -287,22 +306,16 @@ class NavigationPolicyAggregateV2ServiceTest {
                 ErrorCode.FORBIDDEN, "HRIS_NAV_LEGAL_ENTITY_SELECTED_SCOPE_STALE"));
         when(eligibility.installedNodeIds(42)).thenReturn(Set.of());
         when(eligibility.deployedNodeIds(42)).thenReturn(Set.of());
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(Set.of());
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of());
 
         assertThatThrownBy(() -> service.projection(runtime(LEGAL_ENTITY)))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("SELECTED_SCOPE_STALE");
         verify(repository, never()).findPublished(anyLong(), any(), any());
-    }
 
-    @Test
-    void ownerResolutionCannotSubstituteAnotherLegalEntity() {
-        when(legalResolver.resolve(any())).thenReturn(UUID.fromString(
-                "00000000-0000-0000-0000-000000000999"));
-        when(eligibility.installedNodeIds(42)).thenReturn(Set.of());
-        when(eligibility.deployedNodeIds(42)).thenReturn(Set.of());
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(Set.of());
-
+        org.mockito.Mockito.doReturn(UUID.fromString(
+                        "00000000-0000-0000-0000-000000000999"))
+                .when(legalResolver).resolve(any());
         assertThatThrownBy(() -> service.projection(runtime(LEGAL_ENTITY)))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("LEGAL_ENTITY_SCOPE_MISMATCH");
@@ -310,56 +323,131 @@ class NavigationPolicyAggregateV2ServiceTest {
     }
 
     @Test
-    void deepLinkRequiresEffectiveNodeSamePinAndExactCanonicalOrFiniteAlias() {
-        AggregatePolicyDocument policy =
-                NavigationPolicyAggregateV2CanonicalTest.policy(ScopeKind.TENANT, null);
-        when(repository.findPublished(42, ScopeKind.TENANT, null))
-                .thenReturn(Optional.of(published(policy, 1, "100")));
-        when(eligibility.installedNodeIds(42)).thenReturn(Set.of("BASE:my-hr-profile"));
-        when(eligibility.deployedNodeIds(42)).thenReturn(Set.of("BASE:my-hr-profile"));
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(Set.of("BASE:my-hr-profile"));
+    void deepLinkUsesPinnedExactPathsAndPreservesCanonicalRouteForLegacyAlias() {
+        stubTenantPolicy();
+        when(eligibility.installedNodeIds(42))
+                .thenReturn(Set.of("BASE:hr-employment-assignments"));
+        when(eligibility.deployedNodeIds(42))
+                .thenReturn(Set.of("BASE:hr-employment-assignments"));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of(
+                "BASE:hr-employment-assignments", List.of(
+                        "/hr/operations/people/employment-assignments",
+                        "/hr/operations/assignments")));
         when(eligibility.pageAuthorizedPath(any(), any(), any())).thenReturn(true);
         String pin = service.projection(runtime(null)).revisionPin();
 
+        DeepLinkDecision canonical = service.deepLinkDecision(
+                runtime(null), "BASE:hr-employment-assignments",
+                "/hr/operations/people/employment-assignments", pin);
+        DeepLinkDecision legacy = service.deepLinkDecision(
+                runtime(null), "BASE:hr-employment-assignments",
+                "/hr/operations/assignments", pin);
+        assertThat(canonical.allowed()).isTrue();
+        assertThat(legacy.allowed()).isTrue();
+        assertThat(legacy.canonicalRoute())
+                .isEqualTo("/hr/operations/people/employment-assignments");
         assertThat(service.deepLinkDecision(
-                runtime(null), "BASE:my-hr-profile", "/hr/me/profile", pin).allowed())
-                .isTrue();
-        assertThat(service.deepLinkDecision(
-                runtime(null), "BASE:my-hr-profile", "/hr/me", pin).allowed())
-                .isTrue();
-        assertThat(service.deepLinkDecision(
-                runtime(null), "BASE:my-hr-profile", "/hr/me/profile", "wrong").allowed())
+                runtime(null), "BASE:hr-employment-assignments",
+                "/hr/operations/people/employment-assignments", "wrong").allowed())
                 .isFalse();
         assertThat(service.deepLinkDecision(
-                runtime(null), "BASE:my-hr-profile", "/hr/explore", pin).allowed())
-                .isFalse();
+                runtime(null), "BASE:hr-employment-assignments",
+                "/hr/operations", pin).denialReason())
+                .isEqualTo("ROUTE_NOT_ADMITTED");
         assertThat(service.deepLinkDecision(
-                runtime(null), "BASE:my-hr-profile", "/hr/benefits", pin).allowed())
-                .isFalse();
-        assertThat(service.deepLinkDecision(
-                runtime(null), "BASE:my-hr-profile", "/hr/operations/benefits", pin).allowed())
-                .isFalse();
-        assertThat(service.deepLinkDecision(
-                runtime(null), "BASE:my-hr-profile", "/hr/me/%70rofile", pin).allowed())
-                .isFalse();
+                runtime(null), "BASE:hr-employment-assignments",
+                "/hr/explore", pin).denialReason()).isEqualTo("PATH_EXCLUDED");
+
         when(eligibility.pageAuthorizedPath(
-                org.mockito.ArgumentMatchers.eq("BASE:my-hr-profile"),
-                org.mockito.ArgumentMatchers.eq("/hr/me"), any())).thenReturn(false);
-        DeepLinkDecision exactPageDenied = service.deepLinkDecision(
-                runtime(null), "BASE:my-hr-profile", "/hr/me", pin);
-        assertThat(exactPageDenied.allowed()).isFalse();
-        assertThat(exactPageDenied.denialReason()).isEqualTo("EXACT_PAGE_ROUTE_DENIED");
+                org.mockito.ArgumentMatchers.eq("BASE:hr-employment-assignments"),
+                org.mockito.ArgumentMatchers.eq("/hr/operations/assignments"), any()))
+                .thenReturn(false);
+        assertThat(service.deepLinkDecision(
+                runtime(null), "BASE:hr-employment-assignments",
+                "/hr/operations/assignments", pin).denialReason())
+                .isEqualTo("EXACT_PAGE_ROUTE_DENIED");
+    }
+
+    @Test
+    void revisionPinChangesWhenExactAdmittedPathSetChanges() {
+        stubTenantPolicy();
+        when(eligibility.installedNodeIds(42))
+                .thenReturn(Set.of("BASE:hr-employment-assignments"));
+        when(eligibility.deployedNodeIds(42))
+                .thenReturn(Set.of("BASE:hr-employment-assignments"));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(
+                Map.of("BASE:hr-employment-assignments",
+                        List.of("/hr/operations/people/employment-assignments")),
+                Map.of("BASE:hr-employment-assignments", List.of(
+                        "/hr/operations/people/employment-assignments",
+                        "/hr/operations/assignments")));
+
+        String canonicalOnly = service.projection(runtime(null)).revisionPin();
+        String canonicalAndLegacy = service.projection(runtime(null)).revisionPin();
+
+        assertThat(canonicalOnly).matches("^nav-v2-[a-f0-9]{64}$");
+        assertThat(canonicalAndLegacy).matches("^nav-v2-[a-f0-9]{64}$");
+        assertThat(canonicalAndLegacy).isNotEqualTo(canonicalOnly);
+    }
+
+    @Test
+    void compatibilityOnlyAssignmentReturnsItsPinnedLegacyTarget() {
+        stubTenantPolicy();
+        when(eligibility.installedNodeIds(42))
+                .thenReturn(Set.of("BASE:hr-employment-assignments"));
+        when(eligibility.deployedNodeIds(42))
+                .thenReturn(Set.of("BASE:hr-employment-assignments"));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of(
+                "BASE:hr-employment-assignments",
+                List.of("/hr/operations/assignments")));
+        when(eligibility.pageAuthorizedPath(any(), any(), any())).thenReturn(true);
+
+        EffectiveNavigation result = service.projection(runtime(null));
+        String pin = result.revisionPin();
+        DeepLinkDecision decision = service.deepLinkDecision(
+                runtime(null), "BASE:hr-employment-assignments",
+                "/hr/operations/assignments", pin);
+
+        assertThat(findNode(result, "BASE:hr-employment-assignments").routeAliases())
+                .containsExactly("/hr/operations/assignments");
+        assertThat(decision.allowed()).isTrue();
+        assertThat(decision.canonicalRoute())
+                .isEqualTo("/hr/operations/assignments");
+    }
+
+    @Test
+    void organizationDesignReturnsItsOnlyPinnedAdmittedTarget() {
+        stubTenantPolicy();
+        when(eligibility.installedNodeIds(42))
+                .thenReturn(Set.of("BASE:hr-organization-positions"));
+        when(eligibility.deployedNodeIds(42))
+                .thenReturn(Set.of("BASE:hr-organization-positions"));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of(
+                "BASE:hr-organization-positions",
+                List.of("/hr/design/organization")));
+        when(eligibility.pageAuthorizedPath(any(), any(), any())).thenReturn(true);
+        EffectiveNavigation result = service.projection(runtime(null));
+
+        DeepLinkDecision decision = service.deepLinkDecision(
+                runtime(null), "BASE:hr-organization-positions",
+                "/hr/design/organization", result.revisionPin());
+
+        assertThat(decision.allowed()).isTrue();
+        assertThat(decision.canonicalRoute()).isEqualTo("/hr/design/organization");
+        assertThat(findNode(result, "BASE:hr-organization-positions").routeAliases())
+                .contains(decision.canonicalRoute());
     }
 
     @Test
     void deepLinkRevalidatesAgainAfterPinnedProjectionCompletes() {
-        AggregatePolicyDocument policy =
-                NavigationPolicyAggregateV2CanonicalTest.policy(ScopeKind.TENANT, null);
-        when(repository.findPublished(42, ScopeKind.TENANT, null))
-                .thenReturn(Optional.of(published(policy, 1, "100")));
-        when(eligibility.installedNodeIds(42)).thenReturn(Set.of("BASE:my-hr-profile"));
-        when(eligibility.deployedNodeIds(42)).thenReturn(Set.of("BASE:my-hr-profile"));
-        when(eligibility.pageAuthorizedNodeIds(any())).thenReturn(Set.of("BASE:my-hr-profile"));
+        stubTenantPolicy();
+        when(eligibility.installedNodeIds(42))
+                .thenReturn(Set.of("BASE:my-employment-documents"));
+        when(eligibility.deployedNodeIds(42))
+                .thenReturn(Set.of("BASE:my-employment-documents"));
+        when(eligibility.pageAuthorizedPaths(any())).thenReturn(Map.of(
+                "BASE:my-employment-documents",
+                List.of("/hr/me/employment-documents")));
         when(eligibility.pageAuthorizedPath(any(), any(), any())).thenReturn(true);
         service = service(new AdvancingClock(
                 NOW.toInstant(), NOW.toInstant(), NOW.toInstant(),
@@ -371,11 +459,50 @@ class NavigationPolicyAggregateV2ServiceTest {
         String pin = service.projection(context).revisionPin();
 
         DeepLinkDecision result = service.deepLinkDecision(
-                context, "BASE:my-hr-profile", "/hr/me/profile", pin);
+                context, "BASE:my-employment-documents",
+                "/hr/me/employment-documents", pin);
 
         assertThat(result.allowed()).isFalse();
         assertThat(result.denialReason())
                 .isEqualTo("TRUSTED_CONTEXT_STALE_AT_COMPLETION");
+    }
+
+    private void stubTenantPolicy() {
+        AggregatePolicyDocument policy =
+                NavigationPolicyAggregateV2CanonicalTest.policy(ScopeKind.TENANT, null);
+        when(repository.findPublished(42, ScopeKind.TENANT, null))
+                .thenReturn(Optional.of(published(policy, 1, "100")));
+    }
+
+    private static Set<String> implementationNodes() {
+        return ServerNavigationPolicyEligibilityProvider.IMPLEMENTATION_NODE_IDS;
+    }
+
+    private static Map<String, List<String>> auditedPaths() {
+        return new ServerNavigationPolicyEligibilityProvider("", "")
+                .pageAuthorizedPaths(Set.of(
+                        "DATA.HRIS_SELF_PROFILE:VIEW", "DATA.WORKFORCE:VIEW",
+                        "DATA.HRIS_WORKFORCE:VIEW", "ACTION.WORKFORCE_ORG_DESIGN:VIEW",
+                        "DATA.HR_TIME:VIEW", "DATA.HR_TALENT:VIEW",
+                        "DATA.HRIS_COMPENSATION_PLAN:VIEW",
+                        "CONFIG.HRIS_WORKBENCH:VIEW"));
+    }
+
+    private static List<String> effectiveNodes(EffectiveNavigation navigation) {
+        return navigation.workbenches().stream()
+                .flatMap(workbench -> workbench.groups().stream())
+                .flatMap(group -> group.nodes().stream())
+                .map(EffectiveNode::nodeId)
+                .toList();
+    }
+
+    private static EffectiveNode findNode(
+            EffectiveNavigation navigation, String nodeId) {
+        return navigation.workbenches().stream()
+                .flatMap(workbench -> workbench.groups().stream())
+                .flatMap(group -> group.nodes().stream())
+                .filter(node -> node.nodeId().equals(nodeId))
+                .findFirst().orElseThrow();
     }
 
     private NavigationPolicyAggregateV2Service service(Clock clock) {
@@ -387,7 +514,8 @@ class NavigationPolicyAggregateV2ServiceTest {
             AggregatePolicyDocument policy, long revision, String suffix) {
         return new PublishedAggregate(
                 UUID.fromString("00000000-0000-0000-0000-000000000" + suffix),
-                UUID.nameUUIDFromBytes(("revision-" + suffix).getBytes(StandardCharsets.UTF_8)),
+                UUID.nameUUIDFromBytes(("revision-" + suffix)
+                        .getBytes(StandardCharsets.UTF_8)),
                 revision, policy, digest(policy),
                 NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION,
                 NavigationPolicyAggregateV2Canonical.TOPOLOGY_SHA256,

@@ -80,6 +80,10 @@ dwp:
       max-provider-concurrency: ${DWP_HRIS_EXPLORER_MAX_PROVIDER_CONCURRENCY:5}
     navigation-policy:
       enabled: ${DWP_HRIS_NAVIGATION_POLICY_ENABLED:false}
+      mode: ${DWP_HRIS_NAVIGATION_POLICY_MODE:OFF}
+      enrolled-tenants: ${DWP_HRIS_NAVIGATION_POLICY_ENROLLED_TENANTS:}
+      installed-nodes: "${DWP_HRIS_NAVIGATION_POLICY_INSTALLED_NODES:BASE:my-employment-documents,BASE:hr-people,BASE:hr-employment-assignments,BASE:hr-organization-positions,BASE:hr-employee-change-requests,BASE:time-clock-ingestion,BASE:time-interpretation,BASE:time-exceptions,BASE:performance-review-operations,MODERN:hcm.operations.compensation-planning,BASE:settings-reference,BASE:settings-payroll}"
+      deployed-nodes: "${DWP_HRIS_NAVIGATION_POLICY_DEPLOYED_NODES:BASE:my-employment-documents,BASE:hr-employment-assignments,BASE:hr-organization-positions}"
       legal-entity-owner:
         enabled: ${DWP_HRIS_NAVIGATION_LEGAL_ENTITY_OWNER_ENABLED:false}
         people-base-url: ${DWP_HRIS_NAVIGATION_PEOPLE_BASE_URL:}
