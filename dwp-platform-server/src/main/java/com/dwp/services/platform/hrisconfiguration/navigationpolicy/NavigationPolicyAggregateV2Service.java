@@ -72,6 +72,25 @@ public class NavigationPolicyAggregateV2Service {
 
     @Transactional(readOnly = true)
     public EffectiveNavigation projection(RuntimeContext context) {
+        return projection(context, Map.of());
+    }
+
+    /**
+     * Internal bridge used only by aggregate-v3 after it has verified one exact Auth snapshot.
+     * Public aggregate-v2 never supplies POLICY paths and therefore remains byte-for-byte
+     * behavior compatible with R6-A.
+     */
+    @Transactional(readOnly = true)
+    EffectiveNavigation projectionWithPolicyPaths(
+            RuntimeContext context,
+            Map<String, List<String>> admittedPolicyPaths) {
+        return projection(context,
+                NavigationPolicyAggregateV3Catalog.sealPolicyPaths(admittedPolicyPaths));
+    }
+
+    private EffectiveNavigation projection(
+            RuntimeContext context,
+            Map<String, List<String>> admittedPolicyPaths) {
         requireRuntime(context);
         NavigationPolicyRolloutProvider.RuntimeEnrollment enrollment =
                 rolloutProvider.enrollment(context.tenantId());
@@ -87,6 +106,7 @@ public class NavigationPolicyAggregateV2Service {
         Map<String, List<String>> authorizedPaths =
                 ServerNavigationPolicyEligibilityProvider.sealAuthorizedPaths(
                         eligibilityProvider.pageAuthorizedPaths(trustedPermissions));
+        authorizedPaths = mergeAuthorizedPaths(authorizedPaths, admittedPolicyPaths);
 
         if (!enrollment.enrolled() || mode == RolloutMode.OFF) {
             return unrestricted(
@@ -180,6 +200,22 @@ public class NavigationPolicyAggregateV2Service {
                 revisionPin(tenant, overlay, workbenches),
                 workbenches,
                 null, evaluatedAt);
+    }
+
+    private Map<String, List<String>> mergeAuthorizedPaths(
+            Map<String, List<String>> pagePaths,
+            Map<String, List<String>> policyPaths) {
+        if (policyPaths == null || policyPaths.isEmpty()) return pagePaths;
+        LinkedHashMap<String, List<String>> result = new LinkedHashMap<>(pagePaths);
+        policyPaths.forEach((nodeId, paths) -> {
+            ArrayList<String> merged = new ArrayList<>(
+                    result.getOrDefault(nodeId, List.of()));
+            paths.forEach(path -> {
+                if (!merged.contains(path)) merged.add(path);
+            });
+            result.put(nodeId, List.copyOf(merged));
+        });
+        return java.util.Collections.unmodifiableMap(result);
     }
 
     /** Same immutable pin and node set must authorize sidebar, landing and deep-link decisions. */

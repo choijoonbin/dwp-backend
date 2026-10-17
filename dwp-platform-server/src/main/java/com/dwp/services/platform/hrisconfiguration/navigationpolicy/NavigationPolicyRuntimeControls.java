@@ -39,13 +39,23 @@ class NavigationPolicyRuntimeControls {
             String enrolledTenants) {
         return new ServerNavigationPolicyRolloutProvider(mode, enrolledTenants);
     }
+
+    @Bean
+    @ConditionalOnMissingBean(NavigationPolicyAuthorityDecisionProvider.class)
+    NavigationPolicyAuthorityDecisionProvider navigationPolicyAuthorityDecisionProvider() {
+        return request -> {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "HRIS_NAV_V3_AUTHORITY_UNCONFIGURED");
+        };
+    }
 }
 
 /** Server-owned installation catalog and exact node-to-PAGE data grant mapping. */
 final class ServerNavigationPolicyEligibilityProvider
         implements NavigationPolicyEligibilityProvider {
 
-    static final Set<String> IMPLEMENTATION_NODE_IDS = Set.of(
+    static final Set<String> PAGE_IMPLEMENTATION_NODE_IDS = Set.of(
             "BASE:my-employment-documents",
             "BASE:hr-people",
             "BASE:hr-employment-assignments",
@@ -58,6 +68,14 @@ final class ServerNavigationPolicyEligibilityProvider
             "MODERN:hcm.operations.compensation-planning",
             "BASE:settings-reference",
             "BASE:settings-payroll");
+    static final Set<String> POLICY_IMPLEMENTATION_NODE_IDS = Set.of(
+            "BASE:my-hr-profile",
+            "BASE:my-time",
+            "BASE:my-leave",
+            "BASE:my-pay-tax",
+            "BASE:my-goals-performance",
+            "BASE:my-hr-requests");
+    static final Set<String> IMPLEMENTATION_NODE_IDS = implementationNodeIds();
     private static final Map<String, Set<String>> EXACT_PAGE_ROUTE_PERMISSION =
             exactPageRoutePermissionMap();
     private final Set<String> installed;
@@ -177,10 +195,16 @@ final class ServerNavigationPolicyEligibilityProvider
                 throw new IllegalStateException("HRIS_NAV_POLICY_PAGE_ROUTE_NOT_SEALED");
             }
         });
-        if (!routeNodes.equals(IMPLEMENTATION_NODE_IDS)) {
+        if (!routeNodes.equals(PAGE_IMPLEMENTATION_NODE_IDS)) {
             throw new IllegalStateException("HRIS_NAV_POLICY_IMPLEMENTATION_CATALOG_DRIFT");
         }
         return Collections.unmodifiableMap(result);
+    }
+
+    private static Set<String> implementationNodeIds() {
+        LinkedHashSet<String> result = new LinkedHashSet<>(PAGE_IMPLEMENTATION_NODE_IDS);
+        result.addAll(POLICY_IMPLEMENTATION_NODE_IDS);
+        return Set.copyOf(result);
     }
 
     private static void exact(

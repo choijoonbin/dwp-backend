@@ -27,11 +27,12 @@ class NavigationPolicyRuntimeControlsTest {
         assertThat(provider.installedNodeIds(42))
                 .containsExactlyInAnyOrderElementsOf(
                         ServerNavigationPolicyEligibilityProvider.IMPLEMENTATION_NODE_IDS)
-                .doesNotContain("BASE:my-time", "BASE:team-time", "BASE:pay-command-center");
+                .doesNotContain("BASE:team-time", "BASE:pay-command-center");
         assertThat(provider.deployedNodeIds(42))
                 .containsExactlyInAnyOrder(
                         "BASE:my-employment-documents", "BASE:hr-people",
-                        "BASE:hr-employment-assignments", "BASE:hr-organization-positions");
+                        "BASE:hr-employment-assignments", "BASE:hr-organization-positions",
+                        "BASE:my-time");
         assertThat(provider.pageAuthorizedNodeIds(Set.of("DATA.WORKFORCE:VIEW")))
                 .containsExactlyInAnyOrder(
                         "BASE:hr-people", "BASE:hr-employment-assignments")
@@ -139,7 +140,8 @@ class NavigationPolicyRuntimeControlsTest {
     }
 
     @Test
-    void applicationDefaultsInstallTwelveDeployThreeAndKeepActivationOff() throws Exception {
+    void applicationDefaultsInstallEighteenDeployThreeAndKeepV3ActivationOff()
+            throws Exception {
         String application = new ClassPathResource("application.yml")
                 .getContentAsString(StandardCharsets.UTF_8);
 
@@ -148,15 +150,22 @@ class NavigationPolicyRuntimeControlsTest {
                 .contains("mode: ${DWP_HRIS_NAVIGATION_POLICY_MODE:OFF}")
                 .contains("enrolled-tenants: ${DWP_HRIS_NAVIGATION_POLICY_ENROLLED_TENANTS:}")
                 .contains("DWP_HRIS_NAVIGATION_POLICY_INSTALLED_NODES:")
+                .contains("BASE:my-hr-profile,BASE:my-time,BASE:my-leave,"
+                        + "BASE:my-pay-tax,BASE:my-goals-performance,BASE:my-hr-requests")
                 .contains("DWP_HRIS_NAVIGATION_POLICY_DEPLOYED_NODES:"
                         + "BASE:my-employment-documents,"
                         + "BASE:hr-employment-assignments,"
                         + "BASE:hr-organization-positions}")
+                .contains("v3-enabled: ${DWP_HRIS_NAVIGATION_POLICY_V3_ENABLED:false}")
+                .contains("enabled: ${DWP_HRIS_NAVIGATION_AUTHORITY_ENABLED:false}")
                 .doesNotContain("DWP_HRIS_NAVIGATION_POLICY_DEPLOYED_NODES:"
                         + "BASE:my-employment-documents,BASE:hr-people");
         ServerNavigationPolicyEligibilityProvider defaults =
                 new ServerNavigationPolicyEligibilityProvider(
-                        "BASE:my-employment-documents,BASE:hr-people,"
+                        "BASE:my-employment-documents,BASE:my-hr-profile,BASE:my-time,"
+                                + "BASE:my-leave,BASE:my-pay-tax,"
+                                + "BASE:my-goals-performance,BASE:my-hr-requests,"
+                                + "BASE:hr-people,"
                                 + "BASE:hr-employment-assignments,"
                                 + "BASE:hr-organization-positions,"
                                 + "BASE:hr-employee-change-requests,BASE:time-clock-ingestion,"
@@ -166,7 +175,7 @@ class NavigationPolicyRuntimeControlsTest {
                                 + "BASE:settings-reference,BASE:settings-payroll",
                         "BASE:my-employment-documents,BASE:hr-employment-assignments,"
                                 + "BASE:hr-organization-positions");
-        assertThat(defaults.installedNodeIds(42)).hasSize(12);
+        assertThat(defaults.installedNodeIds(42)).hasSize(18);
         assertThat(defaults.deployedNodeIds(42))
                 .containsExactlyInAnyOrder(
                         "BASE:my-employment-documents",
