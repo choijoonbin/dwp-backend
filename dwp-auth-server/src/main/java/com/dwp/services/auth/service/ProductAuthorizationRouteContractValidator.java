@@ -63,9 +63,16 @@ final class ProductAuthorizationRouteContractValidator {
             require(endpoints.isEmpty(), "Authority endpoints are forbidden in registry v1.");
             return;
         }
-        require(endpoints.size() == 1,
+        Map<String, ProductAuthorizationContractDtos.AuthorityEndpoint> endpointsByKey = index(
+                endpoints,
+                ProductAuthorizationContractDtos.AuthorityEndpoint::endpointKey,
+                "authority endpoint");
+        require(endpointsByKey.size() == (contract.version() >= 46 ? 2 : 1),
+                "Registry authority endpoint count drift.");
+        ProductAuthorizationContractDtos.AuthorityEndpoint endpoint = endpointsByKey.get(
+                "product-surface-step-up-challenge.issue");
+        require(endpoint != null,
                 "Every registry version after v1 requires the exact step-up authority endpoint.");
-        ProductAuthorizationContractDtos.AuthorityEndpoint endpoint = endpoints.get(0);
         require("product-surface-step-up-challenge.issue".equals(endpoint.endpointKey())
                         && "POST".equals(endpoint.method())
                         && "/api/auth/product-surface-step-up-challenges".equals(
@@ -77,6 +84,20 @@ final class ProductAuthorizationRouteContractValidator {
                         && "X-DWP-Expected-Decision-Revision".equals(
                                 endpoint.expectedDecisionRevisionHeader()),
                 "Registry step-up authority endpoint drift.");
+        if (contract.version() >= 46) {
+            ProductAuthorizationContractDtos.AuthorityEndpoint navigation = endpointsByKey.get(
+                    "hris-navigation-policy-decisions.evaluate");
+            require(navigation != null
+                            && "POST".equals(navigation.method())
+                            && navigation.publicPath() == null
+                            && "auth".equals(navigation.serviceKey())
+                            && "/internal/auth/v1/hris-navigation-policy-decisions/evaluate"
+                                    .equals(navigation.servicePath())
+                            && !navigation.requiresAuthentication()
+                            && !navigation.requiresCsrf()
+                            && navigation.expectedDecisionRevisionHeader() == null,
+                    "Registry HRIS navigation POLICY authority endpoint drift.");
+        }
     }
 
     void validateApprovalProjectionSchemaCoverage(
@@ -121,7 +142,8 @@ final class ProductAuthorizationRouteContractValidator {
                     ? pep.path().startsWith("/auth/")
                     : pep.path().startsWith("/v1/")
                             || "platform".equals(pep.serviceKey())
-                                    && pep.path().startsWith("/v2/");
+                                    && (pep.path().startsWith("/v2/")
+                                    || pep.path().startsWith("/v3/"));
             require(validServicePath && !pep.path().contains("/**")
                             && !publicBinding.path().contains("/**"),
                     bindingKey + ": invalid service path grammar.");

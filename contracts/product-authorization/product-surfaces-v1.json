@@ -774,6 +774,16 @@
       "requiresCsrf": true,
       "serviceKey": "auth",
       "servicePath": "/auth/product-surface-step-up-challenges"
+    },
+    {
+      "endpointKey": "hris-navigation-policy-decisions.evaluate",
+      "expectedDecisionRevisionHeader": null,
+      "method": "POST",
+      "publicPath": null,
+      "requiresAuthentication": false,
+      "requiresCsrf": false,
+      "serviceKey": "auth",
+      "servicePath": "/internal/auth/v1/hris-navigation-policy-decisions/evaluate"
     }
   ],
   "bundleKey": "product-surfaces",
@@ -3419,7 +3429,9 @@
       "responsibilityRequirement": "REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
+        "route.hcm.shell.navigation-aggregate-v3.data",
         "route.hcm.shell.navigation-aggregate.data",
+        "route.hcm.shell.navigation-deep-link-decision-v3.data",
         "route.hcm.shell.navigation-deep-link-decision.data",
         "route.hcm.utility.explorer-command-receipt.data",
         "route.hcm.utility.explorer-preferences-update.action",
@@ -7797,7 +7809,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "6f41e17159104cd0fd721a13877611b6225bd6458cb2831f0f30e51573992e64",
+  "checksum": "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -49921,6 +49933,83 @@
           },
           "responseProjectionBindings": [
             {
+              "apiBindingKey": "route.hcm.shell.navigation-aggregate-v3.data.binding.01",
+              "projectionPolicyKey": "route.hcm.shell.navigation-aggregate-v3.data.exact-v46-policy-alias-set.projection.v3",
+              "responseSchemaKey": "HrisNavigationAuthorityAggregateV3"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.shell.navigation-aggregate-v3.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v3/hris/navigation/projection",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "legalEntityPublicId": {
+              "kind": "ABSENT"
+            },
+            "navigationScope": {
+              "kind": "FIXED",
+              "value": "TENANT"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.utility",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.shell.navigation-aggregate-v3.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.shell.navigation-aggregate-v3.data.binding.01",
+          "method": "GET",
+          "path": "/v3/hris/navigation/projection",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "legalEntityPublicId": {
+              "kind": "ABSENT"
+            },
+            "navigationScope": {
+              "kind": "FIXED",
+              "value": "TENANT"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.utility",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "navigation-shell-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.app.shell.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
               "apiBindingKey": "route.hcm.shell.navigation-aggregate.data.binding.01",
               "projectionPolicyKey": "route.hcm.shell.navigation-aggregate.data.authorized-node-intersection.projection.v2",
               "responseSchemaKey": "HrisNavigationAggregateV2"
@@ -50062,6 +50151,83 @@
       "subject": {
         "productKey": "hcm",
         "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "navigation-shell-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.app.shell.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.shell.navigation-deep-link-decision-v3.data.binding.01",
+              "projectionPolicyKey": "route.hcm.shell.navigation-deep-link-decision-v3.data.exact-v46-policy-alias-set.projection.v3",
+              "responseSchemaKey": "HrisNavigationAuthorityDeepLinkDecisionV3"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.shell.navigation-deep-link-decision-v3.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v3/hris/navigation/deep-link-decision",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "legalEntityPublicId": {
+              "kind": "ABSENT"
+            },
+            "navigationScope": {
+              "kind": "FIXED",
+              "value": "TENANT"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.utility",
+      "owner": "Platform + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.shell.navigation-deep-link-decision-v3.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.shell.navigation-deep-link-decision-v3.data.binding.01",
+          "method": "GET",
+          "path": "/v3/hris/navigation/deep-link-decision",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "legalEntityPublicId": {
+              "kind": "ABSENT"
+            },
+            "navigationScope": {
+              "kind": "FIXED",
+              "value": "TENANT"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.utility",
         "type": "PRODUCT"
       },
       "uiRouteId": null,
@@ -74072,5 +74238,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 45
+  "version": 46
 }

@@ -347,6 +347,61 @@ class ProductSurfaceInternalSecurityConfigTest {
         assertUnauthorized(filter, gatewayWithMixedTokens);
     }
 
+    @Test
+    void hrisNavigationPolicyCarrierAcceptsOnlyPlatformPostWithTheExactSurfaceToken()
+            throws Exception {
+        var filter = fullyConfiguredFilter();
+        MockHttpServletRequest accepted = new MockHttpServletRequest(
+                "POST", ProductSurfaceInternalSecurityConfig
+                        .HRIS_NAVIGATION_POLICY_DECISION_PATH);
+        accepted.addHeader(ProductSurfaceInternalSecurityConfig.SERVICE_IDENTITY_HEADER,
+                ProductSurfaceInternalSecurityConfig.PLATFORM_SERVICE_IDENTITY);
+        accepted.addHeader(ProductSurfaceInternalSecurityConfig.TOKEN_HEADER,
+                "trusted-product-surface-token");
+        MockHttpServletResponse acceptedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(accepted, acceptedResponse, new MockFilterChain());
+
+        assertThat(acceptedResponse.getStatus()).isEqualTo(200);
+        assertThat(accepted.getAttribute(ProductSurfaceInternalSecurityConfig
+                .AUTHENTICATED_SERVICE_IDENTITY_ATTRIBUTE))
+                .isEqualTo(ProductSurfaceInternalSecurityConfig.PLATFORM_SERVICE_IDENTITY);
+
+        for (String identity : new String[] {
+                ProductSurfaceInternalSecurityConfig.GATEWAY_SERVICE_IDENTITY,
+                ProductSurfaceInternalSecurityConfig.PEOPLE_SERVICE_IDENTITY,
+                ProductSurfaceInternalSecurityConfig.MEETING_SERVICE_IDENTITY}) {
+            MockHttpServletRequest wrongIdentity = new MockHttpServletRequest(
+                    "POST", ProductSurfaceInternalSecurityConfig
+                            .HRIS_NAVIGATION_POLICY_DECISION_PATH);
+            wrongIdentity.addHeader(ProductSurfaceInternalSecurityConfig
+                    .SERVICE_IDENTITY_HEADER, identity);
+            wrongIdentity.addHeader(ProductSurfaceInternalSecurityConfig.TOKEN_HEADER,
+                    "trusted-product-surface-token");
+            assertUnauthorized(filter, wrongIdentity);
+        }
+
+        MockHttpServletRequest wrongMethod = new MockHttpServletRequest(
+                "GET", ProductSurfaceInternalSecurityConfig
+                        .HRIS_NAVIGATION_POLICY_DECISION_PATH);
+        wrongMethod.addHeader(ProductSurfaceInternalSecurityConfig.SERVICE_IDENTITY_HEADER,
+                ProductSurfaceInternalSecurityConfig.PLATFORM_SERVICE_IDENTITY);
+        wrongMethod.addHeader(ProductSurfaceInternalSecurityConfig.TOKEN_HEADER,
+                "trusted-product-surface-token");
+        assertUnauthorized(filter, wrongMethod);
+
+        MockHttpServletRequest mixed = new MockHttpServletRequest(
+                "POST", ProductSurfaceInternalSecurityConfig
+                        .HRIS_NAVIGATION_POLICY_DECISION_PATH);
+        mixed.addHeader(ProductSurfaceInternalSecurityConfig.SERVICE_IDENTITY_HEADER,
+                ProductSurfaceInternalSecurityConfig.PLATFORM_SERVICE_IDENTITY);
+        mixed.addHeader(ProductSurfaceInternalSecurityConfig.TOKEN_HEADER,
+                "trusted-product-surface-token");
+        mixed.addHeader(ProductSurfaceInternalSecurityConfig
+                .HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER, "trusted-hris-origin-token");
+        assertUnauthorized(filter, mixed);
+    }
+
     private ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter
             fullyConfiguredFilter() {
         return new ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter(
