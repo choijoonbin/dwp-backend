@@ -62936,6 +62936,14 @@
           "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.time-payroll-handoff.data.binding.01", "method": "GET", "path": "/api/time/v1/payroll-handoffs/{handoffId}", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.time-payroll-handoff.data.binding.01", "method": "GET", "path": "/v1/payroll-handoffs/{handoffId}", "pathParameterConstraints": {}, "serviceKey": "time"}], "owner": "Time + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 50,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": []
     }
   ],
   "descriptorEnrichments": {
@@ -62953,6 +62961,45 @@
           "stepUpCommandBindings": [
             {"bindingKey": "route.hcm.operations.payroll-run-calculate.action.binding.01", "targetType": "PAYROLL_RUN", "targetIdPathParameter": "runId", "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "X-DWP-Expected-Object-Version", "ownerServiceKey": "payroll", "audience": "dwp-payroll-server"}
           ]
+        }
+      ]
+    },
+    "tim007Successor": {
+      "introducedInVersion": 50,
+      "routeResponses": [
+        {
+          "routeContractKey": "route.hcm.operations.time-command-center.page",
+          "profileKey": "time-operations-reader",
+          "responseSchemaKey": "TimeCommandCenterProjectionV1",
+          "apiBindingKey": "route.hcm.operations.time-command-center.page.binding.01",
+          "projectionPolicyKey": "route.hcm.operations.time-command-center.page.time-operations-reader.projection.v1",
+          "openApiSchemaSha256": "b9f8e20f38dc265df0b65ae498c5728536e9634b719bae11dad4aeb53f3afd8e"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.time-daily-close.page",
+          "profileKey": "time-operations-reader",
+          "responseSchemaKey": "TimeDailyCloseProjectionV1",
+          "apiBindingKey": "route.hcm.operations.time-daily-close.page.binding.01",
+          "projectionPolicyKey": "route.hcm.operations.time-daily-close.page.time-operations-reader.projection.v1",
+          "openApiSchemaSha256": "7ad4402e9fd26c2d76fc38f9554a6f8370562e536879e516084c32d57c85e039"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.time-monthly-close.page",
+          "profileKey": "time-operations-reader",
+          "responseSchemaKey": "TimeMonthlyCloseProjectionV1",
+          "apiBindingKey": "route.hcm.operations.time-monthly-close.page.binding.01",
+          "projectionPolicyKey": "route.hcm.operations.time-monthly-close.page.time-operations-reader.projection.v1",
+          "openApiSchemaSha256": "985741661b4d879f242bfcbeb9310af40ae917411ae817bf1eb6239766e580c9"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.time-payroll-handoff.data",
+          "profileKey": "time-close-operator",
+          "responseSchemaKey": "PayrollTimeHandoffStatusV1"
+        },
+        {
+          "routeContractKey": "route.hcm.time.command-receipt.data",
+          "profileKey": "originating-command",
+          "responseSchemaKey": "TimeCommandReceiptLookupV1"
         }
       ]
     },

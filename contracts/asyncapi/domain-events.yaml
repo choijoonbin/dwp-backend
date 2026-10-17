@@ -28,6 +28,12 @@ channels:
         $ref: '#/components/messages/timecardDecisionRecorded'
       controlledTransferStateChanged:
         $ref: '#/components/messages/controlledTransferStateChanged'
+      timePeriodClosed:
+        $ref: '#/components/messages/timePeriodClosed'
+      timePeriodReopened:
+        $ref: '#/components/messages/timePeriodReopened'
+      payrollTimeHandoffReady:
+        $ref: '#/components/messages/payrollTimeHandoffReady'
   workplaceOccupancySignals:
     address: dwp.workplace.occupancy-signals.v1
     messages:
@@ -47,6 +53,9 @@ operations:
       - $ref: '#/channels/domainEvents/messages/performanceReviewSubmitted'
       - $ref: '#/channels/domainEvents/messages/timecardDecisionRecorded'
       - $ref: '#/channels/domainEvents/messages/controlledTransferStateChanged'
+      - $ref: '#/channels/domainEvents/messages/timePeriodClosed'
+      - $ref: '#/channels/domainEvents/messages/timePeriodReopened'
+      - $ref: '#/channels/domainEvents/messages/payrollTimeHandoffReady'
   receiveWorkplaceOccupancySignal:
     action: receive
     channel:
@@ -95,6 +104,21 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/ControlledTransferStateChangedEnvelope'
+    timePeriodClosed:
+      name: TimePeriodClosed.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TimePeriodClosedEnvelope'
+    timePeriodReopened:
+      name: TimePeriodReopened.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TimePeriodReopenedEnvelope'
+    payrollTimeHandoffReady:
+      name: PayrollTimeHandoffReady.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PayrollTimeHandoffReadyEnvelope'
     workplaceOccupancySignal:
       name: WorkplaceOccupancySignal
       contentType: application/json
@@ -459,6 +483,120 @@ components:
               const: CONTROLLED_TRANSFER
             data:
               $ref: '#/components/schemas/ControlledTransferStateChangedData'
+    TimePeriodClosedEnvelope:
+      x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
+      x-dwp-aggregate-id-source: closePeriodId
+      x-dwp-aggregate-sequence-source: closeRevision
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - source
+            - tenantId
+            - aggregateType
+            - correlationId
+            - causationId
+            - data
+          properties:
+            type:
+              const: TimePeriodClosed.v1
+            schemaVersion:
+              const: 1
+            source:
+              const: dwp-time-server
+            tenantId:
+              type: integer
+              minimum: 1
+            aggregateType:
+              const: ClosePeriod
+            correlationId:
+              type: string
+              format: uuid
+            causationId:
+              type: string
+              format: uuid
+            data:
+              $ref: '#/components/schemas/TimePeriodClosedData'
+    TimePeriodClosedData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_009'
+    TimePeriodReopenedEnvelope:
+      x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
+      x-dwp-aggregate-id-source: closePeriodId
+      x-dwp-aggregate-sequence-source: newRevision
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - source
+            - tenantId
+            - aggregateType
+            - correlationId
+            - causationId
+            - data
+          properties:
+            type:
+              const: TimePeriodReopened.v1
+            schemaVersion:
+              const: 1
+            source:
+              const: dwp-time-server
+            tenantId:
+              type: integer
+              minimum: 1
+            aggregateType:
+              const: ClosePeriod
+            correlationId:
+              type: string
+              format: uuid
+            causationId:
+              type: string
+              format: uuid
+            data:
+              $ref: '#/components/schemas/TimePeriodReopenedData'
+    TimePeriodReopenedData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_010'
+    PayrollTimeHandoffReadyEnvelope:
+      x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
+      x-dwp-aggregate-id-source: handoffId
+      x-dwp-aggregate-sequence-source: constant:1
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - source
+            - tenantId
+            - aggregateType
+            - correlationId
+            - causationId
+            - data
+          properties:
+            type:
+              const: PayrollTimeHandoffReady.v1
+            schemaVersion:
+              const: 1
+            source:
+              const: dwp-time-server
+            tenantId:
+              type: integer
+              minimum: 1
+            aggregateType:
+              const: PayrollHandoff
+            correlationId:
+              type: string
+              format: uuid
+            causationId:
+              type: string
+              format: uuid
+            data:
+              $ref: '#/components/schemas/PayrollTimeHandoffReadyData'
+    PayrollTimeHandoffReadyData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_011'
     ControlledTransferStateChangedData:
       type: object
       additionalProperties: false

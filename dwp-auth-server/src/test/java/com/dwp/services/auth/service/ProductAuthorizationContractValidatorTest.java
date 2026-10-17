@@ -381,6 +381,56 @@ class ProductAuthorizationContractValidatorTest extends ProductAuthorizationCont
     }
 
     @Test
+    void v50AcceptsTheSealedSuccessorWithoutChangingTimeStepUpTopology()
+            throws IOException {
+        ProductAuthorizationContractDtos.BundleContract v50 = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v50.generated.json"));
+        assertThat(v50.version()).isEqualTo(50L);
+        assertThat(v50.checksum()).isEqualTo(
+                "c52222caad2749c4048c694f6582e157f6ab1184f73237f0944c3d88807a2760");
+        var stepUp = v50.routes().stream()
+                .filter(route -> route.routeContractKey().equals(
+                        "route.hcm.operations.time-close.action")
+                        || route.routeContractKey().equals(
+                        "route.hcm.operations.time-reopen.action"))
+                .toList();
+        assertThat(stepUp)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsExactlyInAnyOrder(
+                        "route.hcm.operations.time-close.action",
+                        "route.hcm.operations.time-reopen.action");
+        assertThat(stepUp).allSatisfy(route -> assertThat(route.stepUpCommandBindings())
+                        .as(route.routeContractKey()).hasSize(1));
+        var noStepUp = v50.routes().stream()
+                .filter(route -> route.routeContractKey().equals(
+                        "route.hcm.operations.time-close-validate.action")
+                        || route.routeContractKey().equals(
+                        "route.hcm.operations.time-payroll-handoff-create.action"))
+                .toList();
+        assertThat(noStepUp)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsExactlyInAnyOrder(
+                        "route.hcm.operations.time-close-validate.action",
+                        "route.hcm.operations.time-payroll-handoff-create.action");
+        assertThat(noStepUp).allSatisfy(route -> assertThat(route.stepUpCommandBindings())
+                        .as(route.routeContractKey()).isNullOrEmpty());
+
+        ObjectNode drifted = (ObjectNode) generatedDocument(
+                "product-surfaces-v1.bundle-v50.generated.json");
+        ObjectNode commandCenter = (ObjectNode) drifted.withArray("routes").valueStream()
+                .filter(value -> "route.hcm.operations.time-command-center.page"
+                        .equals(value.path("routeContractKey").asText()))
+                .findFirst().orElseThrow();
+        ((ObjectNode) commandCenter.withArray("accessProfiles").get(0)
+                .withArray("responseProjectionBindings").get(0))
+                .put("openApiSchemaSha256", "0".repeat(64));
+        drifted.put("checksum", validator.checksum(drifted));
+        assertThatThrownBy(() -> validator.validateDocument(drifted))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("invalid TIM-007 v50 projection schema metadata");
+    }
+
+    @Test
     void rejectsOmittedOrMalformedApprovalProjectionMetadataWithAValidBundleChecksum()
             throws IOException {
         List<Consumer<ObjectNode>> corruptions = List.of(

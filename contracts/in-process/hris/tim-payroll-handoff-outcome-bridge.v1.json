@@ -1,0 +1,384 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dwp:in-process:hris:tim-payroll-handoff-outcome-bridge:v1",
+  "schemaVersion": 1,
+  "contractId": "HRIS-TIM-PAYROLL-HANDOFF-OUTCOME-BRIDGE-V1",
+  "lifecycleState": "DRAFT_DEFAULT_OFF",
+  "binding": {
+    "bindingId": "SVC-PEP-TIM-003",
+    "operationId": "recordPayrollTimeHandoffOutcome",
+    "ownerWorkloadId": "dwp-time-server",
+    "callerWorkloadId": "dwp-payroll-server",
+    "callerSpiffeId": "spiffe://dwp/service/dwp-payroll-server",
+    "method": "POST",
+    "path": "/internal/hris-time/v1/payroll-handoffs/{handoffId}/outcomes",
+    "audience": "dwp-time-server",
+    "purpose": "HRIS_CLOSED_TIME_HANDOFF_OUTCOME",
+    "requestSchema": "PayrollTimeHandoffOutcomeV1",
+    "responseSchema": "PayrollTimeHandoffStatusV1"
+  },
+  "httpProfile": {
+    "requiredSingleValueHeaders": {
+      "Content-Type": [
+        "application/json",
+        "application/json; charset=utf-8"
+      ],
+      "X-DWP-Service-Identity": "dwp-payroll-server",
+      "X-DWP-Workload-Proof": "single compact JWS",
+      "X-Correlation-ID": "single canonical lowercase UUID equal to request body correlationId"
+    },
+    "successHeaders": {
+      "Cache-Control": "no-store",
+      "ETag": "single strong numeric ETag matching the returned version",
+      "X-Correlation-ID": "same canonical lowercase UUID as the accepted request"
+    },
+    "duplicateHeaderNamesOrValues": "REJECT",
+    "pathRules": [
+      "handoffId is a canonical lowercase UUID",
+      "no query parameters",
+      "no fragment",
+      "no path alias",
+      "no trailing slash alias"
+    ],
+    "prohibited": [
+      "Authorization",
+      "Cookie",
+      "Origin",
+      "Referer",
+      "Sec-Fetch-*",
+      "Sec-CH-UA-*",
+      "X-DWP-Tenant*",
+      "X-DWP-User-ID",
+      "X-DWP-Person-Public-ID",
+      "X-DWP-Display-Name-B64",
+      "X-Forwarded-*",
+      "every unrecognized X-DWP-* header"
+    ]
+  },
+  "workloadProof": {
+    "wire": "X-DWP-Workload-Proof compact JWS",
+    "joseHeader": {
+      "additionalProperties": false,
+      "exactFields": [
+        "alg",
+        "typ",
+        "kid"
+      ],
+      "fixed": {
+        "alg": "RS256",
+        "typ": "JWT"
+      },
+      "minimumRsaBits": 2048
+    },
+    "claims": {
+      "additionalProperties": false,
+      "exactFields": [
+        "iss",
+        "aud",
+        "sub",
+        "iat",
+        "nbf",
+        "exp",
+        "jti",
+        "requestNonce",
+        "bindingId",
+        "purpose",
+        "method",
+        "path",
+        "tenantId",
+        "tenantGrantRevision",
+        "policyRevision",
+        "requestBodySha256",
+        "authn"
+      ],
+      "bindings": {
+        "iss": "dwp-payroll-server",
+        "aud": "dwp-time-server",
+        "sub": "dwp-payroll-server",
+        "bindingId": "SVC-PEP-TIM-003",
+        "purpose": "HRIS_CLOSED_TIME_HANDOFF_OUTCOME",
+        "method": "POST",
+        "path": "canonical path with the exact lowercase handoffId and no query or trailing alias",
+        "tenantId": "positive signed owner tenant from the verified proof only",
+        "tenantGrantRevision": "exact Time-owner current revalidated tenant grant revision",
+        "policyRevision": "exact Time-owner current revalidated policy revision",
+        "requestBodySha256": "lowercase SHA-256 of exact received UTF-8 body bytes",
+        "authn": [
+          "MTLS_SPIFFE",
+          "CLIENT_CREDENTIAL_JWT"
+        ]
+      },
+      "time": [
+        "iat equals nbf",
+        "exp is after iat",
+        "exp minus iat is at most 30 seconds",
+        "proof is currently valid"
+      ],
+      "replay": [
+        "jti and requestNonce are distinct canonical lowercase UUIDs",
+        "jti and requestNonce share one durable single-use namespace for the proof validity window",
+        "a business-outcome retry uses a fresh valid proof"
+      ]
+    },
+    "derivedAuthentication": {
+      "rule": "authn is re-derived from the verified certificate and registered kid profile and is never trusted from the claim alone",
+      "MTLS_SPIFFE": "TLS 1.3 client certificate SPIFFE SAN is exactly spiffe://dwp/service/dwp-payroll-server and maps to workload dwp-payroll-server",
+      "CLIENT_CREDENTIAL_JWT": "kid resolves to a registered dwp-payroll-server client-key profile"
+    },
+    "identityAgreement": "certificate workload, X-DWP-Service-Identity, iss and sub are each exactly dwp-payroll-server"
+  },
+  "tenantAdmission": [
+    "tenantId is a positive signed owner tenant and comes only from the verified proof",
+    "Time revalidates its current tenant grant authorizing dwp-payroll-server for the signed tenant",
+    "tenantGrantRevision and policyRevision each exactly equal Time current revalidated revisions",
+    "target handoff tenant matches",
+    "caller-provided tenant override is forbidden"
+  ],
+  "$defs": {
+    "CanonicalLowercaseUuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "LowercaseSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "UtcInstant": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "PayrollTimeHandoffOutcomeV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "closedTimeResultId",
+        "closeRevision",
+        "payloadDigest",
+        "outcome",
+        "receiverReceiptId",
+        "receiverReceiptRevision",
+        "receiverReceiptDigest",
+        "reasonCode",
+        "outcomeAt",
+        "correlationId"
+      ],
+      "properties": {
+        "closedTimeResultId": {
+          "$ref": "#/$defs/CanonicalLowercaseUuid"
+        },
+        "closeRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "payloadDigest": {
+          "$ref": "#/$defs/LowercaseSha256"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "ACKNOWLEDGED",
+            "REJECTED",
+            "RESULT_UNKNOWN"
+          ]
+        },
+        "receiverReceiptId": {
+          "$ref": "#/$defs/CanonicalLowercaseUuid"
+        },
+        "receiverReceiptRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "receiverReceiptDigest": {
+          "$ref": "#/$defs/LowercaseSha256"
+        },
+        "reasonCode": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9._-]{0,79}$"
+            }
+          ]
+        },
+        "outcomeAt": {
+          "$ref": "#/$defs/UtcInstant"
+        },
+        "correlationId": {
+          "$ref": "#/$defs/CanonicalLowercaseUuid"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "ACKNOWLEDGED"
+              }
+            },
+            "required": [
+              "outcome"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reasonCode": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "reasonCode": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9._-]{0,79}$"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "correlationBinding": "request body correlationId equals the single X-Correlation-ID header",
+  "outcomeCommandDigest": {
+    "canonicalization": "RFC8785",
+    "encoding": "UTF-8",
+    "algorithm": "SHA-256",
+    "materialFieldsInOrder": [
+      "tenantId",
+      "handoffId",
+      "closedTimeResultId",
+      "closeRevision",
+      "payloadDigest",
+      "outcome",
+      "receiverReceiptId",
+      "receiverReceiptRevision",
+      "receiverReceiptDigest",
+      "reasonCode",
+      "outcomeAt",
+      "correlationId"
+    ],
+    "handoffIdForm": "lowercase canonical UUID"
+  },
+  "stateMachine": {
+    "initial": "PENDING",
+    "transitions": [
+      {
+        "from": "PENDING",
+        "to": [
+          "ACKNOWLEDGED",
+          "REJECTED",
+          "RESULT_UNKNOWN"
+        ],
+        "receiverReceiptRevision": 1
+      },
+      {
+        "from": "RESULT_UNKNOWN",
+        "to": [
+          "ACKNOWLEDGED",
+          "REJECTED"
+        ],
+        "receiptRule": "same receiverReceiptId and exact next receiverReceiptRevision"
+      }
+    ],
+    "terminal": [
+      "ACKNOWLEDGED",
+      "REJECTED"
+    ],
+    "conflict": "invalid transition, outcomeCommandDigest conflict, receipt identity conflict or revision gap returns 409 and requires quarantine plus audit"
+  },
+  "idempotency": {
+    "semanticKey": [
+      "tenantId",
+      "handoffId",
+      "receiverReceiptId",
+      "receiverReceiptRevision"
+    ],
+    "sameOutcomeCommandDigest": "return the original persisted 200 response without a second state transition",
+    "differentOutcomeCommandDigest": "HTTP_409_STALE_OR_STATE_CONFLICT_QUARANTINE_AND_AUDIT"
+  },
+  "response": {
+    "status": 200,
+    "schema": "PayrollTimeHandoffStatusV1",
+    "cacheControl": "no-store",
+    "etag": "strong numeric ETag matching the returned version"
+  },
+  "errorProfile": {
+    "mediaType": "application/problem+json",
+    "schema": "HrisTimeProblemV1",
+    "bodyExactFields": [
+      "type",
+      "title",
+      "status",
+      "code",
+      "correlationId",
+      "retryable"
+    ],
+    "forbiddenBodyFields": [
+      "detail",
+      "fieldErrors",
+      "tenantId",
+      "handoffId",
+      "every target-derived value"
+    ],
+    "responses": {
+      "400": {
+        "code": "SCHEMA_INVALID",
+        "retryable": false,
+        "when": "strict JSON, additionalProperties, required, nullability, format, path parameter, X-Correlation-ID or body/header correlation validation fails"
+      },
+      "401": {
+        "code": "AUTHENTICATION_REQUIRED",
+        "retryable": false,
+        "when": "missing, malformed, unverifiable or expired workload proof, reused jti or requestNonce, or missing or invalid mTLS"
+      },
+      "403": {
+        "code": "AUTHORIZATION_DENIED",
+        "retryable": false,
+        "when": "verified caller has wrong audience, binding, purpose, method, path, grant, tenantGrantRevision or policyRevision"
+      },
+      "404": {
+        "code": "TARGET_NOT_DISCLOSED",
+        "retryable": false,
+        "when": "tenant or target mismatch using one constant opaque representation"
+      },
+      "409": {
+        "code": "STALE_OR_STATE_CONFLICT",
+        "retryable": false,
+        "when": "outcome transition, outcomeCommandDigest or receiver revision conflict"
+      },
+      "429": {
+        "code": "RATE_LIMITED",
+        "retryable": true,
+        "when": "rate limited",
+        "retryAfterRequired": true
+      },
+      "503": {
+        "code": "AUTHORITY_UNAVAILABLE",
+        "retryable": true,
+        "when": "trust, grant, replay-store, provider or dependency authority is unavailable",
+        "retryAfterRequired": true
+      }
+    },
+    "requiredHeaders": [
+      "Cache-Control: no-store",
+      "X-Correlation-ID"
+    ],
+    "invalidOrMissingRequestCorrelation": "Time generates one canonical lowercase UUID and uses it identically in the response header and problem body",
+    "nonDisclosure": "Every error uses a constant title for its status and omits handoff existence and all target-derived data."
+  },
+  "ownership": {
+    "handoffStateWriter": "dwp-time-server only",
+    "fourthAsyncApiOutcomeEvent": false,
+    "payRuntimeMigrationAuthorized": false,
+    "featureOrTenantActivationAuthorized": false,
+    "runtimeAvailabilityNonclaim": "This DRAFT contract does not establish close-only runtime availability.",
+    "successorRuntimePrerequisites": [
+      "central CommandReceiptController and TimecardOwnerAccessFilter remain conditional on dwp.hris.time.timecard.enabled",
+      "current receipt verification uses Timecard authority evidence",
+      "a future TIM replacement must supply equivalent independently verified receipt and owner-access authority before removing the Timecard dependency"
+    ]
+  }
+}

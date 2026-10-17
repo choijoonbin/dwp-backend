@@ -117,14 +117,16 @@ class ProductAuthorizationContractReleaseLineageTest
                 generatedDocument("product-surfaces-v1.bundle-v48.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionFortyNine = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v49.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(49);
-        assertThat(index.latestChecksum()).isEqualTo(versionFortyNine.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionFifty = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v50.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(50);
+        assertThat(index.latestChecksum()).isEqualTo(versionFifty.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
                         26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L,
-                        39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L, 49L);
+                        39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L, 49L, 50L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -662,6 +664,13 @@ class ProductAuthorizationContractReleaseLineageTest
                         "route.hcm.operations.time-reopen.action",
                         "route.hcm.operations.time-payroll-handoff-create.action",
                         "route.hcm.operations.time-payroll-handoff.data");
+        assertThat(versionFifty.capabilities())
+                .containsExactlyElementsOf(versionFortyNine.capabilities());
+        assertThat(versionFifty.routes()).hasSize(1079)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsExactlyElementsOf(versionFortyNine.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList());
         String voidRoute = "route.hcm.operations.time-clock-event-void.action";
         assertThat(versionThirtySix.routes())
                 .filteredOn(route -> voidRoute.equals(route.routeContractKey()))

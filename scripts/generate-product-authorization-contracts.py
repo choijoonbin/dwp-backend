@@ -224,12 +224,24 @@ HCM_PLATFORM_PEP_V49_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
 HCM_PAYROLL_PEP_V49_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
     "hcm-payroll-pep-v49.generated.json"
 )
+HCM_PEOPLE_PEP_V50_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v50.generated.json"
+)
+HCM_TIME_PEP_V50_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
+    "hcm-time-pep-v50.generated.json"
+)
+HCM_PLATFORM_PEP_V50_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v50.generated.json"
+)
+HCM_PAYROLL_PEP_V50_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
+    "hcm-payroll-pep-v50.generated.json"
+)
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 50))
+BUNDLE_VERSIONS = tuple(range(1, 51))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -361,6 +373,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 73, "routes": 1063, "PAGE": 138, "DATA": 321, "ACTION": 604},
     49: {"capabilities": 262, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 81, "routes": 1079, "PAGE": 144, "DATA": 326, "ACTION": 609},
+    50: {"capabilities": 262, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 81, "routes": 1079, "PAGE": 144, "DATA": 326, "ACTION": 609},
 }
 
 V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
@@ -394,6 +408,57 @@ V49_PAYROLL_CALCULATE_STEP_UP = [{
     "ownerServiceKey": "payroll",
     "audience": "dwp-payroll-server",
 }]
+V50_TIM007_ROUTE_RESPONSES = (
+    {
+        "routeContractKey": "route.hcm.operations.time-command-center.page",
+        "profileKey": "time-operations-reader",
+        "responseSchemaKey": "TimeCommandCenterProjectionV1",
+        "apiBindingKey": "route.hcm.operations.time-command-center.page.binding.01",
+        "projectionPolicyKey": (
+            "route.hcm.operations.time-command-center.page."
+            "time-operations-reader.projection.v1"
+        ),
+        "openApiSchemaSha256": (
+            "b9f8e20f38dc265df0b65ae498c5728536e9634b719bae11dad4aeb53f3afd8e"
+        ),
+    },
+    {
+        "routeContractKey": "route.hcm.operations.time-daily-close.page",
+        "profileKey": "time-operations-reader",
+        "responseSchemaKey": "TimeDailyCloseProjectionV1",
+        "apiBindingKey": "route.hcm.operations.time-daily-close.page.binding.01",
+        "projectionPolicyKey": (
+            "route.hcm.operations.time-daily-close.page."
+            "time-operations-reader.projection.v1"
+        ),
+        "openApiSchemaSha256": (
+            "7ad4402e9fd26c2d76fc38f9554a6f8370562e536879e516084c32d57c85e039"
+        ),
+    },
+    {
+        "routeContractKey": "route.hcm.operations.time-monthly-close.page",
+        "profileKey": "time-operations-reader",
+        "responseSchemaKey": "TimeMonthlyCloseProjectionV1",
+        "apiBindingKey": "route.hcm.operations.time-monthly-close.page.binding.01",
+        "projectionPolicyKey": (
+            "route.hcm.operations.time-monthly-close.page."
+            "time-operations-reader.projection.v1"
+        ),
+        "openApiSchemaSha256": (
+            "985741661b4d879f242bfcbeb9310af40ae917411ae817bf1eb6239766e580c9"
+        ),
+    },
+    {
+        "routeContractKey": "route.hcm.operations.time-payroll-handoff.data",
+        "profileKey": "time-close-operator",
+        "responseSchemaKey": "PayrollTimeHandoffStatusV1",
+    },
+    {
+        "routeContractKey": "route.hcm.time.command-receipt.data",
+        "profileKey": "originating-command",
+        "responseSchemaKey": "TimeCommandReceiptLookupV1",
+    },
+)
 GRANDFATHERED_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = frozenset({
     "route.hcm.configuration.configuration-version.data",
     "route.hcm.configuration.configurations.data",
@@ -1303,7 +1368,7 @@ def _validate_descriptor_enrichment_envelope(
         set(enrichment)
         == {
             "capabilities", "accessPolicies", "routes", "authorityEndpoints",
-            "securityHardening",
+            "securityHardening", "tim007Successor",
         },
         "descriptorEnrichments envelope is invalid",
     )
@@ -1323,6 +1388,13 @@ def _validate_descriptor_enrichment_envelope(
             }],
         },
         "securityHardening must contain only the exact v49 payroll exception",
+    )
+    require(
+        enrichment["tim007Successor"] == {
+            "introducedInVersion": 50,
+            "routeResponses": list(V50_TIM007_ROUTE_RESPONSES),
+        },
+        "tim007Successor must contain only the exact v50 response bindings",
     )
     authority = enrichment["authorityEndpoints"]
     require(
@@ -1611,6 +1683,25 @@ def _apply_descriptor_enrichments(
             route["stepUpCommandBindings"] = copy.deepcopy(
                 patch["stepUpCommandBindings"]
             )
+    tim007_successor = enrichment["tim007Successor"]
+    if version >= tim007_successor["introducedInVersion"]:
+        for patch in tim007_successor["routeResponses"]:
+            route_key = patch["routeContractKey"]
+            route = routes[route_key]
+            profiles = unique(
+                route["accessProfiles"], "profileKey", f"{route_key} profiles"
+            )
+            profile = profiles[patch["profileKey"]]
+            profile["responseSchemaKey"] = patch["responseSchemaKey"]
+            if "openApiSchemaSha256" in patch:
+                profile["responseProjectionBindings"] = [{
+                    "apiBindingKey": patch["apiBindingKey"],
+                    "projectionPolicyKey": patch["projectionPolicyKey"],
+                    "responseSchemaKey": patch["responseSchemaKey"],
+                    "schemaVersion": 1,
+                    "openApiSchemaSha256": patch["openApiSchemaSha256"],
+                    "additionalProperties": False,
+                }]
     return candidate
 
 
@@ -1668,6 +1759,54 @@ def _apply_projection_binding(route: dict[str, Any], patch: Any) -> None:
         })
     projections.append(projection)
     profiles[0]["responseProjectionBindings"] = projections
+
+
+def _is_v50_tim007_response_upgrade(
+    route_key: str,
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    patch = next(
+        (
+            value for value in V50_TIM007_ROUTE_RESPONSES
+            if value["routeContractKey"] == route_key
+        ),
+        None,
+    )
+    if patch is None:
+        return False
+    prior = copy.deepcopy(previous)
+    candidate = copy.deepcopy(current)
+    prior_profiles = unique(
+        prior["accessProfiles"], "profileKey", f"{route_key} previous profiles"
+    )
+    candidate_profiles = unique(
+        candidate["accessProfiles"], "profileKey", f"{route_key} current profiles"
+    )
+    profile_key = patch["profileKey"]
+    if prior_profiles.keys() != candidate_profiles.keys() or profile_key not in candidate_profiles:
+        return False
+    profile = candidate_profiles[profile_key]
+    if "openApiSchemaSha256" in patch:
+        expected_projection = [{
+            "apiBindingKey": patch["apiBindingKey"],
+            "projectionPolicyKey": patch["projectionPolicyKey"],
+            "responseSchemaKey": patch["responseSchemaKey"],
+            "schemaVersion": 1,
+            "openApiSchemaSha256": patch["openApiSchemaSha256"],
+            "additionalProperties": False,
+        }]
+    else:
+        expected_projection = copy.deepcopy(
+            prior_profiles[profile_key]["responseProjectionBindings"]
+        )
+        expected_projection[0]["responseSchemaKey"] = patch["responseSchemaKey"]
+    if profile.get("responseProjectionBindings") != expected_projection:
+        return False
+    profile["responseProjectionBindings"] = copy.deepcopy(
+        prior_profiles[profile_key]["responseProjectionBindings"]
+    )
+    return candidate == prior
 
 
 def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) -> None:
@@ -1811,6 +1950,14 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
                     f"v49/{descriptor_key}: payroll calculate hardening drift",
                 )
                 continue
+            if (
+                current["version"] == 50
+                and section == "routes"
+                and _is_v50_tim007_response_upgrade(
+                    descriptor_key, prior_descriptor, candidate_descriptor
+                )
+            ):
+                continue
             if prior_descriptor != candidate_descriptor or not prior_routes <= candidate_routes:
                 drift.append(descriptor_key)
         require(
@@ -1821,6 +1968,11 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
         require(
             not added_descriptor and applied_v37_correction,
             "v37 must contain only the exact time void access-profile correction",
+        )
+    elif current["version"] == 50:
+        require(
+            not added_descriptor,
+            "v50 must contain only the exact TIM-007 response binding successor",
         )
     else:
         require(added_descriptor,
@@ -2280,6 +2432,7 @@ def _validate_approval_projection_schema_metadata(
     seen_extension_routes: set[str] = set()
     seen_release10_routes: set[str] = set()
     seen_recovery11_routes: set[str] = set()
+    seen_tim007_routes: set[str] = set()
     for route in snapshot["routes"]:
         subject = route["subject"]
         approval_route = (
@@ -2300,7 +2453,26 @@ def _validate_approval_projection_schema_metadata(
                 extension = APPROVAL_EXTENSION_V9_PROJECTIONS.get(route["routeContractKey"])
                 release10 = APPROVAL_RELEASE10_PROJECTIONS.get(route["routeContractKey"])
                 recovery11 = APPROVAL_RECOVERY11_PROJECTIONS.get(route["routeContractKey"])
-                if snapshot["version"] >= 11 and recovery11 is not None:
+                tim007 = next(
+                    (
+                        value for value in V50_TIM007_ROUTE_RESPONSES
+                        if value["routeContractKey"] == route["routeContractKey"]
+                        and "openApiSchemaSha256" in value
+                    ),
+                    None,
+                )
+                if snapshot["version"] >= 50 and tim007 is not None:
+                    key = route["routeContractKey"]
+                    require(profile_key == tim007["profileKey"] and projection == {
+                        "apiBindingKey": tim007["apiBindingKey"],
+                        "projectionPolicyKey": tim007["projectionPolicyKey"],
+                        "responseSchemaKey": tim007["responseSchemaKey"],
+                        "schemaVersion": 1,
+                        "openApiSchemaSha256": tim007["openApiSchemaSha256"],
+                        "additionalProperties": False,
+                    }, f"{key}: invalid TIM-007 v50 projection metadata")
+                    seen_tim007_routes.add(key)
+                elif snapshot["version"] >= 11 and recovery11 is not None:
                     key = route["routeContractKey"]
                     require(profile_key == recovery11["profileKey"] and projection == {
                         field: value for field, value in recovery11.items() if field != "profileKey"
@@ -2385,6 +2557,14 @@ def _validate_approval_projection_schema_metadata(
     require(seen_recovery11_routes == (set(APPROVAL_RECOVERY11_PROJECTIONS)
                                       if snapshot["version"] >= 11 else set()),
             "Approval recovery11 projection schema coverage drift")
+    expected_tim007 = {
+        value["routeContractKey"] for value in V50_TIM007_ROUTE_RESPONSES
+        if "openApiSchemaSha256" in value
+    } if snapshot["version"] >= 50 else set()
+    require(
+        seen_tim007_routes == expected_tim007,
+        "TIM-007 v50 projection schema coverage drift",
+    )
 
 
 def _validate_revision(item: dict[str, Any], key: str) -> None:
@@ -3954,6 +4134,10 @@ def verify_no_out_of_lineage_artifacts() -> None:
         HCM_TIME_PEP_V49_OUTPUT,
         HCM_PLATFORM_PEP_V49_OUTPUT,
         HCM_PAYROLL_PEP_V49_OUTPUT,
+        HCM_PEOPLE_PEP_V50_OUTPUT,
+        HCM_TIME_PEP_V50_OUTPUT,
+        HCM_PLATFORM_PEP_V50_OUTPUT,
+        HCM_PAYROLL_PEP_V50_OUTPUT,
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -4676,6 +4860,50 @@ def main() -> int:
             version=49,
             product_key="hcm",
         )
+        hcm_people_pep_v50 = build_approvals_pep(
+            snapshots[49], "people", "hcm-people-pep-v50",
+            {
+                "routes": 103, "bindings": 130,
+                "routeKinds": {"ACTION": 48, "DATA": 20, "PAGE": 35},
+                "capabilities": 52, "accessPolicies": 5,
+                "entitlementExpressions": 3, "predicatePolicies": 18,
+            },
+            version=50,
+            product_key="hcm",
+        )
+        hcm_time_pep_v50 = build_approvals_pep(
+            snapshots[49], "time", "hcm-time-pep-v50",
+            {
+                "routes": 29, "bindings": 29,
+                "routeKinds": {"ACTION": 16, "DATA": 6, "PAGE": 7},
+                "capabilities": 15, "accessPolicies": 0,
+                "entitlementExpressions": 0, "predicatePolicies": 9,
+            },
+            version=50,
+            product_key="hcm",
+        )
+        hcm_platform_pep_v50 = build_approvals_pep(
+            snapshots[49], "platform", "hcm-platform-pep-v50",
+            {
+                "routes": 53, "bindings": 54,
+                "routeKinds": {"ACTION": 27, "DATA": 19, "PAGE": 7},
+                "capabilities": 21, "accessPolicies": 4,
+                "entitlementExpressions": 3, "predicatePolicies": 11,
+            },
+            version=50,
+            product_key="hcm",
+        )
+        hcm_payroll_pep_v50 = build_approvals_pep(
+            snapshots[49], "payroll", "hcm-payroll-pep-v50",
+            {
+                "routes": 34, "bindings": 34,
+                "routeKinds": {"ACTION": 21, "DATA": 11, "PAGE": 2},
+                "capabilities": 16, "accessPolicies": 0,
+                "entitlementExpressions": 0, "predicatePolicies": 8,
+            },
+            version=50,
+            product_key="hcm",
+        )
     except ContractError as exc:
         print(f"authorization contract error: {exc}", file=sys.stderr)
         return 1
@@ -4922,6 +5150,26 @@ def main() -> int:
                 render(hcm_payroll_pep_v49),
                 args.check,
             ),
+            write_or_check(
+                HCM_PEOPLE_PEP_V50_OUTPUT,
+                render(hcm_people_pep_v50),
+                args.check,
+            ),
+            write_or_check(
+                HCM_TIME_PEP_V50_OUTPUT,
+                render(hcm_time_pep_v50),
+                args.check,
+            ),
+            write_or_check(
+                HCM_PLATFORM_PEP_V50_OUTPUT,
+                render(hcm_platform_pep_v50),
+                args.check,
+            ),
+            write_or_check(
+                HCM_PAYROLL_PEP_V50_OUTPUT,
+                render(hcm_payroll_pep_v50),
+                args.check,
+            ),
         ]
     )
     if not all(outcomes):
@@ -5038,6 +5286,10 @@ def main() -> int:
         verify_approvals_pep(HCM_TIME_PEP_V49_OUTPUT, hcm_time_pep_v49)
         verify_approvals_pep(HCM_PLATFORM_PEP_V49_OUTPUT, hcm_platform_pep_v49)
         verify_approvals_pep(HCM_PAYROLL_PEP_V49_OUTPUT, hcm_payroll_pep_v49)
+        verify_approvals_pep(HCM_PEOPLE_PEP_V50_OUTPUT, hcm_people_pep_v50)
+        verify_approvals_pep(HCM_TIME_PEP_V50_OUTPUT, hcm_time_pep_v50)
+        verify_approvals_pep(HCM_PLATFORM_PEP_V50_OUTPUT, hcm_platform_pep_v50)
+        verify_approvals_pep(HCM_PAYROLL_PEP_V50_OUTPUT, hcm_payroll_pep_v50)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1

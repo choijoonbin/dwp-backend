@@ -14,7 +14,7 @@ class ProductAuthorizationReleaseLineageTest {
             new ProductAuthorizationContractValidator(mapper);
 
     @Test
-    void preservesV33ThroughV48AndAcceptsOnlyThePinnedR7V49() throws Exception {
+    void preservesV33ThroughV49AndAcceptsOnlyThePinnedTim007V50() throws Exception {
         try (var v33Input = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v33.generated.json")
                 .getInputStream();
@@ -65,6 +65,9 @@ class ProductAuthorizationReleaseLineageTest {
                      .getInputStream();
              var v49Input = new ClassPathResource(
                      "product-authorization/product-surfaces-v1.bundle-v49.generated.json")
+                     .getInputStream();
+             var v50Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v50.generated.json")
                      .getInputStream()) {
             var v33 = validator.validateDocument(v33Input);
             var v34 = validator.validateDocument(v34Input);
@@ -83,6 +86,7 @@ class ProductAuthorizationReleaseLineageTest {
             var v47 = validator.validateDocument(v47Input);
             var v48 = validator.validateDocument(v48Input);
             var v49 = validator.validateDocument(v49Input);
+            var v50 = validator.validateDocument(v50Input);
 
             assertThat(v33.checksum()).isEqualTo(
                     "9c9a18b44eb83de0e98f4ec16e44c1df0ce216e00bc7075462f4e35f7fb87639");
@@ -145,6 +149,10 @@ class ProductAuthorizationReleaseLineageTest {
                     "5c1dccdc27d8b260fbf001de5695e983a7107072824a8087038340d0d84cbc60");
             assertThat(v49.capabilities()).hasSize(262);
             assertThat(v49.routes()).hasSize(1079);
+            assertThat(v50.checksum()).isEqualTo(
+                    "c52222caad2749c4048c694f6582e157f6ab1184f73237f0944c3d88807a2760");
+            assertThat(v50.capabilities()).hasSize(262);
+            assertThat(v50.routes()).hasSize(1079);
         }
     }
 

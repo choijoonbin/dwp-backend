@@ -1139,6 +1139,7 @@ def apply_design_time_overlay(
                     approved_snapshot
                     and canonical.get("x-dwp-reviewed-design-time-contract") in {
                         "HRM-010",
+                        "TIM-007-CENTRAL-BRIDGE-R1",
                         "WAVE5-PER-TIM-TRANSPORT-R1",
                     }
                 )
@@ -2229,6 +2230,11 @@ def validate_wave5_hris_control_contract(
         if success_contract is None:
             raise RuntimeError(f"Wave5 HRIS success contract missing: {route_key}")
         success_status, success_media_type = success_contract
+        effective_response_schema = (
+            "TimeCommandReceiptLookupV1"
+            if route_key == "route.hcm.time.command-receipt.data"
+            else response_schema
+        )
         for label, operation, schema_prefix in (
             ("source", source, ""),
             ("owner", owner, ""),
@@ -2244,7 +2250,7 @@ def validate_wave5_hris_control_contract(
             expected_success_content = {
                 success_media_type: {"schema": {
                     "$ref": (
-                        f"#/components/schemas/{schema_prefix}{response_schema}"
+                        f"#/components/schemas/{schema_prefix}{effective_response_schema}"
                     )
                 }}
             }

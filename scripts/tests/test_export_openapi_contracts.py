@@ -178,6 +178,34 @@ IDEMPOTENT_WORKPLACE_MUTATIONS = frozenset({
     ("post", "/v1/admin/workplace/connectors/{kind}/replays"),
 })
 
+TIM007_TIME_SCHEMA_NAMES = frozenset({
+    "HrisTimeProblemV1",
+    "PayrollTimeHandoffCommandV1",
+    "PayrollTimeHandoffStatusV1",
+    "TimIaqAggregateFilterV1",
+    "TimIaqAggregateValueV1",
+    "TimIaqEffectiveRangeFilterV1",
+    "TimIaqEffectiveRangeValueV1",
+    "TimIaqReceiptFilterV1",
+    "TimIaqReceiptValueV1",
+    "TimIaqStatusFilterV1",
+    "TimIaqStatusValueV1",
+    "TimeCloseCommandReceiptV1",
+    "TimeCloseCommandV1",
+    "TimeCloseValidationCommandV1",
+    "TimeCommandCenterFilterV1",
+    "TimeCommandCenterProjectionV1",
+    "TimeCommandCenterQueryV1",
+    "TimeCommandReceiptLookupV1",
+    "TimeDailyCloseFilterV1",
+    "TimeDailyCloseProjectionV1",
+    "TimeDailyCloseQueryV1",
+    "TimeMonthlyCloseFilterV1",
+    "TimeMonthlyCloseProjectionV1",
+    "TimeMonthlyCloseQueryV1",
+    "TimeReopenCommandV1",
+})
+
 
 class ExportOpenApiContractsTest(unittest.TestCase):
     def test_v20_human_workplace_delta_is_exact_and_gateway_governed(self) -> None:
@@ -1163,6 +1191,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 ("get", "/v1/hris/explorer", "explorer"),
                 ("put", "/v1/hris/explorer/preferences", "replacePreferences"),
                 ("post", "/v1/hris/explorer/recents", "recordRecent"),
+                ("get", "/v1/admin/hris/file-transfers", "catalog"),
+                ("post", "/v1/admin/hris/file-transfers", "request"),
                 (
                     "get",
                     "/v1/admin/hris/command-receipts/{receiptId}",
@@ -1328,6 +1358,16 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 ("post", "/v1/hris/payroll/foundation/configurations/{configurationId}/reversals", "reverse"),
                 ("get", "/v1/hris/payroll/foundation/receipts/{commandId}", "receipt"),
                 ("post", "/v1/hris/payroll/foundation/receipts/{commandId}/reconcile", "reconcile"),
+                ("get", "/v1/settings/payroll/foundation/configurations", "configurations"),
+                ("post", "/v1/settings/payroll/foundation/configurations", "create"),
+                ("get", "/v1/settings/payroll/foundation/configurations/{configurationId}", "configuration"),
+                ("put", "/v1/settings/payroll/foundation/configurations/{configurationId}", "update"),
+                ("get", "/v1/settings/payroll/foundation/configurations/{configurationId}/versions", "versions"),
+                ("post", "/v1/settings/payroll/foundation/configurations/{configurationId}/simulations", "simulate"),
+                ("post", "/v1/settings/payroll/foundation/configurations/{configurationId}/publish", "publish"),
+                ("post", "/v1/settings/payroll/foundation/configurations/{configurationId}/reversals", "reverse"),
+                ("get", "/v1/settings/payroll/foundation/receipts/{commandId}", "receipt"),
+                ("post", "/v1/settings/payroll/foundation/receipts/{commandId}/reconcile", "reconcile"),
                 ("post", "/v1/runs/{runId}/attempts", "calculate"),
                 ("get", "/v1/runs/{runId}", "run"),
                 ("post", "/v1/runs/{runId}/approvals", "approve"),
@@ -1337,13 +1377,21 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             "time": {
                 ("post", "/v1/clock-events", "record"),
                 ("post", "/v1/clock-events/{eventId}/voids", "voidEvent"),
+                ("post", "/v1/close-periods/{periodId}/close", "closePeriod"),
+                ("post", "/v1/close-periods/{periodId}/payroll-handoffs", "createPayrollHandoff"),
+                ("post", "/v1/close-periods/{periodId}/reopen", "reopenPeriod"),
+                ("post", "/v1/close-periods/{periodId}/validations", "validateClosePeriod"),
                 ("get", "/v1/hris/work-plans", "list"),
                 ("post", "/v1/hris/work-plans/drafts", "createDraft"),
                 ("post", "/v1/hris/work-plans/{workPlanId}/simulations", "simulate"),
                 ("post", "/v1/hris/work-plans/{workPlanId}/actions/{action}", "transition"),
                 ("get", "/v1/hris/work-plan-receipts/{receiptId}", "receipt"),
                 ("get", "/v1/hris/workbench/clock-ingestion", "workbench"),
+                ("get", "/v1/hris/workbench/time-command-center", "commandCenter"),
+                ("get", "/v1/hris/workbench/time-daily-close", "dailyClose"),
                 ("get", "/v1/hris/workbench/time-exceptions", "exceptions"),
+                ("get", "/v1/hris/workbench/time-monthly-close", "monthlyClose"),
+                ("get", "/v1/payroll-handoffs/{handoffId}", "getPayrollHandoff"),
                 ("get", "/v1/timecards/{timecardId}", "timecard"),
                 ("post", "/v1/timecards/{timecardId}/corrections", "correct"),
                 ("post", "/v1/timecards/{timecardId}/submit", "submit"),
@@ -2366,7 +2414,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 self.assertEqual(
                     set(schemas),
                     expected_schemas[service]
-                    | set(EXPORTER["WAVE5_TIM_TRANSPORT_SCHEMA_NAMES"]),
+                    | set(EXPORTER["WAVE5_TIM_TRANSPORT_SCHEMA_NAMES"])
+                    | set(TIM007_TIME_SCHEMA_NAMES),
                 )
 
     def test_g3_assignment_reviewed_components_reconcile_only_approved_snapshots(
@@ -2546,7 +2595,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                     self.assertTrue(owner_path.startswith("/internal/"))
                     self.assertNotIn(owner_path, gateway["paths"])
                     continue
-                for method in path_item:
+                for method, owner_operation in path_item.items():
                     self.assertIn(
                         method,
                         gateway["paths"].get(public_path, {}),
@@ -2559,7 +2608,20 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                         )
                         if isinstance(parameter, dict)
                     }
-                    self.assertIn(("query", "contextScopeKey"), parameters)
+                    reviewed_contract = owner_operation.get(
+                        "x-dwp-reviewed-design-time-contract"
+                    )
+                    sealed_without_context_override = (
+                        reviewed_contract == "R7-C1-PAY-SETTINGS-AUTHORITY-V1"
+                        or (
+                            reviewed_contract == "TIM-007-CENTRAL-BRIDGE-R1"
+                            and owner_path != "/v1/command-receipts/{receiptId}"
+                        )
+                    )
+                    if sealed_without_context_override:
+                        self.assertNotIn(("query", "contextScopeKey"), parameters)
+                    else:
+                        self.assertIn(("query", "contextScopeKey"), parameters)
 
     def test_v15_governs_and_mirrors_every_apr17_through_24_operation(self) -> None:
         current = json.loads(

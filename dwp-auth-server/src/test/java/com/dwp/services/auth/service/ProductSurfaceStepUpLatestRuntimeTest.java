@@ -547,6 +547,45 @@ class ProductSurfaceStepUpLatestRuntimeTest {
     }
 
     @Test
+    void genuineV50SealedRuntimeKeepsOnlyCloseAndReopenAvailableForTimeStepUp() {
+        rollback(() -> {
+            var contracts = context.getBean(ProductAuthorizationContractService.class);
+            contracts.approve(KEY, 50L, "test-checker");
+            contracts.activate(KEY, 50L, "test-release",
+                    repository.findActivePointer(KEY).orElseThrow().revision());
+
+            var close = resolver.resolve(timeCloseRequest("close"));
+            assertThat(close.bundleVersion()).isEqualTo(50L);
+            assertThat(close.bundleChecksum()).isEqualTo(
+                    "c52222caad2749c4048c694f6582e157f6ab1184f73237f0944c3d88807a2760");
+            assertThat(close.routeContractKey())
+                    .isEqualTo("route.hcm.operations.time-close.action");
+            assertThat(close.capabilityContractKey())
+                    .isEqualTo("hcm.operations.time.close");
+            assertThat(close.targetType()).isEqualTo("TIME_PERIOD");
+            assertThat(close.targetIdPathParameter()).isEqualTo("periodId");
+            assertThat(close.audience()).isEqualTo("dwp-time-server");
+
+            var reopen = resolver.resolve(timeCloseRequest("reopen"));
+            assertThat(reopen.bundleVersion()).isEqualTo(50L);
+            assertThat(reopen.routeContractKey())
+                    .isEqualTo("route.hcm.operations.time-reopen.action");
+            assertThat(reopen.capabilityContractKey())
+                    .isEqualTo("hcm.operations.time.reopen");
+            assertThat(reopen.targetType()).isEqualTo("TIME_PERIOD");
+            assertThat(reopen.targetIdPathParameter()).isEqualTo("periodId");
+            assertThat(reopen.audience()).isEqualTo("dwp-time-server");
+
+            for (String suffix : List.of("validations", "payroll-handoffs")) {
+                assertThatThrownBy(() -> resolver.resolve(timeCloseRequest(suffix)))
+                        .isInstanceOfSatisfying(BaseException.class, error ->
+                                assertThat(error.getErrorCode())
+                                        .isEqualTo(ErrorCode.STEP_UP_CHALLENGE_MISMATCH));
+            }
+        });
+    }
+
+    @Test
     void genuineFourteenAllowsOnlyNonPublishingReviewRejectionWithoutStepUp() {
         rollback(() -> {
             var contracts = context.getBean(ProductAuthorizationContractService.class);
@@ -715,6 +754,15 @@ class ProductSurfaceStepUpLatestRuntimeTest {
                 "PAY_GROUP_49", "PAYROLL_RUN", "run-49", 7L,
                 "payroll-calculate-49", JSON.createObjectNode(), null,
                 "/hr/operations/payroll");
+    }
+
+    private static ProductSurfaceStepUpDtos.IssueRequest timeCloseRequest(String suffix) {
+        String periodId = "00000000-0000-4000-8000-000000000050";
+        return new ProductSurfaceStepUpDtos.IssueRequest(
+                "POST", "/api/time/v1/close-periods/" + periodId + "/" + suffix,
+                "opaque-context", "TIME_PERIOD_50", "TIME_PERIOD", periodId, 9L,
+                "time-close-50-" + suffix, JSON.createObjectNode(), null,
+                "/hr/operations/time");
     }
 
     @Test

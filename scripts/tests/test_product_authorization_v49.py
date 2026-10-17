@@ -12,6 +12,7 @@ AUTH_SEEDS = ROOT / "dwp-auth-server/src/main/resources/product-authorization"
 V48_CHECKSUM = "9fd324cd67ede1f02cc8ac33c08ad880ec6e283f99f5d7aa50e0e514545aa043"
 V48_FILE_SHA256 = "5b1d87250c3adcc72f2dd75238956c1da69a31d47512394480dba865ebced3c4"
 V49_CHECKSUM = "5c1dccdc27d8b260fbf001de5695e983a7107072824a8087038340d0d84cbc60"
+V50_CHECKSUM = "c52222caad2749c4048c694f6582e157f6ab1184f73237f0944c3d88807a2760"
 SPEC = importlib.util.spec_from_file_location(
     "v49_authorization_generator",
     ROOT / "scripts" / "generate-product-authorization-contracts.py",
@@ -95,6 +96,9 @@ class ProductAuthorizationV49Test(unittest.TestCase):
         cls.v48 = json.loads(cls.v48_path.read_text())
         cls.v49 = json.loads(
             (CONTRACTS / "product-surfaces-v1.bundle-v49.json").read_text()
+        )
+        cls.v50 = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v50.json").read_text()
         )
         cls.routes = {route["routeContractKey"]: route for route in cls.v49["routes"]}
         cls.capabilities = {
@@ -314,9 +318,9 @@ class ProductAuthorizationV49Test(unittest.TestCase):
         alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
         seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual(self.v49, alias)
-        self.assertEqual(self.v49, seed)
-        self.assertEqual((49, V49_CHECKSUM),
+        self.assertEqual(self.v50, alias)
+        self.assertEqual(self.v50, seed)
+        self.assertEqual((50, V50_CHECKSUM),
                          (index["latestVersion"], index["latestChecksum"]))
         expected = {
             "people": (103, 130, {"ACTION": 48, "DATA": 20, "PAGE": 35},
