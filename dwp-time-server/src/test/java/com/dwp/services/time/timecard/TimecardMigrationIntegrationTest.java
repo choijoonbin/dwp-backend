@@ -404,7 +404,7 @@ class TimecardMigrationIntegrationTest {
                 upgradeMigrationDataSource, tenant, worker);
 
         assertThat(flyway(upgradeMigrationDataSource, null).migrate().migrationsExecuted)
-                .isOne();
+                .isEqualTo(2);
         assertThat(upgradeAdmin.queryForObject("""
                 SELECT relforcerowsecurity
                   FROM pg_class WHERE oid = 'public.tme_time_ledger_entries'::regclass
@@ -510,7 +510,7 @@ class TimecardMigrationIntegrationTest {
                 """, Integer.class, tenant)).isZero();
 
         assertThat(flyway(migrationDataSource, null).migrate().migrationsExecuted)
-                .isOne();
+                .isEqualTo(2);
         assertThat(upgradeAdmin.queryForObject("""
                 SELECT count(*) FROM pg_constraint
                  WHERE conname IN (
