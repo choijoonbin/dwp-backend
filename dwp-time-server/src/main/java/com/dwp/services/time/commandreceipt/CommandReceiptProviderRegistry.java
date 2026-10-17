@@ -192,6 +192,10 @@ public final class CommandReceiptProviderRegistry implements AutoCloseable {
         } catch (ExecutionException failedRead) {
             Throwable cause = failedRead.getCause();
             if (cause instanceof HrisTimeApiException expected) {
+                if (expected.code() == HrisTimeProblemCode.AUTHORITY_UNAVAILABLE) {
+                    audit(lookup, CommandReceiptAuditEvent.Failure.OWNER_READ_ERROR,
+                            List.of(owner.identifier()));
+                }
                 throw expected;
             }
             audit(lookup, CommandReceiptAuditEvent.Failure.OWNER_READ_ERROR,

@@ -133,6 +133,29 @@ class CommandReceiptProviderRegistryTest {
                         .isEqualTo(CommandReceiptAuditEvent.Failure.PROVIDER_LOOKUP_TIMEOUT));
     }
 
+    @Test
+    void uniqueOwnerAuthorityUnavailableReadIsAuditedAndFailsClosed() {
+        List<CommandReceiptAuditEvent> audits = new ArrayList<>();
+        StubProvider owner = new StubProvider("timecard", ignored -> true, ignored -> {
+            throw HrisTimeApiException.of(HrisTimeProblemCode.AUTHORITY_UNAVAILABLE);
+        });
+
+        try (CommandReceiptProviderRegistry registry = new CommandReceiptProviderRegistry(
+                List.of(owner), audits::add, Duration.ofSeconds(1))) {
+            assertThatThrownBy(() -> registry.lookup(lookup()))
+                    .isInstanceOfSatisfying(HrisTimeApiException.class, failure ->
+                            assertThat(failure.code())
+                                    .isEqualTo(HrisTimeProblemCode.AUTHORITY_UNAVAILABLE));
+        }
+
+        assertThat(owner.read).isTrue();
+        assertThat(audits).singleElement().satisfies(event -> {
+            assertThat(event.failure())
+                    .isEqualTo(CommandReceiptAuditEvent.Failure.OWNER_READ_ERROR);
+            assertThat(event.providerIds()).containsExactly("timecard");
+        });
+    }
+
     private CommandReceiptLookup lookup() {
         return new CommandReceiptLookup(41, RECEIPT, CORRELATION, new Object());
     }
