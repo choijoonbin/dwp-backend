@@ -16,6 +16,11 @@ final class ProductSurfaceContextAggregationSupport {
     static ProductSurfaceContextDtos.SourceRevisions aggregateRevisions(
             ProductSurfaceContextDtos.RequestContext requestContext,
             List<Resolution> resolutions) {
+        if (resolutions.isEmpty() || resolutions.stream()
+                .anyMatch(value -> value.revisions() == null
+                        || blank(value.revisions().tenantControl()))) {
+            throw new ProductSurfaceAuthorityUnavailableException();
+        }
         return new ProductSurfaceContextDtos.SourceRevisions(
                 collapse(resolutions.stream().map(value -> value.revisions().auth()).toList()),
                 collapse(resolutions.stream().map(value -> value.revisions().policy()).toList()),
@@ -23,6 +28,8 @@ final class ProductSurfaceContextAggregationSupport {
                         .map(value -> value.revisions().productRelationship()).toList()),
                 collapse(resolutions.stream()
                         .map(value -> value.revisions().targetPopulation()).toList()),
+                collapse(resolutions.stream()
+                        .map(value -> value.revisions().tenantControl()).toList()),
                 requestContext.supportRevision());
     }
 
@@ -72,6 +79,7 @@ final class ProductSurfaceContextAggregationSupport {
                 Objects.toString(revisions.policy(), ""),
                 Objects.toString(revisions.productRelationship(), ""),
                 Objects.toString(revisions.targetPopulation(), ""),
+                Objects.toString(revisions.tenantControl(), ""),
                 Objects.toString(revisions.support(), "")));
         rollouts.forEach(value -> material.append('\n')
                 .append(value.productKey()).append(':').append(value.state()).append(':')
