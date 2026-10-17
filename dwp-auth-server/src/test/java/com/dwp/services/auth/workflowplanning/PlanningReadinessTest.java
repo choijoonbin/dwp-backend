@@ -35,8 +35,9 @@ class PlanningReadinessTest {
         for(long version=10;version<=16;version++)
             assertThat(PlanningProtocol.supportedPolicyRevision("policy-"+version+"-1-"+"a".repeat(64))).isTrue();
         assertThat(PlanningProtocol.supportedPolicyRevision("policy-32-1-"+"a".repeat(64))).isTrue();
+        assertThat(PlanningProtocol.supportedPolicyRevision("policy-39-1-"+"a".repeat(64))).isTrue();
         for(String invalid:java.util.List.of("policy-9-1-"+"a".repeat(64),"policy-17-1-"+"a".repeat(64),"policy-31-1-"+"a".repeat(64),
-                "policy-33-1-"+"a".repeat(64),
+                "policy-33-1-"+"a".repeat(64),"policy-38-1-"+"a".repeat(64),"policy-40-1-"+"a".repeat(64),
                 "policy-14-0-"+"a".repeat(64),"policy-14-1-"+"A".repeat(64),"policy-14-1-"+"a".repeat(63),""))
             assertThat(PlanningProtocol.supportedPolicyRevision(invalid)).as(invalid).isFalse();
         assertThat(PlanningProtocol.supportedPolicyRevision(null)).isFalse();
