@@ -209,12 +209,15 @@ LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT = (
 HCM_PAYROLL_PEP_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
     "hcm-payroll-pep-v41.generated.json"
 )
+HCM_PAYROLL_PEP_V48_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
+    "hcm-payroll-pep-v48.generated.json"
+)
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 48))
+BUNDLE_VERSIONS = tuple(range(1, 49))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -342,6 +345,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 73, "routes": 1048, "PAGE": 133, "DATA": 317, "ACTION": 598},
     47: {"capabilities": 258, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 73, "routes": 1053, "PAGE": 138, "DATA": 317, "ACTION": 598},
+    48: {"capabilities": 258, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 73, "routes": 1063, "PAGE": 138, "DATA": 321, "ACTION": 604},
 }
 
 V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
@@ -482,6 +487,7 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     45: "6f41e17159104cd0fd721a13877611b6225bd6458cb2831f0f30e51573992e64",
     46: "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e",
     47: "925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e",
+    48: "9fd324cd67ede1f02cc8ac33c08ad880ec6e283f99f5d7aa50e0e514545aa043",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -3545,6 +3551,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         HCM_PLATFORM_PEP_V47_OUTPUT,
         LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT,
         HCM_PAYROLL_PEP_OUTPUT,
+        HCM_PAYROLL_PEP_V48_OUTPUT,
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -4187,6 +4194,22 @@ def main() -> int:
             version=41,
             product_key="hcm",
         )
+        hcm_payroll_pep_v48 = build_approvals_pep(
+            snapshots[47],
+            "payroll",
+            "hcm-payroll-pep-v48",
+            {
+                "routes": 31,
+                "bindings": 31,
+                "routeKinds": {"ACTION": 20, "DATA": 10, "PAGE": 1},
+                "capabilities": 16,
+                "accessPolicies": 0,
+                "entitlementExpressions": 0,
+                "predicatePolicies": 6,
+            },
+            version=48,
+            product_key="hcm",
+        )
     except ContractError as exc:
         print(f"authorization contract error: {exc}", file=sys.stderr)
         return 1
@@ -4408,6 +4431,11 @@ def main() -> int:
                 render(hcm_payroll_pep),
                 args.check,
             ),
+            write_or_check(
+                HCM_PAYROLL_PEP_V48_OUTPUT,
+                render(hcm_payroll_pep_v48),
+                args.check,
+            ),
         ]
     )
     if not all(outcomes):
@@ -4519,6 +4547,7 @@ def main() -> int:
             LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT, legacy_hcm_payroll_pep_v38
         )
         verify_approvals_pep(HCM_PAYROLL_PEP_OUTPUT, hcm_payroll_pep)
+        verify_approvals_pep(HCM_PAYROLL_PEP_V48_OUTPUT, hcm_payroll_pep_v48)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1
