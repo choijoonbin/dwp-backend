@@ -1,5 +1,6 @@
 package com.dwp.services.platform.security;
 
+import com.dwp.core.security.ProductSurfaceScopeKey;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -24,6 +25,13 @@ class HcmPlatformPepSecurityContractTest {
             "psc-" + "0123456789abcdef".repeat(4);
     private static final String OTHER_EXPLORER_CONTEXT =
             "psc-" + "fedcba9876543210".repeat(4);
+    private static final String SYS002_RESOURCE_SET = "RS_HCM_OPERATIONS_ALL";
+    private static final String SYS002_SCOPE = ProductSurfaceScopeKey.key(
+            7, 101, "hcm", "hcm.operations", SYS002_RESOURCE_SET,
+            "RESOURCE_SET");
+    private static final String SYS002_SETTINGS_SCOPE = ProductSurfaceScopeKey.key(
+            7, 101, "hcm", "hcm.management",
+            "APP_RESOURCE_SET:RS_HCM_CONFIG", "RESOURCE_SET");
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final HcmPlatformPepRegistry registry =
@@ -35,8 +43,8 @@ class HcmPlatformPepSecurityContractTest {
             registry);
 
     @Test
-    void loadsOnlyTheFortyThreeExactSysCarrierBindings() {
-        assertThat(registry.bindingContracts()).hasSize(43)
+    void loadsOnlyTheFortySixExactSysCarrierBindings() {
+        assertThat(registry.bindingContracts()).hasSize(46)
                 .extracting(HcmPlatformPepRegistry.BindingContract::routeContractKey)
                 .contains(
                         "route.hcm.configuration.settings-reference.page",
@@ -60,7 +68,10 @@ class HcmPlatformPepSecurityContractTest {
                         "route.hcm.shell.navigation-aggregate-v3.data",
                         "route.hcm.shell.navigation-deep-link-decision-v3.data",
                         "route.hcm.configuration.navigation-policy-v2-workspace.data",
-                        "route.hcm.configuration.navigation-policy-v2-revision-publish.action")
+                        "route.hcm.configuration.navigation-policy-v2-revision-publish.action",
+                        "route.hcm.configuration.settings-operations.page",
+                        "route.hcm.operations.exception.data",
+                        "route.hcm.operations.exception-detail.data")
                 .doesNotContain(
                         "route.hcm.shell.navigation-aggregate-v3-legal-entity.data",
                         "route.hcm.shell.navigation-deep-link-decision-v3-legal-entity.data");
@@ -111,6 +122,111 @@ class HcmPlatformPepSecurityContractTest {
                 "/v2/admin/hris/navigation-policies/workspace")).isTrue();
         assertThat(registry.governsPathFamily(
                 "/v2/admin/hris/navigation-policies-admin")).isFalse();
+        assertThat(registry.governsPathFamily(
+                "/v1/hris/workbench/settings-operations")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v1/admin/hris/operations/exceptions")).isTrue();
+        assertThat(registry.governsPathFamily(
+                "/v1//admin/hris/operations/exceptions")).isTrue();
+    }
+
+    @Test
+    void sys002RoutesRequireExactPurposeScopePackageAndObject() {
+        HcmPlatformPepRegistry.RequestEvidence settings = sys002Request(
+                "/v1/hris/workbench/settings-operations",
+                "route.hcm.configuration.settings-operations.page",
+                Set.of("CONFIG.HRIS_WORKBENCH:VIEW"), Set.of(), Set.of(),
+                null, "HRIS_CONFIGURATION",
+                SYS002_SETTINGS_SCOPE);
+        assertThat(registry.authorize(settings).allowed()).isTrue();
+        assertThat(registry.authorize(sys002Request(
+                settings.path(), settings.trustedRouteContractKey(),
+                settings.permissions(), Set.of(), Set.of(),
+                null, "HRIS_OPERATIONS",
+                SYS002_SETTINGS_SCOPE)).allowed()).isFalse();
+        assertThat(registry.authorize(sys002Request(
+                settings.path(), settings.trustedRouteContractKey(),
+                settings.permissions(), Set.of(), Set.of(),
+                null, "HRIS_CONFIGURATION",
+                "APP_RESOURCE_SET:RS_OTHER")).allowed()).isFalse();
+
+        String exceptionId = "10000000-0000-4000-8000-000000000002";
+        HcmPlatformPepRegistry.RequestEvidence detail = sys002Request(
+                "/v1/admin/hris/operations/exceptions/" + exceptionId,
+                "route.hcm.operations.exception-detail.data",
+                Set.of("APP.HCM:VIEW", "DATA.HRIS_OPERATION_EXCEPTION:VIEW"),
+                Set.of("HRIS_HR_BUSINESS_PARTNER"),
+                Set.of("HRIS_DUTY_OPERATION_EXCEPTION_READER@"
+                        + SYS002_RESOURCE_SET),
+                "TARGET_POPULATION", "HRIS_OPERATIONS", SYS002_SCOPE);
+        assertThat(registry.authorize(detail).allowed()).isTrue();
+        assertThat(registry.authorize(sys002Request(
+                detail.path(), detail.trustedRouteContractKey(), detail.permissions(),
+                detail.roles(), detail.resourceRoles(), null, "HRIS_OPERATIONS",
+                SYS002_SCOPE)).allowed()).isFalse();
+        assertThat(registry.authorize(sys002Request(
+                detail.path(), detail.trustedRouteContractKey(), detail.permissions(),
+                detail.roles(), Set.of(
+                        "HRIS_DUTY_OPERATION_EXCEPTION_READER@rs_not_canonical"),
+                "TARGET_POPULATION", "HRIS_OPERATIONS",
+                SYS002_SCOPE)).allowed()).isFalse();
+        assertThat(registry.authorize(sys002Request(
+                "/v1/admin/hris/operations/exceptions/NOT-A-UUID",
+                detail.trustedRouteContractKey(), detail.permissions(), detail.roles(),
+                detail.resourceRoles(), "TARGET_POPULATION", "HRIS_OPERATIONS",
+                SYS002_SCOPE)).allowed()).isFalse();
+    }
+
+    @Test
+    void sys002NearMissesAreClaimedAndDenied() {
+        for (String path : Set.of(
+                "/v1/hris/workbench/settings-operations/extra",
+                "/v1/hris/workbench/settings-operations;v=1",
+                "/v1/hris/workbench/settings-operations%2fextra",
+                "/v1/hris/workbench/settings-operationsx",
+                "/v1//hris/workbench/settings-operations",
+                "/v1/admin/hris/operations/exceptions/",
+                "/v1/admin/hris/operations//exceptions",
+                "/v1/admin/hris/operations/exceptions;v=1",
+                "/v1/admin/hris/operations/exceptions%2fextra",
+                "/v1/admin/hris/operations/exceptionsx")) {
+            assertThat(registry.governsPathFamily(path)).as(path).isTrue();
+            assertThat(registry.authorize(sys002Request(
+                    path, "route.hcm.operations.exception.data",
+                    Set.of("APP.HCM:VIEW", "DATA.HRIS_OPERATION_EXCEPTION:VIEW"),
+                    Set.of("HRIS_AUDITOR"),
+                    Set.of("HRIS_DUTY_OPERATION_EXCEPTION_READER@"
+                            + SYS002_RESOURCE_SET),
+                    "TARGET_POPULATION", "HRIS_OPERATIONS",
+                    SYS002_SCOPE)).allowed())
+                    .as(path).isFalse();
+        }
+    }
+
+    @Test
+    void sys002FilterRequiresTenantControlPlaneBeforeDispatch() throws Exception {
+        MockHttpServletRequest allowed = sys002HttpRequest();
+        assertThat(apply(allowed).getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest provider = sys002HttpRequest();
+        provider.removeHeader("X-DWP-Identity-Plane");
+        provider.addHeader("X-DWP-Identity-Plane", "PROVIDER");
+        assertThat(apply(provider).getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest support = sys002HttpRequest();
+        support.addHeader(PlatformSecurityFilter.SUPPORT_SESSION_HEADER, "support-1");
+        assertThat(apply(support).getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest conflicting = sys002HttpRequest();
+        conflicting.removeHeader(PlatformSecurityFilter.ROLES_HEADER);
+        conflicting.addHeader(PlatformSecurityFilter.ROLES_HEADER,
+                "HRIS_AUDITOR,PROVIDER_ADMIN");
+        assertThat(apply(conflicting).getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest duplicateRoute = sys002HttpRequest();
+        duplicateRoute.addHeader(PlatformSecurityFilter.ROUTE_CONTRACT_HEADER,
+                "route.hcm.operations.exception-detail.data");
+        assertThat(apply(duplicateRoute).getStatus()).isNotEqualTo(200);
     }
 
     @Test
@@ -774,6 +890,21 @@ class HcmPlatformPepSecurityContractTest {
                 populationKind, null, null, route);
     }
 
+    private HcmPlatformPepRegistry.RequestEvidence sys002Request(
+            String path,
+            String route,
+            Set<String> permissions,
+            Set<String> roles,
+            Set<String> resourceRoles,
+            String populationKind,
+            String purpose,
+            String scope) {
+        return new HcmPlatformPepRegistry.RequestEvidence(
+                "GET", path, permissions, roles, resourceRoles,
+                DECISION_REVISION, "psc-" + "2".repeat(64), scope,
+                populationKind, purpose, null, route);
+    }
+
     private HcmPlatformPepRegistry.ExplorerOwnerEvidence ownerEvidence() {
         return ownerEvidence(
                 DECISION_REVISION, 17, 29,
@@ -823,6 +954,30 @@ class HcmPlatformPepSecurityContractTest {
         request.removeHeader(PlatformSecurityFilter.CONTEXT_HEADER);
         request.addHeader(PlatformSecurityFilter.CONTEXT_HEADER, EXPLORER_CONTEXT);
         return request;
+    }
+
+    private MockHttpServletRequest sys002HttpRequest() {
+        MockHttpServletRequest request = base(
+                "GET", "/v1/admin/hris/operations/exceptions");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "HRIS_AUDITOR");
+        request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "APP.HCM:VIEW,DATA.HRIS_OPERATION_EXCEPTION:VIEW");
+        request.addHeader(PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "HRIS_DUTY_OPERATION_EXCEPTION_READER@" + SYS002_RESOURCE_SET);
+        request.addHeader(PlatformSecurityHeaders.POPULATION_KIND,
+                "TARGET_POPULATION");
+        request.addHeader(PlatformSecurityHeaders.PURPOSE, "HRIS_OPERATIONS");
+        trustedEvidence(request, "route.hcm.operations.exception.data", false);
+        request.removeHeader(PlatformSecurityFilter.SCOPE_HEADER);
+        request.addHeader(PlatformSecurityFilter.SCOPE_HEADER, SYS002_SCOPE);
+        return request;
+    }
+
+    private MockHttpServletResponse apply(MockHttpServletRequest request)
+            throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        return response;
     }
 
     private HcmPlatformPepRegistry.RequestEvidence transferRequest(
