@@ -129,7 +129,18 @@ public final class NavigationPolicyAggregateV2Dtos {
             OffsetDateTime publishedAt) {
     }
 
-    public record EffectiveNode(String nodeId, int displayOrder) {
+    public record EffectiveNode(
+            String nodeId,
+            int displayOrder,
+            List<String> routeAliases) {
+
+        public EffectiveNode {
+            routeAliases = List.copyOf(routeAliases);
+            if (routeAliases.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "effective navigation node requires an admitted PAGE path");
+            }
+        }
     }
 
     public record EffectiveGroup(

@@ -42,7 +42,19 @@ class NavigationPolicyAggregateV2ControllerTest {
                 NavigationPolicyAggregateV2Canonical.TASK_GROUP_REGISTER_SHA256,
                 NavigationPolicyAggregateV2Canonical.GENERATED_IA_SHA256,
                 EnforcementState.ENFORCED, true, null, null, null,
-                null, null, "nav-v2-" + "a".repeat(64), List.of(), null, NOW));
+                null, null, "nav-v2-" + "a".repeat(64),
+                List.of(new EffectiveWorkbench(
+                        "HRIS-WB-HR-OPERATIONS", 3,
+                        "BASE:hr-employment-assignments",
+                        List.of(new EffectiveGroup(
+                                "HROPS-02", 1,
+                                "BASE:hr-employment-assignments",
+                                List.of(new EffectiveNode(
+                                        "BASE:hr-employment-assignments", 0,
+                                        List.of(
+                                                "/hr/operations/people/employment-assignments",
+                                                "/hr/operations/assignments"))))))),
+                null, NOW));
         MockMvc mvc = mvc(runtime, lifecycle);
 
         mvc.perform(get("/v2/hris/navigation/projection")
@@ -59,7 +71,13 @@ class NavigationPolicyAggregateV2ControllerTest {
                 .andExpect(jsonPath("$.data.topologyRevision").value(
                         NavigationPolicyAggregateV2Canonical.TOPOLOGY_REVISION))
                 .andExpect(jsonPath("$.data.generatedIaSha256").value(
-                        NavigationPolicyAggregateV2Canonical.GENERATED_IA_SHA256));
+                        NavigationPolicyAggregateV2Canonical.GENERATED_IA_SHA256))
+                .andExpect(jsonPath(
+                        "$.data.workbenches[0].groups[0].nodes[0].routeAliases[0]")
+                        .value("/hr/operations/people/employment-assignments"))
+                .andExpect(jsonPath(
+                        "$.data.workbenches[0].groups[0].nodes[0].routeAliases[1]")
+                        .value("/hr/operations/assignments"));
         verify(runtime).projection(any());
 
         assertThatThrownBy(() -> mvc.perform(get("/v2/hris/navigation/projection")

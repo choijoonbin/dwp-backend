@@ -16,7 +16,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -65,23 +64,11 @@ class NavigationPolicyAggregateV2PostgresTest {
         lifecycle = new NavigationPolicyAggregateV2LifecycleService(
                 repository, request -> request.requestedLegalEmployerPublicId(),
                 evidence -> true, mapper, Clock.fixed(NOW.toInstant(), ZoneOffset.UTC));
+        String implementationNodes = String.join(",",
+                ServerNavigationPolicyEligibilityProvider.IMPLEMENTATION_NODE_IDS);
         NavigationPolicyEligibilityProvider eligibility =
-                new NavigationPolicyEligibilityProvider() {
-                    @Override
-                    public Set<String> installedNodeIds(long tenantId) {
-                        return NavigationPolicyAggregateV2Canonical.NODE_IDS;
-                    }
-
-                    @Override
-                    public Set<String> deployedNodeIds(long tenantId) {
-                        return NavigationPolicyAggregateV2Canonical.NODE_IDS;
-                    }
-
-                    @Override
-                    public Set<String> pageAuthorizedNodeIds(Set<String> permissions) {
-                        return NavigationPolicyAggregateV2Canonical.NODE_IDS;
-                    }
-                };
+                new ServerNavigationPolicyEligibilityProvider(
+                        implementationNodes, implementationNodes);
         runtime = new NavigationPolicyAggregateV2Service(
                 repository, request -> request.requestedLegalEmployerPublicId(),
                 eligibility, tenantId ->
@@ -152,7 +139,17 @@ class NavigationPolicyAggregateV2PostgresTest {
 
         EffectiveNavigation projection = transaction(() -> runtime.projection(runtimeContext()));
         assertThat(projection.enforcementState()).isEqualTo(EnforcementState.ENFORCED);
-        assertThat(projection.workbenches()).hasSize(7);
+        assertThat(projection.workbenches())
+                .extracting(EffectiveWorkbench::workbenchId)
+                .containsExactly(
+                        "HRIS-WB-MY-HR", "HRIS-WB-HR-OPERATIONS", "HRIS-WB-TIME",
+                        "HRIS-WB-PERFORMANCE", "HRIS-WB-SETTINGS");
+        assertThat(projection.workbenches().stream()
+                .flatMap(workbench -> workbench.groups().stream())
+                .flatMap(group -> group.nodes().stream())
+                .map(NavigationPolicyAggregateV2Dtos.EffectiveNode::nodeId))
+                .containsExactlyInAnyOrderElementsOf(
+                        ServerNavigationPolicyEligibilityProvider.IMPLEMENTATION_NODE_IDS);
         assertThat(projection.revisionPin()).matches("^nav-v2-[a-f0-9]{64}$");
         assertThat(projection.tenantRevisionId()).isEqualTo(published.revisionId());
 
@@ -237,7 +234,12 @@ class NavigationPolicyAggregateV2PostgresTest {
 
     private static RuntimeContext runtimeContext() {
         return new RuntimeContext(
-                42, 101, UUID.randomUUID(), "APP.HCM:VIEW", "TENANT_ADMIN",
+                42, 101, UUID.randomUUID(), "APP.HCM:VIEW,"
+                        + "DATA.HRIS_SELF_PROFILE:VIEW,DATA.WORKFORCE:VIEW,"
+                        + "DATA.HRIS_WORKFORCE:VIEW,ACTION.WORKFORCE_ORG_DESIGN:VIEW,"
+                        + "DATA.HR_TIME:VIEW,DATA.HR_TALENT:VIEW,"
+                        + "DATA.HRIS_COMPENSATION_PLAN:VIEW,"
+                        + "CONFIG.HRIS_WORKBENCH:VIEW", "TENANT_ADMIN",
                 scopeKey(), null, NOW.plusHours(1));
     }
 
