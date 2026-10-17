@@ -32,6 +32,8 @@ public class ProductAuthorizationOperationsSecurityConfig {
             "/internal/auth/v1/product-authorization";
     public static final String INTERNAL_PATH_PREFIX =
             INTERNAL_PATH_ROOT + "/operations";
+    public static final String FEATURE_CONTROL_PATH_ROOT =
+            "/internal/auth/v1/product-feature-control";
     public static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
     public static final String APPROVAL_TOKEN_HEADER =
             "X-DWP-Product-Authorization-Approval-Token";
@@ -50,7 +52,9 @@ public class ProductAuthorizationOperationsSecurityConfig {
             String platformActivationToken,
             ObjectMapper objectMapper) throws Exception {
         http
-                .securityMatcher(INTERNAL_PATH_ROOT + "/**")
+                .securityMatcher(
+                        INTERNAL_PATH_ROOT + "/**",
+                        FEATURE_CONTROL_PATH_ROOT + "/**")
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -121,6 +125,17 @@ public class ProductAuthorizationOperationsSecurityConfig {
 
         private Lane lane(HttpServletRequest request) {
             String path = request.getRequestURI();
+            if (path.startsWith(FEATURE_CONTROL_PATH_ROOT + "/")) {
+                if (!"POST".equals(request.getMethod())) return Lane.UNKNOWN;
+                if (path.endsWith("/approve")) return Lane.APPROVAL;
+                if (path.endsWith("/changes")
+                        || path.endsWith("/submit")
+                        || path.endsWith("/activate")
+                        || path.endsWith("/revoke")) {
+                    return Lane.ACTIVATION;
+                }
+                return Lane.UNKNOWN;
+            }
             if ("GET".equals(request.getMethod())
                     && (path.endsWith("/active")
                     || path.matches(".*/versions/[1-9][0-9]*$"))) {

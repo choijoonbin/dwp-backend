@@ -58,6 +58,41 @@ class ProductAuthorizationOperationsSecurityConfigTest {
     }
 
     @Test
+    void featureControlKeepsIndependentReviewAndPlatformTransitionLanes() throws Exception {
+        var filter = filter(APPROVAL_TOKEN, ACTIVATION_TOKEN);
+
+        assertFeatureAccepted(filter, "/global/HRIS_ORGANIZATION_POSITIONS/changes",
+                ProductAuthorizationOperationsSecurityConfig.PLATFORM_SERVICE_IDENTITY,
+                ProductAuthorizationOperationsSecurityConfig.ACTIVATION_TOKEN_HEADER,
+                ACTIVATION_TOKEN);
+        assertFeatureAccepted(filter, "/global/changes/00000000-0000-0000-0000-000000000001/submit",
+                ProductAuthorizationOperationsSecurityConfig.PLATFORM_SERVICE_IDENTITY,
+                ProductAuthorizationOperationsSecurityConfig.ACTIVATION_TOKEN_HEADER,
+                ACTIVATION_TOKEN);
+        assertFeatureAccepted(filter, "/global/changes/00000000-0000-0000-0000-000000000001/approve",
+                ProductAuthorizationOperationsSecurityConfig.PROVIDER_SERVICE_IDENTITY,
+                ProductAuthorizationOperationsSecurityConfig.APPROVAL_TOKEN_HEADER,
+                APPROVAL_TOKEN);
+        assertFeatureAccepted(filter, "/tenant/changes/00000000-0000-0000-0000-000000000001/activate",
+                ProductAuthorizationOperationsSecurityConfig.PLATFORM_SERVICE_IDENTITY,
+                ProductAuthorizationOperationsSecurityConfig.ACTIVATION_TOKEN_HEADER,
+                ACTIVATION_TOKEN);
+
+        assertFeatureRejected(filter, "/global/changes/00000000-0000-0000-0000-000000000001/approve",
+                ProductAuthorizationOperationsSecurityConfig.PLATFORM_SERVICE_IDENTITY,
+                ProductAuthorizationOperationsSecurityConfig.ACTIVATION_TOKEN_HEADER,
+                ACTIVATION_TOKEN);
+        assertFeatureRejected(filter, "/global/changes/00000000-0000-0000-0000-000000000001/activate",
+                ProductAuthorizationOperationsSecurityConfig.PROVIDER_SERVICE_IDENTITY,
+                ProductAuthorizationOperationsSecurityConfig.APPROVAL_TOKEN_HEADER,
+                APPROVAL_TOKEN);
+        assertFeatureRejected(filter, "/global/changes/00000000-0000-0000-0000-000000000001/unknown",
+                ProductAuthorizationOperationsSecurityConfig.PLATFORM_SERVICE_IDENTITY,
+                ProductAuthorizationOperationsSecurityConfig.ACTIVATION_TOKEN_HEADER,
+                ACTIVATION_TOKEN);
+    }
+
+    @Test
     void failsClosedForMissingConfigurationWrongIdentityDuplicateHeadersAndUnknownPaths()
             throws Exception {
         assertRejected(filter("", ""),
@@ -204,6 +239,45 @@ class ProductAuthorizationOperationsSecurityConfigTest {
         MockHttpServletRequest request = new MockHttpServletRequest(
                 method,
                 ProductAuthorizationOperationsSecurityConfig.INTERNAL_PATH_PREFIX + suffix);
+        request.addHeader(
+                ProductAuthorizationOperationsSecurityConfig.SERVICE_IDENTITY_HEADER,
+                identity);
+        request.addHeader(tokenHeader, token);
+        return request;
+    }
+
+    private void assertFeatureAccepted(
+            ProductAuthorizationOperationsSecurityConfig.ProductAuthorizationOperationsTokenFilter filter,
+            String suffix,
+            String identity,
+            String tokenHeader,
+            String token) throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(featureRequest(suffix, identity, tokenHeader, token), response,
+                new MockFilterChain());
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    private void assertFeatureRejected(
+            ProductAuthorizationOperationsSecurityConfig.ProductAuthorizationOperationsTokenFilter filter,
+            String suffix,
+            String identity,
+            String tokenHeader,
+            String token) throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(featureRequest(suffix, identity, tokenHeader, token), response,
+                new MockFilterChain());
+        assertThat(response.getStatus()).isEqualTo(401);
+    }
+
+    private MockHttpServletRequest featureRequest(
+            String suffix,
+            String identity,
+            String tokenHeader,
+            String token) {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "POST", ProductAuthorizationOperationsSecurityConfig.FEATURE_CONTROL_PATH_ROOT
+                        + suffix);
         request.addHeader(
                 ProductAuthorizationOperationsSecurityConfig.SERVICE_IDENTITY_HEADER,
                 identity);
