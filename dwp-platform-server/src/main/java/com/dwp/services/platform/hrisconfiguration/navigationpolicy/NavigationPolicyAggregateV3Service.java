@@ -36,8 +36,8 @@ import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.Navig
 import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyService.RuntimeContext;
 
 /**
- * R6-B aggregate. V2 remains the PAGE/topology authority; V3 can only add exact Auth-owned
- * POLICY aliases after an atomic six-decision snapshot passes every binding and freshness check.
+ * R6-C aggregate. V2 remains the historical PAGE/topology authority; V3 can add only the exact
+ * v47 PAGE set and Auth-owned POLICY aliases after every binding and freshness check passes.
  */
 @Service
 public class NavigationPolicyAggregateV3Service {
@@ -100,8 +100,10 @@ public class NavigationPolicyAggregateV3Service {
         NavigationPolicyAggregateV3Catalog.SealedAuthority sealed =
                 NavigationPolicyAggregateV3Catalog.seal(
                         request, authority.evaluate(request), now());
-        EffectiveNavigation effective = v2.projectionWithPolicyPaths(
-                context, sealed.admittedPaths());
+        EffectiveNavigation effective = v2.projectionWithV47Paths(
+                context, sealed.admittedPaths(),
+                eligibility.v47PageAuthorizedPaths(
+                        permissions(context.permissions())));
         requireStablePolicyBaseline(baseline, effective);
         if (!context.revalidateAt().isAfter(now())
                 || !sealed.snapshot().freshUntil().isAfter(now())) {
@@ -144,6 +146,9 @@ public class NavigationPolicyAggregateV3Service {
                 effective.taskGroupRegisterSha256(), effective.generatedIaSha256(),
                 NavigationPolicyAggregateV3Catalog.REGISTRY_VERSION,
                 NavigationPolicyAggregateV3Catalog.REGISTRY_CHECKSUM,
+                NavigationPolicyRuntimeOwnerOverlay.REVISION,
+                NavigationPolicyRuntimeOwnerOverlay.CHECKSUM,
+                runtimeOwnerOverlayRecords(),
                 effective.enforcementState(), true,
                 effective.tenantPolicyId(), effective.tenantRevisionId(),
                 effective.tenantRevisionNumber(), pin,
@@ -193,7 +198,7 @@ public class NavigationPolicyAggregateV3Service {
         boolean policyRoute = current.admittedPolicyRoutes().stream().anyMatch(
                 decision -> decision.nodeId().equals(nodeId)
                         && decision.path().equals(requestedPath));
-        if (!policyRoute && !eligibility.pageAuthorizedPath(
+        if (!policyRoute && !eligibility.v47PageAuthorizedPath(
                 nodeId, requestedPath, permissions(context.permissions()))) {
             return deniedDeepLink(
                     nodeId, requestedPath, current.revisionPin(),
@@ -223,6 +228,9 @@ public class NavigationPolicyAggregateV3Service {
                 baseline.taskGroupRegisterSha256(), baseline.generatedIaSha256(),
                 NavigationPolicyAggregateV3Catalog.REGISTRY_VERSION,
                 NavigationPolicyAggregateV3Catalog.REGISTRY_CHECKSUM,
+                NavigationPolicyRuntimeOwnerOverlay.REVISION,
+                NavigationPolicyRuntimeOwnerOverlay.CHECKSUM,
+                runtimeOwnerOverlayRecords(),
                 baseline.enforcementState(), baseline.policyEnforced(),
                 baseline.tenantPolicyId(), baseline.tenantRevisionId(),
                 baseline.tenantRevisionNumber(), null,
@@ -341,6 +349,11 @@ public class NavigationPolicyAggregateV3Service {
         material.put("v2AggregatePin", effective.revisionPin());
         material.put("authorizationRegistryVersion", snapshot.registryVersion());
         material.put("authorizationRegistryChecksum", snapshot.registryChecksum());
+        material.put("runtimeOwnerOverlayRevision",
+                NavigationPolicyRuntimeOwnerOverlay.REVISION);
+        material.put("runtimeOwnerOverlayChecksum",
+                NavigationPolicyRuntimeOwnerOverlay.CHECKSUM);
+        material.put("runtimeOwnerOverlayRecords", runtimeOwnerOverlayRecords());
         material.put("authoritySnapshotRevision", snapshot.snapshotRevision());
         material.put("authorityDecisionRevision", snapshot.decisionRevision());
         material.put("authorityAuthRevision", snapshot.authRevision());
@@ -349,6 +362,19 @@ public class NavigationPolicyAggregateV3Service {
         material.put("authorityFreshUntil", snapshot.freshUntil());
         material.put("effectiveRouteTuples", tuples);
         return "nav-v3-" + digest(material);
+    }
+
+    private List<RuntimeOwnerOverlayRecord> runtimeOwnerOverlayRecords() {
+        return NavigationPolicyRuntimeOwnerOverlay.RECORDS.stream().map(record ->
+                new RuntimeOwnerOverlayRecord(
+                        record.nodeId(), record.historicalOwner(),
+                        record.effectiveRuntimeOwner(), record.canonicalPath(),
+                        record.compatibilityPath(), record.routeContractKey(),
+                        new RuntimeOwnerFirstReadBinding(
+                                record.method(), record.gatewayPath(), record.serviceKey(),
+                                record.servicePath()),
+                        record.registryVersion(), record.registryChecksum(),
+                        record.evidenceDigest())).toList();
     }
 
     private DeepLinkDecisionV3 deniedDeepLink(

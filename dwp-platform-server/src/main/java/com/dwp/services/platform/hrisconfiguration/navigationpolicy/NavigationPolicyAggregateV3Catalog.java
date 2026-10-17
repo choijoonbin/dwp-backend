@@ -13,12 +13,12 @@ import java.util.Set;
 
 import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyAuthorityDecisionProvider.*;
 
-/** Closed v46 catalog and semantic verifier for the first six SELF POLICY routes. */
+/** Closed v47 catalog and semantic verifier for the unchanged six SELF POLICY routes. */
 final class NavigationPolicyAggregateV3Catalog {
 
-    static final long REGISTRY_VERSION = 46;
+    static final long REGISTRY_VERSION = 47;
     static final String REGISTRY_CHECKSUM =
-            "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e";
+            "925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e";
     static final String PROFILE = "full-work";
     static final String TARGET = "SELF";
 
@@ -184,7 +184,7 @@ final class NavigationPolicyAggregateV3Catalog {
 
     private static boolean policyPattern(String value) {
         return value != null && value.matches(
-                "^policy-46-[1-9][0-9]*-[0-9a-f]{64}$");
+                "^policy-47-[1-9][0-9]*-[0-9a-f]{64}$");
     }
 
     private static boolean relationshipPattern(String value) {

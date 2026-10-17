@@ -198,6 +198,9 @@ HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
 HCM_PLATFORM_PEP_V46_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v46.generated.json"
 )
+HCM_PLATFORM_PEP_V47_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v47.generated.json"
+)
 LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT = (
     ROOT
     / "dwp-payroll-server/src/main/resources/product-authorization/"
@@ -211,7 +214,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 47))
+BUNDLE_VERSIONS = tuple(range(1, 48))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -337,6 +340,19 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 73, "routes": 1046, "PAGE": 133, "DATA": 315, "ACTION": 598},
     46: {"capabilities": 258, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 73, "routes": 1048, "PAGE": 133, "DATA": 317, "ACTION": 598},
+    47: {"capabilities": 258, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 73, "routes": 1053, "PAGE": 138, "DATA": 317, "ACTION": 598},
+}
+
+V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
+    "route.hcm.operations.time-work-plans.page":
+        "route.hcm.operations.work-plans-list.data",
+    "route.hcm.operations.performance-goal-cycles.page":
+        "route.hcm.operations.performance-cycles-list.data",
+    "route.hcm.team.leave.page": "route.hcm.team.absence.page",
+    "route.hcm.operations.time-leave-operations.page":
+        "route.hcm.operations.absence.page",
+    "route.hcm.operations.home.page": "route.hcm.operations.overview.page",
 }
 
 REQUIRED_RESPONSIBILITY_BY_CAPABILITY = {
@@ -465,6 +481,7 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     44: "8b4e05e5974a8a25fb9edf318bb3cd609105f2e6353677b69c2eab1cd7038a1b",
     45: "6f41e17159104cd0fd721a13877611b6225bd6458cb2831f0f30e51573992e64",
     46: "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e",
+    47: "925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -2712,6 +2729,21 @@ def _validate_wire_authority_equivalence(
     for wire_key, members in wire.items():
         if len(members) == 1:
             continue
+        member_keys = {route["routeContractKey"] for route, _ in members}
+        canonical_page = next((
+            key for key in member_keys
+            if key in V47_CANONICAL_PAGE_FIRST_READ_SOURCES
+        ), None)
+        if canonical_page is not None:
+            source_key = V47_CANONICAL_PAGE_FIRST_READ_SOURCES[canonical_page]
+            require(
+                member_keys == {canonical_page, source_key} and len(members) == 2,
+                f"v47 canonical PAGE first-read wire is ambiguous: {wire_key}",
+            )
+            _validate_v47_canonical_page_first_read(
+                routes[canonical_page], routes[source_key]
+            )
+            continue
         equivalence_keys = {
             route.get("authorizationEquivalenceKey") for route, _ in members
         }
@@ -2729,6 +2761,66 @@ def _validate_wire_authority_equivalence(
         )
     for equivalence, members in equivalence_members.items():
         require(len(members) >= 2, f"{equivalence}: equivalence group must have aliases")
+
+
+def _validate_v47_canonical_page_first_read(
+    page: dict[str, Any], source: dict[str, Any]
+) -> None:
+    """Seal a PAGE to one existing first-read contract without mutating its v46 source."""
+    page_key = page["routeContractKey"]
+    require(
+        page.get("authorizationEquivalenceKey") is None
+        and source.get("authorizationEquivalenceKey") is None
+        and page["routeKind"] == "PAGE"
+        and page["sideEffectFree"] is None
+        and page["navigationContextId"] == source["navigationContextId"]
+        and page["subject"] == source["subject"]
+        and page["owner"] == source["owner"]
+        and page["policyVersion"] == source["policyVersion"]
+        and page["lifecycleState"] == source["lifecycleState"] == "ACTIVE",
+        f"{page_key}: canonical PAGE envelope drifted from its sealed first read",
+    )
+    require(
+        len(page["gatewayApiBindings"]) == len(source["gatewayApiBindings"]) == 1
+        and len(page["servicePepBindings"]) == len(source["servicePepBindings"]) == 1,
+        f"{page_key}: exactly one first-read binding is required",
+    )
+    for binding_kind in ("gatewayApiBindings", "servicePepBindings"):
+        candidate = copy.deepcopy(page[binding_kind][0])
+        prior = copy.deepcopy(source[binding_kind][0])
+        candidate.pop("bindingKey")
+        prior.pop("bindingKey")
+        require(
+            candidate == prior,
+            f"{page_key}: {binding_kind} drifted from its sealed first read",
+        )
+    page_profiles = unique(page["accessProfiles"], "profileKey", f"{page_key} profiles")
+    source_profiles = unique(
+        source["accessProfiles"], "profileKey",
+        f"{source['routeContractKey']} profiles",
+    )
+    require(
+        page_profiles.keys() == source_profiles.keys(),
+        f"{page_key}: first-read profile set drifted",
+    )
+    for profile_key, candidate_profile in page_profiles.items():
+        prior_profile = source_profiles[profile_key]
+        for field in (
+            "precedence", "activeAccessModes", "requiredAccess",
+            "targetBindingKinds", "predicatePolicyKeys", "readOnly",
+        ):
+            require(
+                candidate_profile[field] == prior_profile[field],
+                f"{page_key}/{profile_key}: {field} drifted from its sealed first read",
+            )
+        candidate_projection = candidate_profile["responseProjectionBindings"]
+        prior_projection = prior_profile["responseProjectionBindings"]
+        require(
+            len(candidate_projection) == len(prior_projection) == 1
+            and candidate_projection[0]["responseSchemaKey"]
+            == prior_projection[0]["responseSchemaKey"],
+            f"{page_key}/{profile_key}: response projection schema drifted",
+        )
 
 
 def _wire_authority_semantics(
@@ -3450,6 +3542,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PLATFORM_PEP_V44_OUTPUT,
         HCM_PLATFORM_PEP_OUTPUT,
         HCM_PLATFORM_PEP_V46_OUTPUT,
+        HCM_PLATFORM_PEP_V47_OUTPUT,
         LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT,
         HCM_PAYROLL_PEP_OUTPUT,
     }
@@ -4046,6 +4139,22 @@ def main() -> int:
             version=46,
             product_key="hcm",
         )
+        hcm_platform_pep_v47 = build_approvals_pep(
+            snapshots[46],
+            "platform",
+            "hcm-platform-pep-v47",
+            {
+                "routes": 50,
+                "bindings": 51,
+                "routeKinds": {"ACTION": 27, "DATA": 17, "PAGE": 6},
+                "capabilities": 20,
+                "accessPolicies": 4,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 9,
+            },
+            version=47,
+            product_key="hcm",
+        )
         legacy_hcm_payroll_pep_v38 = build_approvals_pep(
             snapshots[37],
             "payroll",
@@ -4285,6 +4394,11 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                HCM_PLATFORM_PEP_V47_OUTPUT,
+                render(hcm_platform_pep_v47),
+                args.check,
+            ),
+            write_or_check(
                 LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT,
                 render(legacy_hcm_payroll_pep_v38),
                 args.check,
@@ -4400,6 +4514,7 @@ def main() -> int:
         )
         verify_approvals_pep(HCM_PLATFORM_PEP_OUTPUT, hcm_platform_pep)
         verify_approvals_pep(HCM_PLATFORM_PEP_V46_OUTPUT, hcm_platform_pep_v46)
+        verify_approvals_pep(HCM_PLATFORM_PEP_V47_OUTPUT, hcm_platform_pep_v47)
         verify_approvals_pep(
             LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT, legacy_hcm_payroll_pep_v38
         )

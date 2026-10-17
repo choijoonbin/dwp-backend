@@ -27,7 +27,7 @@ class NavigationPolicyRuntimeControlsTest {
         assertThat(provider.installedNodeIds(42))
                 .containsExactlyInAnyOrderElementsOf(
                         ServerNavigationPolicyEligibilityProvider.IMPLEMENTATION_NODE_IDS)
-                .doesNotContain("BASE:team-time", "BASE:pay-command-center");
+                .doesNotContain("BASE:pay-command-center");
         assertThat(provider.deployedNodeIds(42))
                 .containsExactlyInAnyOrder(
                         "BASE:my-employment-documents", "BASE:hr-people",
@@ -137,6 +137,39 @@ class NavigationPolicyRuntimeControlsTest {
                 .containsExactlyInAnyOrder(
                         "BASE:hr-people", "BASE:hr-employment-assignments",
                         "BASE:hr-employee-change-requests");
+
+        Map<String, List<String>> v47TimePaths = provider.v47PageAuthorizedPaths(
+                Set.of("DATA.HR_TIME:VIEW"));
+        assertThat(v47TimePaths).containsOnlyKeys(
+                "BASE:team-time", "BASE:hr-operations-home", "BASE:time-work-plans");
+        assertThat(v47TimePaths.get("BASE:team-time"))
+                .containsExactly("/hr/team/time");
+        assertThat(v47TimePaths.get("BASE:hr-operations-home"))
+                .containsExactly("/hr/operations/home", "/hr/operations");
+        assertThat(v47TimePaths.get("BASE:time-work-plans"))
+                .containsExactly("/hr/operations/time/work-plans");
+
+        Map<String, List<String>> v47AbsencePaths = provider.v47PageAuthorizedPaths(
+                Set.of("DATA.HR_ABSENCE:VIEW"));
+        assertThat(v47AbsencePaths.get("BASE:team-leave"))
+                .containsExactly("/hr/team/leave", "/hr/team/absence");
+        assertThat(v47AbsencePaths.get("BASE:time-leave-operations"))
+                .containsExactly(
+                        "/hr/operations/time/leave-operations",
+                        "/hr/operations/absence");
+        assertThat(v47AbsencePaths.values().stream().flatMap(List::stream).toList())
+                .doesNotContain(
+                        "/hr/operations/time", "/hr/operations/pay",
+                        "/hr/operations/talent", "/hr/data/exports");
+        assertThat(provider.v47PageAuthorizedPath(
+                "BASE:team-time", "/hr/team/time", Set.of("DATA.HR_TIME:VIEW")))
+                .isTrue();
+        assertThat(provider.v47PageAuthorizedPath(
+                "BASE:team-leave", "/hr/team/absence",
+                Set.of("DATA.HR_ABSENCE:VIEW"))).isTrue();
+        assertThat(provider.v47PageAuthorizedPath(
+                "BASE:pay-command-center", "/hr/operations/pay",
+                Set.of("DATA.HR_PAY:VIEW"))).isFalse();
     }
 
     @Test

@@ -48,7 +48,7 @@ class HrisNavigationPolicyDecisionServiceTest {
             OffsetDateTime.parse("2026-10-17T04:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW.toInstant(), ZoneOffset.UTC);
     private static final String AUTH_REVISION = "auth-" + "a".repeat(64);
-    private static final String POLICY_REVISION = "policy-46-7-"
+    private static final String POLICY_REVISION = "policy-47-7-"
             + HrisNavigationPolicyDecisionService.REGISTRY_CHECKSUM;
     private static final List<String> ROUTES = List.of(
             "route.hcm.personal.me.page",
@@ -80,7 +80,7 @@ class HrisNavigationPolicyDecisionServiceTest {
                 new ProductAuthorizationContractValidator(mapper);
         ProductAuthorizationContractDtos.BundleContract draft;
         try (var input = new ClassPathResource(
-                "product-authorization/product-surfaces-v1.bundle-v46.generated.json")
+                "product-authorization/product-surfaces-v1.bundle-v47.generated.json")
                 .getInputStream()) {
             draft = validator.validateDocument(input);
         }
@@ -91,7 +91,7 @@ class HrisNavigationPolicyDecisionServiceTest {
                 draft.routes(), draft.authorityEndpoints());
 
         stored = new ProductAuthorizationContractRepository.StoredBundle(
-                        BUNDLE_ID, "product-surfaces", 46, "ACTIVE", draft.schemaVersion(),
+                        BUNDLE_ID, "product-surfaces", 47, "ACTIVE", draft.schemaVersion(),
                         "SHA-256", HrisNavigationPolicyDecisionService.REGISTRY_CHECKSUM,
                         draft.owner(), "security-approver", NOW.minusDays(1),
                         NOW.minusHours(1), NOW.minusDays(2));
@@ -135,7 +135,7 @@ class HrisNavigationPolicyDecisionServiceTest {
             assertThat(authorityRequest.supportRevision()).isNull();
             assertThat(authorityRequest.supportScopes()).isEmpty();
         });
-        assertThat(result.registryVersion()).isEqualTo(46);
+        assertThat(result.registryVersion()).isEqualTo(47);
         assertThat(result.registryChecksum()).isEqualTo(
                 HrisNavigationPolicyDecisionService.REGISTRY_CHECKSUM);
         assertThat(result.snapshotRevision()).matches("^snapshot-[0-9a-f]{64}$");
@@ -211,16 +211,16 @@ class HrisNavigationPolicyDecisionServiceTest {
                 ErrorCode.DECISION_REVISION_CONFLICT);
         assertError(new HrisNavigationPolicyDecisionDtos.BatchRequest(
                         TENANT_ID, ACTOR_ID, ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
-                        PERSON_ID, scopeKey(), 46L, "0".repeat(64), null),
+                        PERSON_ID, scopeKey(), 47L, "0".repeat(64), null),
                 ErrorCode.DECISION_REVISION_CONFLICT);
         assertError(new HrisNavigationPolicyDecisionDtos.BatchRequest(
                         TENANT_ID, ACTOR_ID, ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
-                        UUID.randomUUID(), scopeKey(), 46L,
+                        UUID.randomUUID(), scopeKey(), 47L,
                         HrisNavigationPolicyDecisionService.REGISTRY_CHECKSUM, null),
                 ErrorCode.FORBIDDEN);
         assertError(new HrisNavigationPolicyDecisionDtos.BatchRequest(
                         TENANT_ID, ACTOR_ID, ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
-                        PERSON_ID, "scope-" + "0".repeat(32), 46L,
+                        PERSON_ID, "scope-" + "0".repeat(32), 47L,
                         HrisNavigationPolicyDecisionService.REGISTRY_CHECKSUM, null),
                 ErrorCode.FORBIDDEN);
         assertError(request("decision-" + "0".repeat(64)),
@@ -290,7 +290,7 @@ class HrisNavigationPolicyDecisionServiceTest {
             String expectedDecisionRevision) {
         return new HrisNavigationPolicyDecisionDtos.BatchRequest(
                 TENANT_ID, ACTOR_ID, ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
-                PERSON_ID, scopeKey(), 46L,
+                PERSON_ID, scopeKey(), 47L,
                 HrisNavigationPolicyDecisionService.REGISTRY_CHECKSUM,
                 expectedDecisionRevision);
     }

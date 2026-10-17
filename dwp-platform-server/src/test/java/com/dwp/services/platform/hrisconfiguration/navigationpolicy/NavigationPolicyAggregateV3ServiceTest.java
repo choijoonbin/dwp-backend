@@ -44,7 +44,7 @@ class NavigationPolicyAggregateV3ServiceTest {
     private static final String SELF_SCOPE = ProductSurfaceScopeKey.key(
             42, 101, "hcm", "hcm.personal", "SELF", "SELF");
     private static final String AUTH = "auth-" + "1".repeat(64);
-    private static final String POLICY_REVISION = "policy-46-7-"
+    private static final String POLICY_REVISION = "policy-47-7-"
             + NavigationPolicyAggregateV3Catalog.REGISTRY_CHECKSUM;
     private static final String RELATIONSHIP = "relationship-" + "2".repeat(64);
     private static final String SNAPSHOT = "snapshot-" + "3".repeat(64);
@@ -98,7 +98,7 @@ class NavigationPolicyAggregateV3ServiceTest {
             assertThat(result.workbenches()).isNotEmpty();
         });
         verify(authority, never()).evaluate(any());
-        verify(v2, never()).projectionWithPolicyPaths(any(), any());
+        verify(v2, never()).projectionWithV47Paths(any(), any(), any());
     }
 
     @Test
@@ -109,10 +109,13 @@ class NavigationPolicyAggregateV3ServiceTest {
         EffectiveNavigation effective = enforced(List.of(
                 node("BASE:my-hr-profile", "/hr/me"),
                 node("BASE:my-time", "/hr/time"),
+                node("BASE:team-leave", "/hr/team/leave", "/hr/team/absence"),
                 node("BASE:my-employment-documents",
                         "/hr/me/employment-documents")), "b", NOW);
         when(v2.projection(any())).thenReturn(baseline);
-        when(v2.projectionWithPolicyPaths(any(), any())).thenReturn(effective);
+        when(eligibility.v47PageAuthorizedPaths(any())).thenReturn(Map.of(
+                "BASE:team-leave", List.of("/hr/team/leave", "/hr/team/absence")));
+        when(v2.projectionWithV47Paths(any(), any(), any())).thenReturn(effective);
         when(authority.evaluate(any())).thenReturn(snapshot(Set.of(
                 "BASE:my-hr-profile", "BASE:my-time", "BASE:my-leave")));
 
@@ -126,13 +129,22 @@ class NavigationPolicyAggregateV3ServiceTest {
             assertThat(value.actorId()).isEqualTo(101);
             assertThat(value.expectedPersonPublicId()).isEqualTo(PERSON);
             assertThat(value.expectedScopeKey()).isEqualTo(SELF_SCOPE);
-            assertThat(value.expectedRegistryVersion()).isEqualTo(46);
+            assertThat(value.expectedRegistryVersion()).isEqualTo(47);
             assertThat(value.expectedRegistryChecksum()).isEqualTo(
                     NavigationPolicyAggregateV3Catalog.REGISTRY_CHECKSUM);
             assertThat(value.expectedDecisionRevision()).isNull();
         });
         assertThat(result.revisionPin()).matches("^nav-v3-[a-f0-9]{64}$");
         assertThat(result.authorityDecisionCount()).isEqualTo(6);
+        assertThat(result.runtimeOwnerOverlayRevision())
+                .isEqualTo(NavigationPolicyRuntimeOwnerOverlay.REVISION);
+        assertThat(result.runtimeOwnerOverlayChecksum())
+                .isEqualTo(NavigationPolicyRuntimeOwnerOverlay.CHECKSUM);
+        assertThat(result.runtimeOwnerOverlayRecords()).hasSize(4)
+                .extracting(RuntimeOwnerOverlayRecord::nodeId)
+                .containsExactly(
+                        "BASE:team-time", "BASE:team-leave",
+                        "BASE:time-leave-operations", "BASE:hr-operations-home");
         assertThat(result.authoritySelfScopeKey()).isEqualTo(SELF_SCOPE);
         assertThat(result.authorityDecisionRevision()).isEqualTo(DECISION);
         assertThat(result.admittedPolicyRoutes())
@@ -146,7 +158,7 @@ class NavigationPolicyAggregateV3ServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, List<String>>> paths =
                 ArgumentCaptor.forClass(Map.class);
-        verify(v2).projectionWithPolicyPaths(any(), paths.capture());
+        verify(v2).projectionWithV47Paths(any(), paths.capture(), any());
         assertThat(paths.getValue()).containsExactly(
                 org.assertj.core.api.Assertions.entry(
                         "BASE:my-hr-profile", List.of("/hr/me")),
@@ -154,6 +166,14 @@ class NavigationPolicyAggregateV3ServiceTest {
                         "BASE:my-time", List.of("/hr/time")),
                 org.assertj.core.api.Assertions.entry(
                         "BASE:my-leave", List.of("/hr/absence")));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, List<String>>> pagePaths =
+                ArgumentCaptor.forClass(Map.class);
+        verify(v2).projectionWithV47Paths(any(), any(), pagePaths.capture());
+        assertThat(pagePaths.getValue()).containsExactly(
+                org.assertj.core.api.Assertions.entry(
+                        "BASE:team-leave",
+                        List.of("/hr/team/leave", "/hr/team/absence")));
     }
 
     @Test
@@ -203,7 +223,7 @@ class NavigationPolicyAggregateV3ServiceTest {
         EffectiveNavigation effective = enforced(
                 List.of(node("BASE:my-hr-profile", "/hr/me")), "b", NOW);
         when(v2.projection(any())).thenReturn(baseline);
-        when(v2.projectionWithPolicyPaths(any(), any())).thenReturn(effective);
+        when(v2.projectionWithV47Paths(any(), any(), any())).thenReturn(effective);
         AuthoritySnapshot original = snapshot(Set.of("BASE:my-hr-profile"));
         when(authority.evaluate(any())).thenReturn(original);
         String first = service(NOW).projection(runtime(), AccessMode.NORMAL).revisionPin();
@@ -258,7 +278,7 @@ class NavigationPolicyAggregateV3ServiceTest {
         EffectiveNavigation effective = enforced(
                 List.of(node("BASE:my-hr-profile", "/hr/me")), "b", NOW);
         when(v2.projection(any())).thenReturn(baseline);
-        when(v2.projectionWithPolicyPaths(any(), any())).thenReturn(effective);
+        when(v2.projectionWithV47Paths(any(), any(), any())).thenReturn(effective);
         when(authority.evaluate(any())).thenReturn(
                 snapshot(Set.of("BASE:my-hr-profile")));
         String pin = service.projection(runtime(), AccessMode.NORMAL).revisionPin();
@@ -275,9 +295,38 @@ class NavigationPolicyAggregateV3ServiceTest {
                 .denialReason()).isEqualTo("ROUTE_NOT_ADMITTED");
     }
 
+    @Test
+    void ownerOverlayCompatibilityDeepLinkRequiresExactV47PageAuthority() {
+        EffectiveNavigation baseline = enforced(List.of(), "a", NOW);
+        EffectiveNavigation effective = enforced(List.of(node(
+                "BASE:team-leave", "/hr/team/leave", "/hr/team/absence")), "b", NOW);
+        when(v2.projection(any())).thenReturn(baseline);
+        when(v2.projectionWithV47Paths(any(), any(), any())).thenReturn(effective);
+        when(authority.evaluate(any())).thenReturn(snapshot(Set.of()));
+        when(eligibility.v47PageAuthorizedPath(
+                "BASE:team-leave", "/hr/team/absence", Set.of("APP.HCM:VIEW")))
+                .thenReturn(true);
+        String pin = service.projection(runtime(), AccessMode.NORMAL).revisionPin();
+
+        DeepLinkDecisionV3 admitted = service.deepLinkDecision(
+                runtime(), AccessMode.NORMAL, "BASE:team-leave", "/hr/team/absence", pin);
+
+        assertThat(admitted.allowed()).isTrue();
+        assertThat(admitted.requestedPath()).isEqualTo("/hr/team/absence");
+        assertThat(admitted.admittedTarget()).isEqualTo("/hr/team/absence");
+        assertThat(admitted.iaCanonicalRoute()).isEqualTo("/hr/team/leave");
+
+        when(eligibility.v47PageAuthorizedPath(
+                "BASE:team-leave", "/hr/team/absence", Set.of("APP.HCM:VIEW")))
+                .thenReturn(false);
+        assertThat(service.deepLinkDecision(
+                runtime(), AccessMode.NORMAL, "BASE:team-leave", "/hr/team/absence", pin)
+                .denialReason()).isEqualTo("EXACT_PAGE_ROUTE_DENIED");
+    }
+
     private void stubEnforced() {
         when(v2.projection(any())).thenReturn(enforced(List.of(), "a", NOW));
-        when(v2.projectionWithPolicyPaths(any(), any()))
+        when(v2.projectionWithV47Paths(any(), any(), any()))
                 .thenReturn(enforced(List.of(), "b", NOW));
     }
 
@@ -329,8 +378,8 @@ class NavigationPolicyAggregateV3ServiceTest {
                 null, null, pin, workbenches, null, evaluatedAt);
     }
 
-    private EffectiveNode node(String nodeId, String path) {
-        return new EffectiveNode(nodeId, 0, List.of(path));
+    private EffectiveNode node(String nodeId, String... paths) {
+        return new EffectiveNode(nodeId, 0, List.of(paths));
     }
 
     private AuthoritySnapshot snapshot(Set<String> allowedNodeIds) {
@@ -350,7 +399,7 @@ class NavigationPolicyAggregateV3ServiceTest {
                             NOW.plusMinutes(5));
                 }).toList();
         return new AuthoritySnapshot(
-                46, NavigationPolicyAggregateV3Catalog.REGISTRY_CHECKSUM,
+                47, NavigationPolicyAggregateV3Catalog.REGISTRY_CHECKSUM,
                 SNAPSHOT, DECISION, AUTH, POLICY_REVISION, RELATIONSHIP,
                 NOW.plusMinutes(5), decisions);
     }

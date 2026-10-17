@@ -20,7 +20,7 @@ import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.Navig
 import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyDtos.ScopeKind;
 import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.NavigationPolicyService.RuntimeContext;
 
-/** Exact tenant-SELF v46 runtime surface. It never accepts legal-entity or browser scope input. */
+/** Exact tenant-SELF v47 runtime surface. It never accepts legal-entity or browser scope input. */
 @RestController
 @ConditionalOnProperty(
         name = "dwp.hris.navigation-policy.v3-enabled",

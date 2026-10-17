@@ -19,8 +19,8 @@ class HrisNavigationPolicyDecisionDtosTest {
                   "activeAccessMode":"NORMAL",
                   "expectedPersonPublicId":"33000000-0000-0000-0000-000000000071",
                   "expectedScopeKey":"scope-00000000000000000000000000000000",
-                  "expectedRegistryVersion":46,
-                  "expectedRegistryChecksum":"3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e",
+                  "expectedRegistryVersion":47,
+                  "expectedRegistryChecksum":"925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e",
                   "expectedDecisionRevision":null
                 }
                 """;
@@ -30,7 +30,7 @@ class HrisNavigationPolicyDecisionDtosTest {
 
         assertThat(request.tenantId()).isEqualTo(19L);
         assertThat(request.actorId()).isEqualTo(71L);
-        assertThat(request.expectedRegistryVersion()).isEqualTo(46L);
+        assertThat(request.expectedRegistryVersion()).isEqualTo(47L);
         assertThat(request.getClass().getRecordComponents())
                 .extracting(java.lang.reflect.RecordComponent::getName)
                 .containsExactly(
@@ -52,8 +52,8 @@ class HrisNavigationPolicyDecisionDtosTest {
                       "activeAccessMode":"NORMAL",
                       "expectedPersonPublicId":"33000000-0000-0000-0000-000000000071",
                       "expectedScopeKey":"scope-00000000000000000000000000000000",
-                      "expectedRegistryVersion":46,
-                      "expectedRegistryChecksum":"3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e",
+                      "expectedRegistryVersion":47,
+                      "expectedRegistryChecksum":"925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e",
                       "%s":[]
                     }
                     """.formatted(field);

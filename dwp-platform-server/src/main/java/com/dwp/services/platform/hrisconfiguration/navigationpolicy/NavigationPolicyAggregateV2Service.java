@@ -72,7 +72,7 @@ public class NavigationPolicyAggregateV2Service {
 
     @Transactional(readOnly = true)
     public EffectiveNavigation projection(RuntimeContext context) {
-        return projection(context, Map.of());
+        return projection(context, Map.of(), Map.of());
     }
 
     /**
@@ -85,12 +85,27 @@ public class NavigationPolicyAggregateV2Service {
             RuntimeContext context,
             Map<String, List<String>> admittedPolicyPaths) {
         return projection(context,
-                NavigationPolicyAggregateV3Catalog.sealPolicyPaths(admittedPolicyPaths));
+                NavigationPolicyAggregateV3Catalog.sealPolicyPaths(admittedPolicyPaths),
+                Map.of());
+    }
+
+    /** Internal v47 bridge; caller must supply already-authorized exact R6-C PAGE candidates. */
+    @Transactional(readOnly = true)
+    EffectiveNavigation projectionWithV47Paths(
+            RuntimeContext context,
+            Map<String, List<String>> admittedPolicyPaths,
+            Map<String, List<String>> admittedV47PagePaths) {
+        return projection(
+                context,
+                NavigationPolicyAggregateV3Catalog.sealPolicyPaths(admittedPolicyPaths),
+                ServerNavigationPolicyEligibilityProvider.sealV47AuthorizedPaths(
+                        admittedV47PagePaths));
     }
 
     private EffectiveNavigation projection(
             RuntimeContext context,
-            Map<String, List<String>> admittedPolicyPaths) {
+            Map<String, List<String>> admittedPolicyPaths,
+            Map<String, List<String>> admittedV47PagePaths) {
         requireRuntime(context);
         NavigationPolicyRolloutProvider.RuntimeEnrollment enrollment =
                 rolloutProvider.enrollment(context.tenantId());
@@ -106,6 +121,7 @@ public class NavigationPolicyAggregateV2Service {
         Map<String, List<String>> authorizedPaths =
                 ServerNavigationPolicyEligibilityProvider.sealAuthorizedPaths(
                         eligibilityProvider.pageAuthorizedPaths(trustedPermissions));
+        authorizedPaths = mergeAuthorizedPaths(authorizedPaths, admittedV47PagePaths);
         authorizedPaths = mergeAuthorizedPaths(authorizedPaths, admittedPolicyPaths);
 
         if (!enrollment.enrolled() || mode == RolloutMode.OFF) {

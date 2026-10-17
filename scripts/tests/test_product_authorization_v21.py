@@ -314,7 +314,7 @@ class ProductAuthorizationV24Test(unittest.TestCase):
         self.assertEqual("HIGH", capability["riskTier"])
         self.assertEqual("SOD-DWAION-CONTROL-PLANE-V1", capability["sodPolicyId"])
 
-    def test_latest_alias_and_index_point_to_v46(self) -> None:
+    def test_latest_alias_and_index_point_to_v47(self) -> None:
         alias = json.loads(
             (ROOT / "contracts/product-authorization/product-surfaces-v1.json")
             .read_text()
@@ -325,11 +325,11 @@ class ProductAuthorizationV24Test(unittest.TestCase):
         )
         latest = self.snapshots[-1]
         self.assertEqual(latest, alias)
-        self.assertEqual(46, latest["version"])
-        self.assertEqual(46, index["latestVersion"])
-        self.assertEqual("product-surfaces-v1.bundle-v46.json", index["latestArtifact"])
+        self.assertEqual(47, latest["version"])
+        self.assertEqual(47, index["latestVersion"])
+        self.assertEqual("product-surfaces-v1.bundle-v47.json", index["latestArtifact"])
         self.assertEqual(
-            "product-surfaces-v1.bundle-v46.generated.json",
+            "product-surfaces-v1.bundle-v47.generated.json",
             index["latestAuthSeedArtifact"],
         )
         self.assertEqual(latest["checksum"], index["latestChecksum"])

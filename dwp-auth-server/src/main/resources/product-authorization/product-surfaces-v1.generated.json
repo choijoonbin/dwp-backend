@@ -362,6 +362,7 @@
       "relationshipResolver": null,
       "requiresProductEntitlement": false,
       "routeContractKeys": [
+        "route.hcm.operations.home.page",
         "route.hcm.operations.overview.page"
       ],
       "scopeResolver": "ORG_UNIT/LEGAL_ENTITY",
@@ -3571,6 +3572,7 @@
         "route.hcm.operations.compensation-planning.page",
         "route.hcm.operations.compensation-proposal-detail.data",
         "route.hcm.operations.compensation-proposals.data",
+        "route.hcm.operations.home.page",
         "route.hcm.operations.navigation-projection.data",
         "route.hcm.operations.overview.page",
         "route.hcm.shell.navigation-aggregate-legal-entity.data",
@@ -4064,8 +4066,10 @@
       "riskTier": "LOW",
       "routeContractKeys": [
         "route.hcm.operations.absence.page",
+        "route.hcm.operations.home.page",
         "route.hcm.operations.navigation-projection.data",
         "route.hcm.operations.overview.page",
+        "route.hcm.operations.time-leave-operations.page",
         "route.hcm.shell.navigation-aggregate-legal-entity.data",
         "route.hcm.shell.navigation-deep-link-decision-legal-entity.data"
       ],
@@ -4215,6 +4219,7 @@
       "riskTier": "LOW",
       "routeContractKeys": [
         "route.hcm.operations.benefits.page",
+        "route.hcm.operations.home.page",
         "route.hcm.operations.navigation-projection.data",
         "route.hcm.operations.overview.page",
         "route.hcm.shell.navigation-aggregate-legal-entity.data",
@@ -4242,6 +4247,7 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
+        "route.hcm.operations.home.page",
         "route.hcm.operations.navigation-projection.data",
         "route.hcm.operations.overview.page",
         "route.hcm.operations.pay.page",
@@ -4739,11 +4745,13 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
+        "route.hcm.operations.home.page",
         "route.hcm.operations.navigation-projection.data",
         "route.hcm.operations.overview.page",
         "route.hcm.operations.performance-cycle-command-receipt.data",
         "route.hcm.operations.performance-cycle-detail.data",
         "route.hcm.operations.performance-cycles-list.data",
+        "route.hcm.operations.performance-goal-cycles.page",
         "route.hcm.operations.talent.page",
         "route.hcm.shell.navigation-aggregate-legal-entity.data",
         "route.hcm.shell.navigation-deep-link-decision-legal-entity.data"
@@ -4820,8 +4828,10 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
+        "route.hcm.operations.home.page",
         "route.hcm.operations.navigation-projection.data",
         "route.hcm.operations.overview.page",
+        "route.hcm.operations.time-work-plans.page",
         "route.hcm.operations.time.page",
         "route.hcm.operations.work-plan-receipt.data",
         "route.hcm.operations.work-plans-list.data",
@@ -4908,6 +4918,7 @@
         "route.hcm.operations.assignment-proposal-detail.data",
         "route.hcm.operations.assignment-timeline.data",
         "route.hcm.operations.assignments.page",
+        "route.hcm.operations.home.page",
         "route.hcm.operations.navigation-projection.data",
         "route.hcm.operations.overview.page",
         "route.hcm.operations.people.page",
@@ -5241,7 +5252,8 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
-        "route.hcm.team.absence.page"
+        "route.hcm.team.absence.page",
+        "route.hcm.team.leave.page"
       ],
       "scopeResolver": "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION",
       "sodPolicyId": null,
@@ -7809,7 +7821,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e",
+  "checksum": "925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -9044,11 +9056,13 @@
         "route.hcm.operations.performance-cycle-update.action",
         "route.hcm.operations.performance-cycle-validate.action",
         "route.hcm.operations.performance-cycles-list.data",
+        "route.hcm.operations.performance-goal-cycles.page",
         "route.hcm.operations.performance-multirater-surveys.page",
         "route.hcm.operations.performance-population-freeze.action",
         "route.hcm.operations.performance-review-operations.page",
         "route.hcm.operations.talent.page",
         "route.hcm.operations.time-approve.action",
+        "route.hcm.operations.time-leave-operations.page",
         "route.hcm.operations.time.page"
       ],
       "targetBindingKinds": [
@@ -9642,6 +9656,7 @@
       "policyVersion": 1,
       "predicatePolicyKey": "predicate.hcm-work-regime-authority.v1",
       "routeContractKeys": [
+        "route.hcm.operations.time-work-plans.page",
         "route.hcm.operations.work-plan-apply-approval.action",
         "route.hcm.operations.work-plan-create.action",
         "route.hcm.operations.work-plan-publish.action",
@@ -10142,6 +10157,7 @@
         "route.hcm.team.absence-decision.action",
         "route.hcm.team.absence.page",
         "route.hcm.team.home.page",
+        "route.hcm.team.leave.page",
         "route.hcm.team.people360-detail.data",
         "route.hcm.team.time-decision.action",
         "route.hcm.team.time.page"
@@ -44785,6 +44801,92 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKeys": [
+              "hcm.operations.workforce.read",
+              "hcm.operations.time.read",
+              "hcm.operations.absence.read",
+              "hcm.operations.benefits.read",
+              "hcm.operations.pay.read",
+              "hcm.operations.talent.read"
+            ],
+            "mode": "ANY",
+            "type": "CAPABILITY_EXPRESSION"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.home.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.home.page.full-management.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.overview.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        },
+        {
+          "activeAccessModes": [
+            "PROVIDER_SUPPORT"
+          ],
+          "precedence": 150,
+          "predicatePolicyKeys": [],
+          "profileKey": "provider-support",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "hcm.operations-overview-read.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.home.page.binding.01",
+              "projectionPolicyKey": "hcm.support.operations-overview.v1",
+              "responseSchemaKey": "HcmSupportOperationsOverviewV1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.home.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/workforce/operations/overview",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.home.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.home.page.binding.01",
+          "method": "GET",
+          "path": "/v1/workforce/operations/overview",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.home",
+      "uiRoutePattern": "/hr/operations/home"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
           "profileKey": "hr-operations-reader",
           "readOnly": true,
           "requiredAccess": {
@@ -46694,6 +46796,67 @@
           "predicatePolicyKeys": [
             "predicate.hcm-domain-target-population.v1"
           ],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.talent.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.performance-goal-cycles.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.performance-goal-cycles.page.full-management.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.performance-cycles-list.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.performance-goal-cycles.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/cycles",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.performance-goal-cycles.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.performance-goal-cycles.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/cycles",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.performance-goal-cycles",
+      "uiRoutePattern": "/hr/operations/performance/goal-cycles"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-domain-target-population.v1"
+          ],
           "profileKey": "performance-operator-reader",
           "readOnly": true,
           "requiredAccess": {
@@ -47488,6 +47651,148 @@
       },
       "uiRouteId": "hcm.operations.time-interpretation",
       "uiRoutePattern": "/hr/operations/time/interpretation"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-domain-target-population.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.absence.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.time-leave-operations.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.time-leave-operations.page.full-management.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.absence.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-leave-operations.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hr/operations/{domain}",
+          "pathParameterConstraints": {
+            "domain": {
+              "kind": "FIXED",
+              "value": "ABSENCE"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-leave-operations.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-leave-operations.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hr/operations/{domain}",
+          "pathParameterConstraints": {
+            "domain": {
+              "kind": "FIXED",
+              "value": "ABSENCE"
+            }
+          },
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.time-leave-operations",
+      "uiRoutePattern": "/hr/operations/time/leave-operations"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-work-regime-authority.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.time.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.time-work-plans.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.time-work-plans.page.full-management.projection.v1",
+              "responseSchemaKey": "route.hcm.operations.work-plans-list.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-work-plans.page.binding.01",
+          "method": "GET",
+          "path": "/api/time/v1/hris/work-plans",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "effectiveOn": {
+              "kind": "REQUIRED"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Time + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.time-work-plans.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.time-work-plans.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/work-plans",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "effectiveOn": {
+              "kind": "REQUIRED"
+            }
+          },
+          "serviceKey": "time"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.time-work-plans",
+      "uiRoutePattern": "/hr/operations/time/work-plans"
     },
     {
       "accessProfiles": [
@@ -50500,6 +50805,68 @@
       },
       "uiRouteId": "hcm.team.home",
       "uiRoutePattern": "/hr/team"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.team-target-population.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.team.absence.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.team.leave.page.binding.01",
+              "projectionPolicyKey": "route.hcm.team.leave.page.full-work.projection.v1",
+              "responseSchemaKey": "route.hcm.team.absence.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "RELATIONSHIP",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.team.leave.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hr/team/absence",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.team",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.team.leave.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.team.leave.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hr/team/absence",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.team",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.team.leave",
+      "uiRoutePattern": "/hr/team/leave"
     },
     {
       "accessProfiles": [
@@ -74238,5 +74605,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 46
+  "version": 47
 }

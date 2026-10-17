@@ -111,14 +111,16 @@ class ProductAuthorizationContractReleaseLineageTest
                 generatedDocument("product-surfaces-v1.bundle-v45.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionFortySix = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v46.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(46);
-        assertThat(index.latestChecksum()).isEqualTo(versionFortySix.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionFortySeven = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v47.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(47);
+        assertThat(index.latestChecksum()).isEqualTo(versionFortySeven.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
                         26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L,
-                        39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L);
+                        39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -593,6 +595,20 @@ class ProductAuthorizationContractReleaseLineageTest
                 .contains(
                         "route.hcm.shell.navigation-aggregate-v3.data",
                         "route.hcm.shell.navigation-deep-link-decision-v3.data");
+        assertThat(versionFortySeven.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionFortySix.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionFortySeven.routes()).hasSize(1053)
+                .containsAll(versionFortySix.routes())
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .contains(
+                        "route.hcm.operations.time-work-plans.page",
+                        "route.hcm.operations.performance-goal-cycles.page",
+                        "route.hcm.team.leave.page",
+                        "route.hcm.operations.time-leave-operations.page",
+                        "route.hcm.operations.home.page");
         String voidRoute = "route.hcm.operations.time-clock-event-void.action";
         assertThat(versionThirtySix.routes())
                 .filteredOn(route -> voidRoute.equals(route.routeContractKey()))

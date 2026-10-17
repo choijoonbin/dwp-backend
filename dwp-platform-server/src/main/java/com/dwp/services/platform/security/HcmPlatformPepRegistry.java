@@ -23,16 +23,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/** Closed Platform-owned HCM PEP projection for the append-only R6 navigation v46 carrier. */
+/** Closed Platform-owned HCM PEP projection for the append-only R6 navigation v47 carrier. */
 @Component
 public final class HcmPlatformPepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-platform-pep-v46.generated.json";
-    static final String REGISTRY_V46_CHECKSUM =
-            "3499e37653587feed433f84a79fbe7d0e80a1a7c0634d858a13f4e09d4bd015e";
-    static final String PROJECTION_V46_CHECKSUM =
-            "a3bf5dbd0438fe6cfa68c2d187521beacc98b275c35d12b26c60c41bf5d731fd";
+            "product-authorization/hcm-platform-pep-v47.generated.json";
+    static final String REGISTRY_V47_CHECKSUM =
+            "925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e";
+    static final String PROJECTION_V47_CHECKSUM =
+            "4afb76601a7c0e3dbf7647b075ad17433ca70107f825071584c4f3ba1bb1caae";
     private static final String CONFIGURATION_ROOT = "/v1/admin/hris/configurations";
     private static final String WORKBENCH_PATH = "/v1/hris/workbench/settings-reference";
     private static final String NAVIGATION_POLICY_ROOT =
@@ -395,14 +395,14 @@ public final class HcmPlatformPepRegistry {
     private void validateEnvelope(ObjectNode projection) {
         JsonNode registry = projection.path("registryRef");
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-platform-pep-v46".equals(
+                        && "hcm-platform-pep-v47".equals(
                         projection.path("projectionKey").asText())
                         && "platform".equals(projection.path("ownerServiceKey").asText())
                         && "product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 46
-                        && REGISTRY_V46_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 47
+                        && REGISTRY_V47_CHECKSUM.equals(registry.path("sha256").asText()),
                 "Unexpected HCM Platform PEP envelope");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 1048
+        require(projection.path("sourceRegistryRouteCount").asInt() == 1053
                         && projection.path("projectedRouteContractCount").asInt() == 50
                         && projection.path("bindingPairCount").asInt() == 51
                         && requiredArray(projection, "capabilities").size() == 20
@@ -413,7 +413,7 @@ public final class HcmPlatformPepRegistry {
         ObjectNode payload = projection.deepCopy();
         JsonNode checksum = payload.remove("projectionChecksum");
         require(checksum != null
-                        && PROJECTION_V46_CHECKSUM.equals(checksum.asText())
+                        && PROJECTION_V47_CHECKSUM.equals(checksum.asText())
                         && checksum.asText().equals(sha256(payload)),
                 "HCM Platform projection checksum mismatch");
     }

@@ -127,20 +127,15 @@ class ProductAuthorizationV46Test(unittest.TestCase):
             projection["routeKindCounts"],
         ))
 
-    def test_latest_alias_seed_and_index_are_v46(self) -> None:
-        alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
-        seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text())
+    def test_v46_versioned_contract_and_seed_remain_immutable(self) -> None:
+        seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.bundle-v46.generated.json").read_text())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual(self.v46, alias)
         self.assertEqual(self.v46, seed)
-        self.assertEqual((46, V46_SHA256), (
-            index["latestVersion"], index["latestChecksum"]
-        ))
-        self.assertEqual("product-surfaces-v1.bundle-v46.json", index["latestArtifact"])
-        self.assertEqual(
-            "product-surfaces-v1.bundle-v46.generated.json",
-            index["latestAuthSeedArtifact"],
-        )
+        entry = next(value for value in index["versions"] if value["version"] == 46)
+        self.assertEqual(V46_SHA256, entry["checksum"])
+        self.assertEqual("product-surfaces-v1.bundle-v46.json", entry["artifact"])
+        self.assertEqual("product-surfaces-v1.bundle-v46.generated.json",
+                         entry["authSeedArtifact"])
 
 
 if __name__ == "__main__":
