@@ -196,13 +196,29 @@ class CertificateService {
             return replay(existing);
         }
 
+        java.util.Optional<CertificateRepository.PersonRow> lockedSubject =
+                repository.personForMutation(
+                        actor.tenantId(), request.personPublicId());
+
+        // The target row lock is the visibility barrier for identical
+        // same-subject retries. A winner can commit while this transaction is
+        // waiting for that lock, so replay before consulting any mutable
+        // requester, population, snapshot, or version state and before
+        // consuming the one-time HIGH challenge.
+        CertificateRepository.ReceiptRow winnerAfterLock = repository.receiptByKey(
+                actor.tenantId(), COMMAND_TYPE, key).orElse(null);
+        if (winnerAfterLock != null) {
+            requireReplayMatch(
+                    winnerAfterLock, requestDigest, actor, request, requestPublicId,
+                    expectedVersion, correlationId, authorized.purpose());
+            return replay(winnerAfterLock);
+        }
+
+        CertificateRepository.PersonRow subject = lockedSubject.orElseThrow(
+                () -> CertificateException.denied(
+                        "The certificate subject is unavailable."));
         CertificateAuthority.CommandDecision decision =
                 authority.requireMutationScope(authorized);
-
-        CertificateRepository.PersonRow subject = repository.personForMutation(
-                actor.tenantId(), request.personPublicId())
-                .orElseThrow(() -> CertificateException.denied(
-                        "The certificate subject is unavailable."));
         CertificateRepository.PersonRow requester = decision.self()
                 ? subject : repository.personForMutation(
                 actor.tenantId(), actor.personPublicId())

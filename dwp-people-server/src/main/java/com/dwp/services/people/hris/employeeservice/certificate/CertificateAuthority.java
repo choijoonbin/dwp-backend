@@ -1,8 +1,10 @@
 package com.dwp.services.people.hris.employeeservice.certificate;
 
 import com.dwp.core.security.HcmEligibilityScopeKey;
+import com.dwp.core.security.ProductSurfaceScopeKey;
 import com.dwp.services.people.hr.HcmPopulationRepository;
 import com.dwp.services.people.hr.HcmPopulationScopeService;
+import com.dwp.services.people.security.HcmEligibilityScopeKeys;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
 import com.dwp.services.people.security.PeopleRequestContext;
@@ -88,6 +90,12 @@ final class CertificateAuthority {
                 || !"GET".equals(route.method())
                 || !definition.browserPath().equals(route.publicPath())
                 || !definition.capability().equals(route.capabilityContractKey())
+                || !definition.bindingKey().equals(route.bindingKey())
+                || !definition.projectionPolicyKey().equals(
+                route.projectionPolicyKey())
+                || !definition.responseSchemaKey().equals(
+                route.responseSchemaKey())
+                || !definition.fieldPolicyKey().equals(evidence.fieldPolicyKey())
                 || !definition.predicatePolicyKeys().equals(route.predicatePolicyKeys())
                 || !definition.targetBindingKinds().equals(route.targetBindingKinds())
                 || !definition.purpose().equals(evidence.purpose())
@@ -108,13 +116,13 @@ final class CertificateAuthority {
         } else {
             requireRoles(actor, OPERATIONS_ROLE, "HRIS_DUTY_CORE_VIEWER");
             resolved = populations.requireOperations("READ");
-            populations.requireTrustedScope(
-                    resolved, "hcm.operations", "TARGET_POPULATION",
+            String resolverSource = requireTrustedResolverSource(
+                    resolved, actor, evidence, "hcm.operations", "TARGET_POPULATION",
                     "LEGAL_ENTITY", "ORG_TREE", "ORG_UNIT", "NAMED_POPULATION",
                     "ORG_UNIT/LEGAL_ENTITY", "WORKFORCE_TARGET_POPULATION");
             fields = resolved.scope().fieldGroups();
-            populationKind = resolved.scope().tenantWide()
-                    ? "LEGAL_ENTITY" : "ORG_UNIT";
+            populationKind = operationsPopulationKind(
+                    resolverSource, resolved.scope());
             scopeRevision = resolved.targetPopulationRevision();
         }
         return new QueryDecision(
@@ -291,6 +299,38 @@ final class CertificateAuthority {
                 .filter(Objects::nonNull)
                 .map(value -> value.toUpperCase(Locale.ROOT))
                 .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private String requireTrustedResolverSource(
+            HcmPopulationScopeService.ResolvedPopulation population,
+            PeopleRequestContext.Actor actor,
+            HcmPepContext.Evidence evidence,
+            String surfaceKey,
+            String kind,
+            String... resolverSources) {
+        if (population == null || actor == null || evidence == null) {
+            throw denied("Trusted certificate population evidence is unavailable.");
+        }
+        for (String source : resolverSources) {
+            String sourceKey = ProductSurfaceScopeKey.key(
+                    actor.tenantId(), actor.userId(), "hcm", surfaceKey, source, kind);
+            String candidate = HcmEligibilityScopeKeys.derived(
+                    actor.tenantId(), actor.userId(), surfaceKey, sourceKey,
+                    population.relationshipRevision(),
+                    population.targetPopulationRevision());
+            if (candidate.equals(evidence.scopeKey())) return source;
+        }
+        throw denied("The certificate population changed or is outside this boundary.");
+    }
+
+    private String operationsPopulationKind(
+            String resolverSource,
+            HcmPopulationRepository.PopulationScope scope) {
+        if (Set.of("LEGAL_ENTITY", "ORG_TREE", "ORG_UNIT", "NAMED_POPULATION")
+                .contains(resolverSource)) {
+            return resolverSource;
+        }
+        return scope.tenantWide() ? "LEGAL_ENTITY" : "ORG_UNIT";
     }
 
     private CertificateException denied(String diagnostic) {

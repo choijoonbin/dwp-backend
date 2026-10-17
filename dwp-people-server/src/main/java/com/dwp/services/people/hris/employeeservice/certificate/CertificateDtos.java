@@ -33,8 +33,19 @@ final class CertificateDtos {
     static final String INVALIDATION_EVENT = "dwp.hris.access.assignment.changed.v1";
     static final String REQUEST_CERTIFICATE_ACTION =
             "hris.action.hrm.request-certificate";
+    private static final java.util.regex.Pattern CANONICAL_UUID =
+            java.util.regex.Pattern.compile(
+                    "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
+                            + "[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$");
 
     private CertificateDtos() {
+    }
+
+    static UUID parseCanonicalUuid(String value) {
+        if (value == null || !CANONICAL_UUID.matcher(value).matches()) {
+            throw new IllegalArgumentException("UUID is not canonical version 1-5.");
+        }
+        return UUID.fromString(value);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = false)
@@ -132,7 +143,7 @@ final class CertificateDtos {
                 String name) throws IOException {
             String value = text(parser, context, name);
             try {
-                return UUID.fromString(value);
+                return parseCanonicalUuid(value);
             } catch (RuntimeException exception) {
                 return context.reportInputMismatch(
                         RequestCertificate.class, "%s must be a canonical UUID.", name);

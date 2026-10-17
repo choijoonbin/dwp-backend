@@ -69,7 +69,7 @@ final class CertificateController {
             @RequestParam List<String> sort,
             @RequestParam String locale,
             @RequestParam String timeZone,
-            @RequestParam UUID correlationId,
+            @RequestParam String correlationId,
             @RequestParam(required = false) Instant asOf,
             @RequestParam(required = false) String cursor,
             @RequestParam MultiValueMap<String, String> parameters) {
@@ -84,7 +84,7 @@ final class CertificateController {
         return query(CertificateQueryDefinition.SELF_REQUESTS,
                 new CertificateDtos.QueryRequest(
                         limit, filter, sort, locale, timeZone,
-                        correlationId, asOf, cursor));
+                        correlationId(correlationId), asOf, cursor));
     }
 
     @GetMapping("/workbench/operations/certificates/documents")
@@ -93,7 +93,7 @@ final class CertificateController {
             @RequestParam List<String> sort,
             @RequestParam String locale,
             @RequestParam String timeZone,
-            @RequestParam UUID correlationId,
+            @RequestParam String correlationId,
             @RequestParam(required = false) Instant asOf,
             @RequestParam(required = false) String cursor,
             @RequestParam MultiValueMap<String, String> parameters) {
@@ -107,7 +107,7 @@ final class CertificateController {
         return query(CertificateQueryDefinition.OPERATIONS_CERTIFICATES,
                 new CertificateDtos.QueryRequest(
                         limit, filter, sort, locale, timeZone,
-                        correlationId, asOf, cursor));
+                        correlationId(correlationId), asOf, cursor));
     }
 
     @PostMapping(value = "/certificates", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -115,7 +115,7 @@ final class CertificateController {
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
             @RequestHeader(HcmStepUpHeaders.IDEMPOTENCY_KEY) String idempotencyKey,
             @RequestHeader(HttpHeaders.IF_MATCH) String ifMatch,
-            @RequestHeader(CORRELATION) UUID correlationId,
+            @RequestHeader(CORRELATION) String correlationId,
             @RequestHeader(value = PURPOSE, required = false) String purpose,
             @RequestHeader(HcmStepUpHeaders.CHALLENGE) String challenge,
             @RequestHeader(HcmStepUpHeaders.DECISION_REVISION) String decisionRevision,
@@ -123,7 +123,7 @@ final class CertificateController {
             @Valid @RequestBody CertificateDtos.RequestCertificate request) {
         requireCommandHeaders(authorization, purpose);
         CertificateService.CommandResult result = service.requestCertificate(
-                request, idempotencyKey, ifMatch, correlationId, purpose,
+                request, idempotencyKey, ifMatch, correlationId(correlationId), purpose,
                 new HcmStepUpHeaders(
                         challenge, idempotencyKey, decisionRevision, expectedVersion));
         CommandReceiptV1 receipt = result.receipt();
@@ -140,6 +140,15 @@ final class CertificateController {
                 || purpose != null && (purpose.length() < 3 || purpose.length() > 64)) {
             throw CertificateException.invalid(
                     "The certificate command headers are invalid.");
+        }
+    }
+
+    private UUID correlationId(String value) {
+        try {
+            return CertificateDtos.parseCanonicalUuid(value);
+        } catch (RuntimeException exception) {
+            throw CertificateException.invalid(
+                    "correlationId must be a canonical UUID.");
         }
     }
 

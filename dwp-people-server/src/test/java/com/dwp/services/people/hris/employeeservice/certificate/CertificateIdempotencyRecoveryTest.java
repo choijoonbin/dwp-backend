@@ -238,7 +238,8 @@ class CertificateIdempotencyRecoveryTest {
                 "RUNNING", fixture.requestDigest(), null);
         when(fixture.repository.receiptByKey(TENANT,
                 CertificateService.COMMAND_TYPE, KEY))
-                .thenReturn(Optional.empty(), Optional.of(winner));
+                .thenReturn(
+                        Optional.empty(), Optional.empty(), Optional.of(winner));
         when(fixture.repository.insertReceipt(
                 eq(TENANT), any(), eq(CertificateService.COMMAND_TYPE), eq(KEY),
                 eq(fixture.requestDigest()), eq(ACTOR), eq(ACTOR), anyString(),
@@ -252,10 +253,69 @@ class CertificateIdempotencyRecoveryTest {
 
         assertThat(result.receipt().receiptId()).isEqualTo(RECEIPT);
         assertThat(result.receipt().status()).isEqualTo("RUNNING");
+        verify(fixture.highRisk).requireExact(
+                anyString(), anyString(), anyString(), eq(VERSION), anyString(),
+                any(), any());
+        verify(fixture.repository).insertReceipt(
+                eq(TENANT), any(), eq(CertificateService.COMMAND_TYPE), eq(KEY),
+                eq(fixture.requestDigest()), eq(ACTOR), eq(ACTOR), anyString(),
+                anyLong(), eq(CertificateAuthority.SELF_PURPOSE), anyLong(),
+                anyString(), eq(fixture.requestPublicId), eq(VERSION),
+                eq(CORRELATION), eq(NOW));
         verifyNoInteractions(fixture.artifacts);
         verify(fixture.repository, never()).insertRequest(
                 anyLong(), any(), anyLong(), anyLong(), anyString(), anyString(),
                 anyString(), any(), anyInt(), any(), anyLong());
+        verify(fixture.repository, never()).insertIssued(
+                anyLong(), any(), any(), any(), anyLong());
+        verify(fixture.repository, never()).appendAudit(
+                anyLong(), anyLong(), any(), any(), anyString(), any());
+        verify(fixture.repository, never()).appendIssuedEvent(
+                anyLong(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void receiptCommittedWhileWaitingForSubjectLockReplaysBeforeChallengeConsumption() {
+        Fixture fixture = fixture();
+        CertificateRepository.ReceiptRow winner = fixture.receipt(
+                "RUNNING", fixture.requestDigest(), null);
+        when(fixture.repository.receiptByKey(
+                TENANT, CertificateService.COMMAND_TYPE, KEY))
+                .thenReturn(Optional.empty(), Optional.of(winner));
+        when(fixture.repository.personForMutation(TENANT, ACTOR))
+                .thenReturn(Optional.empty());
+        when(fixture.authority.requireMutationScope(any()))
+                .thenThrow(new AssertionError(
+                        "mutable population authority must not run for a late replay"));
+
+        CertificateService.CommandResult result = fixture.service.requestCertificate(
+                fixture.request, KEY, "\"v:5\"", CORRELATION, null,
+                fixture.stepUp());
+
+        assertThat(result.receipt().receiptId()).isEqualTo(RECEIPT);
+        assertThat(result.receipt().status()).isEqualTo("RUNNING");
+        var lockBoundary = inOrder(fixture.repository, fixture.authority);
+        lockBoundary.verify(fixture.repository).receiptByKey(
+                TENANT, CertificateService.COMMAND_TYPE, KEY);
+        lockBoundary.verify(fixture.repository).personForMutation(TENANT, ACTOR);
+        lockBoundary.verify(fixture.repository).receiptByKey(
+                TENANT, CertificateService.COMMAND_TYPE, KEY);
+        verify(fixture.authority, never()).requireMutationScope(any());
+        verifyNoInteractions(
+                fixture.populations, fixture.highRisk, fixture.artifacts);
+        verify(fixture.repository, never()).insertReceipt(
+                anyLong(), any(), anyString(), anyString(), anyString(), any(),
+                any(), anyString(), anyLong(), anyString(), anyLong(), anyString(),
+                any(), anyLong(), any(), any());
+        verify(fixture.repository, never()).insertRequest(
+                anyLong(), any(), anyLong(), anyLong(), anyString(), anyString(),
+                anyString(), any(), anyInt(), any(), anyLong());
+        verify(fixture.repository, never()).insertIssued(
+                anyLong(), any(), any(), any(), anyLong());
+        verify(fixture.repository, never()).appendAudit(
+                anyLong(), anyLong(), any(), any(), anyString(), any());
+        verify(fixture.repository, never()).appendIssuedEvent(
+                anyLong(), any(), any(), any(), any(), any());
     }
 
     @Test

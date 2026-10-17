@@ -26,8 +26,10 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -193,6 +195,127 @@ class Hrm009V58MigrationPostgresTest {
                  WHERE tenant_id=1 AND command_type='CERTIFICATE_REQUEST'
                    AND idempotency_key=?
                 """, Integer.class, key)).isOne();
+    }
+
+    @Test
+    void selfProjectionRequiresRequesterSubjectAndPurposeToMatchTheTrustedActor() {
+        DataSource source = migratedSource();
+        JdbcTemplate jdbc = new JdbcTemplate(source);
+        long actor = insertPerson(jdbc, 1L, "self-projection-actor");
+        long other = insertPerson(jdbc, 1L, "self-projection-other");
+        UUID actorPublicId = jdbc.queryForObject(
+                "SELECT public_id FROM ppl_persons WHERE person_id=?",
+                UUID.class, actor);
+        UUID allowed = UUID.fromString(
+                "10000000-0000-4000-8000-000000000001");
+        jdbc.update(requestInsert(
+                1L, actor, actor, allowed.toString(),
+                "20000000-0000-4000-8000-000000000001"));
+        jdbc.update(requestInsert(
+                1L, actor, other,
+                "10000000-0000-4000-8000-000000000002",
+                "20000000-0000-4000-8000-000000000002")
+                .replace("'EMPLOYEE_SELF_SERVICE'", "'HR_OPERATIONS'"));
+        jdbc.update(requestInsert(
+                1L, actor, actor,
+                "10000000-0000-4000-8000-000000000003",
+                "20000000-0000-4000-8000-000000000003")
+                .replace("'EMPLOYEE_SELF_SERVICE'", "'HR_OPERATIONS'"));
+        jdbc.update(requestInsert(
+                1L, other, actor,
+                "10000000-0000-4000-8000-000000000004",
+                "20000000-0000-4000-8000-000000000004"));
+        CertificateRepository repository = new CertificateRepository(
+                new NamedParameterJdbcTemplate(source),
+                new ObjectMapper().findAndRegisterModules());
+
+        List<CertificateRepository.ProjectionRow> rows = repository.selfRequests(
+                1L, actorPublicId, Instant.now().plusSeconds(60));
+
+        assertThat(rows).extracting(CertificateRepository.ProjectionRow::requestPublicId)
+                .containsExactly(allowed);
+    }
+
+    @Test
+    void operationsProjectionUsesOnlyCurrentInScopeWorkforceAssignments() {
+        DataSource source = migratedSource();
+        JdbcTemplate jdbc = new JdbcTemplate(source);
+        long tenant = 58_009L;
+        long employer = jdbc.queryForObject("""
+                INSERT INTO ppl_legal_employers(
+                    tenant_id,employer_key,legal_name)
+                VALUES(?,?,'HRM-009 Legal Employer')
+                RETURNING legal_employer_id
+                """, Long.class, tenant, "hrm009-employer");
+        jdbc.update("""
+                INSERT INTO ppl_organization_type_catalog(
+                    tenant_id,type_key,display_name,created_by,updated_by)
+                VALUES(?,'DEPARTMENT','Department',7,7)
+                """, tenant);
+        TestOrganization allowed = insertOrganization(
+                jdbc, tenant, "hrm009-allowed");
+        TestOrganization denied = insertOrganization(
+                jdbc, tenant, "hrm009-denied");
+
+        long activePerson = insertPerson(jdbc, tenant, "operations-active");
+        long activeRelationship = insertRelationship(
+                jdbc, tenant, activePerson, employer, "active", "ACTIVE", null);
+        insertAssignment(
+                jdbc, tenant, activeRelationship, "active", allowed.id(), true);
+
+        long terminatedPerson = insertPerson(
+                jdbc, tenant, "operations-terminated");
+        long terminatedRelationship = insertRelationship(
+                jdbc, tenant, terminatedPerson, employer, "terminated",
+                "TERMINATED", null);
+        insertAssignment(
+                jdbc, tenant, terminatedRelationship, "terminated",
+                allowed.id(), true);
+
+        long endedPerson = insertPerson(jdbc, tenant, "operations-ended");
+        long endedRelationship = insertRelationship(
+                jdbc, tenant, endedPerson, employer, "ended", "ACTIVE",
+                LocalDate.of(2020, 12, 31));
+        insertAssignment(
+                jdbc, tenant, endedRelationship, "ended", allowed.id(), true);
+
+        long secondaryPerson = insertPerson(
+                jdbc, tenant, "operations-secondary");
+        long secondaryRelationship = insertRelationship(
+                jdbc, tenant, secondaryPerson, employer, "secondary",
+                "ACTIVE", null);
+        insertAssignment(
+                jdbc, tenant, secondaryRelationship, "secondary-primary",
+                denied.id(), true);
+        insertAssignment(
+                jdbc, tenant, secondaryRelationship, "secondary-allowed",
+                allowed.id(), false);
+
+        UUID activeRequest = insertProjectedCertificate(
+                jdbc, tenant, activePerson, 1, "1".repeat(64));
+        UUID terminatedRequest = insertProjectedCertificate(
+                jdbc, tenant, terminatedPerson, 2, "2".repeat(64));
+        UUID endedRequest = insertProjectedCertificate(
+                jdbc, tenant, endedPerson, 3, "3".repeat(64));
+        UUID secondaryRequest = insertProjectedCertificate(
+                jdbc, tenant, secondaryPerson, 4, "4".repeat(64));
+        CertificateRepository repository = new CertificateRepository(
+                new NamedParameterJdbcTemplate(source),
+                new ObjectMapper().findAndRegisterModules());
+        HcmPopulationRepository.PopulationScope scope =
+                new HcmPopulationRepository.PopulationScope(
+                        -1L, null, false, Set.of(allowed.publicId()),
+                        Set.of("DIRECTORY", "EMPLOYMENT"), "hrm009-test-policy");
+
+        List<CertificateRepository.ProjectionRow> rows =
+                new TransactionTemplate(new DataSourceTransactionManager(source))
+                        .execute(status -> repository.operationsCertificates(
+                                tenant, Instant.now().plusSeconds(60), scope));
+
+        assertThat(rows)
+                .extracting(CertificateRepository.ProjectionRow::requestPublicId)
+                .containsExactly(activeRequest, secondaryRequest)
+                .doesNotContain(terminatedRequest, endedRequest);
     }
 
     @Test
@@ -578,6 +701,101 @@ class Hrm009V58MigrationPostgresTest {
                 """, Long.class, tenantId, key, "Person " + key);
     }
 
+    private TestOrganization insertOrganization(
+            JdbcTemplate jdbc,
+            long tenantId,
+            String key) {
+        Map<String, Object> row = jdbc.queryForMap("""
+                INSERT INTO ppl_organizations(
+                    tenant_id,organization_key,organization_type,name)
+                VALUES(?,?,'DEPARTMENT',?)
+                RETURNING organization_id,public_id
+                """, tenantId, key, "Organization " + key);
+        return new TestOrganization(
+                ((Number) row.get("organization_id")).longValue(),
+                (UUID) row.get("public_id"));
+    }
+
+    private long insertRelationship(
+            JdbcTemplate jdbc,
+            long tenantId,
+            long personId,
+            long employerId,
+            String key,
+            String workerStatus,
+            LocalDate endDate) {
+        long workerId = jdbc.queryForObject("""
+                INSERT INTO ppl_workers(
+                    tenant_id,person_id,worker_number,worker_type,worker_status,
+                    original_hire_date)
+                VALUES(?,?,?,'EMPLOYEE',?,DATE '2020-01-01')
+                RETURNING worker_id
+                """, Long.class, tenantId, personId, "HRM009-" + key,
+                workerStatus);
+        return jdbc.queryForObject("""
+                INSERT INTO ppl_work_relationships(
+                    tenant_id,relationship_key,worker_id,legal_employer_id,
+                    relationship_type,primary_relationship,start_date,end_date)
+                VALUES(?,?,?,?,'EMPLOYEE',TRUE,DATE '2020-01-01',?)
+                RETURNING work_relationship_id
+                """, Long.class, tenantId, "HRM009-REL-" + key,
+                workerId, employerId, endDate);
+    }
+
+    private void insertAssignment(
+            JdbcTemplate jdbc,
+            long tenantId,
+            long relationshipId,
+            String key,
+            long organizationId,
+            boolean primary) {
+        jdbc.update("""
+                INSERT INTO ppl_assignments(
+                    tenant_id,assignment_key,work_relationship_id,
+                    effective_start_date,assignment_status,primary_assignment,
+                    organization_id,business_title)
+                VALUES(?,?,?,DATE '2020-01-01','ACTIVE',?,?,
+                    'HRM-009 Specialist')
+                """, tenantId, "HRM009-ASG-" + key, relationshipId,
+                primary, organizationId);
+    }
+
+    private UUID insertProjectedCertificate(
+            JdbcTemplate jdbc,
+            long tenantId,
+            long personId,
+            int suffix,
+            String verificationHash) {
+        UUID requestPublicId = UUID.fromString(String.format(
+                "50000000-0000-4000-8000-%012d", suffix));
+        UUID correlationId = UUID.fromString(String.format(
+                "60000000-0000-4000-8000-%012d", suffix));
+        UUID certificatePublicId = UUID.fromString(String.format(
+                "70000000-0000-4000-8000-%012d", suffix));
+        jdbc.update(requestInsert(
+                tenantId, personId, personId, requestPublicId.toString(),
+                correlationId.toString()));
+        long requestId = jdbc.queryForObject("""
+                SELECT certificate_request_id
+                  FROM ppl_certificate_requests
+                 WHERE tenant_id=? AND public_id=?
+                """, Long.class, tenantId, requestPublicId);
+        jdbc.update("""
+                UPDATE ppl_certificate_requests
+                   SET lifecycle_state='VALIDATING',version=1
+                 WHERE tenant_id=? AND certificate_request_id=?
+                """, tenantId, requestId);
+        jdbc.update(issuedInsert(
+                tenantId, requestId, certificatePublicId.toString(), null,
+                verificationHash));
+        jdbc.update("""
+                UPDATE ppl_certificate_requests
+                   SET lifecycle_state='ISSUED',completed_at=clock_timestamp(),version=2
+                 WHERE tenant_id=? AND certificate_request_id=?
+                """, tenantId, requestId);
+        return requestPublicId;
+    }
+
     private String requestInsert(
             long tenantId,
             long requester,
@@ -601,6 +819,16 @@ class Hrm009V58MigrationPostgresTest {
             long requestId,
             String publicId,
             String expiresSql) {
+        return issuedInsert(
+                tenantId, requestId, publicId, expiresSql, SHA_B);
+    }
+
+    private String issuedInsert(
+            long tenantId,
+            long requestId,
+            String publicId,
+            String expiresSql,
+            String verificationHash) {
         String expiry = expiresSql == null ? "NULL" : expiresSql;
         return """
                 INSERT INTO ppl_issued_certificates(
@@ -609,7 +837,11 @@ class Hrm009V58MigrationPostgresTest {
                     lifecycle_state,issued_at,expires_at,created_by,updated_by)
                 VALUES('%s',%d,%d,'88888888-8888-4888-8888-888888888888',
                     1,'%s','%s','ISSUED',clock_timestamp(),%s,7,7)
-                """.formatted(publicId, tenantId, requestId, SHA_A, SHA_B, expiry);
+                """.formatted(
+                publicId, tenantId, requestId, SHA_A, verificationHash, expiry);
+    }
+
+    private record TestOrganization(long id, UUID publicId) {
     }
 
     private void insertReceipt(

@@ -360,6 +360,10 @@ class CertificateRepository {
                    AND request.requester_person_id=(
                        SELECT person_id FROM ppl_persons
                         WHERE tenant_id=:tenant AND public_id=:requester)
+                   AND request.subject_person_id=(
+                       SELECT person_id FROM ppl_persons
+                        WHERE tenant_id=:tenant AND public_id=:requester)
+                   AND request.purpose_code='EMPLOYEE_SELF_SERVICE'
                    AND request.requested_at<=:asOf
                  ORDER BY request.public_id
                 """, params(tenantId)
@@ -399,6 +403,9 @@ class CertificateRepository {
                          JOIN ppl_work_relationships relationship
                            ON relationship.tenant_id=worker.tenant_id
                           AND relationship.worker_id=worker.worker_id
+                          AND relationship.start_date<=CURRENT_DATE
+                          AND (relationship.end_date IS NULL
+                               OR relationship.end_date>=CURRENT_DATE)
                          JOIN ppl_assignments assignment
                            ON assignment.tenant_id=relationship.tenant_id
                           AND assignment.work_relationship_id=relationship.work_relationship_id
@@ -407,19 +414,20 @@ class CertificateRepository {
                           AND organization.organization_id=assignment.organization_id
                         WHERE worker.tenant_id=subject.tenant_id
                           AND worker.person_id=subject.person_id
+                          AND worker.worker_status IN ('ACTIVE','LEAVE')
                           AND assignment.assignment_status IN ('ACTIVE','SUSPENDED','PENDING')
                           AND assignment.effective_start_date<=CURRENT_DATE
                           AND (assignment.effective_end_date IS NULL
                                OR assignment.effective_end_date>=CURRENT_DATE)
+                          AND worker.worker_id<>:actorWorker
+                          AND (:tenantWide
+                               OR assignment.manager_assignment_key=:managerAssignment
+                               OR organization.public_id IN (:organizations))
                         ORDER BY assignment.primary_assignment DESC,
                                  assignment.effective_start_date DESC,worker.worker_id
                         LIMIT 1
                   ) workforce ON TRUE
                  WHERE issued.tenant_id=:tenant AND issued.issued_at<=:asOf
-                   AND workforce.worker_id<>:actorWorker
-                   AND (:tenantWide
-                        OR workforce.manager_assignment_key=:managerAssignment
-                        OR workforce.organization_public_id IN (:organizations))
                  ORDER BY request.public_id
                 """, params(tenantId)
                 .addValue("asOf", Timestamp.from(asOf))

@@ -29,18 +29,24 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class Hrm009StageAContractTest {
 
+    private static final String UUID_PATTERN =
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
+                    + "[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$";
     private static final Instant NOW = Instant.parse("2026-10-18T03:00:00Z");
     private static final UUID ACTOR =
             UUID.fromString("11111111-1111-4111-8111-111111111111");
@@ -94,6 +100,14 @@ class Hrm009StageAContractTest {
         assertThat(self.routeContractKey())
                 .isEqualTo("route.hcm.personal.requests.data");
         assertThat(self.profileKey()).isEqualTo("self-request-reader");
+        assertThat(self.bindingKey())
+                .isEqualTo("route.hcm.personal.requests.data.binding.01");
+        assertThat(self.projectionPolicyKey()).isEqualTo(
+                "route.hcm.personal.requests.data.self-request-reader.projection.v1");
+        assertThat(self.responseSchemaKey())
+                .isEqualTo("Hrm009SelfRequestsProjectionV1");
+        assertThat(self.fieldPolicyKey())
+                .isEqualTo("hrm009.iaq-003.fields.v1");
         assertThat(self.capability()).isEqualTo("hcm.personal.requests.view");
         assertThat(self.fieldGroups()).containsExactly(
                 "REQUEST_SUMMARY", "REQUEST_STATUS", "COMMAND_RECEIPT");
@@ -110,6 +124,15 @@ class Hrm009StageAContractTest {
         assertThat(operations.routeContractKey())
                 .isEqualTo("route.hcm.operations.certificates-documents.data");
         assertThat(operations.profileKey()).isEqualTo("people-operations-reader");
+        assertThat(operations.bindingKey()).isEqualTo(
+                "route.hcm.operations.certificates-documents.data.binding.01");
+        assertThat(operations.projectionPolicyKey()).isEqualTo(
+                "route.hcm.operations.certificates-documents.data."
+                        + "people-operations-reader.projection.v1");
+        assertThat(operations.responseSchemaKey())
+                .isEqualTo("Hrm009CertificatesDocumentsProjectionV1");
+        assertThat(operations.fieldPolicyKey())
+                .isEqualTo("hrm009.iaq-010.fields.v1");
         assertThat(operations.capability()).isEqualTo("hcm.operations.people.view");
         assertThat(operations.fieldGroups()).containsExactly(
                 "CERTIFICATE_METADATA", "DOCUMENT_METADATA");
@@ -126,12 +149,14 @@ class Hrm009StageAContractTest {
         when(service.query(any(), any())).thenReturn(emptyResult());
 
         controller.selfRequests(
-                10, List.of("itemPublicId:ASC"), "en-US", "UTC", CORRELATION,
+                10, List.of("itemPublicId:ASC"), "en-US", "UTC",
+                CORRELATION.toString(),
                 NOW, null, emptyFilter());
         MultiValueMap<String, String> nested = common();
         nested.add("filter[requestStatus][codes]", "REQUESTED");
         controller.selfRequests(
-                10, List.of("itemPublicId:ASC"), "en-US", "UTC", CORRELATION,
+                10, List.of("itemPublicId:ASC"), "en-US", "UTC",
+                CORRELATION.toString(),
                 NOW, null, nested);
 
         verify(service, org.mockito.Mockito.times(2)).query(
@@ -183,7 +208,85 @@ class Hrm009StageAContractTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.correlationId")
+                        .value(matchesPattern(UUID_PATTERN)))
+                .andExpect(header().string(
+                        "X-Correlation-ID", matchesPattern(UUID_PATTERN)));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void httpUuidBoundariesRejectVersionZeroBodiesAndShortFormCorrelations()
+            throws Exception {
+        CertificateService service = mock(CertificateService.class);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new CertificateController(service))
+                .setControllerAdvice(new CertificateProblemAdvice())
+                .build();
+        String validBody = """
+                {
+                  "personPublicId":"11111111-1111-4111-8111-111111111111",
+                  "certificateType":"employment-letter",
+                  "purposeCode":"EMPLOYEE_SELF_SERVICE",
+                  "locale":"en-US",
+                  "asOf":"2026-10-18T03:00:00Z"
+                }
+                """;
+
+        mvc.perform(post("/v1/hris/certificates")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer test-token")
+                        .header(HcmStepUpHeaders.IDEMPOTENCY_KEY,
+                                "certificate-key-00000001")
+                        .header("If-Match", "\"v:5\"")
+                        .header("X-Correlation-ID", CORRELATION)
+                        .header(HcmStepUpHeaders.CHALLENGE, "signed-challenge")
+                        .header(HcmStepUpHeaders.DECISION_REVISION,
+                                "psr-" + "c".repeat(64))
+                        .header(HcmStepUpHeaders.EXPECTED_OBJECT_VERSION, "5")
+                        .content(validBody.replace(
+                                "11111111-1111-4111-8111-111111111111",
+                                "11111111-1111-0111-8111-111111111111")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.correlationId")
+                        .value(matchesPattern(UUID_PATTERN)))
+                .andExpect(header().string(
+                        "X-Correlation-ID", matchesPattern(UUID_PATTERN)));
+
+        mvc.perform(post("/v1/hris/certificates")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer test-token")
+                        .header(HcmStepUpHeaders.IDEMPOTENCY_KEY,
+                                "certificate-key-00000001")
+                        .header("If-Match", "\"v:5\"")
+                        .header("X-Correlation-ID", "1-1-1-1-1")
+                        .header(HcmStepUpHeaders.CHALLENGE, "signed-challenge")
+                        .header(HcmStepUpHeaders.DECISION_REVISION,
+                                "psr-" + "c".repeat(64))
+                        .header(HcmStepUpHeaders.EXPECTED_OBJECT_VERSION, "5")
+                        .content(validBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.correlationId")
+                        .value(matchesPattern(UUID_PATTERN)))
+                .andExpect(header().string(
+                        "X-Correlation-ID", matchesPattern(UUID_PATTERN)));
+
+        mvc.perform(get("/v1/hris/workbench/self-service/requests")
+                        .param("limit", "10")
+                        .param("filter", "{}")
+                        .param("sort", "itemPublicId:ASC")
+                        .param("locale", "en-US")
+                        .param("timeZone", "UTC")
+                        .param("correlationId", "1-1-1-1-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.correlationId")
+                        .value(matchesPattern(UUID_PATTERN)))
+                .andExpect(header().string(
+                        "X-Correlation-ID", matchesPattern(UUID_PATTERN)));
 
         verifyNoInteractions(service);
     }
@@ -250,6 +353,72 @@ class Hrm009StageAContractTest {
     }
 
     @Test
+    void maskedOperationsMetadataCannotLeakThroughItemsFiltersOrOrdering() {
+        CertificateAuthority.QueryDecision restricted = queryDecision(
+                CertificateQueryDefinition.OPERATIONS_CERTIFICATES,
+                Set.of("DIRECTORY"));
+        CertificateDtos.OperationsFilter empty =
+                new CertificateDtos.OperationsFilter(null, null, null);
+        CertificateProjector.PreparedQuery prepared = projector.prepare(
+                CertificateQueryDefinition.OPERATIONS_CERTIFICATES,
+                new CertificateDtos.QueryRequest(
+                        10, empty, List.of("itemPublicId:ASC"), "en-US", "UTC",
+                        CORRELATION, NOW, null), NOW);
+        CertificateRepository.ProjectionRow hiddenFirst = operationsRow(
+                1, "secret-zulu", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+                "d".repeat(64));
+        CertificateRepository.ProjectionRow hiddenSecond = operationsRow(
+                2, "secret-alpha", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+                "e".repeat(64));
+
+        CertificateProjector.Page page = projector.project(
+                prepared, List.of(hiddenSecond, hiddenFirst), restricted, null);
+
+        assertThat(page.items())
+                .extracting(CertificateDtos.Item::itemPublicId)
+                .containsExactly(
+                        hiddenFirst.requestPublicId().toString(),
+                        hiddenSecond.requestPublicId().toString());
+        assertThat(page.items()).allSatisfy(item -> {
+            assertThat(item.title()).isEqualTo("Restricted certificate");
+            assertThat(item.statusCode()).isEqualTo("RESTRICTED");
+            assertThat(item.availableActions()).isEmpty();
+            assertThat(item.fieldGroups().values())
+                    .allMatch(CertificateDtos.MaskedField.class::isInstance);
+        });
+        assertThat(page.items().toString())
+                .doesNotContain("secret-zulu", "secret-alpha", "Hidden Person")
+                .doesNotContain("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1")
+                .doesNotContain("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2")
+                .doesNotContain("d".repeat(64), "e".repeat(64));
+
+        CertificateProjector.PreparedQuery filtered = projector.prepare(
+                CertificateQueryDefinition.OPERATIONS_CERTIFICATES,
+                new CertificateDtos.QueryRequest(
+                        10, new CertificateDtos.OperationsFilter(
+                        new CertificateDtos.MetadataFilter(
+                                List.of("secret-zulu"), List.of()), null, null),
+                        List.of("itemPublicId:ASC"), "en-US", "UTC", CORRELATION,
+                        NOW, null), NOW);
+        assertThatThrownBy(() -> projector.project(
+                filtered, List.of(hiddenFirst, hiddenSecond), restricted, null))
+                .isInstanceOf(CertificateException.class)
+                .satisfies(failure -> assertThat(((CertificateException) failure).code())
+                        .isEqualTo("CERTIFICATE_ACCESS_DENIED"));
+
+        CertificateProjector.PreparedQuery sorted = projector.prepare(
+                CertificateQueryDefinition.OPERATIONS_CERTIFICATES,
+                new CertificateDtos.QueryRequest(
+                        10, empty, List.of("certificateMetadata:ASC"),
+                        "en-US", "UTC", CORRELATION, NOW, null), NOW);
+        assertThatThrownBy(() -> projector.project(
+                sorted, List.of(hiddenFirst, hiddenSecond), restricted, null))
+                .isInstanceOf(CertificateException.class)
+                .satisfies(failure -> assertThat(((CertificateException) failure).code())
+                        .isEqualTo("CERTIFICATE_ACCESS_DENIED"));
+    }
+
+    @Test
     void emptyEnrollmentStopsQueriesAndCommandsBeforeEveryRuntimeDependency() {
         CertificateAuthority authority = mock(CertificateAuthority.class);
         CertificateRepository repository = mock(CertificateRepository.class);
@@ -290,7 +459,8 @@ class Hrm009StageAContractTest {
             CertificateController controller,
             MultiValueMap<String, String> parameters) {
         assertThatThrownBy(() -> controller.selfRequests(
-                10, List.of("itemPublicId:ASC"), "en-US", "UTC", CORRELATION,
+                10, List.of("itemPublicId:ASC"), "en-US", "UTC",
+                CORRELATION.toString(),
                 NOW, null, parameters)).isInstanceOf(CertificateException.class);
     }
 
@@ -345,5 +515,22 @@ class Hrm009StageAContractTest {
                 UUID.fromString("33333333-3333-4333-8333-333333333333"),
                 1, 0, NOW.minusSeconds(60), null, null, null, null,
                 null, null, null, null, null, null);
+    }
+
+    private CertificateRepository.ProjectionRow operationsRow(
+            int suffix,
+            String certificateType,
+            String objectPublicId,
+            String contentDigest) {
+        UUID request = UUID.fromString(String.format(
+                "00000000-0000-4000-8000-%012d", suffix));
+        return new CertificateRepository.ProjectionRow(
+                request, ACTOR, "Hidden Person " + suffix, certificateType, "ISSUED",
+                UUID.fromString("33333333-3333-4333-8333-333333333333"),
+                1, 2, NOW.minusSeconds(60), null, null, null, null,
+                UUID.fromString(String.format(
+                        "44444444-4444-4444-8444-%012d", suffix)),
+                UUID.fromString(objectPublicId), 1, contentDigest,
+                NOW.minusSeconds(30), NOW.plusSeconds(3600));
     }
 }

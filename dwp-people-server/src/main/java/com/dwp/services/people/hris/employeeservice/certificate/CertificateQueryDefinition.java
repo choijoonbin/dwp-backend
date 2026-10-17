@@ -12,6 +12,10 @@ enum CertificateQueryDefinition {
             "/api/people/v1/hris/workbench/self-service/requests",
             "/hr/me/requests",
             "route.hcm.personal.requests.data", "self-request-reader",
+            "route.hcm.personal.requests.data.binding.01",
+            "route.hcm.personal.requests.data.self-request-reader.projection.v1",
+            "Hrm009SelfRequestsProjectionV1",
+            "hrm009.iaq-003.fields.v1",
             "hcm.personal.requests.view", "EMPLOYEE_SELF_SERVICE",
             Set.of("predicate.self-person.v1"), Set.of("SELF"),
             List.of("REQUEST_SUMMARY", "REQUEST_STATUS", "COMMAND_RECEIPT"),
@@ -31,6 +35,10 @@ enum CertificateQueryDefinition {
             "/hr/operations/people/certificates-documents",
             "route.hcm.operations.certificates-documents.data",
             "people-operations-reader",
+            "route.hcm.operations.certificates-documents.data.binding.01",
+            "route.hcm.operations.certificates-documents.data.people-operations-reader.projection.v1",
+            "Hrm009CertificatesDocumentsProjectionV1",
+            "hrm009.iaq-010.fields.v1",
             "hcm.operations.people.view", "HR_OPERATIONS",
             Set.of("predicate.hcm-workforce-visible-person.v1"),
             Set.of("TARGET_POPULATION"),
@@ -49,6 +57,10 @@ enum CertificateQueryDefinition {
     private final String deepLinkRoute;
     private final String routeContractKey;
     private final String profileKey;
+    private final String bindingKey;
+    private final String projectionPolicyKey;
+    private final String responseSchemaKey;
+    private final String fieldPolicyKey;
     private final String capability;
     private final String purpose;
     private final Set<String> predicatePolicyKeys;
@@ -66,6 +78,10 @@ enum CertificateQueryDefinition {
             String deepLinkRoute,
             String routeContractKey,
             String profileKey,
+            String bindingKey,
+            String projectionPolicyKey,
+            String responseSchemaKey,
+            String fieldPolicyKey,
             String capability,
             String purpose,
             Set<String> predicatePolicyKeys,
@@ -81,6 +97,10 @@ enum CertificateQueryDefinition {
         this.deepLinkRoute = deepLinkRoute;
         this.routeContractKey = routeContractKey;
         this.profileKey = profileKey;
+        this.bindingKey = bindingKey;
+        this.projectionPolicyKey = projectionPolicyKey;
+        this.responseSchemaKey = responseSchemaKey;
+        this.fieldPolicyKey = fieldPolicyKey;
         this.capability = capability;
         this.purpose = purpose;
         this.predicatePolicyKeys = Set.copyOf(predicatePolicyKeys);
@@ -98,6 +118,10 @@ enum CertificateQueryDefinition {
     String deepLinkRoute() { return deepLinkRoute; }
     String routeContractKey() { return routeContractKey; }
     String profileKey() { return profileKey; }
+    String bindingKey() { return bindingKey; }
+    String projectionPolicyKey() { return projectionPolicyKey; }
+    String responseSchemaKey() { return responseSchemaKey; }
+    String fieldPolicyKey() { return fieldPolicyKey; }
     String capability() { return capability; }
     String purpose() { return purpose; }
     Set<String> predicatePolicyKeys() { return predicatePolicyKeys; }

@@ -75,17 +75,21 @@ final class CertificateProjector {
             List<CertificateRepository.ProjectionRow> source,
             CertificateAuthority.QueryDecision authority,
             String lastItemPublicId) {
+        OperationsFieldDecisions operations = query.definition()
+                == CertificateQueryDefinition.OPERATIONS_CERTIFICATES
+                ? operationsFieldDecisions(authority) : null;
+        requireQueryable(query, operations);
         List<CertificateRepository.ProjectionRow> valid = new ArrayList<>();
         boolean invalid = false;
         for (CertificateRepository.ProjectionRow row : source == null
                 ? List.<CertificateRepository.ProjectionRow>of() : source) {
-            if (!valid(row, query.definition())) {
+            if (!valid(row, query.definition(), operations)) {
                 invalid = true;
-            } else if (matches(query, row)) {
+            } else if (matches(query, row, operations)) {
                 valid.add(row);
             }
         }
-        valid.sort(comparator(query));
+        valid.sort(comparator(query, operations));
         int from = 0;
         if (lastItemPublicId != null) {
             int index = -1;
@@ -104,7 +108,7 @@ final class CertificateProjector {
         }
         int to = Math.min(from + query.limit(), valid.size());
         List<CertificateDtos.Item> items = valid.subList(from, to).stream()
-                .map(row -> item(query, row, authority))
+                .map(row -> item(query, row, authority, operations))
                 .toList();
         boolean hasMore = to < valid.size();
         List<CertificateDtos.PartialFailure> failures = invalid
@@ -165,7 +169,8 @@ final class CertificateProjector {
     private CertificateDtos.Item item(
             PreparedQuery query,
             CertificateRepository.ProjectionRow row,
-            CertificateAuthority.QueryDecision authority) {
+            CertificateAuthority.QueryDecision authority,
+            OperationsFieldDecisions operations) {
         Map<String, Object> groups = new LinkedHashMap<>();
         long revision = Math.max(1, row.requestVersion());
         if (query.definition() == CertificateQueryDefinition.SELF_REQUESTS) {
@@ -182,30 +187,36 @@ final class CertificateProjector {
                                         ? revision : row.receiptRevision()))));
             }
         } else {
-            boolean directory = authority.fieldGroups().contains("DIRECTORY");
-            boolean employment = authority.fieldGroups().contains("EMPLOYMENT");
-            Object certificateValue = new CertificateDtos.MetadataValue(
-                    row.certificateType(), Integer.toString(row.templateVersion()), null);
-            Object documentValue = new CertificateDtos.MetadataValue(
-                    row.objectPublicId().toString(),
-                    Integer.toString(row.objectVersion()), row.contentSha256());
-            groups.put("CERTIFICATE_METADATA", directory && employment
-                    ? new CertificateDtos.ViewedField(certificateValue)
+            groups.put("CERTIFICATE_METADATA", operations.certificateMetadataView()
+                    ? new CertificateDtos.ViewedField(
+                    new CertificateDtos.MetadataValue(
+                            row.certificateType(),
+                            Integer.toString(row.templateVersion()), null))
                     : new CertificateDtos.MaskedField(
-                    "FIELD_POLICY_DENIED", "hris.field.certificate-metadata.masked"));
-            groups.put("DOCUMENT_METADATA", employment
-                    ? new CertificateDtos.ViewedField(documentValue)
+                            "FIELD_POLICY_DENIED",
+                            "hris.field.certificate-metadata.masked"));
+            groups.put("DOCUMENT_METADATA", operations.documentMetadataView()
+                    ? new CertificateDtos.ViewedField(
+                    new CertificateDtos.MetadataValue(
+                            row.objectPublicId().toString(),
+                            Integer.toString(row.objectVersion()),
+                            row.contentSha256()))
                     : new CertificateDtos.MaskedField(
-                    "FIELD_POLICY_DENIED", "hris.field.document-metadata.masked"));
+                            "FIELD_POLICY_DENIED",
+                            "hris.field.document-metadata.masked"));
         }
         String itemPublicId = row.requestPublicId().toString();
+        boolean restricted = operations != null
+                && !operations.certificateMetadataView();
         return new CertificateDtos.Item(
                 itemPublicId,
-                row.displayName() + " · " + row.certificateType(),
-                row.state(), groups,
+                restricted ? "Restricted certificate"
+                        : row.displayName() + " · " + row.certificateType(),
+                restricted ? "RESTRICTED" : row.state(), groups,
                 new CertificateDtos.DeepLink(
                         query.definition().deepLinkRoute(), itemPublicId),
-                actions(query.definition(), row, authority));
+                restricted ? List.of()
+                        : actions(query.definition(), row, authority));
     }
 
     private List<CertificateDtos.AvailableAction> actions(
@@ -236,17 +247,20 @@ final class CertificateProjector {
 
     private boolean valid(
             CertificateRepository.ProjectionRow row,
-            CertificateQueryDefinition definition) {
+            CertificateQueryDefinition definition,
+            OperationsFieldDecisions operations) {
         if (row == null || row.requestPublicId() == null
-                || row.subjectPublicId() == null || row.displayName() == null
-                || row.displayName().isBlank() || row.displayName().length() > 512
-                || row.certificateType() == null || row.certificateType().isBlank()
-                || row.certificateType().length() > 64
-                || row.displayName().length() + 3 + row.certificateType().length() > 512
-                || row.state() == null || !CODE.matcher(row.state()).matches()
-                || row.templatePublicId() == null || row.templateVersion() < 1
-                || row.requestVersion() < 0 || row.requestedAt() == null) return false;
+                || row.requestedAt() == null) return false;
         if (definition == CertificateQueryDefinition.SELF_REQUESTS) {
+            if (row.subjectPublicId() == null || row.displayName() == null
+                    || row.displayName().isBlank() || row.displayName().length() > 512
+                    || row.certificateType() == null || row.certificateType().isBlank()
+                    || row.certificateType().length() > 64
+                    || row.displayName().length() + 3
+                    + row.certificateType().length() > 512
+                    || row.state() == null || !CODE.matcher(row.state()).matches()
+                    || row.templatePublicId() == null || row.templateVersion() < 1
+                    || row.requestVersion() < 0) return false;
             boolean receiptAbsent = row.receiptId() == null
                     && row.receiptState() == null
                     && row.receiptCreatedAt() == null
@@ -259,8 +273,19 @@ final class CertificateProjector {
                     && row.receiptRevision() > 0;
             return receiptAbsent || receiptComplete;
         }
-        return PUBLIC_ID.matcher(row.certificateType()).matches()
-                && row.certificatePublicId() != null
+        if (operations.certificateMetadataView()
+                && (row.subjectPublicId() == null || row.displayName() == null
+                || row.displayName().isBlank() || row.displayName().length() > 512
+                || row.certificateType() == null
+                || !PUBLIC_ID.matcher(row.certificateType()).matches()
+                || row.displayName().length() + 3
+                + row.certificateType().length() > 512
+                || row.state() == null || !CODE.matcher(row.state()).matches()
+                || row.templatePublicId() == null || row.templateVersion() < 1)) {
+            return false;
+        }
+        return !operations.documentMetadataView()
+                || row.certificatePublicId() != null
                 && row.objectPublicId() != null
                 && row.objectVersion() != null && row.objectVersion() > 0
                 && row.contentSha256() != null
@@ -271,7 +296,8 @@ final class CertificateProjector {
 
     private boolean matches(
             PreparedQuery query,
-            CertificateRepository.ProjectionRow row) {
+            CertificateRepository.ProjectionRow row,
+            OperationsFieldDecisions operations) {
         LocalDate day = row.requestedAt().atZone(ZoneId.of(query.timeZone())).toLocalDate();
         if (query.definition() == CertificateQueryDefinition.SELF_REQUESTS) {
             CertificateDtos.SelfRequestsFilter filter =
@@ -283,22 +309,26 @@ final class CertificateProjector {
         }
         CertificateDtos.OperationsFilter filter =
                 (CertificateDtos.OperationsFilter) query.filter();
-        return metadata(filter.certificateMetadata(),
-                row.certificateType(), Integer.toString(row.templateVersion()))
-                && metadata(filter.documentMetadata(),
-                row.objectPublicId().toString(), Integer.toString(row.objectVersion()))
+        return (!operations.certificateMetadataView()
+                || metadata(filter.certificateMetadata(), row.certificateType(),
+                Integer.toString(row.templateVersion())))
+                && (!operations.documentMetadataView()
+                || metadata(filter.documentMetadata(), row.objectPublicId().toString(),
+                Integer.toString(row.objectVersion())))
                 && (filter.effectiveOn() == null || filter.effectiveOn().equals(day));
     }
 
     private Comparator<CertificateRepository.ProjectionRow> comparator(
-            PreparedQuery query) {
+            PreparedQuery query,
+            OperationsFieldDecisions operations) {
         return (left, right) -> {
             for (String specification : query.sort()) {
                 int separator = specification.lastIndexOf(':');
                 String key = specification.substring(0, separator);
                 boolean descending = "DESC".equals(specification.substring(separator + 1));
-                int compared = compare(sortValue(query.definition(), left, key),
-                        sortValue(query.definition(), right, key));
+                int compared = compare(
+                        sortValue(query.definition(), left, key, operations),
+                        sortValue(query.definition(), right, key, operations));
                 if (compared != 0) return descending ? -compared : compared;
             }
             return left.requestPublicId().toString()
@@ -309,7 +339,8 @@ final class CertificateProjector {
     private Comparable<?> sortValue(
             CertificateQueryDefinition definition,
             CertificateRepository.ProjectionRow row,
-            String key) {
+            String key,
+            OperationsFieldDecisions operations) {
         if ("itemPublicId".equals(key)) return row.requestPublicId().toString();
         if (definition == CertificateQueryDefinition.SELF_REQUESTS) {
             return switch (key) {
@@ -320,10 +351,41 @@ final class CertificateProjector {
             };
         }
         return switch (key) {
-            case "certificateMetadata" -> row.certificateType();
-            case "documentMetadata" -> row.objectPublicId().toString();
+            case "certificateMetadata" -> operations.certificateMetadataView()
+                    ? row.certificateType() : row.requestPublicId().toString();
+            case "documentMetadata" -> operations.documentMetadataView()
+                    ? row.objectPublicId().toString() : row.requestPublicId().toString();
             default -> throw new IllegalStateException("Unsupported IAQ-010 sort.");
         };
+    }
+
+    private OperationsFieldDecisions operationsFieldDecisions(
+            CertificateAuthority.QueryDecision authority) {
+        boolean directory = authority.fieldGroups().contains("DIRECTORY");
+        boolean employment = authority.fieldGroups().contains("EMPLOYMENT");
+        return new OperationsFieldDecisions(
+                directory && employment, employment);
+    }
+
+    private void requireQueryable(
+            PreparedQuery query,
+            OperationsFieldDecisions decisions) {
+        if (decisions == null) return;
+        CertificateDtos.OperationsFilter filter =
+                (CertificateDtos.OperationsFilter) query.filter();
+        boolean restrictedFilter = (!decisions.certificateMetadataView()
+                && filter.certificateMetadata() != null)
+                || (!decisions.documentMetadataView()
+                && filter.documentMetadata() != null);
+        boolean restrictedSort = query.sort().stream().anyMatch(value ->
+                (!decisions.certificateMetadataView()
+                        && value.startsWith("certificateMetadata:"))
+                        || (!decisions.documentMetadataView()
+                        && value.startsWith("documentMetadata:")));
+        if (restrictedFilter || restrictedSort) {
+            throw CertificateException.denied(
+                    "Masked certificate fields cannot control filtering or ordering.");
+        }
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -540,5 +602,10 @@ final class CertificateProjector {
             CertificateDtos.FieldDecisionSummary summary,
             boolean hasMore,
             String lastItemPublicId) {
+    }
+
+    private record OperationsFieldDecisions(
+            boolean certificateMetadataView,
+            boolean documentMetadataView) {
     }
 }

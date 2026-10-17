@@ -104,9 +104,8 @@ final class CertificateProblemAdvice {
     }
 
     private UUID uuid(String value) {
-        if (value == null || value.length() > 36) return null;
         try {
-            return UUID.fromString(value);
+            return CertificateDtos.parseCanonicalUuid(value);
         } catch (IllegalArgumentException ignored) {
             return null;
         }
