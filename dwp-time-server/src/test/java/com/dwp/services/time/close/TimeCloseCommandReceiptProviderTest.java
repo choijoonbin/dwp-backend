@@ -14,6 +14,9 @@ import com.dwp.services.time.api.HrisTimeProblemCode;
 import com.dwp.services.time.close.TimeCloseModels.StoredReceipt;
 import com.dwp.services.time.commandreceipt.CommandReceiptLookup;
 import com.dwp.services.time.commandreceipt.VerifiedCommandReceiptRequest;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -25,8 +28,7 @@ class TimeCloseCommandReceiptProviderTest {
     void missingProviderAuthorityAndUnenrolledTenantStopBeforeOwnershipProbe() {
         TimeCloseReceiptOwnership ownership = mock(TimeCloseReceiptOwnership.class);
         TimeCloseActivationGate inactive = ignored -> false;
-        TimeCloseCommandReceiptProvider provider =
-                new TimeCloseCommandReceiptProvider(ownership, inactive);
+        TimeCloseCommandReceiptProvider provider = provider(ownership, inactive);
 
         assertThat(provider.owns(lookup(Map.of("timecard", new Object())))).isFalse();
         assertThat(provider.owns(lookup(Map.of("close", authority())))).isFalse();
@@ -39,7 +41,7 @@ class TimeCloseCommandReceiptProviderTest {
         TimeCloseReceiptOwnership ownership = mock(TimeCloseReceiptOwnership.class);
         when(ownership.owns(TimeCloseTestFixtures.TENANT, TimeCloseTestFixtures.RECEIPT))
                 .thenReturn(true);
-        TimeCloseCommandReceiptProvider provider = new TimeCloseCommandReceiptProvider(
+        TimeCloseCommandReceiptProvider provider = provider(
                 ownership, tenant -> tenant == TimeCloseTestFixtures.TENANT);
 
         assertThat(provider.providerId()).isEqualTo("close");
@@ -59,7 +61,7 @@ class TimeCloseCommandReceiptProviderTest {
                     return authority.permits(stored)
                             ? Optional.of(stored.receipt()) : Optional.empty();
                 });
-        TimeCloseCommandReceiptProvider provider = new TimeCloseCommandReceiptProvider(
+        TimeCloseCommandReceiptProvider provider = provider(
                 ownership, tenant -> tenant == TimeCloseTestFixtures.TENANT);
 
         assertThat(provider.receipt(lookup(Map.of("close", authority()))))
@@ -77,8 +79,7 @@ class TimeCloseCommandReceiptProviderTest {
                     return authority.permits(stored)
                             ? Optional.of(stored.receipt()) : Optional.empty();
                 });
-        TimeCloseCommandReceiptProvider provider = new TimeCloseCommandReceiptProvider(
-                ownership, ignored -> true);
+        TimeCloseCommandReceiptProvider provider = provider(ownership, ignored -> true);
         VerifiedTimeCloseReceiptRequest denied = new VerifiedTimeCloseReceiptRequest(
                 TimeCloseTestFixtures.TENANT, 72L, TimeCloseTestFixtures.SUBJECT,
                 Set.of("APP.HCM:VIEW", "DATA.HRIS_COMMAND_RECEIPT:VIEW",
@@ -96,7 +97,32 @@ class TimeCloseCommandReceiptProviderTest {
                                 .isEqualTo(HrisTimeProblemCode.TARGET_NOT_DISCLOSED));
     }
 
+    @Test
+    void commonOrNativeAuthorityAtExpiryBoundaryStopsBeforeActivationAndStorage() {
+        TimeCloseReceiptOwnership ownership = mock(TimeCloseReceiptOwnership.class);
+        TimeCloseActivationGate activation = mock(TimeCloseActivationGate.class);
+        TimeCloseCommandReceiptProvider provider = provider(ownership, activation);
+        CommandReceiptLookup commonExpired = lookup(
+                Map.of("close", authority(TimeCloseTestFixtures.NOW.plusSeconds(1))),
+                TimeCloseTestFixtures.NOW);
+        CommandReceiptLookup nativeExpired = lookup(
+                Map.of("close", authority(TimeCloseTestFixtures.NOW)),
+                TimeCloseTestFixtures.NOW.plusSeconds(1));
+
+        assertThat(provider.owns(commonExpired)).isFalse();
+        assertThat(provider.owns(nativeExpired)).isFalse();
+        assertOpaque(() -> provider.receipt(commonExpired));
+        assertOpaque(() -> provider.receipt(nativeExpired));
+
+        verifyNoInteractions(activation, ownership);
+    }
+
     private CommandReceiptLookup lookup(Map<String, Object> evidence) {
+        return lookup(evidence, TimeCloseTestFixtures.NOW.plusSeconds(300));
+    }
+
+    private CommandReceiptLookup lookup(
+            Map<String, Object> evidence, Instant commonRevalidateAt) {
         return new CommandReceiptLookup(
                 TimeCloseTestFixtures.TENANT,
                 TimeCloseTestFixtures.RECEIPT,
@@ -105,11 +131,15 @@ class TimeCloseCommandReceiptProviderTest {
                         TimeCloseTestFixtures.TENANT,
                         TimeCloseTestFixtures.CORRELATION,
                         TimeCloseTestFixtures.DECISION_REVISION,
-                        TimeCloseTestFixtures.NOW.plusSeconds(300),
+                        commonRevalidateAt,
                         evidence));
     }
 
     private VerifiedTimeCloseReceiptRequest authority() {
+        return authority(TimeCloseTestFixtures.NOW.plusSeconds(300));
+    }
+
+    private VerifiedTimeCloseReceiptRequest authority(Instant revalidateAt) {
         return new VerifiedTimeCloseReceiptRequest(
                 TimeCloseTestFixtures.TENANT, 72L, TimeCloseTestFixtures.SUBJECT,
                 Set.of("APP.HCM:VIEW", "DATA.HRIS_COMMAND_RECEIPT:VIEW",
@@ -118,7 +148,21 @@ class TimeCloseCommandReceiptProviderTest {
                 TimeCloseTestFixtures.POPULATION, 9L, 11L,
                 TimeCloseTestFixtures.SCOPE_DIGEST, 13L, 17L,
                 TimeCloseTestFixtures.DECISION_REVISION,
-                TimeCloseTestFixtures.NOW.plusSeconds(300),
+                revalidateAt,
                 TimeCloseTestFixtures.CORRELATION);
+    }
+
+    private TimeCloseCommandReceiptProvider provider(
+            TimeCloseReceiptOwnership ownership, TimeCloseActivationGate activation) {
+        return new TimeCloseCommandReceiptProvider(
+                ownership, activation,
+                Clock.fixed(TimeCloseTestFixtures.NOW, ZoneOffset.UTC));
+    }
+
+    private void assertOpaque(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+        assertThatThrownBy(call)
+                .isInstanceOfSatisfying(HrisTimeApiException.class, failure ->
+                        assertThat(failure.code())
+                                .isEqualTo(HrisTimeProblemCode.TARGET_NOT_DISCLOSED));
     }
 }

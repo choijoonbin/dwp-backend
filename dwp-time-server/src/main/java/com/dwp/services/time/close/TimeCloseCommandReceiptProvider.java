@@ -5,8 +5,13 @@ import com.dwp.services.time.api.HrisTimeProblemCode;
 import com.dwp.services.time.close.TimeCloseModels.StoredReceipt;
 import com.dwp.services.time.commandreceipt.CommandReceiptLookup;
 import com.dwp.services.time.commandreceipt.CommandReceiptProvider;
+import com.dwp.services.time.commandreceipt.VerifiedCommandReceiptRequest;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -22,12 +27,22 @@ public final class TimeCloseCommandReceiptProvider implements CommandReceiptProv
 
     private final TimeCloseReceiptOwnership ownership;
     private final TimeCloseActivationGate activationGate;
+    private final Clock clock;
 
+    @Autowired
     public TimeCloseCommandReceiptProvider(
             TimeCloseReceiptOwnership ownership,
             TimeCloseActivationGate activationGate) {
+        this(ownership, activationGate, Clock.systemUTC());
+    }
+
+    TimeCloseCommandReceiptProvider(
+            TimeCloseReceiptOwnership ownership,
+            TimeCloseActivationGate activationGate,
+            Clock clock) {
         this.ownership = Objects.requireNonNull(ownership, "ownership");
         this.activationGate = Objects.requireNonNull(activationGate, "activationGate");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override
@@ -38,8 +53,7 @@ public final class TimeCloseCommandReceiptProvider implements CommandReceiptProv
     @Override
     public boolean owns(CommandReceiptLookup lookup) {
         Objects.requireNonNull(lookup, "lookup");
-        return lookup.providerAuthority(
-                        PROVIDER_ID, VerifiedTimeCloseReceiptRequest.class).isPresent()
+        return freshAuthority(lookup).isPresent()
                 && activationGate.allows(lookup.tenantId())
                 && ownership.owns(lookup.tenantId(), lookup.receiptId());
     }
@@ -47,14 +61,30 @@ public final class TimeCloseCommandReceiptProvider implements CommandReceiptProv
     @Override
     public Object receipt(CommandReceiptLookup lookup) {
         Objects.requireNonNull(lookup, "lookup");
-        VerifiedTimeCloseReceiptRequest authority = lookup.providerAuthority(
-                        PROVIDER_ID, VerifiedTimeCloseReceiptRequest.class)
+        VerifiedTimeCloseReceiptRequest authority = freshAuthority(lookup)
                 .orElseThrow(TimeCloseCommandReceiptProvider::opaque);
         if (!activationGate.allows(lookup.tenantId())) throw opaque();
         return ownership.reauthorizedRead(
                         lookup.tenantId(), lookup.receiptId(),
                         stored -> permits(authority, stored))
                 .orElseThrow(TimeCloseCommandReceiptProvider::opaque);
+    }
+
+    private Optional<VerifiedTimeCloseReceiptRequest> freshAuthority(
+            CommandReceiptLookup lookup) {
+        if (!(lookup.authorityEvidence() instanceof VerifiedCommandReceiptRequest common)) {
+            return Optional.empty();
+        }
+        VerifiedTimeCloseReceiptRequest provider = lookup.providerAuthority(
+                        PROVIDER_ID, VerifiedTimeCloseReceiptRequest.class)
+                .orElse(null);
+        Instant now = clock.instant();
+        if (!common.revalidateAt().isAfter(now)
+                || provider == null
+                || !provider.revalidateAt().isAfter(now)) {
+            return Optional.empty();
+        }
+        return Optional.of(provider);
     }
 
     private static boolean permits(
