@@ -130,6 +130,23 @@ class Tim007ContractBridgeTest(unittest.TestCase):
                 )
                 self.assertNotIn("ETag", operation["responses"]["202"]["headers"])
 
+                expected_precondition_headers = {
+                    "Cache-Control",
+                    "ETag",
+                    "X-Correlation-ID",
+                }
+                self.assertEqual(
+                    expected_precondition_headers,
+                    set(operation["responses"]["412"]["headers"]),
+                )
+                self.assertEqual(
+                    {
+                        "required": True,
+                        "schema": {"type": "string", "pattern": '^"[0-9]+"$'},
+                    },
+                    operation["responses"]["412"]["headers"]["ETag"],
+                )
+
                 gateway_operation = self.gateway["paths"][f"/api/time{path}"]["post"]
                 self.assertEqual("OFF", gateway_operation["x-dwp-runtime-default"])
                 self.assertEqual(
@@ -139,6 +156,17 @@ class Tim007ContractBridgeTest(unittest.TestCase):
                         for parameter in gateway_operation["parameters"]
                         if parameter["in"] == "header"
                     },
+                )
+                self.assertEqual(
+                    expected_precondition_headers,
+                    set(gateway_operation["responses"]["412"]["headers"]),
+                )
+                self.assertEqual(
+                    {
+                        "required": True,
+                        "schema": {"type": "string", "pattern": '^"[0-9]+"$'},
+                    },
+                    gateway_operation["responses"]["412"]["headers"]["ETag"],
                 )
 
     def test_handoff_lookup_receipts_and_problem_shapes_are_closed(self) -> None:

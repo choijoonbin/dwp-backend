@@ -5244,6 +5244,13 @@
                   "type": "string"
                 }
               },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "pattern": "^\"[0-9]+\"$",
+                  "type": "string"
+                }
+              },
               "X-Correlation-ID": {
                 "required": true,
                 "schema": {
@@ -5644,6 +5651,13 @@
                 "required": true,
                 "schema": {
                   "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "pattern": "^\"[0-9]+\"$",
                   "type": "string"
                 }
               },
@@ -6060,6 +6074,13 @@
                   "type": "string"
                 }
               },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "pattern": "^\"[0-9]+\"$",
+                  "type": "string"
+                }
+              },
               "X-Correlation-ID": {
                 "required": true,
                 "schema": {
@@ -6460,6 +6481,13 @@
                 "required": true,
                 "schema": {
                   "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "pattern": "^\"[0-9]+\"$",
                   "type": "string"
                 }
               },
