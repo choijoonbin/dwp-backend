@@ -15,6 +15,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UrlPathHelper;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -249,10 +250,21 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
 
     private boolean organizationPositionsUnavailable(HttpServletRequest request) {
         return "GET".equals(request.getMethod())
-                && ORGANIZATION_GRAPH_PATH.equals(request.getRequestURI())
+                && organizationGraphControllerPath(request)
                 && (!organizationPositionsEnabled
                 || !organizationPositionsEnrolledTenants.contains(
                 PeopleRequestContext.require().tenantId()));
+    }
+
+    /**
+     * Spring removes matrix parameters before matching controller paths. Apply
+     * the same narrow transformation only to the default-off readiness gate so
+     * a controller-equivalent URI cannot bypass the gate. Authorization still
+     * receives the untouched request URI and rejects non-canonical paths.
+     */
+    private static boolean organizationGraphControllerPath(HttpServletRequest request) {
+        return ORGANIZATION_GRAPH_PATH.equals(
+                UrlPathHelper.defaultInstance.getPathWithinApplication(request));
     }
 
     private static Set<Long> parseEnrolledTenants(String configured) {

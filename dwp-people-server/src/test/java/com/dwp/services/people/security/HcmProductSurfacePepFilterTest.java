@@ -263,6 +263,32 @@ class HcmProductSurfacePepFilterTest {
     }
 
     @Test
+    void organizationDefaultOffGateCoversControllerEquivalentMatrixPath()
+            throws Exception {
+        MockMvc gated = mvcWithOrganizationFeature(false, "");
+
+        for (String path : List.of(
+                "/v1/hris/organizations/graph;x=y",
+                "/v1/hris/organizations;x=y/graph;z=w")) {
+            reset(validator, organizationGraphService, organizationGraphRepository,
+                    organizationGraphOutbox);
+            organizationGraphControllerCalls.set(0);
+
+            gated.perform(identity(get(URI.create(path)))
+                            .header(HcmProductSurfacePepFilter.ROLLOUT_STATE_HEADER, "100")
+                            .header(HcmProductSurfacePepFilter.ROLLOUT_REVISION_HEADER,
+                                    ROLLOUT_REVISION)
+                            .header(HcmProductSurfacePepFilter.ROLLOUT_COHORT_HEADER, "full"))
+                    .andExpect(status().isServiceUnavailable());
+
+            assertThat(organizationGraphControllerCalls.get()).isZero();
+            verifyNoInteractions(organizationGraphService, organizationGraphRepository,
+                    organizationGraphOutbox);
+            verify(validator, never()).validate(org.mockito.ArgumentMatchers.any());
+        }
+    }
+
+    @Test
     void malformedOrganizationAuthorityNeverReachesTheControllerOrRepository()
             throws Exception {
         mvc.perform(organizationExact(
