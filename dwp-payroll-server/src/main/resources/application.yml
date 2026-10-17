@@ -151,6 +151,8 @@ dwp:
     payroll-foundation:
       wave1:
         enabled: ${DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED:false}
+      settings:
+        enabled: ${DWP_HRIS_PAYROLL_FOUNDATION_SETTINGS_ENABLED:false}
       synthetic-bootstrap:
         enabled: ${DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_ENABLED:false}
         token: ${DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_TOKEN:}

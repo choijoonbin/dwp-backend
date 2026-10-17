@@ -14,7 +14,7 @@ class ProductAuthorizationReleaseLineageTest {
             new ProductAuthorizationContractValidator(mapper);
 
     @Test
-    void preservesV33ThroughV46AndAcceptsOnlyThePinnedNavigationV47() throws Exception {
+    void preservesV33ThroughV47AndAcceptsOnlyThePinnedPayrollSettingsV48() throws Exception {
         try (var v33Input = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v33.generated.json")
                 .getInputStream();
@@ -59,6 +59,9 @@ class ProductAuthorizationReleaseLineageTest {
                      .getInputStream();
              var v47Input = new ClassPathResource(
                      "product-authorization/product-surfaces-v1.bundle-v47.generated.json")
+                     .getInputStream();
+             var v48Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v48.generated.json")
                      .getInputStream()) {
             var v33 = validator.validateDocument(v33Input);
             var v34 = validator.validateDocument(v34Input);
@@ -75,6 +78,7 @@ class ProductAuthorizationReleaseLineageTest {
             var v45 = validator.validateDocument(v45Input);
             var v46 = validator.validateDocument(v46Input);
             var v47 = validator.validateDocument(v47Input);
+            var v48 = validator.validateDocument(v48Input);
 
             assertThat(v33.checksum()).isEqualTo(
                     "9c9a18b44eb83de0e98f4ec16e44c1df0ce216e00bc7075462f4e35f7fb87639");
@@ -129,6 +133,10 @@ class ProductAuthorizationReleaseLineageTest {
                     "925e8bfc406bc7e4ee62aee08582fdd7c67c629ffde470051704eaec5404800e");
             assertThat(v47.capabilities()).hasSize(258);
             assertThat(v47.routes()).hasSize(1053);
+            assertThat(v48.checksum()).isEqualTo(
+                    "9fd324cd67ede1f02cc8ac33c08ad880ec6e283f99f5d7aa50e0e514545aa043");
+            assertThat(v48.capabilities()).hasSize(258);
+            assertThat(v48.routes()).hasSize(1063);
         }
     }
 

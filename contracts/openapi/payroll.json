@@ -2442,6 +2442,559 @@
         "x-dwp-source-authorization-alias": "PAY_RUN_FINALIZE"
       }
     },
+    "/v1/settings/payroll/foundation/configurations": {
+      "get": {
+        "operationId": "settingsPayrollFoundationConfigurations",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-settings-controller"
+        ],
+        "x-dwp-controller-method": "configurations",
+        "x-dwp-purpose-code": "PAYROLL_CONFIGURATION",
+        "x-dwp-reviewed-design-time-contract": "R7-C1-PAY-SETTINGS-AUTHORITY-V1",
+        "x-dwp-runtime-default": "OFF"
+      },
+      "post": {
+        "operationId": "settingsPayrollFoundationCreateConfiguration",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-settings-controller"
+        ],
+        "x-dwp-controller-method": "create",
+        "x-dwp-purpose-code": "PAYROLL_CONFIGURATION",
+        "x-dwp-reviewed-design-time-contract": "R7-C1-PAY-SETTINGS-AUTHORITY-V1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/settings/payroll/foundation/configurations/{configurationId}": {
+      "get": {
+        "operationId": "settingsPayrollFoundationConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-settings-controller"
+        ],
+        "x-dwp-controller-method": "configuration",
+        "x-dwp-purpose-code": "PAYROLL_CONFIGURATION",
+        "x-dwp-reviewed-design-time-contract": "R7-C1-PAY-SETTINGS-AUTHORITY-V1",
+        "x-dwp-runtime-default": "OFF"
+      },
+      "put": {
+        "operationId": "settingsPayrollFoundationUpdateConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-settings-controller"
+        ],
+        "x-dwp-controller-method": "update",
+        "x-dwp-purpose-code": "PAYROLL_CONFIGURATION",
+        "x-dwp-reviewed-design-time-contract": "R7-C1-PAY-SETTINGS-AUTHORITY-V1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/settings/payroll/foundation/configurations/{configurationId}/publish": {
+      "post": {
+        "operationId": "settingsPayrollFoundationPublishConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-settings-controller"
+        ],
+        "x-dwp-controller-method": "publish",
+        "x-dwp-purpose-code": "PAYROLL_CONFIGURATION",
+        "x-dwp-reviewed-design-time-contract": "R7-C1-PAY-SETTINGS-AUTHORITY-V1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/settings/payroll/foundation/configurations/{configurationId}/reversals": {
+      "post": {
+        "operationId": "settingsPayrollFoundationReverseConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-settings-controller"
+        ],
+        "x-dwp-controller-method": "reverse",
+        "x-dwp-purpose-code": "PAYROLL_CONFIGURATION",
+        "x-dwp-reviewed-design-time-contract": "R7-C1-PAY-SETTINGS-AUTHORITY-V1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/settings/payroll/foundation/configurations/{configurationId}/simulations": {
+      "post": {
+        "operationId": "settingsPayrollFoundationSimulateConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-settings-controller"
+        ],
+        "x-dwp-controller-method": "simulate",
+        "x-dwp-purpose-code": "PAYROLL_CONFIGURATION",
+        "x-dwp-reviewed-design-time-contract": "R7-C1-PAY-SETTINGS-AUTHORITY-V1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/settings/payroll/foundation/configurations/{configurationId}/versions": {
+      "get": {
+        "operationId": "settingsPayrollFoundationConfigurationVersions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-settings-controller"
+        ],
+        "x-dwp-controller-method": "versions",
+        "x-dwp-purpose-code": "PAYROLL_CONFIGURATION",
+        "x-dwp-reviewed-design-time-contract": "R7-C1-PAY-SETTINGS-AUTHORITY-V1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/settings/payroll/foundation/receipts/{commandId}": {
+      "get": {
+        "operationId": "settingsPayrollFoundationCommandReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "commandId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-settings-controller"
+        ],
+        "x-dwp-controller-method": "receipt",
+        "x-dwp-purpose-code": "PAYROLL_CONFIGURATION",
+        "x-dwp-reviewed-design-time-contract": "R7-C1-PAY-SETTINGS-AUTHORITY-V1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/settings/payroll/foundation/receipts/{commandId}/reconcile": {
+      "post": {
+        "operationId": "settingsPayrollFoundationReconcileCommand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "commandId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-settings-controller"
+        ],
+        "x-dwp-controller-method": "reconcile",
+        "x-dwp-purpose-code": "PAYROLL_CONFIGURATION",
+        "x-dwp-reviewed-design-time-contract": "R7-C1-PAY-SETTINGS-AUTHORITY-V1",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
     "/v1/workbench/settings-payroll": {
       "get": {
         "operationId": "payrollSettingsWorkbench",
