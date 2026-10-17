@@ -1,6 +1,7 @@
 package com.dwp.services.time.close;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -10,6 +11,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import java.time.Clock;
@@ -128,6 +131,33 @@ class TimeCloseFeatureIsolationTest {
         assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
         assertThat(response.getContentAsString()).contains("AUTHORIZATION_DENIED");
         verifyNoInteractions(projections, downstream);
+    }
+
+    @Test
+    void untrustedResponsibilityAndScopeHeadersAloneNeverCreateAuthority() {
+        TimeClosePopulationProjectionResolver projections =
+                mock(TimeClosePopulationProjectionResolver.class);
+        GatewayVerifiedTimeCloseOwnerAuthoritySource authority =
+                new GatewayVerifiedTimeCloseOwnerAuthoritySource(
+                        "trusted-gateway", true, Set.of(TimeCloseTestFixtures.TENANT),
+                        Clock.fixed(TimeCloseTestFixtures.NOW, ZoneOffset.UTC), projections);
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "POST", "/v1/close-periods/" + TimeCloseTestFixtures.PERIOD + "/close");
+        request.addHeader(
+                GatewayVerifiedTimeCloseOwnerAuthoritySource.RESPONSIBILITIES,
+                "HRIS_DUTY_TIME_CLOSE_OPERATOR");
+        request.addHeader(
+                GatewayVerifiedTimeCloseOwnerAuthoritySource.LEGAL_ENTITY,
+                TimeCloseTestFixtures.LEGAL_ENTITY.toString());
+        request.addHeader(
+                GatewayVerifiedTimeCloseOwnerAuthoritySource.TIME_GROUP,
+                TimeCloseTestFixtures.TIME_GROUP.toString());
+
+        assertThatThrownBy(() -> authority.verify(request, TimeCloseOwnerRoute.CLOSE))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode())
+                                .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+        verifyNoInteractions(projections);
     }
 
     private static void assertRuntimeAbsent(String... properties) {

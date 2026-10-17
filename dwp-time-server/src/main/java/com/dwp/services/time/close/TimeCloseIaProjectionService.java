@@ -55,6 +55,7 @@ public final class TimeCloseIaProjectionService {
     private static final String INVALIDATION_EVENT =
             "dwp.hris.access.assignment.changed.v1";
     private static final String MASK_REASON = "FIELD_POLICY_DENIED";
+    private static final String RESTRICTED_STATUS = "RESTRICTED";
     private static final String ACTION_POLICY =
             "OWNER_PEP_RISK_POLICY_DECISION_REQUIRED";
     private static final Set<String> BASE_PARAMETERS = Set.of(
@@ -307,7 +308,10 @@ public final class TimeCloseIaProjectionService {
                     "At least one IAQ field group must remain visible.");
         }
         return new TimeCloseItem(
-                row.periodId().toString(), title(route), row.status(), Map.copyOf(groups),
+                row.periodId().toString(), title(route),
+                concealed(authority, "CLOSE_STATUS")
+                        ? RESTRICTED_STATUS : row.status(),
+                Map.copyOf(groups),
                 new DeepLink(deepLink(route), row.periodId().toString()),
                 actions(authority, row));
     }
@@ -334,6 +338,7 @@ public final class TimeCloseIaProjectionService {
 
     private static List<AvailableAction> actions(
             VerifiedCloseRequest authority, CloseProjectionRow row) {
+        if (concealed(authority, "CLOSE_STATUS")) return List.of();
         List<AvailableAction> actions = new ArrayList<>();
         boolean closeOperator = authority.permissions().contains("ACTION.HRIS_TIME_CLOSE:EXECUTE")
                 && authority.responsibilities().contains("HRIS_DUTY_TIME_CLOSE_OPERATOR");
@@ -343,7 +348,8 @@ public final class TimeCloseIaProjectionService {
             actions.add(action("hris.action.tim.close.validate",
                     "/api/time/v1/close-periods/{periodId}/validations"));
         }
-        if (closeOperator && row.blockerCount() == 0
+        if (closeOperator && !concealed(authority, "EXCEPTION_SUMMARY")
+                && row.blockerCount() == 0
                 && Set.of("OPEN", "REOPENED").contains(row.status())) {
             actions.add(action("hris.action.tim.close.close",
                     "/api/time/v1/close-periods/{periodId}/close"));
@@ -357,6 +363,11 @@ public final class TimeCloseIaProjectionService {
                     "/api/time/v1/close-periods/{periodId}/payroll-handoffs"));
         }
         return List.copyOf(actions);
+    }
+
+    private static boolean concealed(VerifiedCloseRequest authority, String group) {
+        return authority.maskedFieldGroups().contains(group)
+                || authority.omittedFieldGroups().contains(group);
     }
 
     private static AvailableAction action(String key, String href) {

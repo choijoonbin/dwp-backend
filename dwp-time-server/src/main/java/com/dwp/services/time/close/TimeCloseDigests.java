@@ -48,9 +48,15 @@ final class TimeCloseDigests {
     }
 
     static String canonicalJsonWithBindings(
-            String rawJson, long tenantId, String lowercaseHandoffId) {
+            String rawJson,
+            TimeCloseModels.PayrollTimeHandoffOutcomeV1 outcome,
+            long tenantId,
+            String lowercaseHandoffId) {
         if (tenantId <= 0 || lowercaseHandoffId == null) {
             throw new IllegalArgumentException("outcome bindings are required");
+        }
+        if (rawJson == null || outcome == null) {
+            throw new IllegalArgumentException("outcome body is required");
         }
         try {
             JsonNode parsed = JSON.readTree(rawJson);
@@ -59,6 +65,10 @@ final class TimeCloseDigests {
             }
             if (body.has("tenantId") || body.has("handoffId")) {
                 throw new IllegalArgumentException("outcome body cannot override signed bindings");
+            }
+            if (!canonicalJson(body).equals(canonicalJson(outcome))) {
+                throw new IllegalArgumentException(
+                        "outcome body does not match the typed outcome");
             }
             ObjectNode signed = body.deepCopy();
             signed.put("tenantId", tenantId);

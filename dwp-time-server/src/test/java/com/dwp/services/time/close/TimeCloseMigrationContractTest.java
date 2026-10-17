@@ -32,6 +32,12 @@ class TimeCloseMigrationContractTest {
                 .contains("Time close period must begin in canonical OPEN state")
                 .contains("Time close periods cannot be deleted")
                 .contains("Time close evidence is append-only")
+                .contains("CREATE OR REPLACE FUNCTION tme_guard_closed_result_insert()")
+                .contains("Closed-time result header requires the authorized CLOSING graph")
+                .contains("Closed-time result line requires the authorized CLOSING graph")
+                .contains("Closed-time result source requires the authorized CLOSING graph")
+                .contains("response_version = receiver_receipt_revision + 1")
+                .contains("response_updated_at = received_at")
                 .contains("REVOKE ALL ON TABLE tme_close_periods "
                         + "FROM \"${timeRuntimeRole}\";")
                 .contains("REVOKE USAGE, SELECT ON SEQUENCE "

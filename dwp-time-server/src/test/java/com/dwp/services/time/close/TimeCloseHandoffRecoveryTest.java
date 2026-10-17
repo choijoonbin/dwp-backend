@@ -1,13 +1,17 @@
 package com.dwp.services.time.close;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.time.close.TimeCloseModels.HandoffRecord;
 import com.dwp.services.time.close.TimeCloseModels.HandoffState;
 import com.dwp.services.time.close.TimeCloseModels.PayrollTimeHandoffOutcomeV1;
@@ -142,6 +146,72 @@ class TimeCloseHandoffRecoveryTest {
         assertThat(digest.getAllValues().getFirst())
                 .isEqualTo(digest.getAllValues().getLast())
                 .matches("[0-9a-f]{64}");
+    }
+
+    @Test
+    void disabledOutcomeTenantIsOpaqueBeforeBodyParsingOrRepositoryAccess() {
+        TimeCloseRepository repository = mock(TimeCloseRepository.class);
+        TimeCloseService service = service(repository, tenant -> false);
+
+        assertThatThrownBy(() -> service.recordOutcome(
+                TimeCloseTestFixtures.TENANT,
+                TimeCloseTestFixtures.HANDOFF,
+                "not-json",
+                null))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void invalidOutcomeIdentifiersFailBeforeRepositoryAccess() {
+        TimeCloseRepository repository = mock(TimeCloseRepository.class);
+        TimeCloseService service = service(repository, tenant -> true);
+        PayrollTimeHandoffOutcomeV1 outcome = TimeCloseTestFixtures.outcome(
+                HandoffState.RESULT_UNKNOWN, 1L, TimeCloseTestFixtures.CORRELATION);
+        String raw = TimeCloseDigests.canonicalJson(outcome);
+
+        assertThatThrownBy(() -> service.recordOutcome(
+                0L, TimeCloseTestFixtures.HANDOFF, raw, outcome))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.recordOutcome(
+                TimeCloseTestFixtures.TENANT, new UUID(0L, 0L), raw, outcome))
+                .isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void rawOutcomeCannotAuthorizeAChangedTypedMutation() {
+        TimeCloseRepository repository = mock(TimeCloseRepository.class);
+        TimeCloseService service = service(repository, tenant -> true);
+        PayrollTimeHandoffOutcomeV1 signed = TimeCloseTestFixtures.outcome(
+                HandoffState.RESULT_UNKNOWN, 1L, TimeCloseTestFixtures.CORRELATION);
+        PayrollTimeHandoffOutcomeV1 changed = outcomeWith(
+                HandoffState.RESULT_UNKNOWN,
+                TimeCloseTestFixtures.RECEIVER_RECEIPT,
+                1L,
+                "0".repeat(64),
+                TimeCloseTestFixtures.CORRELATION);
+
+        assertThatThrownBy(() -> service.recordOutcome(
+                TimeCloseTestFixtures.TENANT,
+                TimeCloseTestFixtures.HANDOFF,
+                TimeCloseDigests.canonicalJson(signed),
+                changed))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not match");
+        verifyNoInteractions(repository);
+    }
+
+    private static TimeCloseService service(
+            TimeCloseRepository repository, TimeCloseActivationGate gate) {
+        return new TimeCloseService(
+                repository,
+                mock(TimeCloseEvidenceSource.class),
+                mock(TimeCloseApprovalVerifier.class),
+                mock(TimeCloseStepUpVerifier.class),
+                gate,
+                Clock.fixed(TimeCloseTestFixtures.NOW, ZoneOffset.UTC));
     }
 
     private static PayrollTimeHandoffOutcomeV1 outcomeWith(

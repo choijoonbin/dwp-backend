@@ -379,6 +379,11 @@ CREATE TABLE tme_payroll_handoff_outcomes (
     receiver_receipt_revision BIGINT NOT NULL,
     outcome_command_digest CHAR(64) NOT NULL,
     outcome VARCHAR(24) NOT NULL,
+    receiver_receipt_digest CHAR(64) NOT NULL,
+    reason_code VARCHAR(80),
+    outcome_at TIMESTAMPTZ NOT NULL,
+    response_updated_at TIMESTAMPTZ NOT NULL,
+    response_version BIGINT NOT NULL,
     correlation_id UUID NOT NULL,
     received_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT uk_tme_handoff_outcome_revision UNIQUE (
@@ -391,8 +396,13 @@ CREATE TABLE tme_payroll_handoff_outcomes (
         REFERENCES tme_payroll_handoffs (tenant_id, public_id),
     CONSTRAINT ck_tme_handoff_outcome_values CHECK (
         receiver_receipt_revision > 0
+        AND response_version = receiver_receipt_revision + 1
         AND outcome_command_digest ~ '^[0-9a-f]{64}$'
-        AND outcome IN ('ACKNOWLEDGED', 'REJECTED', 'RESULT_UNKNOWN'))
+        AND receiver_receipt_digest ~ '^[0-9a-f]{64}$'
+        AND response_updated_at = received_at
+        AND ((outcome = 'ACKNOWLEDGED' AND reason_code IS NULL)
+            OR (outcome IN ('REJECTED', 'RESULT_UNKNOWN')
+                AND reason_code ~ '^[A-Z][A-Z0-9._-]{0,79}$')))
 );
 
 CREATE TABLE tme_close_workload_replay (
@@ -598,6 +608,120 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION tme_guard_closed_result_insert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $function$
+BEGIN
+    IF TG_TABLE_NAME = 'tme_closed_time_results' THEN
+        PERFORM 1
+          FROM public.tme_close_periods period
+          JOIN public.tme_close_command_receipts receipt
+            ON receipt.tenant_id = period.tenant_id
+           AND receipt.aggregate_public_id = period.public_id
+           AND receipt.command_type = 'PERIOD_CLOSE'
+           AND receipt.originating_action = 'TIME_PERIOD_CLOSE'
+           AND receipt.status = 'ACCEPTED'
+           AND receipt.subject_principal_public_id = NEW.created_by_subject_public_id
+           AND receipt.correlation_id = NEW.correlation_id
+           AND receipt.actor_id = period.updated_by
+           AND receipt.created_at = NEW.created_at
+         WHERE period.tenant_id = NEW.tenant_id
+           AND period.close_period_id = NEW.close_period_id
+           AND period.status = 'CLOSING'
+           AND period.updated_at = NEW.created_at
+           AND NEW.close_revision = period.close_revision + 1
+           AND NEW.payroll_entity_public_id = period.payroll_entity_public_id
+           AND NEW.pay_period_public_id = period.pay_period_public_id
+           AND NEW.supersedes_result_public_id
+                IS NOT DISTINCT FROM period.latest_result_public_id
+         FOR KEY SHARE OF period, receipt;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION
+                'Closed-time result header requires the authorized CLOSING graph'
+                USING ERRCODE = '23514';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    IF TG_TABLE_NAME = 'tme_closed_time_result_lines' THEN
+        PERFORM 1
+          FROM public.tme_closed_time_results result
+          JOIN public.tme_close_periods period
+            ON period.tenant_id = result.tenant_id
+           AND period.close_period_id = result.close_period_id
+          JOIN public.tme_close_command_receipts receipt
+            ON receipt.tenant_id = period.tenant_id
+           AND receipt.aggregate_public_id = period.public_id
+           AND receipt.command_type = 'PERIOD_CLOSE'
+           AND receipt.originating_action = 'TIME_PERIOD_CLOSE'
+           AND receipt.status = 'ACCEPTED'
+           AND receipt.subject_principal_public_id = result.created_by_subject_public_id
+           AND receipt.correlation_id = result.correlation_id
+           AND receipt.actor_id = period.updated_by
+           AND receipt.created_at = result.created_at
+         WHERE result.tenant_id = NEW.tenant_id
+           AND result.closed_time_result_id = NEW.closed_time_result_id
+           AND period.status = 'CLOSING'
+           AND period.updated_at = result.created_at
+           AND result.close_revision = period.close_revision + 1
+           AND result.payroll_entity_public_id = period.payroll_entity_public_id
+           AND result.pay_period_public_id = period.pay_period_public_id
+           AND result.supersedes_result_public_id
+                IS NOT DISTINCT FROM period.latest_result_public_id
+         FOR KEY SHARE OF result, period, receipt;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION
+                'Closed-time result line requires the authorized CLOSING graph'
+                USING ERRCODE = '23514';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    IF TG_TABLE_NAME = 'tme_closed_time_result_sources' THEN
+        PERFORM 1
+          FROM public.tme_closed_time_result_lines line
+          JOIN public.tme_closed_time_results result
+            ON result.tenant_id = line.tenant_id
+           AND result.closed_time_result_id = line.closed_time_result_id
+          JOIN public.tme_close_periods period
+            ON period.tenant_id = result.tenant_id
+           AND period.close_period_id = result.close_period_id
+          JOIN public.tme_close_command_receipts receipt
+            ON receipt.tenant_id = period.tenant_id
+           AND receipt.aggregate_public_id = period.public_id
+           AND receipt.command_type = 'PERIOD_CLOSE'
+           AND receipt.originating_action = 'TIME_PERIOD_CLOSE'
+           AND receipt.status = 'ACCEPTED'
+           AND receipt.subject_principal_public_id = result.created_by_subject_public_id
+           AND receipt.correlation_id = result.correlation_id
+           AND receipt.actor_id = period.updated_by
+           AND receipt.created_at = result.created_at
+         WHERE line.tenant_id = NEW.tenant_id
+           AND line.closed_time_result_line_id = NEW.closed_time_result_line_id
+           AND period.status = 'CLOSING'
+           AND period.updated_at = result.created_at
+           AND result.close_revision = period.close_revision + 1
+           AND result.payroll_entity_public_id = period.payroll_entity_public_id
+           AND result.pay_period_public_id = period.pay_period_public_id
+           AND result.supersedes_result_public_id
+                IS NOT DISTINCT FROM period.latest_result_public_id
+         FOR KEY SHARE OF line, result, period, receipt;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION
+                'Closed-time result source requires the authorized CLOSING graph'
+                USING ERRCODE = '23514';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    RAISE EXCEPTION 'Unsupported closed-time result insert target'
+        USING ERRCODE = '23514';
 END;
 $function$;
 
@@ -1066,15 +1190,24 @@ CREATE TRIGGER trg_tme_close_attempt_immutable
 CREATE TRIGGER trg_tme_closed_result_immutable
     BEFORE UPDATE OR DELETE ON tme_closed_time_results
     FOR EACH ROW EXECUTE FUNCTION tme_reject_close_evidence_mutation();
+CREATE TRIGGER trg_tme_closed_result_insert_guard
+    BEFORE INSERT ON tme_closed_time_results
+    FOR EACH ROW EXECUTE FUNCTION tme_guard_closed_result_insert();
 CREATE TRIGGER trg_tme_closed_result_lineage
     BEFORE INSERT ON tme_closed_time_results
     FOR EACH ROW EXECUTE FUNCTION tme_validate_closed_result_lineage();
 CREATE TRIGGER trg_tme_closed_result_line_immutable
     BEFORE UPDATE OR DELETE ON tme_closed_time_result_lines
     FOR EACH ROW EXECUTE FUNCTION tme_reject_close_evidence_mutation();
+CREATE TRIGGER trg_tme_closed_result_line_insert_guard
+    BEFORE INSERT ON tme_closed_time_result_lines
+    FOR EACH ROW EXECUTE FUNCTION tme_guard_closed_result_insert();
 CREATE TRIGGER trg_tme_closed_result_source_immutable
     BEFORE UPDATE OR DELETE ON tme_closed_time_result_sources
     FOR EACH ROW EXECUTE FUNCTION tme_reject_close_evidence_mutation();
+CREATE TRIGGER trg_tme_closed_result_source_insert_guard
+    BEFORE INSERT ON tme_closed_time_result_sources
+    FOR EACH ROW EXECUTE FUNCTION tme_guard_closed_result_insert();
 CREATE TRIGGER trg_tme_close_receipt_progression
     BEFORE INSERT OR UPDATE OR DELETE ON tme_close_command_receipts
     FOR EACH ROW EXECUTE FUNCTION tme_guard_close_receipt_progression();
@@ -1208,6 +1341,7 @@ REVOKE ALL ON FUNCTION
     tme_reject_close_evidence_mutation(),
     tme_guard_close_receipt_progression(),
     tme_validate_closed_result_lineage(),
+    tme_guard_closed_result_insert(),
     tme_guard_close_period(),
     tme_guard_handoff(),
     tme_guard_close_outbox_delivery(),
@@ -1217,6 +1351,7 @@ REVOKE ALL ON FUNCTION
     tme_reject_close_evidence_mutation(),
     tme_guard_close_receipt_progression(),
     tme_validate_closed_result_lineage(),
+    tme_guard_closed_result_insert(),
     tme_guard_close_period(),
     tme_guard_handoff(),
     tme_guard_close_outbox_delivery(),
@@ -1226,6 +1361,7 @@ REVOKE ALL ON FUNCTION
     tme_reject_close_evidence_mutation(),
     tme_guard_close_receipt_progression(),
     tme_validate_closed_result_lineage(),
+    tme_guard_closed_result_insert(),
     tme_guard_close_period(),
     tme_guard_handoff(),
     tme_guard_close_outbox_delivery(),

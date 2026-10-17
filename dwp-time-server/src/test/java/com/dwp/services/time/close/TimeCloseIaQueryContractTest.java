@@ -248,6 +248,112 @@ class TimeCloseIaQueryContractTest {
     }
 
     @Test
+    void maskAndOmitCloseStatusAreNonInterferingAcrossStatusValues() {
+        LocalDate start = LocalDate.parse("2026-10-01");
+
+        for (TimeCloseOwnerRoute route :
+                List.of(TimeCloseOwnerRoute.DAILY_CLOSE, TimeCloseOwnerRoute.MONTHLY_CLOSE)) {
+            String closeScope = route == TimeCloseOwnerRoute.DAILY_CLOSE ? "DAY" : "MONTH";
+            for (boolean mask : List.of(true, false)) {
+                Set<String> masked = mask ? Set.of("CLOSE_STATUS") : Set.of();
+                Set<String> omitted = mask ? Set.of() : Set.of("CLOSE_STATUS");
+                VerifiedCloseRequest authority =
+                        authority(route, masked, omitted, true, 13L);
+                TimeCloseRepository repository = mock(TimeCloseRepository.class);
+                TimeCloseIaProjectionService service = service(repository);
+                when(repository.queryProjectionRows(
+                        anyLong(), any(), any(), nullable(String.class), any()))
+                        .thenReturn(List.of(row(
+                                TimeCloseTestFixtures.PERIOD, closeScope,
+                                "REOPENED", start, 3L, 0, 4)))
+                        .thenReturn(List.of(row(
+                                TimeCloseTestFixtures.PERIOD, closeScope,
+                                "CLOSED", start, 3L, 0, 4)));
+
+                TimeCloseProjection reopened = service.query(
+                        authority, route, query(25, List.of("itemPublicId:ASC"), null));
+                TimeCloseProjection closed = service.query(
+                        authority, route, query(25, List.of("itemPublicId:ASC"), null));
+
+                assertThat(closed).as("%s %s", route, mask ? "MASK" : "OMIT")
+                        .isEqualTo(reopened);
+                assertThat(reopened.items()).singleElement().satisfies(item -> {
+                    assertThat(item.statusCode()).isEqualTo("RESTRICTED");
+                    assertThat(item.availableActions()).isEmpty();
+                });
+            }
+        }
+    }
+
+    @Test
+    void maskAndOmitExceptionSummaryDoNotLeakBlockersThroughCloseActions() {
+        LocalDate start = LocalDate.parse("2026-10-01");
+        TimeCloseOwnerRoute route = TimeCloseOwnerRoute.COMMAND_CENTER;
+
+        for (boolean mask : List.of(true, false)) {
+            Set<String> masked = mask ? Set.of("EXCEPTION_SUMMARY") : Set.of();
+            Set<String> omitted = mask ? Set.of() : Set.of("EXCEPTION_SUMMARY");
+            VerifiedCloseRequest authority = authority(route, masked, omitted, true, 13L);
+            TimeCloseRepository repository = mock(TimeCloseRepository.class);
+            TimeCloseIaProjectionService service = service(repository);
+            when(repository.queryProjectionRows(
+                    anyLong(), any(), any(), nullable(String.class), any()))
+                    .thenReturn(List.of(row(
+                            TimeCloseTestFixtures.PERIOD, "DAY",
+                            "REOPENED", start, 3L, 0, 4)))
+                    .thenReturn(List.of(row(
+                            TimeCloseTestFixtures.PERIOD, "DAY",
+                            "REOPENED", start, 3L, 7, 4)));
+
+            TimeCloseProjection noBlockers = service.query(
+                    authority, route, query(25, List.of("itemPublicId:ASC"), null));
+            TimeCloseProjection blockers = service.query(
+                    authority, route, query(25, List.of("itemPublicId:ASC"), null));
+
+            assertThat(blockers).as(mask ? "MASK" : "OMIT").isEqualTo(noBlockers);
+            assertThat(noBlockers.items()).singleElement().satisfies(item ->
+                    assertThat(item.availableActions())
+                            .extracting(AvailableAction::actionKey)
+                            .containsExactly("hris.action.tim.close.validate"));
+        }
+    }
+
+    @Test
+    void maskAndOmitImpactSummaryDoNotInfluenceAnyPublicFieldOrAction() {
+        LocalDate start = LocalDate.parse("2026-10-01");
+        TimeCloseOwnerRoute route = TimeCloseOwnerRoute.DAILY_CLOSE;
+
+        for (boolean mask : List.of(true, false)) {
+            Set<String> masked = mask ? Set.of("IMPACT_SUMMARY") : Set.of();
+            Set<String> omitted = mask ? Set.of() : Set.of("IMPACT_SUMMARY");
+            VerifiedCloseRequest authority = authority(route, masked, omitted, true, 13L);
+            TimeCloseRepository repository = mock(TimeCloseRepository.class);
+            TimeCloseIaProjectionService service = service(repository);
+            when(repository.queryProjectionRows(
+                    anyLong(), any(), any(), nullable(String.class), any()))
+                    .thenReturn(List.of(row(
+                            TimeCloseTestFixtures.PERIOD, "DAY",
+                            "REOPENED", start, 3L, 0, 0)))
+                    .thenReturn(List.of(row(
+                            TimeCloseTestFixtures.PERIOD, "DAY",
+                            "REOPENED", start, 3L, 0, 91)));
+
+            TimeCloseProjection zeroImpact = service.query(
+                    authority, route, query(25, List.of("itemPublicId:ASC"), null));
+            TimeCloseProjection highImpact = service.query(
+                    authority, route, query(25, List.of("itemPublicId:ASC"), null));
+
+            assertThat(highImpact).as(mask ? "MASK" : "OMIT").isEqualTo(zeroImpact);
+            assertThat(zeroImpact.items()).singleElement().satisfies(item ->
+                    assertThat(item.availableActions())
+                            .extracting(AvailableAction::actionKey)
+                            .containsExactly(
+                                    "hris.action.tim.close.validate",
+                                    "hris.action.tim.close.close"));
+        }
+    }
+
+    @Test
     void duplicateSortAndFilterValuesAreRejected() {
         TimeCloseIaProjectionService service = service(mock(TimeCloseRepository.class));
         TimeCloseOwnerRoute route = TimeCloseOwnerRoute.MONTHLY_CLOSE;
@@ -369,11 +475,23 @@ class TimeCloseIaQueryContractTest {
     }
 
     private static CloseProjectionRow row(UUID id, String status, LocalDate start) {
+        return row(
+                id, "CLOSED".equals(status) ? "MONTH" : "DAY", status, start,
+                "CLOSED".equals(status) ? 3L : 0L, 0, 4);
+    }
+
+    private static CloseProjectionRow row(
+            UUID id,
+            String closeScope,
+            String status,
+            LocalDate start,
+            long closeRevision,
+            int blockerCount,
+            int impactCount) {
         return new CloseProjectionRow(
-                id, "CLOSED".equals(status) ? "MONTH" : "DAY",
-                start, start.plusDays(1), status, "CLOSED".equals(status) ? 3L : 0L,
+                id, closeScope, start, start.plusDays(1), status, closeRevision,
                 7L, TimeCloseTestFixtures.NOW.minusSeconds(3_600),
-                TimeCloseTestFixtures.NOW.minusSeconds(60), 0, 4,
+                TimeCloseTestFixtures.NOW.minusSeconds(60), blockerCount, impactCount,
                 TimeCloseTestFixtures.RECEIPT, "SUCCEEDED",
                 TimeCloseTestFixtures.NOW.minusSeconds(120),
                 TimeCloseTestFixtures.NOW.minusSeconds(110), 7L,

@@ -284,10 +284,19 @@ public final class TimeCloseService implements TimeCloseReceiptOwnership {
             UUID handoffId,
             String rawBody,
             PayrollTimeHandoffOutcomeV1 outcome) {
-        Objects.requireNonNull(rawBody, "rawBody");
+        if (tenantId <= 0) {
+            throw new IllegalArgumentException("tenantId must be positive");
+        }
+        if (handoffId == null
+                || (handoffId.getMostSignificantBits() == 0L
+                    && handoffId.getLeastSignificantBits() == 0L)) {
+            throw new IllegalArgumentException("handoffId must be a non-zero UUID");
+        }
+        if (!activationGate.allows(tenantId)) throw opaqueNotFound();
+        Objects.requireNonNull(outcome, "outcome");
         String digest = TimeCloseDigests.sha256Utf8(
                 TimeCloseDigests.canonicalJsonWithBindings(
-                        rawBody, tenantId, handoffId.toString()));
+                        rawBody, outcome, tenantId, handoffId.toString()));
         return repository.applyOutcome(tenantId, handoffId, digest, outcome);
     }
 

@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -306,14 +305,26 @@ public final class JdbcTimeCloseRepository implements TimeCloseRepository {
                     "The close period aggregate version changed.");
         }
         assertState(command.kind(), locked);
-        Instant now = clock.instant();
         if (command.kind() == CommandKind.VALIDATE
                 || command.kind() == CommandKind.CLOSE) {
             evidenceFence.lockAndVerify(
-                    command, locked, Objects.requireNonNull(planned.evidence()), now);
+                    command, locked, Objects.requireNonNull(planned.evidence()),
+                    clock.instant());
         }
 
         UUID receiptId = UUID.randomUUID();
+        return TimeCloseWriteBoundary.perform(
+                planned, clock,
+                now -> executeDurableCommand(planned, locked, receiptId, now));
+    }
+
+    private TimeCloseCommandReceiptV1 executeDurableCommand(
+            PlannedCloseCommand planned,
+            ClosePeriod locked,
+            UUID receiptId,
+            Instant now) {
+        CloseCommand command = planned.command();
+        long tenantId = command.authority().tenantId();
         insertAcceptedReceipt(command, receiptId, now);
 
         long aggregateVersion = locked.version();
@@ -649,17 +660,14 @@ public final class JdbcTimeCloseRepository implements TimeCloseRepository {
                 "tim-close-outcome:" + tenantId + ":" + handoffId);
         HandoffRecord locked = handoff(tenantId, handoffId, true)
                 .orElseThrow(JdbcTimeCloseRepository::opaqueNotFound);
-        List<Map<String, Object>> existing = jdbc.queryForList("""
-                SELECT outcome_command_digest, outcome
-                  FROM tme_payroll_handoff_outcomes
-                 WHERE tenant_id=? AND handoff_public_id=?
-                   AND receiver_receipt_public_id=? AND receiver_receipt_revision=?
-                """, tenantId, handoffId, outcome.receiverReceiptId(),
+        Optional<StoredOutcome> existing = outcome(
+                tenantId, handoffId, outcome.receiverReceiptId(),
                 outcome.receiverReceiptRevision());
-        if (!existing.isEmpty()) {
-            String prior = ((String) existing.getFirst()
-                    .get("outcome_command_digest")).trim();
-            if (prior.equals(digest)) return new OutcomeApplication(locked.projection(), false);
+        if (existing.isPresent()) {
+            StoredOutcome prior = existing.get();
+            if (prior.commandDigest().equals(digest)) {
+                return new OutcomeApplication(snapshot(locked, prior), false);
+            }
             quarantine(tenantId, handoffId, "OUTCOME_DIGEST_CONFLICT", digest,
                     outcome.correlationId());
             return new OutcomeApplication(locked.projection(), true);
@@ -670,15 +678,8 @@ public final class JdbcTimeCloseRepository implements TimeCloseRepository {
                     outcome.correlationId());
             return new OutcomeApplication(current, true);
         }
-        jdbc.update("""
-                INSERT INTO tme_payroll_handoff_outcomes (
-                    tenant_id, handoff_public_id, receiver_receipt_public_id,
-                    receiver_receipt_revision, outcome_command_digest, outcome,
-                    correlation_id, received_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, tenantId, handoffId, outcome.receiverReceiptId(),
-                outcome.receiverReceiptRevision(), digest, outcome.outcome().name(),
-                outcome.correlationId(), Timestamp.from(clock.instant()));
+        Instant appliedAt = clock.instant();
+        long responseVersion = current.version() + 1;
         int updated = jdbc.update("""
                 UPDATE tme_payroll_handoffs
                    SET status=?, receiver_receipt_public_id=?,
@@ -689,10 +690,65 @@ public final class JdbcTimeCloseRepository implements TimeCloseRepository {
                 """, outcome.outcome().name(), outcome.receiverReceiptId(),
                 outcome.receiverReceiptRevision(), outcome.receiverReceiptDigest(),
                 outcome.reasonCode(), Timestamp.from(outcome.outcomeAt()),
-                Timestamp.from(clock.instant()), tenantId, handoffId, current.version());
+                Timestamp.from(appliedAt), tenantId, handoffId, current.version());
         if (updated != 1) throw versionConflict(current.version());
-        return new OutcomeApplication(
-                handoff(tenantId, handoffId, false).orElseThrow().projection(), false);
+        jdbc.update("""
+                INSERT INTO tme_payroll_handoff_outcomes (
+                    tenant_id, handoff_public_id, receiver_receipt_public_id,
+                    receiver_receipt_revision, outcome_command_digest, outcome,
+                    receiver_receipt_digest, reason_code, outcome_at,
+                    response_updated_at, response_version, correlation_id, received_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, tenantId, handoffId, outcome.receiverReceiptId(),
+                outcome.receiverReceiptRevision(), digest, outcome.outcome().name(),
+                outcome.receiverReceiptDigest(), outcome.reasonCode(),
+                Timestamp.from(outcome.outcomeAt()), Timestamp.from(appliedAt),
+                responseVersion, outcome.correlationId(), Timestamp.from(appliedAt));
+        StoredOutcome stored = outcome(
+                tenantId, handoffId, outcome.receiverReceiptId(),
+                outcome.receiverReceiptRevision()).orElseThrow();
+        return new OutcomeApplication(snapshot(locked, stored), false);
+    }
+
+    private Optional<StoredOutcome> outcome(
+            long tenantId,
+            UUID handoffId,
+            UUID receiverReceiptId,
+            long receiverReceiptRevision) {
+        List<StoredOutcome> rows = jdbc.query("""
+                SELECT outcome_command_digest, outcome,
+                       receiver_receipt_public_id, receiver_receipt_revision,
+                       receiver_receipt_digest, reason_code, outcome_at,
+                       response_updated_at, response_version
+                  FROM tme_payroll_handoff_outcomes
+                 WHERE tenant_id=? AND handoff_public_id=?
+                   AND receiver_receipt_public_id=? AND receiver_receipt_revision=?
+                """, (row, ignored) -> new StoredOutcome(
+                        row.getString("outcome_command_digest").trim(),
+                        HandoffState.valueOf(row.getString("outcome")),
+                        row.getObject("receiver_receipt_public_id", UUID.class),
+                        row.getLong("receiver_receipt_revision"),
+                        row.getString("receiver_receipt_digest").trim(),
+                        row.getString("reason_code"),
+                        row.getTimestamp("outcome_at").toInstant(),
+                        row.getTimestamp("response_updated_at").toInstant(),
+                        row.getLong("response_version")),
+                tenantId, handoffId, receiverReceiptId, receiverReceiptRevision);
+        return rows.stream().findFirst();
+    }
+
+    private static PayrollTimeHandoffStatusV1 snapshot(
+            HandoffRecord handoff, StoredOutcome outcome) {
+        PayrollTimeHandoffStatusV1 identity = handoff.projection();
+        return new PayrollTimeHandoffStatusV1(
+                identity.handoffId(), identity.closePeriodId(),
+                identity.closedTimeResultId(), identity.closeRevision(),
+                identity.payrollEntityId(), identity.payPeriodId(),
+                identity.workerCount(), identity.lineCount(), identity.sourceDigest(),
+                identity.ruleDigest(), identity.payloadDigest(), outcome.status(),
+                outcome.receiverReceiptId(), outcome.receiverReceiptRevision(),
+                outcome.receiverReceiptDigest(), outcome.reasonCode(), outcome.outcomeAt(),
+                identity.createdAt(), outcome.responseUpdatedAt(), outcome.responseVersion());
     }
 
     private void quarantine(
@@ -863,8 +919,8 @@ public final class JdbcTimeCloseRepository implements TimeCloseRepository {
 
     private Optional<HandoffRecord> handoff(long tenantId, UUID handoffId, boolean lock) {
         List<HandoffRecord> rows = jdbc.query("""
-                SELECT payroll_handoff_id, tenant_id, public_id,
-                       close_period_public_id, r.public_id AS result_public_id,
+                SELECT h.payroll_handoff_id, h.tenant_id, h.public_id,
+                       h.close_period_public_id, r.public_id AS result_public_id,
                        h.close_revision, h.payroll_entity_public_id,
                        h.pay_period_public_id, h.worker_count, h.line_count,
                        h.source_digest, h.rule_digest, h.payload_digest, h.status,
@@ -1055,6 +1111,17 @@ public final class JdbcTimeCloseRepository implements TimeCloseRepository {
             java.math.BigDecimal contributionQuantity,
             String contributionUnit,
             String entryDigest) {}
+
+    private record StoredOutcome(
+            String commandDigest,
+            HandoffState status,
+            UUID receiverReceiptId,
+            long receiverReceiptRevision,
+            String receiverReceiptDigest,
+            String reasonCode,
+            Instant outcomeAt,
+            Instant responseUpdatedAt,
+            long responseVersion) {}
 
     private record OutcomeApplication(
             PayrollTimeHandoffStatusV1 projection, boolean conflict) {}

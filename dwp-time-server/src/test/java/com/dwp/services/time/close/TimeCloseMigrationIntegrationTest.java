@@ -3,9 +3,15 @@ package com.dwp.services.time.close;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.dwp.services.time.close.TimeCloseModels.HandoffState;
+import com.dwp.services.time.close.TimeCloseModels.PayrollTimeHandoffOutcomeV1;
+import com.dwp.services.time.close.TimeCloseModels.PayrollTimeHandoffStatusV1;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -337,6 +343,138 @@ class TimeCloseMigrationIntegrationTest {
     }
 
     @Test
+    void closedResultGraphAcceptsAuthorizedClosingWritesAndRejectsAllLaterInserts() {
+        long tenantId = TENANT + 3;
+        UUID periodId =
+                UUID.fromString("70074000-0000-4000-8000-000000000001");
+        ClosedGraph graph = insertClosedGraph(tenantId, periodId);
+        JdbcTemplate migration = new JdbcTemplate(migrationDataSource);
+
+        assertThatThrownBy(() -> tenantQuery(migrationDataSource, tenantId, () ->
+                migration.update("""
+                        INSERT INTO tme_closed_time_results (
+                            public_id, tenant_id, close_period_id, close_revision,
+                            payroll_entity_public_id, pay_period_public_id,
+                            ledger_revision_from, ledger_revision_to, worker_count, line_count,
+                            source_digest, rule_digest, payload_digest,
+                            supersedes_result_public_id, created_at,
+                            created_by_subject_public_id, correlation_id)
+                        VALUES (?, ?, ?, 2, ?, ?, 1, 1, 1, 1, ?, ?, ?, ?, ?, ?, ?)
+                        """, UUID.randomUUID(), tenantId, graph.periodInternalId(),
+                        graph.payrollEntityId(), graph.payPeriodId(),
+                        "3".repeat(64), "4".repeat(64), "5".repeat(64),
+                        graph.resultId(), Timestamp.from(graph.closeTime().plusSeconds(2)),
+                        graph.subjectId(), graph.correlationId())))
+                .isInstanceOfSatisfying(DataAccessException.class, failure ->
+                        assertThat(failure.getMostSpecificCause().getMessage())
+                                .contains("Closed-time result header requires "
+                                        + "the authorized CLOSING graph"));
+
+        assertThatThrownBy(() -> tenantQuery(migrationDataSource, tenantId, () ->
+                migration.update("""
+                        INSERT INTO tme_closed_time_result_lines (
+                            public_id, tenant_id, closed_time_result_id, line_no,
+                            worker_public_id, assignment_public_id, pay_code, unit,
+                            quantity, currency_code, source_entry_count, source_entry_digest)
+                        VALUES (?, ?, ?, 2, ?, ?, 'REGULAR_MINUTES', 'MINUTE',
+                                60, 'XXX', 1, ?)
+                        """, UUID.randomUUID(), tenantId, graph.resultInternalId(),
+                        graph.workerId(), graph.assignmentId(), "6".repeat(64))))
+                .isInstanceOfSatisfying(DataAccessException.class, failure ->
+                        assertThat(failure.getMostSpecificCause().getMessage())
+                                .contains("Closed-time result line requires "
+                                        + "the authorized CLOSING graph"));
+
+        assertThatThrownBy(() -> tenantQuery(migrationDataSource, tenantId, () ->
+                migration.update("""
+                        INSERT INTO tme_closed_time_result_sources (
+                            tenant_id, closed_time_result_line_id, source_sequence,
+                            ledger_entry_public_id, ledger_entry_posted_at,
+                            ledger_revision, contribution_quantity,
+                            contribution_unit, entry_digest)
+                        VALUES (?, ?, 2, ?, ?, 2, 60, 'MINUTE', ?)
+                        """, tenantId, graph.lineInternalId(), UUID.randomUUID(),
+                        Timestamp.from(graph.closeTime()), "7".repeat(64))))
+                .isInstanceOfSatisfying(DataAccessException.class, failure ->
+                        assertThat(failure.getMostSpecificCause().getMessage())
+                                .contains("Closed-time result source requires "
+                                        + "the authorized CLOSING graph"));
+
+        assertThat(tenantQuery(migrationDataSource, tenantId, () -> List.of(
+                migration.queryForObject("""
+                        SELECT count(*) FROM tme_closed_time_results WHERE tenant_id=?
+                        """, Integer.class, tenantId),
+                migration.queryForObject("""
+                        SELECT count(*) FROM tme_closed_time_result_lines WHERE tenant_id=?
+                        """, Integer.class, tenantId),
+                migration.queryForObject("""
+                        SELECT count(*) FROM tme_closed_time_result_sources WHERE tenant_id=?
+                        """, Integer.class, tenantId))))
+                .containsExactly(1, 1, 1);
+    }
+
+    @Test
+    void exactOlderOutcomeReplayReturnsItsImmutableResponseWhileCurrentStaysNewer() {
+        long tenantId = TENANT + 4;
+        UUID periodId =
+                UUID.fromString("70075000-0000-4000-8000-000000000001");
+        ClosedGraph graph = insertClosedGraph(tenantId, periodId);
+        UUID handoffId =
+                UUID.fromString("70075000-0000-4000-8000-000000000002");
+        UUID receiverReceipt =
+                UUID.fromString("70075000-0000-4000-8000-000000000003");
+        JdbcTemplate migration = new JdbcTemplate(migrationDataSource);
+        tenantQuery(migrationDataSource, tenantId, () -> migration.update("""
+                INSERT INTO tme_payroll_handoffs (
+                    public_id, tenant_id, closed_time_result_id, close_period_id,
+                    close_period_public_id, close_revision,
+                    payroll_entity_public_id, pay_period_public_id, status,
+                    worker_count, line_count, source_digest, rule_digest,
+                    payload_digest, correlation_id, row_version, created_at,
+                    created_by_subject_public_id, updated_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'PENDING', 1, 1, ?, ?, ?, ?, 1, ?, ?, ?)
+                """, handoffId, tenantId, graph.resultInternalId(), graph.periodInternalId(),
+                periodId, graph.payrollEntityId(), graph.payPeriodId(),
+                graph.sourceDigest(), graph.ruleDigest(), graph.payloadDigest(),
+                graph.correlationId(), Timestamp.from(graph.closeTime().plusSeconds(2)),
+                graph.subjectId(), Timestamp.from(graph.closeTime().plusSeconds(2))));
+
+        PayrollTimeHandoffOutcomeV1 revisionOne = new PayrollTimeHandoffOutcomeV1(
+                graph.resultId(), 1L, graph.payloadDigest(), HandoffState.RESULT_UNKNOWN,
+                receiverReceipt, 1L, "8".repeat(64), "PROVIDER_UNCERTAIN",
+                graph.closeTime().plusSeconds(10), graph.correlationId());
+        PayrollTimeHandoffOutcomeV1 revisionTwo = new PayrollTimeHandoffOutcomeV1(
+                graph.resultId(), 1L, graph.payloadDigest(), HandoffState.ACKNOWLEDGED,
+                receiverReceipt, 2L, "9".repeat(64), null,
+                graph.closeTime().plusSeconds(20), graph.correlationId());
+
+        JdbcTimeCloseRepository firstRepository = repositoryAt(
+                graph.closeTime().plusSeconds(11));
+        PayrollTimeHandoffStatusV1 first = firstRepository.applyOutcome(
+                tenantId, handoffId, "1".repeat(64), revisionOne);
+        JdbcTimeCloseRepository secondRepository = repositoryAt(
+                graph.closeTime().plusSeconds(21));
+        PayrollTimeHandoffStatusV1 second = secondRepository.applyOutcome(
+                tenantId, handoffId, "2".repeat(64), revisionTwo);
+        PayrollTimeHandoffStatusV1 replayedFirst = secondRepository.applyOutcome(
+                tenantId, handoffId, "1".repeat(64), revisionOne);
+        PayrollTimeHandoffStatusV1 current = secondRepository.findHandoff(
+                tenantId, handoffId).orElseThrow().projection();
+
+        assertThat(first).isEqualTo(replayedFirst);
+        assertThat(first.status()).isEqualTo(HandoffState.RESULT_UNKNOWN);
+        assertThat(first.version()).isEqualTo(2L);
+        assertThat(second).isEqualTo(current);
+        assertThat(current.status()).isEqualTo(HandoffState.ACKNOWLEDGED);
+        assertThat(current.receiverReceiptRevision()).isEqualTo(2L);
+        assertThat(current.version()).isEqualTo(3L);
+        assertThat(tenantQuery(runtimeDataSource, tenantId, () -> runtime.queryForObject("""
+                SELECT count(*) FROM tme_payroll_handoff_outcomes
+                 WHERE tenant_id=? AND handoff_public_id=?
+                """, Integer.class, tenantId, handoffId))).isEqualTo(2);
+    }
+
+    @Test
     void publisherHasOnlyExactCloseOutboxRelayPrivileges() {
         assertThat(superuser.queryForList("""
                 SELECT table_name || ':' || privilege_type
@@ -447,6 +585,136 @@ class TimeCloseMigrationIntegrationTest {
                 LocalDate.parse("2026-10-17"), LocalDate.parse("2026-10-17")));
     }
 
+    private ClosedGraph insertClosedGraph(long tenantId, UUID periodId) {
+        insertCanonicalFixture(migrationDataSource, tenantId, periodId);
+        JdbcTemplate migration = new JdbcTemplate(migrationDataSource);
+        Instant closeTime = Instant.parse("2026-10-17T03:00:00Z");
+        UUID receiptId = UUID.randomUUID();
+        UUID resultId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        UUID ledgerId = UUID.randomUUID();
+        UUID workerId = UUID.randomUUID();
+        UUID assignmentId = UUID.randomUUID();
+        UUID subjectId = UUID.randomUUID();
+        UUID approverId = UUID.randomUUID();
+        UUID correlationId = UUID.randomUUID();
+        UUID populationId = UUID.randomUUID();
+        UUID manualSourceId = UUID.randomUUID();
+        UUID payrollEntityId =
+                UUID.fromString("70071000-0000-4000-8000-000000000012");
+        UUID payPeriodId =
+                UUID.fromString("70071000-0000-4000-8000-000000000013");
+        String sourceDigest = "3".repeat(64);
+        String ruleDigest = "4".repeat(64);
+        String payloadDigest = "5".repeat(64);
+
+        long[] ids = tenantQuery(migrationDataSource, tenantId, () -> {
+            long periodInternalId = migration.queryForObject("""
+                    SELECT close_period_id FROM tme_close_periods
+                     WHERE tenant_id=? AND public_id=?
+                    """, Long.class, tenantId, periodId);
+            Instant ledgerPostedAt = closeTime.minusSeconds(60);
+            migration.update("""
+                    INSERT INTO tme_time_ledger_entries (
+                        public_id, tenant_id, worker_public_id, local_work_date,
+                        pay_code, unit, quantity, source_type, source_public_id,
+                        reason_code, ledger_revision, input_digest, rule_digest,
+                        posted_at, posted_by, correlation_id)
+                    VALUES (?, ?, ?, '2026-10-17', 'REGULAR_MINUTES', 'MINUTE', 480,
+                            'MANUAL_CORRECTION', ?, 'TIM007_CLOSE_FIXTURE', 1,
+                            ?, ?, ?, 72, ?)
+                    """, ledgerId, tenantId, workerId, manualSourceId,
+                    "6".repeat(64), ruleDigest, Timestamp.from(ledgerPostedAt), correlationId);
+            migration.update("""
+                    INSERT INTO tme_close_command_receipts (
+                        public_id, tenant_id, idempotency_key, route_contract_key,
+                        command_type, originating_action, originating_population_kind,
+                        actor_id, subject_principal_public_id, population_public_id,
+                        population_revision, grant_revision, population_scope_digest,
+                        field_policy_revision, purpose_code, authorization_revision,
+                        required_permission, request_digest, aggregate_public_id,
+                        status, correlation_id, created_at)
+                    VALUES (?, ?, ?,
+                            'route.hcm.operations.time-close.action',
+                            'PERIOD_CLOSE', 'TIME_PERIOD_CLOSE', 'TARGET_POPULATION',
+                            72, ?, ?, 1, 1, ?, 1, 'WORK_TIME_PERIOD_CLOSURE', 1,
+                            'ACTION.HRIS_TIME_CLOSE:EXECUTE', ?, ?,
+                            'ACCEPTED', ?, ?)
+                    """, receiptId, tenantId, "tim007-close-" + tenantId,
+                    subjectId, populationId, "a".repeat(64), "b".repeat(64),
+                    periodId, correlationId, Timestamp.from(closeTime));
+            assertThat(migration.update("""
+                    UPDATE tme_close_periods
+                       SET status='CLOSING', row_version=2,
+                           updated_at=?, updated_by=72
+                     WHERE tenant_id=? AND public_id=?
+                       AND status='OPEN' AND row_version=1
+                    """, Timestamp.from(closeTime), tenantId, periodId)).isOne();
+            long resultInternalId = migration.queryForObject("""
+                    INSERT INTO tme_closed_time_results (
+                        public_id, tenant_id, close_period_id, close_revision,
+                        payroll_entity_public_id, pay_period_public_id,
+                        ledger_revision_from, ledger_revision_to, worker_count, line_count,
+                        source_digest, rule_digest, payload_digest,
+                        supersedes_result_public_id, created_at,
+                        created_by_subject_public_id, correlation_id)
+                    VALUES (?, ?, ?, 1, ?, ?, 1, 1, 1, 1, ?, ?, ?, NULL, ?, ?, ?)
+                    RETURNING closed_time_result_id
+                    """, Long.class, resultId, tenantId, periodInternalId,
+                    payrollEntityId, payPeriodId, sourceDigest, ruleDigest, payloadDigest,
+                    Timestamp.from(closeTime), subjectId, correlationId);
+            long lineInternalId = migration.queryForObject("""
+                    INSERT INTO tme_closed_time_result_lines (
+                        public_id, tenant_id, closed_time_result_id, line_no,
+                        worker_public_id, assignment_public_id, pay_code, unit,
+                        quantity, currency_code, source_entry_count, source_entry_digest)
+                    VALUES (?, ?, ?, 1, ?, ?, 'REGULAR_MINUTES', 'MINUTE',
+                            480, 'XXX', 1, ?)
+                    RETURNING closed_time_result_line_id
+                    """, Long.class, lineId, tenantId, resultInternalId,
+                    workerId, assignmentId, "7".repeat(64));
+            migration.update("""
+                    INSERT INTO tme_closed_time_result_sources (
+                        tenant_id, closed_time_result_line_id, source_sequence,
+                        ledger_entry_public_id, ledger_entry_posted_at,
+                        ledger_revision, contribution_quantity,
+                        contribution_unit, entry_digest)
+                    VALUES (?, ?, 1, ?, ?, 1, 480, 'MINUTE', ?)
+                    """, tenantId, lineInternalId, ledgerId,
+                    Timestamp.from(ledgerPostedAt), "8".repeat(64));
+            assertThat(migration.update("""
+                    UPDATE tme_close_periods
+                       SET status='CLOSED', close_revision=1, ledger_revision=1,
+                           latest_result_public_id=?, closed_by_subject_public_id=?,
+                           close_approval_actor_public_id=?, closed_at=?,
+                           row_version=3, updated_at=?, updated_by=72
+                     WHERE tenant_id=? AND public_id=?
+                       AND status='CLOSING' AND row_version=2
+                    """, resultId, subjectId, approverId, Timestamp.from(closeTime),
+                    Timestamp.from(closeTime.plusSeconds(1)), tenantId, periodId)).isOne();
+            assertThat(migration.update("""
+                    UPDATE tme_close_command_receipts
+                       SET status='SUCCEEDED', aggregate_version=3,
+                           result_ref=?, completed_at=?
+                     WHERE tenant_id=? AND public_id=? AND status='ACCEPTED'
+                    """, "closed-time-result:" + resultId,
+                    Timestamp.from(closeTime.plusSeconds(1)), tenantId, receiptId)).isOne();
+            return new long[] {periodInternalId, resultInternalId, lineInternalId};
+        });
+        return new ClosedGraph(
+                ids[0], ids[1], ids[2], periodId, resultId,
+                payrollEntityId, payPeriodId, workerId, assignmentId, subjectId,
+                correlationId, sourceDigest, ruleDigest, payloadDigest, closeTime);
+    }
+
+    private JdbcTimeCloseRepository repositoryAt(Instant instant) {
+        return new JdbcTimeCloseRepository(
+                runtime,
+                new ObjectMapper().findAndRegisterModules(),
+                new DataSourceTransactionManager(runtimeDataSource),
+                Clock.fixed(instant, ZoneOffset.UTC));
+    }
+
     private List<String> history(JdbcTemplate jdbc) {
         return jdbc.queryForList("""
                 SELECT installed_rank || ':' || version || ':' || script || ':' || checksum
@@ -492,4 +760,21 @@ class TimeCloseMigrationIntegrationTest {
         source.setPassword(password);
         return source;
     }
+
+    private record ClosedGraph(
+            long periodInternalId,
+            long resultInternalId,
+            long lineInternalId,
+            UUID periodId,
+            UUID resultId,
+            UUID payrollEntityId,
+            UUID payPeriodId,
+            UUID workerId,
+            UUID assignmentId,
+            UUID subjectId,
+            UUID correlationId,
+            String sourceDigest,
+            String ruleDigest,
+            String payloadDigest,
+            Instant closeTime) {}
 }
