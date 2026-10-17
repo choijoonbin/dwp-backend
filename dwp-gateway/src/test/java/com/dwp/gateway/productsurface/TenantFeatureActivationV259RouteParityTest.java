@@ -20,6 +20,23 @@ class TenantFeatureActivationV259RouteParityTest {
             "\\('([^']+)',\\s*'([^']+)',\\s*(\\d+),\\s*'([^']+)',\\s*'([^']+)',"
                     + "\\s*(\\d+),\\s*'(PAGE|DATA|ACTION)',\\s*'(PRODUCT)',\\s*'([^']+)'\\)");
     private static final Pattern JAVA_ROUTE = Pattern.compile("\"(route\\.hcm\\.[^\"]+)\"");
+    private static final List<SeedBinding> EXPECTED_BINDINGS = List.of(
+            binding("route.hcm.operations.organization-positions.page", "HRIS_ORGANIZATION_POSITIONS", "PAGE", "hcm.operations"),
+            binding("route.hcm.operations.organization-graph.data", "HRIS_ORGANIZATION_POSITIONS", "DATA", "hcm.operations"),
+            binding("route.hcm.configuration.settings-operations.page", "HRIS_OPERATIONS_EXCEPTION_CENTER", "PAGE", "hcm.management"),
+            binding("route.hcm.operations.exception.data", "HRIS_OPERATIONS_EXCEPTION_CENTER", "DATA", "hcm.operations"),
+            binding("route.hcm.operations.exception-detail.data", "HRIS_OPERATIONS_EXCEPTION_CENTER", "DATA", "hcm.operations"),
+            binding("route.hcm.operations.payroll-population.page", "HRIS_PAYROLL_RUN_PREPARE", "PAGE", "hcm.operations"),
+            binding("route.hcm.operations.payroll-support.data", "HRIS_PAYROLL_RUN_PREPARE", "DATA", "hcm.operations"),
+            binding("route.hcm.operations.payroll-run.action", "HRIS_PAYROLL_RUN_PREPARE", "ACTION", "hcm.operations"),
+            binding("route.hcm.operations.time-command-center.page", "HRIS_TIME_CLOSE_HANDOFF", "PAGE", "hcm.operations"),
+            binding("route.hcm.operations.time-daily-close.page", "HRIS_TIME_CLOSE_HANDOFF", "PAGE", "hcm.operations"),
+            binding("route.hcm.operations.time-monthly-close.page", "HRIS_TIME_CLOSE_HANDOFF", "PAGE", "hcm.operations"),
+            binding("route.hcm.operations.time-close-validate.action", "HRIS_TIME_CLOSE_HANDOFF", "ACTION", "hcm.operations"),
+            binding("route.hcm.operations.time-close.action", "HRIS_TIME_CLOSE_HANDOFF", "ACTION", "hcm.operations"),
+            binding("route.hcm.operations.time-reopen.action", "HRIS_TIME_CLOSE_HANDOFF", "ACTION", "hcm.operations"),
+            binding("route.hcm.operations.time-payroll-handoff-create.action", "HRIS_TIME_CLOSE_HANDOFF", "ACTION", "hcm.operations"),
+            binding("route.hcm.operations.time-payroll-handoff.data", "HRIS_TIME_CLOSE_HANDOFF", "DATA", "hcm.operations"));
 
     @Test
     void v259RouteBindingsExactlyMatchGatewayAlwaysEvaluateClosedSet() throws Exception {
@@ -43,23 +60,11 @@ class TenantFeatureActivationV259RouteParityTest {
                 "private static final Set<String> TENANT_FEATURE_GOVERNED_ROUTE_KEYS",
                 "private static final Set<String> TIM_WAVE2_ROUTE_KEYS"));
 
-        assertThat(seeds).hasSize(16);
+        assertThat(seeds)
+                .as("V259 must preserve every governed route binding and its exact owner attributes")
+                .containsExactlyElementsOf(EXPECTED_BINDINGS);
         assertThat(seeds.stream().map(SeedBinding::routeKey).toList())
                 .doesNotHaveDuplicates();
-        assertThat(seeds.stream().map(SeedBinding::featureKey).collect(java.util.stream.Collectors.toSet()))
-                .containsExactlyInAnyOrder(
-                        "HRIS_ORGANIZATION_POSITIONS",
-                        "HRIS_OPERATIONS_EXCEPTION_CENTER",
-                        "HRIS_PAYROLL_RUN_PREPARE",
-                        "HRIS_TIME_CLOSE_HANDOFF");
-        assertThat(seeds).allSatisfy(seed -> {
-            assertThat(seed.policyVersion()).isEqualTo(1L);
-            assertThat(seed.productKey()).isEqualTo("hcm");
-            assertThat(seed.appResourceKey()).isEqualTo("APP.HCM");
-            assertThat(seed.minimumBundleVersion()).isEqualTo(50L);
-            assertThat(seed.subjectType()).isEqualTo("PRODUCT");
-            assertThat(seed.surfaceKey()).isIn("hcm.operations", "hcm.management");
-        });
 
         assertThat(gatewayRoutes).hasSize(16).doesNotHaveDuplicates();
         assertThat(gatewayRoutes)
@@ -112,6 +117,23 @@ class TenantFeatureActivationV259RouteParityTest {
         if (routeKey.endsWith(".data")) return "DATA";
         if (routeKey.endsWith(".action")) return "ACTION";
         throw new AssertionError("Unsupported governed route kind: " + routeKey);
+    }
+
+    private static SeedBinding binding(
+            String routeKey,
+            String featureKey,
+            String routeKind,
+            String surfaceKey) {
+        return new SeedBinding(
+                routeKey,
+                featureKey,
+                1L,
+                "hcm",
+                "APP.HCM",
+                50L,
+                routeKind,
+                "PRODUCT",
+                surfaceKey);
     }
 
     private static String section(String source, String startMarker, String endMarker) {
