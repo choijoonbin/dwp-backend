@@ -394,6 +394,142 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void hrm011SameWireReadForwardsOnlyTrustedPurposePolicyAndConcretePopulation() {
+        String path = "/api/people/v1/hris/workbench/operations/contracts/compensation/basis";
+        GeneratedProductRouteCatalog.Match match = catalog.match("GET", path);
+        assertThat(match.status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(match.routes()).hasSize(2);
+        assertThat(match.uniqueRoute().routeContractKey())
+                .isEqualTo("route.hcm.operations.contracts-compensation-basis.data");
+
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(path)
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041")
+                .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED")
+                .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER,
+                        "client.forged.fields")
+                .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                        "CLIENT_FORGED"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter(authority(allowedWave2("TARGET_POPULATION", "LEGAL_ENTITY")))
+                .filter(exchange, filtered -> {
+                    forwarded.set(filtered.getRequest());
+                    return Mono.empty();
+                }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.PURPOSE_HEADER)).isEqualTo("HR_OPERATIONS");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER))
+                .isEqualTo("HRM-AUTH-007");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                .isEqualTo("LEGAL_ENTITY");
+    }
+
+    @Test
+    void hrm011ActionRequiresHighCommandBindingAndForwardsTrustedOwnerEvidence() {
+        String path = "/api/people/v1/hris/employment-contracts";
+        GeneratedProductRouteCatalog.Route route = catalog.match("POST", path).uniqueRoute();
+        assertThat(route).isNotNull();
+        assertThat(route.routeContractKey())
+                .isEqualTo("route.hcm.operations.employment-contract-issue.action");
+        assertThat(route.stateChanging()).isTrue();
+        assertThat(route.highRiskStepUp()).isTrue();
+        assertThat(route.commandBoundStepUp()).isTrue();
+
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.post(path)
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041")
+                .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER, REVISION)
+                .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "HR_LIFECYCLE")
+                .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER,
+                        "client.forged.fields")
+                .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                        "CLIENT_FORGED"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter(authority(allowedWave2("TARGET_POPULATION", "ORG_UNIT")))
+                .filter(exchange, filtered -> {
+                    forwarded.set(filtered.getRequest());
+                    return Mono.empty();
+                }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.PURPOSE_HEADER)).isEqualTo("HR_LIFECYCLE");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER))
+                .isEqualTo("HRM-AUTH-015");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER)).isEqualTo("ORG_UNIT");
+    }
+
+    @Test
+    void hrm011ActionRejectsWrongOrAmbiguousCallerPurposeBeforeAuthority() {
+        ProductSurfaceContextAggregationService authority = authority(
+                allowedWave2("TARGET_POPULATION", "ORG_UNIT"));
+        for (List<String> values : List.of(
+                List.of("CLIENT_FORGED"),
+                List.of("HR_LIFECYCLE", "HR_OPERATIONS"))) {
+            MockServerHttpRequest.BaseBuilder<?> request = MockServerHttpRequest.post(
+                            "/api/people/v1/hris/employment-contracts")
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                            REVISION);
+            values.forEach(value -> request.header(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, value));
+            MockServerWebExchange exchange = exchange(request);
+            AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+            filter(authority).filter(exchange, ignored -> {
+                forwarded.set(true);
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).isFalse();
+            assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(body(exchange)).contains("INVALID_PURPOSE");
+        }
+        verify(authority, never()).evaluateProductTrusted(any(), any());
+    }
+
+    @Test
+    void hrm011RejectsUnsealedTargetPopulationDisplay() {
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/people/v1/hris/workbench/operations/contracts/compensation/basis")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041"));
+        AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+        filter(authority(allowedWave2("TARGET_POPULATION", "WORKFORCE_TARGET_POPULATION")))
+                .filter(exchange, ignored -> {
+                    forwarded.set(true);
+                    return Mono.empty();
+                }).block();
+
+        assertThat(forwarded.get()).isFalse();
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(exchange)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
+    }
+
+    @Test
     void wave2HrmAndPayPurposesAreGatewayOwned() {
         ProductSurfaceDecisionContextFilter filter = filter(authority(
                 allowedWave2("LEGAL_ENTITY")));

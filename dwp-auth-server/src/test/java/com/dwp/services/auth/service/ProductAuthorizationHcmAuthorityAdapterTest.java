@@ -9,6 +9,7 @@ import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
@@ -572,11 +573,94 @@ class ProductAuthorizationHcmAuthorityAdapterTest {
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
     }
 
+    @Test
+    void v53ContractIssueRequiresActualDutyAndEmitsPeopleRebindablePopulationScope()
+            throws IOException {
+        useContract("product-surfaces-v1.bundle-v53.generated.json");
+        evidence(Set.of(
+                "APP.HCM:VIEW", "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE"), List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult missingDuty = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.employment-contract-issue.action",
+                null, null, null, null, List.of());
+        assertThat(missingDuty.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
+
+        String resourceSetKey = "RS_HRIS_CONTRACT_ISSUERS_LE_100";
+        evidence(Set.of(
+                "APP.HCM:VIEW", "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE"),
+                List.of(role("HRIS_DUTY_CONTRACT_ISSUER", "APP.HCM", resourceSetKey)));
+        ProductSurfaceAuthorityDtos.AuthorityResult challenge = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.employment-contract-issue.action",
+                null, null, null, null, List.of());
+
+        String populationSelector = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.operations",
+                "WORKFORCE_TARGET_POPULATION", "TARGET_POPULATION");
+        assertThat(challenge.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        assertThat(challenge.requiresProductEligibility()).isTrue();
+        assertThat(challenge.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.key()).isEqualTo(populationSelector);
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+            assertThat(scope.isDefault()).isTrue();
+            assertThat(scope.readOnly()).isFalse();
+        });
+        assertThat(challenge.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> {
+                            assertThat(grant.capabilityContractKey())
+                                    .isEqualTo("hcm.operations.contract.issue");
+                            assertThat(grant.responsibility())
+                                    .isEqualTo(new ProductSurfaceAuthorityDtos.Responsibility(
+                                            "HRIS_DUTY_CONTRACT_ISSUER", resourceSetKey));
+                            assertThat(grant.scopeKeys()).containsExactly(populationSelector);
+                        });
+    }
+
+    @Test
+    void v53ContractIssueFailsClosedWhenTheRegisteredOwnerSodPolicyDrifts()
+            throws IOException {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        ObjectNode document;
+        try (var input = getClass().getResourceAsStream(
+                "/product-authorization/product-surfaces-v1.bundle-v53.generated.json")) {
+            document = (ObjectNode) mapper.readTree(input);
+        }
+        document.withArray("capabilities").forEach(capability -> {
+            if ("hcm.operations.contract.issue".equals(
+                    capability.path("contractKey").asText())) {
+                ((ObjectNode) capability).put("sodPolicyId", "UNREGISTERED_OWNER_SOD");
+            }
+        });
+        useContract(mapper.treeToValue(
+                document, ProductAuthorizationContractDtos.BundleContract.class));
+        evidence(Set.of(
+                "APP.HCM:VIEW", "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE"),
+                List.of(role("HRIS_DUTY_CONTRACT_ISSUER", "APP.HCM",
+                        "RS_HRIS_CONTRACT_ISSUERS_LE_100")));
+
+        ProductSurfaceAuthorityDtos.AuthorityResult denied = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                "route.hcm.operations.employment-contract-issue.action",
+                null, null, null, null, List.of());
+
+        assertThat(denied.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SOD_CONFLICT);
+        assertThat(denied.routeGrantRef()).isNull();
+    }
+
     private void useContract(String resource) throws IOException {
         ProductAuthorizationContractDtos.BundleContract contract = new ObjectMapper()
                 .findAndRegisterModules().readValue(getClass().getResourceAsStream(
                         "/product-authorization/" + resource),
                         ProductAuthorizationContractDtos.BundleContract.class);
+        useContract(contract);
+    }
+
+    private void useContract(ProductAuthorizationContractDtos.BundleContract contract) {
         UUID bundleId = UUID.fromString("22222222-2222-2222-2222-222222222222");
         OffsetDateTime now = OffsetDateTime.now(CLOCK);
         ProductAuthorizationContractRepository.StoredBundle stored =

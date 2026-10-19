@@ -131,15 +131,9 @@ class ProductAuthorizationV52Test(unittest.TestCase):
             binding[0]["audience"],
         ))
 
-    def test_latest_alias_index_auth_seed_and_service_peps_pin_v52(self) -> None:
-        alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
-        seed = json.loads((AUTH / "product-surfaces-v1.generated.json").read_text())
-        index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual(self.v52, alias)
+    def test_v52_auth_seed_and_service_peps_remain_immutable(self) -> None:
+        seed = json.loads((AUTH / "product-surfaces-v1.bundle-v52.generated.json").read_text())
         self.assertEqual(self.v52, seed)
-        self.assertEqual((52, V52_CHECKSUM, 52), (
-            index["latestVersion"], index["latestChecksum"], len(index["versions"])
-        ))
         for service in ("people", "time", "platform", "payroll"):
             pep = json.loads((
                 ROOT / f"dwp-{service}-server/src/main/resources/product-authorization/"

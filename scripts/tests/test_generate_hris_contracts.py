@@ -45,6 +45,10 @@ EXPECTED_XCON_TYPES = {
     "com.dwp.contracts.hris.xcon.v1.Xcon020ApprovedCompensationPlanSnapshotV1",
     "com.dwp.contracts.hris.xcon.v1.Xcon021ApprovedCompensationPlanSnapshotPublishedV2",
     "com.dwp.contracts.hris.xcon.v1.Xcon022EmployeeChangeAppliedV1",
+    "com.dwp.contracts.hris.xcon.v1.Xcon023WorkerDependentEligibilityChangedV1",
+    "com.dwp.contracts.hris.xcon.v1.Xcon024WorkerTaxIdentityChangedV1",
+    "com.dwp.contracts.hris.xcon.v1.Xcon025WorkerBankAccountTokenChangedV1",
+    "com.dwp.contracts.hris.xcon.v1.Xcon026EmploymentContractIssuedV1",
 }
 
 EXPECTED_PLATFORM_TYPES = {
@@ -62,6 +66,7 @@ EXPECTED_PLATFORM_TYPES = {
     "com.dwp.platform.contracts.hris.generated.HrisNotificationIntentV1",
     "com.dwp.platform.contracts.hris.generated.HrisNotificationReceiptV1",
     "com.dwp.platform.contracts.hris.generated.HrisAuditOutboxEventV1",
+    "com.dwp.platform.contracts.hris.generated.EmploymentContractTemplateSnapshotV1",
 }
 
 EXPECTED_FIELDS = {
@@ -87,6 +92,10 @@ EXPECTED_FIELDS = {
     "Xcon020ApprovedCompensationPlanSnapshotV1": ("approvalReceiptId", "cycleId", "effectiveFrom", "effectiveTo", "lineCount", "lines", "payloadDigest", "planId", "snapshotId", "snapshotRevision", "sourceVersion"),
     "Xcon021ApprovedCompensationPlanSnapshotPublishedV2": ("aggregateId", "aggregateVersion", "approvalReceiptId", "approvalRevision", "correlationId", "cycleId", "effectiveDate", "fromState", "lineCount", "occurredAt", "payloadDigest", "planId", "snapshotId", "snapshotRevision", "sourceVersion", "toState"),
     "Xcon022EmployeeChangeAppliedV1": ("aggregateId", "aggregateVersion", "appliedTargetVersion", "causationId", "changedFieldGroups", "correlationId", "effectiveDate", "eventId", "occurredAt", "payloadDigest", "requestPublicId", "schemaVersion", "targetAggregatePublicId", "targetAggregateType", "tenantId"),
+    "Xcon023WorkerDependentEligibilityChangedV1": ("aggregateId", "aggregateVersion", "causationId", "correlationId", "dependentPublicId", "effectiveFrom", "effectiveTo", "eventId", "newAggregateVersion", "occurredAt", "payloadDigest", "schemaVersion", "tenantId", "workerId"),
+    "Xcon024WorkerTaxIdentityChangedV1": ("aggregateId", "aggregateVersion", "causationId", "correlationId", "effectiveFrom", "effectiveTo", "eventId", "newAggregateVersion", "occurredAt", "payloadDigest", "schemaVersion", "taxIdentityPublicId", "tenantId", "workerId"),
+    "Xcon025WorkerBankAccountTokenChangedV1": ("aggregateId", "aggregateVersion", "causationId", "correlationId", "effectiveFrom", "effectiveTo", "eventId", "newAggregateVersion", "occurredAt", "payloadDigest", "paymentDestinationPublicId", "schemaVersion", "tenantId", "workerId"),
+    "Xcon026EmploymentContractIssuedV1": ("aggregateId", "aggregateVersion", "causationId", "contractPublicId", "contractType", "correlationId", "documentReference", "eventId", "occurredAt", "payloadDigest", "schemaVersion", "tenantId", "validFrom", "validTo", "workerPublicId"),
     "HrisConfigurationVersionV1": ("configurationId", "configurationType", "scopeType", "scopeId", "version", "state", "effectiveFrom", "effectiveTo", "payloadSchemaVersion", "payloadDigest", "approvalReceiptId"),
     "HrisConfigurationPublishedV1": ("configurationId", "configurationType", "scopeType", "scopeId", "version", "effectiveFrom", "effectiveTo", "payloadSchemaVersion", "payloadDigest", "approvalReceiptId", "publishedAt", "eventSequence"),
     "HrisConfigurationInvalidatedV1": ("configurationId", "configurationType", "scopeType", "scopeId", "invalidatedVersion", "replacementVersion", "reasonCode", "invalidatedAt", "eventSequence"),
@@ -101,14 +110,15 @@ EXPECTED_FIELDS = {
     "HrisNotificationIntentV1": ("intentId", "sourceEventId", "tenantId", "producerAppKey", "typeKey", "purposeCode", "recipientUserIds", "excludedUserIds", "threadRef", "locale", "reasonCode", "actorRef", "subjectRef", "targetRef", "templateKey", "templateVersion", "templateModelDigest", "classification", "actionRequired", "dueAt", "requestedAt", "idempotencyKey", "correlationId"),
     "HrisNotificationReceiptV1": ("receiptId", "intentId", "sourceEventId", "tenantId", "recipientUserId", "receiptSequence", "state", "channel", "decisionCode", "reasonCode", "notificationId", "policyRevision", "templateVersion", "materializedDigest", "providerReceiptDigest", "attemptNumber", "occurredAt", "errorCode", "retryable", "nextAttemptAt", "correlationId"),
     "HrisAuditOutboxEventV1": ("eventId", "tenantId", "occurredAt", "sourceService", "sourceModule", "aggregateType", "aggregateRef", "aggregateRevision", "action", "outcome", "actorType", "actorRef", "effectiveCapability", "purposeCode", "authorizationDecisionRef", "scopeRevision", "fieldPolicyRevision", "delegationRef", "supportSessionRef", "stepUpReceiptRef", "approvalReceiptId", "targetRef", "reasonCode", "errorCode", "beforeDigest", "afterDigest", "evidenceDigest", "classification", "retentionClass", "causationId", "correlationId"),
+    "EmploymentContractTemplateSnapshotV1": ("approvalReceiptId", "contentSchemaVersion", "contractType", "effectiveFrom", "effectiveTo", "locale", "payloadDigest", "publishedAt", "scopeId", "scopeType", "sourceRevision", "state", "templateContentReference", "templatePublicId", "templateType", "templateVersion", "tenantId"),
 }
 
-EXPECTED_SOURCE_DIGESTS = {
-    "xcon-v1": "8109568c1cfafa5021b5e831ac17c5dbbfeaaf2b3a7472fc4ff488eacb0bc866",
-    "platform-dependency-v1": "5778f82aa3b76511a19dc3df47f4fb1d2f51502d96906197abbe143359eddfd4",
-}
-
-EXPECTED_MANIFEST_DIGEST = "e72fc11eac5f6143706f053e3db56e5b91759a82ff6f32ae9a36511bbe31b3f4"
+LEGACY_XCON_001_022_DIGEST = (
+    "1b3199f8383a54b9873bbbb6569bbe1adfe8a521f623a6c4b9225d99c9c8ab89"
+)
+LEGACY_PDX_001_014_DIGEST = (
+    "51631855d3c8a0ffd0f726caa901f7cf516025d0ab6ecdd00476203299291848"
+)
 
 SESSION_MODULES = {
     "HRIS-HRM": "dwp-people-server",
@@ -124,6 +134,23 @@ SESSION_MODULES = {
 
 
 class HrisContractGeneratorTest(unittest.TestCase):
+
+    @staticmethod
+    def normalized_definition_digest(
+        document: dict[str, object], prefix: str, last: int
+    ) -> str:
+        definitions = document["$defs"]
+        selected = {
+            f"{prefix}{index:03d}": definitions[f"{prefix}{index:03d}"]
+            for index in range(1, last + 1)
+        }
+        payload = json.dumps(
+            selected,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
 
     def temporary_root(self) -> tempfile.TemporaryDirectory[str]:
         temporary = tempfile.TemporaryDirectory()
@@ -142,16 +169,33 @@ class HrisContractGeneratorTest(unittest.TestCase):
         mutation(manifest)
         path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
-    def test_source_digests_and_exact_import_and_field_closure_are_pinned(self) -> None:
+    def test_append_only_sources_preserve_predecessors_and_exact_field_closure(self) -> None:
         manifest = json.loads(
             (ROOT / GENERATOR.MANIFEST_PATH).read_text(encoding="utf-8")
         )
-        self.assertEqual(EXPECTED_MANIFEST_DIGEST, GENERATOR.canonical_digest(manifest))
         sources, contracts = GENERATOR.load_contracts(ROOT)
-        self.assertEqual(EXPECTED_SOURCE_DIGESTS, {
-            source.source_id: hashlib.sha256(source.schema_path.read_bytes()).hexdigest()
-            for source in sources
-        })
+        source_by_id = {source.source_id: source for source in sources}
+        manifest_source_by_id = {
+            source["sourceId"]: source for source in manifest["sources"]
+        }
+        for source_id, source in source_by_id.items():
+            with self.subTest(source_id=source_id):
+                self.assertEqual(
+                    manifest_source_by_id[source_id]["schemaSha256"],
+                    hashlib.sha256(source.schema_path.read_bytes()).hexdigest(),
+                )
+        self.assertEqual(
+            LEGACY_XCON_001_022_DIGEST,
+            self.normalized_definition_digest(
+                source_by_id["xcon-v1"].document, "XCON_", 22
+            ),
+        )
+        self.assertEqual(
+            LEGACY_PDX_001_014_DIGEST,
+            self.normalized_definition_digest(
+                source_by_id["platform-dependency-v1"].document, "PDX_", 14
+            ),
+        )
         xcon = {contract.java_type for contract in contracts if contract.source.source_id == "xcon-v1"}
         platform = {
             contract.java_type
@@ -160,10 +204,10 @@ class HrisContractGeneratorTest(unittest.TestCase):
         }
         self.assertEqual(EXPECTED_XCON_TYPES, xcon)
         self.assertEqual(EXPECTED_PLATFORM_TYPES, platform)
-        self.assertEqual(36, len(contracts))
+        self.assertEqual(41, len(contracts))
 
         outputs = GENERATOR.expected_outputs(ROOT)
-        self.assertEqual(38, len(outputs))
+        self.assertEqual(43, len(outputs))
         for contract in contracts:
             with self.subTest(java_type=contract.java_type):
                 expected_fields = EXPECTED_FIELDS[contract.class_name]
@@ -196,7 +240,7 @@ class HrisContractGeneratorTest(unittest.TestCase):
                 path.relative_to(root): path.read_bytes()
                 for path in root.glob("dwp-platform-contracts/src/main/java/**/*.java")
             }
-            self.assertEqual(38, len(first))
+            self.assertEqual(43, len(first))
             self.assertEqual([], GENERATOR.check_outputs(root))
             self.assertEqual(0, GENERATOR.write_outputs(root))
             second = {
@@ -691,7 +735,7 @@ class HrisContractGeneratorTest(unittest.TestCase):
         sources, _ = GENERATOR.load_contracts(ROOT)
         by_id = {source.source_id: source for source in sources}
         bindings = manifest["extensionBindings"]
-        self.assertEqual(39, len(bindings))
+        self.assertEqual(40, len(bindings))
         GENERATOR.validate_extension_bindings(bindings, by_id)
         causal = next(
             binding

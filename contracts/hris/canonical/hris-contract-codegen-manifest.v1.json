@@ -8,28 +8,28 @@
       "sourceId": "xcon-v1",
       "schemaPath": "contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json",
       "schemaId": "urn:dwp:hris:cross-module-canonical-schemas:v1",
-      "schemaSha256": "8109568c1cfafa5021b5e831ac17c5dbbfeaaf2b3a7472fc4ff488eacb0bc866",
+      "schemaSha256": "e1128a49da65d6f9498c38905dc9144611ae2dfa31bea9c0b6ab21806a6554a5",
       "bindingRegisterProvenance": {
         "path": "coding-readiness/cross-module-schema-binding-register.csv",
         "sha256": "b78fbae31c9cd48c4eadc37ea689d4f6987642ee8562700205f3c14bad0c6334"
       },
       "definitionPrefix": "XCON_",
       "normalizedDigestMode": "materialized",
-      "expectedContractCount": 22,
+      "expectedContractCount": 26,
       "javaPackage": "com.dwp.contracts.hris.xcon.v1"
     },
     {
       "sourceId": "platform-dependency-v1",
       "schemaPath": "contracts/hris/canonical/schemas/platform-dependency-canonical-schemas.v1.json",
       "schemaId": "urn:dwp:hris:platform-dependency-canonical-schemas:v1",
-      "schemaSha256": "5778f82aa3b76511a19dc3df47f4fb1d2f51502d96906197abbe143359eddfd4",
+      "schemaSha256": "5674845a3ba00928e8c5e05dc99a7869d3dae7ba2cc48f360c8b16db47ec3d8f",
       "bindingRegisterProvenance": {
         "path": "coding-readiness/platform-dependency-schema-binding-register.csv",
         "sha256": "de29f3968c16eb2afe118af71c9e1e3bd3efb66533f4661ee441c75a4669fd7c"
       },
       "definitionPrefix": "PDX_",
       "normalizedDigestMode": "definition",
-      "expectedContractCount": 14,
+      "expectedContractCount": 15,
       "javaPackage": "com.dwp.platform.contracts.hris.generated"
     }
   ],
@@ -423,6 +423,20 @@
         "evidenceOnly": ["DOMAIN_RUNTIME"],
         "privacy": ["DOMAIN_RUNTIME"]
       }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_015/x-invariants",
+      "valueSha256": "6c6c1ccd9817435b740b31da97f43c7f774e9f53a8fa65e2da5077e24931c92e",
+      "owner": "SYS_PLATFORM|HRIS-HRM",
+      "memberClassifications": {
+        "tenantBinding": ["DOMAIN_RUNTIME"],
+        "templateAuthority": ["DOMAIN_RUNTIME"],
+        "effectiveRange": ["GENERATED_CONSTRUCTOR"],
+        "scopeShape": ["GENERATED_CONSTRUCTOR"],
+        "contentBinding": ["DOMAIN_RUNTIME"],
+        "ordering": ["DOMAIN_RUNTIME"]
+      }
     }
   ],
   "contracts": [
@@ -603,6 +617,38 @@
       "consumers": ["HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
     },
     {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_023",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon023WorkerDependentEligibilityChangedV1",
+      "normalizedSchemaSha256": "1f251faf7d62ba2c95e07c3aa79faa6db3780e96a414d2d1ffd18b104c40bd1c",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_024",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon024WorkerTaxIdentityChangedV1",
+      "normalizedSchemaSha256": "24d017e6254060323ef48de280d5583ed818d0751e08ecf4055bb0b465c51705",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_025",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon025WorkerBankAccountTokenChangedV1",
+      "normalizedSchemaSha256": "35f5cb12cf5beff0a7b3483e7c76f9642405acb0b100781c01d72ffc368b9452",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_026",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon026EmploymentContractIssuedV1",
+      "normalizedSchemaSha256": "cebca8e3bc2e638a2b4cacd0004384c3d080d879f55b8ef3e588bf1e8b495f88",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-HRM"]
+    },
+    {
       "sourceId": "platform-dependency-v1",
       "schemaDefinition": "PDX_001",
       "javaType": "com.dwp.platform.contracts.hris.generated.HrisConfigurationVersionV1",
@@ -713,6 +759,14 @@
       "normalizedSchemaSha256": "bf8e0fed69557ec8656ac0a6d5f5d5bbe5f18a6cfc463ec6fcf79e44b2909fd3",
       "producer": "DWP_AUDIT",
       "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY", "HRIS-SYS"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_015",
+      "javaType": "com.dwp.platform.contracts.hris.generated.EmploymentContractTemplateSnapshotV1",
+      "normalizedSchemaSha256": "fd8596b2950c6fd3d4c6c5f673aeed41adc10f57495c3a0508e05795c6ea5706",
+      "producer": "SYS_PLATFORM",
+      "consumers": ["HRIS-HRM"]
     }
   ]
 }

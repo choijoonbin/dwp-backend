@@ -624,6 +624,46 @@ class ProductSurfaceStepUpLatestRuntimeTest {
     }
 
     @Test
+    void genuineV53SealedRuntimeResolvesOnlyExactEmploymentContractCommand() {
+        rollback(() -> {
+            var contracts = context.getBean(ProductAuthorizationContractService.class);
+            contracts.approve(KEY, 53L, "test-checker");
+            contracts.activate(KEY, 53L, "test-release",
+                    repository.findActivePointer(KEY).orElseThrow().revision());
+
+            var request = employmentContractIssueRequest();
+            var resolved = resolver.resolve(request);
+
+            assertThat(resolved.bundleVersion()).isEqualTo(53L);
+            assertThat(resolved.bundleChecksum()).isEqualTo(
+                    "c655a850ae2ac01466edb37f2e1c69f9e269dd2a4a529c3a87b1610c0561a359");
+            assertThat(resolved.routeContractKey())
+                    .isEqualTo("route.hcm.operations.employment-contract-issue.action");
+            assertThat(resolved.capabilityContractKey())
+                    .isEqualTo("hcm.operations.contract.issue");
+            assertThat(resolved.activationPolicy()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+            assertThat(resolved.targetType()).isEqualTo("WORK_RELATIONSHIP");
+            assertThat(resolved.targetIdBodyFields())
+                    .containsExactly("relationshipPublicId");
+            assertThat(resolved.expectedObjectVersionSource()).isEqualTo("COMMAND_HEADER");
+            assertThat(resolved.expectedObjectVersionName())
+                    .isEqualTo("X-DWP-Expected-Object-Version");
+            assertThat(resolved.ownerServiceKey()).isEqualTo("people");
+            assertThat(resolved.audience()).isEqualTo("dwp-people-server");
+
+            var driftedBody = JSON.createObjectNode().put(
+                    "relationshipPublicId",
+                    "00000000-0000-4000-8000-000000000054");
+            assertThatThrownBy(() -> resolver.resolve(changed(
+                    request, "POST", request.commandPath(), "WORK_RELATIONSHIP",
+                    request.targetId(), driftedBody)))
+                    .isInstanceOfSatisfying(BaseException.class, error ->
+                            assertThat(error.getErrorCode())
+                                    .isEqualTo(ErrorCode.STEP_UP_CHALLENGE_MISMATCH));
+        });
+    }
+
+    @Test
     void genuineFourteenAllowsOnlyNonPublishingReviewRejectionWithoutStepUp() {
         rollback(() -> {
             var contracts = context.getBean(ProductAuthorizationContractService.class);
@@ -811,6 +851,16 @@ class ProductSurfaceStepUpLatestRuntimeTest {
                 "hrm009-certificate-issue-52",
                 JSON.createObjectNode().put("personPublicId", person), null,
                 "/hr/operations/people/certificates-documents");
+    }
+
+    private static ProductSurfaceStepUpDtos.IssueRequest employmentContractIssueRequest() {
+        String relationship = "00000000-0000-4000-8000-000000000053";
+        return new ProductSurfaceStepUpDtos.IssueRequest(
+                "POST", "/api/people/v1/hris/employment-contracts", "opaque-context",
+                "hrm011-selected-scope", "WORK_RELATIONSHIP", relationship, 4L,
+                "hrm011-employment-contract-issue-53",
+                JSON.createObjectNode().put("relationshipPublicId", relationship), null,
+                "/hr/operations/people/contracts-compensation-basis");
     }
 
     @Test

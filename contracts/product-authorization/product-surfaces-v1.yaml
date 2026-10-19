@@ -63051,6 +63051,35 @@
           "stepUpCommandBindings": [{"bindingKey": "route.hcm.operations.certificate-issue.action.binding.01", "targetType": "PERSON", "targetIdBodyFields": ["personPublicId"], "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "X-DWP-Expected-Object-Version", "ownerServiceKey": "people", "audience": "dwp-people-server"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 53,
+      "capabilities": [
+        {
+          "contractKey": "hcm.operations.contract.issue", "productKey": "hcm", "surfaceKey": "hcm.operations", "resolvedCapabilityCode": "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE", "resourceKey": "ACTION.HRIS_EMPLOYMENT_CONTRACT", "action": "ISSUE", "mappingVersion": 1, "requiresProductEntitlement": false, "authorityMode": "PERMISSION_AND_RELATIONSHIP", "scopeResolver": "WORKFORCE_TARGET_POPULATION", "riskTier": "HIGH", "activationPolicy": "STEPUP-MGMT-HIGH-V1", "responsibilityRequirement": "REQUIRED", "requiredResponsibilityCode": "HRIS_DUTY_CONTRACT_ISSUER", "sodPolicyId": "NO_APPROVE_OWN_CHANGE", "legacySource": null, "sunsetAt": null, "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.hcm.operations.contracts-compensation-basis.page", "authorizationEquivalenceKey": "wire-authority.hcm.operations.contracts-compensation-basis.v1", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "PAGE", "sideEffectFree": null, "uiRouteId": "hcm.operations.contracts-compensation-basis", "uiRoutePattern": "/hr/operations/people/contracts-compensation-basis",
+          "accessProfiles": [{"profileKey": "people-operations-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.people.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-visible-person.v1"], "projectionPolicyKey": "route.hcm.operations.contracts-compensation-basis.page.people-operations-reader.projection.v1", "responseSchemaKey": "Hrm011ContractsCompensationBasisProjectionV2", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.contracts-compensation-basis.page.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/operations/contracts/compensation/basis", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.contracts-compensation-basis.page.binding.01", "method": "GET", "path": "/v1/hris/workbench/operations/contracts/compensation/basis", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.contracts-compensation-basis.data", "authorizationEquivalenceKey": "wire-authority.hcm.operations.contracts-compensation-basis.v1", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "people-operations-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.people.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-visible-person.v1"], "projectionPolicyKey": "route.hcm.operations.contracts-compensation-basis.data.people-operations-reader.projection.v1", "responseSchemaKey": "Hrm011ContractsCompensationBasisProjectionV2", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.contracts-compensation-basis.data.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/operations/contracts/compensation/basis", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.contracts-compensation-basis.data.binding.01", "method": "GET", "path": "/v1/hris/workbench/operations/contracts/compensation/basis", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.employment-contract-issue.action", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "employment-contract-issuer", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.contract.issue"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-visible-person.v1", "predicate.people.object-version.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.employment-contract-issue.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/employment-contracts", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.employment-contract-issue.action.binding.01", "method": "POST", "path": "/v1/hris/employment-contracts", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "stepUpCommandBindings": [{"bindingKey": "route.hcm.operations.employment-contract-issue.action.binding.01", "targetType": "WORK_RELATIONSHIP", "targetIdBodyFields": ["relationshipPublicId"], "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "X-DWP-Expected-Object-Version", "ownerServiceKey": "people", "audience": "dwp-people-server"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {
@@ -63468,6 +63497,10 @@
         "contractKey": "workplace.room-policy.manage",
         "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
         "scopeResolver": "APP_RESOURCE_SET:RS_WORKPLACE_CONFIG"
+      },
+      {
+        "contractKey": "hcm.operations.contract.issue",
+        "requiredResponsibilityCode": "HRIS_DUTY_CONTRACT_ISSUER"
       }
     ],
     "routes": [

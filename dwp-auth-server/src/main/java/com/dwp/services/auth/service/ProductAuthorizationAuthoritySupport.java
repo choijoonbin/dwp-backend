@@ -116,6 +116,19 @@ final class ProductAuthorizationAuthoritySupport {
                     scopes.stream().map(ProductSurfaceAuthorityDtos.EffectiveScope::key).toList(),
                     readOnly, activationEligible, null));
         }
+        if ("hcm.operations.contract.issue".equals(capability.contractKey())
+                && "WORKFORCE_TARGET_POPULATION".equals(capability.scopeResolver())
+                && "HRIS_DUTY_CONTRACT_ISSUER".equals(
+                        capability.requiredResponsibilityCode())) {
+            List<String> populationScopes = scopes.stream()
+                    .map(ProductSurfaceAuthorityDtos.EffectiveScope::key)
+                    .toList();
+            return roles.stream()
+                    .map(role -> (ProductSurfaceAuthorityDtos.EffectiveGrant) capabilityGrant(
+                            capability, predicates, role, populationScopes,
+                            readOnly, activationEligible, role.validTo()))
+                    .toList();
+        }
         Map<String, AppGovernanceDtos.ResourceRole> byScope = new LinkedHashMap<>();
         roles.forEach(role -> byScope.putIfAbsent(
                 scopeKey(request, role.resourceSetKey(), "RESOURCE_SET"), role));
@@ -226,6 +239,12 @@ final class ProductAuthorizationAuthoritySupport {
             ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
             List<AppGovernanceDtos.ResourceRole> matchingResponsibilities) {
         if (capability.sodPolicyId() == null) return false;
+        if ("hcm.operations.contract.issue".equals(capability.contractKey())) {
+            // The maker identity belongs to the command object, not the session. Auth registers
+            // only the exact policy here; People enforces it after binding the relationship
+            // target and command version. Descriptor drift fails closed.
+            return !"NO_APPROVE_OWN_CHANGE".equals(capability.sodPolicyId());
+        }
         boolean exactScope = hasExactResponsibility(capability, matchingResponsibilities);
         if (!exactScope) return false;
         return switch (capability.contractKey()) {

@@ -22,6 +22,16 @@ channels:
         $ref: '#/components/messages/clockEventRecorded'
       employeeChangeApplied:
         $ref: '#/components/messages/employeeChangeApplied'
+      compensationBasisChanged:
+        $ref: '#/components/messages/compensationBasisChanged'
+      workerDependentEligibilityChanged:
+        $ref: '#/components/messages/workerDependentEligibilityChanged'
+      workerTaxIdentityChanged:
+        $ref: '#/components/messages/workerTaxIdentityChanged'
+      workerBankAccountTokenChanged:
+        $ref: '#/components/messages/workerBankAccountTokenChanged'
+      employmentContractIssued:
+        $ref: '#/components/messages/employmentContractIssued'
       performanceReviewSubmitted:
         $ref: '#/components/messages/performanceReviewSubmitted'
       timecardDecisionRecorded:
@@ -50,6 +60,11 @@ operations:
       - $ref: '#/channels/domainEvents/messages/performancePopulationFrozen'
       - $ref: '#/channels/domainEvents/messages/clockEventRecorded'
       - $ref: '#/channels/domainEvents/messages/employeeChangeApplied'
+      - $ref: '#/channels/domainEvents/messages/compensationBasisChanged'
+      - $ref: '#/channels/domainEvents/messages/workerDependentEligibilityChanged'
+      - $ref: '#/channels/domainEvents/messages/workerTaxIdentityChanged'
+      - $ref: '#/channels/domainEvents/messages/workerBankAccountTokenChanged'
+      - $ref: '#/channels/domainEvents/messages/employmentContractIssued'
       - $ref: '#/channels/domainEvents/messages/performanceReviewSubmitted'
       - $ref: '#/channels/domainEvents/messages/timecardDecisionRecorded'
       - $ref: '#/channels/domainEvents/messages/controlledTransferStateChanged'
@@ -89,6 +104,31 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/EmployeeChangeAppliedEnvelope'
+    compensationBasisChanged:
+      name: CompensationBasisChanged.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/CompensationBasisChangedEnvelope'
+    workerDependentEligibilityChanged:
+      name: WorkerDependentEligibilityChanged.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WorkerDependentEligibilityChangedEnvelope'
+    workerTaxIdentityChanged:
+      name: WorkerTaxIdentityChanged.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WorkerTaxIdentityChangedEnvelope'
+    workerBankAccountTokenChanged:
+      name: WorkerBankAccountTokenChanged.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WorkerBankAccountTokenChangedEnvelope'
+    employmentContractIssued:
+      name: EmploymentContractIssued.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/EmploymentContractIssuedEnvelope'
     performanceReviewSubmitted:
       name: PerformanceReviewSubmitted.v1
       contentType: application/json
@@ -376,6 +416,234 @@ components:
               $ref: '#/components/schemas/EmployeeChangeAppliedData'
     EmployeeChangeAppliedData:
       $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_022'
+    CompensationBasisChangedEnvelope:
+      x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
+      x-dwp-aggregate-id-source: compensationBasisPublicId
+      x-dwp-aggregate-sequence-source: newAggregateVersion
+      x-dwp-envelope-data-equality-mode: LEGACY_ENVELOPE_OWNED_XCON_007_UNCHANGED
+      x-dwp-envelope-data-equality-exception: XCON_007_HAS_NO_COMMON_EVENT_DATA_FIELDS_AND_REMAINS_IMMUTABLE
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - source
+            - tenantId
+            - aggregateType
+            - correlationId
+            - causationId
+            - data
+          properties:
+            type:
+              const: CompensationBasisChanged.v1
+            schemaVersion:
+              const: 1
+            source:
+              const: dwp-people-server
+            tenantId:
+              type: integer
+              minimum: 1
+            aggregateType:
+              const: CompensationBasis
+            correlationId:
+              type: string
+              format: uuid
+            causationId:
+              type: string
+              format: uuid
+            data:
+              $ref: '#/components/schemas/CompensationBasisChangedData'
+    CompensationBasisChangedData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_007'
+    WorkerDependentEligibilityChangedEnvelope:
+      x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
+      x-dwp-aggregate-id-source: dependentPublicId
+      x-dwp-aggregate-sequence-source: newAggregateVersion
+      x-dwp-envelope-data-equality:
+        id: eventId
+        tenantId: tenantId
+        aggregateId: aggregateId
+        aggregateSequence: aggregateVersion
+        correlationId: correlationId
+        causationId: causationId
+        time: occurredAt
+        schemaVersion: schemaVersion
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - source
+            - tenantId
+            - aggregateType
+            - correlationId
+            - causationId
+            - data
+          properties:
+            type:
+              const: WorkerDependentEligibilityChanged.v1
+            schemaVersion:
+              const: 1
+            source:
+              const: dwp-people-server
+            tenantId:
+              type: integer
+              minimum: 1
+            aggregateType:
+              const: WorkerDependentEligibility
+            correlationId:
+              type: string
+              format: uuid
+            causationId:
+              type: string
+              format: uuid
+            data:
+              $ref: '#/components/schemas/WorkerDependentEligibilityChangedData'
+    WorkerDependentEligibilityChangedData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_023'
+    WorkerTaxIdentityChangedEnvelope:
+      x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
+      x-dwp-aggregate-id-source: taxIdentityPublicId
+      x-dwp-aggregate-sequence-source: newAggregateVersion
+      x-dwp-envelope-data-equality:
+        id: eventId
+        tenantId: tenantId
+        aggregateId: aggregateId
+        aggregateSequence: aggregateVersion
+        correlationId: correlationId
+        causationId: causationId
+        time: occurredAt
+        schemaVersion: schemaVersion
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - source
+            - tenantId
+            - aggregateType
+            - correlationId
+            - causationId
+            - data
+          properties:
+            type:
+              const: WorkerTaxIdentityChanged.v1
+            schemaVersion:
+              const: 1
+            source:
+              const: dwp-people-server
+            tenantId:
+              type: integer
+              minimum: 1
+            aggregateType:
+              const: WorkerTaxIdentity
+            correlationId:
+              type: string
+              format: uuid
+            causationId:
+              type: string
+              format: uuid
+            data:
+              $ref: '#/components/schemas/WorkerTaxIdentityChangedData'
+    WorkerTaxIdentityChangedData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_024'
+    WorkerBankAccountTokenChangedEnvelope:
+      x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
+      x-dwp-aggregate-id-source: paymentDestinationPublicId
+      x-dwp-aggregate-sequence-source: newAggregateVersion
+      x-dwp-envelope-data-equality:
+        id: eventId
+        tenantId: tenantId
+        aggregateId: aggregateId
+        aggregateSequence: aggregateVersion
+        correlationId: correlationId
+        causationId: causationId
+        time: occurredAt
+        schemaVersion: schemaVersion
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - source
+            - tenantId
+            - aggregateType
+            - correlationId
+            - causationId
+            - data
+          properties:
+            type:
+              const: WorkerBankAccountTokenChanged.v1
+            schemaVersion:
+              const: 1
+            source:
+              const: dwp-people-server
+            tenantId:
+              type: integer
+              minimum: 1
+            aggregateType:
+              const: WorkerPaymentDestination
+            correlationId:
+              type: string
+              format: uuid
+            causationId:
+              type: string
+              format: uuid
+            data:
+              $ref: '#/components/schemas/WorkerBankAccountTokenChangedData'
+    WorkerBankAccountTokenChangedData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_025'
+    EmploymentContractIssuedEnvelope:
+      x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
+      x-dwp-aggregate-id-source: contractPublicId
+      x-dwp-aggregate-sequence-source: aggregateVersion
+      x-dwp-envelope-data-equality:
+        id: eventId
+        tenantId: tenantId
+        aggregateId: aggregateId
+        aggregateSequence: aggregateVersion
+        correlationId: correlationId
+        causationId: causationId
+        time: occurredAt
+        schemaVersion: schemaVersion
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - source
+            - tenantId
+            - aggregateType
+            - correlationId
+            - causationId
+            - data
+          properties:
+            type:
+              const: EmploymentContractIssued.v1
+            schemaVersion:
+              const: 1
+            source:
+              const: dwp-people-server
+            tenantId:
+              type: integer
+              minimum: 1
+            aggregateType:
+              const: EmploymentContract
+            correlationId:
+              type: string
+              format: uuid
+            causationId:
+              type: string
+              format: uuid
+            data:
+              $ref: '#/components/schemas/EmploymentContractIssuedData'
+    EmploymentContractIssuedData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_026'
     PerformanceReviewSubmittedEnvelope:
       allOf:
         - $ref: '#/components/schemas/DomainEventEnvelope'

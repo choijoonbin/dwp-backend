@@ -98,12 +98,15 @@ public class ScopedAdminDutyEvidenceService {
 
     @Transactional(readOnly = true)
     public List<AppGovernanceDtos.ResourceRole> resourceRoles(Long tenantId, Long userId) {
-        return effectiveDuties(tenantId, userId).stream()
+        return resourceRoles(effectiveDuties(tenantId, userId));
+    }
+
+    static List<AppGovernanceDtos.ResourceRole> resourceRoles(List<EffectiveDuty> duties) {
+        return duties.stream()
                 .flatMap(duty -> duty.capabilityAuthorities().entrySet().stream().map(
                         authority ->
                         new AppGovernanceDtos.ResourceRole(
-                                ScopedAuthorityToken.responsibilityCode(
-                                        authority.getKey(), authority.getValue()),
+                                responsibilityCode(duty, authority),
                                 resourceType(authority.getValue()),
                                 resourceKey(authority.getValue()),
                                 duty.resourceSetId(), duty.resourceSetKey(), duty.validTo())))
@@ -112,6 +115,27 @@ public class ScopedAdminDutyEvidenceService {
                         .thenComparing(AppGovernanceDtos.ResourceRole::resourceSetKey)
                         .thenComparing(AppGovernanceDtos.ResourceRole::resourceKey))
                 .toList();
+    }
+
+    private static String responsibilityCode(
+            EffectiveDuty duty, Map.Entry<String, String> authority) {
+        if (isExactHrisContractIssuerDuty(duty)
+                && "hcm.operations.contract.issue".equals(authority.getKey())
+                && "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE".equals(authority.getValue())) {
+            return duty.dutyCode();
+        }
+        return ScopedAuthorityToken.responsibilityCode(
+                authority.getKey(), authority.getValue());
+    }
+
+    static boolean isExactHrisContractIssuerDuty(EffectiveDuty duty) {
+        return "HRIS_DUTY_CONTRACT_ISSUER".equals(duty.dutyCode())
+                && "hcm".equals(duty.productKey())
+                && "APP.HCM".equals(duty.productResourceKey())
+                && "ACTION.HRIS_EMPLOYMENT_CONTRACT".equals(duty.resourceKey())
+                && duty.capabilityAuthorities().equals(Map.of(
+                        "hcm.operations.contract.issue",
+                        "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE"));
     }
 
     @Transactional(readOnly = true)

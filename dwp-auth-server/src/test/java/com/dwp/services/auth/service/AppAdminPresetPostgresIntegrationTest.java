@@ -203,6 +203,78 @@ class AppAdminPresetPostgresIntegrationTest {
     }
 
     @Test
+    void hrisContractIssuerPresetMintsTheExactRealSessionDutyWithoutEnrollment() {
+        UUID hcmSet = productResourceSet(
+                fixture.tenantId(), "APP.HCM", "RS_HRIS_CONTRACT_ISSUERS_LE_100",
+                "HRIS contract issuers LE 100");
+        grantResponsibility(
+                fixture.tenantId(), fixture.approver(), "APP_ACCESS_APPROVER",
+                hcmSet, fixture.catalogAdmin());
+        grantResponsibility(
+                fixture.tenantId(), fixture.fulfiller(), "APP_ACCESS_MANAGER",
+                hcmSet, fixture.catalogAdmin());
+
+        var request = new AppGovernanceDtos.CreateAppAdminPresetAssignmentRequest(
+                "USER", fixture.subject().toString(), "HRIS_CONTRACT_ISSUER", hcmSet,
+                VALID_TO, REVIEW_DUE,
+                "Assign independently governed employment contract issuance authority.");
+        AppGovernanceDtos.AppAdminPresetAssignment pending = inTransaction(() ->
+                requestService.requestGoverned(
+                        fixture.tenantId(), fixture.catalogAdmin(),
+                        "hris-contract-issuer-request", request));
+        assertThat(pending.duties())
+                .extracting(AppGovernanceDtos.AppAdminPresetDutyAssignment::dutyCode)
+                .containsExactly("HRIS_DUTY_CONTRACT_ISSUER");
+
+        AppGovernanceDtos.AppAdminPresetAssignment approved = inTransaction(() ->
+                service.decide(
+                        fixture.tenantId(), fixture.approver(),
+                        "hris-contract-issuer-approve", pending.presetAssignmentId(),
+                        decision("APPROVED", pending.version())));
+        AppGovernanceDtos.AppAdminPresetAssignment active = inTransaction(() ->
+                service.activate(
+                        fixture.tenantId(), fixture.fulfiller(),
+                        "hris-contract-issuer-activate", approved.presetAssignmentId(),
+                        activation(approved.version())));
+
+        assertThat(active.lifecycleState()).isEqualTo("ACTIVE");
+        ScopedAdminDutyEvidenceService evidence = new ScopedAdminDutyEvidenceService(jdbc);
+        assertThat(evidence.effectiveDuties(fixture.tenantId(), fixture.subject()))
+                .singleElement()
+                .satisfies(duty -> {
+                    assertThat(duty.dutyCode()).isEqualTo("HRIS_DUTY_CONTRACT_ISSUER");
+                    assertThat(duty.productResourceKey()).isEqualTo("APP.HCM");
+                    assertThat(duty.resourceKey())
+                            .isEqualTo("ACTION.HRIS_EMPLOYMENT_CONTRACT");
+                    assertThat(duty.resourceSetKey())
+                            .isEqualTo("RS_HRIS_CONTRACT_ISSUERS_LE_100");
+                    assertThat(duty.capabilityAuthorities())
+                            .containsEntry(
+                                    "hcm.operations.contract.issue",
+                                    "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE");
+                });
+        assertThat(evidence.resourceRoles(fixture.tenantId(), fixture.subject()))
+                .singleElement()
+                .satisfies(role -> {
+                    assertThat(role.responsibilityCode())
+                            .isEqualTo("HRIS_DUTY_CONTRACT_ISSUER");
+                    assertThat(role.resourceSetKey())
+                            .isEqualTo("RS_HRIS_CONTRACT_ISSUERS_LE_100");
+                });
+        assertThat(evidence.capabilityPermissions(fixture.tenantId(), fixture.subject()))
+                .singleElement()
+                .satisfies(permission -> {
+                    assertThat(permission.getResourceKey())
+                            .isEqualTo("ACTION.HRIS_EMPLOYMENT_CONTRACT");
+                    assertThat(permission.getPermissionCode()).isEqualTo("ISSUE");
+                });
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM com_tenant_feature_enrollment_changes
+                 WHERE tenant_id = ?
+                """, Integer.class, fixture.tenantId())).isZero();
+    }
+
+    @Test
     void selfServiceForcesActorPendingAndReplaysOnlyAnIdenticalRequest() {
         List<AppGovernanceDtos.AppAdminPresetSelfServiceOption> options =
                 requestService.selfServiceOptions(
@@ -214,7 +286,13 @@ class AppAdminPresetPostgresIntegrationTest {
                         && option.resourceSets().stream().anyMatch(set ->
                                 set.resourceSetId().equals(fixture.resourceSetId())));
         assertThat(requestService.selfServiceOptions(
-                fixture.tenantId(), fixture.member(), "APP.HCM")).isEmpty();
+                fixture.tenantId(), fixture.member(), "APP.HCM"))
+                .singleElement()
+                .satisfies(option -> {
+                    assertThat(option.preset().presetCode())
+                            .isEqualTo("HRIS_CONTRACT_ISSUER");
+                    assertThat(option.resourceSets()).isEmpty();
+                });
 
         AppGovernanceDtos.CreateSelfServicePresetRequest request =
                 new AppGovernanceDtos.CreateSelfServicePresetRequest(
@@ -1380,12 +1458,13 @@ class AppAdminPresetPostgresIntegrationTest {
     void catalogIsDataDrivenSeparatedAndNonApprovalProductsFailClosedAsDraft() {
         AppAdminPresetRepository repository = new AppAdminPresetRepository(jdbc, objectMapper);
         List<AppGovernanceDtos.AppAdminPreset> catalog = repository.catalog();
-        assertThat(catalog).hasSize(14);
+        assertThat(catalog).hasSize(15);
         assertThat(catalog.stream().filter(AppGovernanceDtos.AppAdminPreset::requestable))
                 .extracting(AppGovernanceDtos.AppAdminPreset::presetCode)
                 .containsExactlyInAnyOrder(
                         "APPROVAL_DESIGNER", "APPROVAL_PUBLISHER",
-                        "APPROVAL_OPERATOR", "APPROVAL_AUDITOR");
+                        "APPROVAL_OPERATOR", "APPROVAL_AUDITOR",
+                        "HRIS_CONTRACT_ISSUER");
         assertThat(catalog.stream().filter(value -> !value.requestable()).toList())
                 .hasSize(10)
                 .allMatch(value -> "PRESET_DRAFT".equals(value.unavailableReason())

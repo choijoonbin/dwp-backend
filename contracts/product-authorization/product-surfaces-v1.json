@@ -4292,6 +4292,31 @@
       "surfaceKey": "hcm.operations"
     },
     {
+      "action": "ISSUE",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.contract.issue",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiredResponsibilityCode": "HRIS_DUTY_CONTRACT_ISSUER",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE",
+      "resourceKey": "ACTION.HRIS_EMPLOYMENT_CONTRACT",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.operations.employment-contract-issue.action"
+      ],
+      "scopeResolver": "WORKFORCE_TARGET_POPULATION",
+      "sodPolicyId": "NO_APPROVE_OWN_CHANGE",
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
       "action": "VIEW",
       "activationPolicy": null,
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
@@ -4717,6 +4742,8 @@
         "route.hcm.operations.assignment-event-detail.data",
         "route.hcm.operations.certificates-documents.data",
         "route.hcm.operations.certificates-documents.page",
+        "route.hcm.operations.contracts-compensation-basis.data",
+        "route.hcm.operations.contracts-compensation-basis.page",
         "route.hcm.operations.employee-change-requests.page",
         "route.hcm.operations.employment-assignments.page",
         "route.hcm.operations.people-appointments.data",
@@ -8095,7 +8122,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "b33fbf968e71f97b09fa497fdfad7d2f6854199170b79fd1602a0ea604977346",
+  "checksum": "c655a850ae2ac01466edb37f2e1c69f9e269dd2a4a529c3a87b1610c0561a359",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -10188,6 +10215,9 @@
         "route.hcm.operations.certificate-issue.action",
         "route.hcm.operations.certificates-documents.data",
         "route.hcm.operations.certificates-documents.page",
+        "route.hcm.operations.contracts-compensation-basis.data",
+        "route.hcm.operations.contracts-compensation-basis.page",
+        "route.hcm.operations.employment-contract-issue.action",
         "route.hcm.operations.people-appointments.data",
         "route.hcm.operations.people-appointments.page",
         "route.hcm.operations.people360-detail.data",
@@ -10451,6 +10481,7 @@
         "route.hcm.operations.assignment-proposal-submit.action",
         "route.hcm.operations.assignment-proposal-validate.action",
         "route.hcm.operations.certificate-issue.action",
+        "route.hcm.operations.employment-contract-issue.action",
         "route.hcm.operations.time-approve.action",
         "route.hcm.personal.absence-withdraw.action",
         "route.hcm.personal.talent-goal-update.action",
@@ -45956,6 +45987,130 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-workforce-visible-person.v1"
+          ],
+          "profileKey": "people-operations-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.people.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.contracts-compensation-basis.data.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.contracts-compensation-basis.data.people-operations-reader.projection.v1",
+              "responseSchemaKey": "Hrm011ContractsCompensationBasisProjectionV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.operations.contracts-compensation-basis.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.contracts-compensation-basis.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/workbench/operations/contracts/compensation/basis",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.contracts-compensation-basis.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.contracts-compensation-basis.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/workbench/operations/contracts/compensation/basis",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-workforce-visible-person.v1"
+          ],
+          "profileKey": "people-operations-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.people.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.contracts-compensation-basis.page.binding.01",
+              "projectionPolicyKey": "route.hcm.operations.contracts-compensation-basis.page.people-operations-reader.projection.v1",
+              "responseSchemaKey": "Hrm011ContractsCompensationBasisProjectionV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.operations.contracts-compensation-basis.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.contracts-compensation-basis.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/workbench/operations/contracts/compensation/basis",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.contracts-compensation-basis.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.contracts-compensation-basis.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/workbench/operations/contracts/compensation/basis",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.contracts-compensation-basis",
+      "uiRoutePattern": "/hr/operations/people/contracts-compensation-basis"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-employee-change-authority.v1"
           ],
           "profileKey": "full-management",
@@ -46323,6 +46478,75 @@
       },
       "uiRouteId": "hcm.operations.employment-assignments",
       "uiRoutePattern": "/hr/operations/people/employment-assignments"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-workforce-visible-person.v1",
+            "predicate.people.object-version.v1"
+          ],
+          "profileKey": "employment-contract-issuer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.contract.issue",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.employment-contract-issue.action.binding.01",
+          "method": "POST",
+          "path": "/api/people/v1/hris/employment-contracts",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.employment-contract-issue.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.employment-contract-issue.action.binding.01",
+          "method": "POST",
+          "path": "/v1/hris/employment-contracts",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-people-server",
+          "bindingKey": "route.hcm.operations.employment-contract-issue.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "people",
+          "targetIdBodyFields": [
+            "relationshipPublicId"
+          ],
+          "targetType": "WORK_RELATIONSHIP"
+        }
+      ],
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
     },
     {
       "accessProfiles": [
@@ -77495,5 +77719,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 52
+  "version": 53
 }
