@@ -43,6 +43,23 @@ class Per004ProjectionQueryTest {
             assertThatThrownBy(() -> Per004ProjectionQuery.normalize(bad, NOW)).isInstanceOf(RuntimeException.class);
         }
     }
+    @Test void cursorBindingIgnoresSetIterationOrderAcrossMapperInstances() {
+        var schemas = SCHEMAS.stream().sorted().toList();
+        var states = List.of("DRAFT", "VALIDATED");
+        var forward = new OwnerProjectionRequest(NOW, TARGETS, null, 1,
+                new java.util.LinkedHashSet<>(schemas),
+                new OwnerProjectionFilter(new java.util.LinkedHashSet<>(states), null), List.of("configurationId:ASC"));
+        var reverse = new OwnerProjectionRequest(NOW, TARGETS, null, 1,
+                new java.util.LinkedHashSet<>(schemas.reversed()),
+                new OwnerProjectionFilter(new java.util.LinkedHashSet<>(states.reversed()), null), List.of("configurationId:ASC"));
+        var otherMapper = com.fasterxml.jackson.databind.json.JsonMapper.builder().findAndAddModules().build();
+        var rows = List.of(row(A, 1L), row(B, 2L));
+        var first = Per004ProjectionQuery.page(42, forward, rows, MAPPER);
+        assertThat(Per004ProjectionQuery.page(42, reverse, rows, otherMapper).nextCursor()).isEqualTo(first.nextCursor());
+        var next = new OwnerProjectionRequest(NOW, TARGETS, first.nextCursor(), 1, reverse.schemaKeys(), reverse.filter(), reverse.sort());
+        assertThat(Per004ProjectionQuery.page(42, next, rows, otherMapper).items())
+                .extracting(OwnerProjection::configurationId).containsExactly(B);
+    }
     private OwnerProjectionRequest query(String cursor, List<ProjectionTarget> targets) {
         return Per004ProjectionQuery.normalize(new OwnerProjectionRequest(NOW, targets, cursor, 1, SCHEMAS,
                 new OwnerProjectionFilter(Set.of(), null), List.of("configurationId:ASC")), NOW);

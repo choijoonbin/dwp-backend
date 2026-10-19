@@ -45,9 +45,7 @@ final class Per004ProjectionQuery {
                 .filter(row -> query.filter().minimumVersion() == null || row.version() != null && row.version() >= query.filter().minimumVersion())
                 .sorted(comparator).toList();
         try {
-            OwnerProjectionRequest noCursor = new OwnerProjectionRequest(query.asOf(), query.targets(), null,
-                    query.limit(), query.schemaKeys(), query.filter(), query.sort());
-            String binding = sha256(mapper.writeValueAsBytes(List.of(tenant, noCursor)))
+            String binding = sha256(mapper.writeValueAsBytes(canonicalBinding(tenant, query)))
                     + "." + sha256(mapper.writeValueAsBytes(rows)) + ".";
             int start = 0;
             if (query.cursor() != null) {
@@ -67,6 +65,15 @@ final class Per004ProjectionQuery {
             return new OwnerProjectionResponse(query.asOf(), List.copyOf(rows.subList(start, end)), "CURRENT", cursor);
         } catch (Exception malformedOrStale) { throw invalid(); }
     }
+    private static QueryBinding canonicalBinding(long tenant, OwnerProjectionRequest query) {
+        return new QueryBinding(tenant, query.asOf(), query.targets(), query.limit(),
+                query.schemaKeys().stream().sorted().toList(),
+                new FilterBinding(query.filter().lifecycleStates().stream().sorted().toList(), query.filter().minimumVersion()),
+                query.sort());
+    }
+    private record QueryBinding(long tenantId, OffsetDateTime asOf, List<ProjectionTarget> targets,
+            int limit, List<String> schemaKeys, FilterBinding filter, List<String> sort) { }
+    private record FilterBinding(List<String> lifecycleStates, Long minimumVersion) { }
     private static BaseException invalid() { return new BaseException(ErrorCode.INVALID_INPUT_VALUE, "PER004_PROJECTION_QUERY_OR_CURSOR_INVALID"); }
     private Per004ProjectionQuery() { }
 }
