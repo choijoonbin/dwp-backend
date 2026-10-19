@@ -27,7 +27,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import static com.dwp.platform.contracts.hris.referenceconfiguration.HrisReferenceConfigurationV1.typedOwner;
+import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationGenericActions.*;
 
 import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationDtos.*;
 import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationRepository.*;
@@ -51,35 +53,7 @@ public class ReferenceConfigurationService {
             "policyVersion:DESC", "referenceData:DESC", "effectiveStatus:DESC",
             "itemPublicId:ASC", "itemPublicId:DESC");
 
-    private static final List<AvailableAction> AUTHOR_ACTIONS = List.of(
-            action(
-                    "hris.action.sys.post.platform.v1.admin.hris.configurations.resource.versions",
-                    "/api/platform/v1/admin/hris/configurations/{configId}/versions"),
-            action(
-                    "hris.action.sys.post.platform.v1.admin.hris.configurations.resource.versions.resource.validate",
-                    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/validate"),
-            action(
-                    "hris.action.sys.post.platform.v1.admin.hris.configurations.resource.versions.resource.simulate",
-                    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/simulate"),
-            action(
-                    "hris.action.sys.post.platform.v1.admin.hris.configurations.resource.versions.resource.submit",
-                    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/submit"));
-    private static final List<AvailableAction> PUBLISHER_ACTIONS = List.of(
-            action(
-                    "hris.action.sys.post.platform.v1.admin.hris.configurations.resource.versions.resource.approve",
-                    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/approve"),
-            action(
-                    "hris.action.sys.post.platform.v1.admin.hris.configurations.resource.versions.resource.publish",
-                    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/publish"),
-            action(
-                    "hris.action.sys.post.platform.v1.admin.hris.configurations.resource.versions.resource.schedule",
-                    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/schedule"),
-            action(
-                    "hris.action.sys.post.platform.v1.admin.hris.configurations.resource.versions.resource.rollback",
-                    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/rollback"),
-            action(
-                    "hris.action.sys.post.platform.v1.admin.hris.configurations.resource.versions.resource.retire",
-                    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/retire"));
+    private final Per004ConfigurationRuntime per004;
 
     private final ReferenceConfigurationRepository repository;
     private final ObjectMapper objectMapper;
@@ -88,17 +62,23 @@ public class ReferenceConfigurationService {
     @Autowired
     public ReferenceConfigurationService(
             ReferenceConfigurationRepository repository,
-            ObjectMapper objectMapper) {
-        this(repository, objectMapper, Clock.systemUTC());
+            ObjectMapper objectMapper, Per004ConfigurationRuntime per004) {
+        this(repository, objectMapper, Clock.systemUTC(), per004);
     }
 
     ReferenceConfigurationService(
             ReferenceConfigurationRepository repository,
             ObjectMapper objectMapper,
             Clock clock) {
+        this(repository, objectMapper, clock, Per004ConfigurationRuntime.unavailable(objectMapper, clock));
+    }
+
+    ReferenceConfigurationService(ReferenceConfigurationRepository repository, ObjectMapper objectMapper,
+                                  Clock clock, Per004ConfigurationRuntime per004) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.per004 = per004;
     }
 
     @Transactional(readOnly = true)
@@ -164,9 +144,7 @@ public class ReferenceConfigurationService {
             CreateVersionCommand body) {
         requireAuthor(access);
         requireEffectiveWindow(body.effectiveFrom(), body.effectiveTo());
-        if (!body.payload().reference().matches("^ref_[A-Za-z0-9_-]{8,248}$")) {
-            throw invalid("REFERENCE_CONFIGURATION_OWNER_REFERENCE_INVALID");
-        }
+        per004.validateCreate(body);
         return execute(
                 access,
                 command,
@@ -175,11 +153,13 @@ public class ReferenceConfigurationService {
                 "configuration.version.create",
                 null,
                 body,
-                receiptId -> {
-                    long version = repository.createVersion(
+                (receiptId, requestDigest) -> {
+                    boolean typed = typedOwner(body.domain().name(), body.schemaKey());
+                    long version = typed ? per004.create(repository, access, command, configurationId, body, receiptId, requestDigest)
+                            : repository.createVersion(
                             access.tenantId(), access.scope(), configurationId,
                             access.subjectId(), body, now());
-                    return result(configurationId, version, 0);
+                    return result(configurationId, version, typed ? 1 : 0);
                 });
     }
 
@@ -407,7 +387,7 @@ public class ReferenceConfigurationService {
         return execute(
                 access, command, configurationId,
                 "ROLLBACK_VERSION", "configuration.version.rollback", version, body,
-                receiptId -> {
+                (receiptId, requestDigest) -> {
                     OffsetDateTime activationTime = now();
                     VersionDetail current = requiredVersion(access, configurationId, version);
                     requireExpectedVersion(command, current.aggregateVersion());
@@ -467,7 +447,7 @@ public class ReferenceConfigurationService {
         return execute(
                 access, command, configurationId,
                 "RETIRE_VERSION", "configuration.version.retire", version, body,
-                receiptId -> {
+                (receiptId, requestDigest) -> {
                     OffsetDateTime activationTime = now();
                     VersionDetail current = requiredVersion(access, configurationId, version);
                     requireExpectedVersion(command, current.aggregateVersion());
@@ -597,11 +577,12 @@ public class ReferenceConfigurationService {
             boolean emitPublishedEvent) {
         return execute(
                 access, command, configurationId, commandType, action, version, body,
-                receiptId -> {
+                (receiptId, requestDigest) -> {
                     VersionDetail detail = requiredVersion(access, configurationId, version);
                     requireExpectedVersion(command, detail.aggregateVersion());
-                    TransitionEvidence evidence = evidenceFactory.create(receiptId, detail);
-                    boolean changed = repository.transition(
+                    boolean owned = per004.ownerTransition(access, detail, commandType, body);
+                    TransitionEvidence evidence = owned ? null : evidenceFactory.create(receiptId, detail);
+                    boolean changed = owned || repository.transition(
                             access.tenantId(), access.scope(), configurationId, version,
                             detail.aggregateVersion(), expected, target, evidence, now());
                     if (!changed) throw conflict("REFERENCE_CONFIGURATION_VERSION_CONFLICT");
@@ -619,9 +600,14 @@ public class ReferenceConfigurationService {
             String action,
             Long targetVersion,
             Object body,
-            Function<UUID, MutationResult> mutation) {
+            BiFunction<UUID, String, MutationResult> mutation) {
         validateAccess(access);
         validateLegacyCommand(command);
+        Domain domain = body instanceof CreateVersionCommand create ? create.domain()
+                : requiredVersion(access, configurationId, targetVersion).domain();
+        String schema = body instanceof CreateVersionCommand create ? create.schemaKey()
+                : requiredVersion(access, configurationId, targetVersion).schemaKey();
+        per004.guard(access, command, configurationId, domain, action, schema);
         Map<String, Object> requestIdentity = new LinkedHashMap<>();
         requestIdentity.put("commandType", commandType);
         requestIdentity.put("configurationId", configurationId);
@@ -651,7 +637,7 @@ public class ReferenceConfigurationService {
                 HrisExplorerAuthoritySeals.populationScopeDigest(
                         access.contextScopeKey());
         UUID receiptId = UUID.randomUUID();
-        MutationResult result = mutation.apply(receiptId);
+        MutationResult result = mutation.apply(receiptId, requestDigest);
         OffsetDateTime createdAt = now();
         long publicFieldPolicyRevision = HrisExplorerAuthoritySeals.publicRevision(
                 access.fieldPolicyRevision());

@@ -108,7 +108,8 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/actuator/health")
+        return com.dwp.services.platform.hrisconfiguration.referenceconfiguration.Per004WorkloadSecurityFilter.admitted(request)
+                || path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
                 || path.startsWith(ApiHistoryServletFilter.COLLECTOR_PATH)
                 || path.startsWith("/internal/audit/events")

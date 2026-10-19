@@ -2,6 +2,7 @@ package com.dwp.services.platform.hrisconfiguration.referenceconfiguration;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -58,7 +59,13 @@ public final class ReferenceConfigurationDtos {
             OffsetDateTime effectiveTo,
             @NotBlank @Size(max = 128) String schemaKey,
             @NotNull @Min(1) Integer schemaVersion,
-            @NotNull @Valid PayloadReference payload) {
+            @JsonInclude(JsonInclude.Include.NON_NULL) @Valid PayloadReference payload,
+            @JsonInclude(JsonInclude.Include.NON_NULL) JsonNode ownerPayload) {
+        public CreateVersionCommand(Domain domain, OffsetDateTime effectiveFrom, OffsetDateTime effectiveTo,
+                                    String schemaKey, Integer schemaVersion, PayloadReference payload) {
+            this(domain, effectiveFrom, effectiveTo, schemaKey, schemaVersion, payload, null);
+        }
+        @Override public String toString() { return "CreateVersionCommand[ownerPayload=REDACTED]"; }
     }
 
     public record ValidationCommand(

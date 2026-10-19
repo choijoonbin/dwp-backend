@@ -65,9 +65,11 @@ public class ReferenceConfigurationController {
     private static final String STEP_UP = "X-DWP-Step-Up-Challenge";
 
     private final ReferenceConfigurationService service;
+    private final com.fasterxml.jackson.databind.ObjectMapper mapper;
 
-    public ReferenceConfigurationController(ReferenceConfigurationService service) {
+    public ReferenceConfigurationController(ReferenceConfigurationService service, com.fasterxml.jackson.databind.ObjectMapper mapper) {
         this.service = service;
+        this.mapper = mapper;
     }
 
     @GetMapping("/v1/hris/workbench/settings-reference")
@@ -130,11 +132,11 @@ public class ReferenceConfigurationController {
         return ApiResponse.success(service.version(access(request, purpose), configId, version));
     }
 
-    @PostMapping("/v1/admin/hris/configurations/{configId}/versions")
+    @PostMapping(path = "/v1/admin/hris/configurations/{configId}/versions", consumes = "application/json")
     public ResponseEntity<ApiResponse<CommandReceipt>> createVersion(
             HttpServletRequest request,
-            @PathVariable UUID configId,
-            @Valid @RequestBody CreateVersionCommand body) {
+            @PathVariable UUID configId) {
+        CreateVersionCommand body = Per004CreateCommandReader.read(request, mapper);
         String purpose = single(request, PURPOSE, true);
         return accepted(service.createVersion(
                 access(request, purpose), command(request, purpose, false, false), configId, body));
