@@ -544,6 +544,105 @@
         "tenantId": {"type": "integer", "minimum": 1}
       },
       "required": ["aggregateId", "aggregateVersion", "appliedTargetVersion", "causationId", "changedFieldGroups", "correlationId", "effectiveDate", "eventId", "occurredAt", "payloadDigest", "requestPublicId", "schemaVersion", "targetAggregatePublicId", "targetAggregateType", "tenantId"]
+    },
+    "DocumentReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectPublicId": {"$ref": "#/$defs/Uuid"},
+        "objectVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "contentSha256": {"$ref": "#/$defs/Digest"}
+      },
+      "required": ["objectPublicId", "objectVersion", "contentSha256"]
+    },
+    "XCON_023": {
+      "title": "WorkerDependentEligibilityChanged.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aggregateId": {"$ref": "#/$defs/Uuid"},
+        "aggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "causationId": {"$ref": "#/$defs/Uuid"},
+        "correlationId": {"$ref": "#/$defs/Uuid"},
+        "dependentPublicId": {"$ref": "#/$defs/Uuid"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "eventId": {"$ref": "#/$defs/Uuid"},
+        "newAggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "occurredAt": {"$ref": "#/$defs/Instant"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "schemaVersion": {"type": "integer", "minimum": 1, "maximum": 1},
+        "tenantId": {"type": "integer", "minimum": 1},
+        "workerId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["aggregateId", "aggregateVersion", "causationId", "correlationId", "dependentPublicId", "effectiveFrom", "effectiveTo", "eventId", "newAggregateVersion", "occurredAt", "payloadDigest", "schemaVersion", "tenantId", "workerId"]
+    },
+    "XCON_024": {
+      "title": "WorkerTaxIdentityChanged.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aggregateId": {"$ref": "#/$defs/Uuid"},
+        "aggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "causationId": {"$ref": "#/$defs/Uuid"},
+        "correlationId": {"$ref": "#/$defs/Uuid"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "eventId": {"$ref": "#/$defs/Uuid"},
+        "newAggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "occurredAt": {"$ref": "#/$defs/Instant"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "schemaVersion": {"type": "integer", "minimum": 1, "maximum": 1},
+        "taxIdentityPublicId": {"$ref": "#/$defs/Uuid"},
+        "tenantId": {"type": "integer", "minimum": 1},
+        "workerId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["aggregateId", "aggregateVersion", "causationId", "correlationId", "effectiveFrom", "effectiveTo", "eventId", "newAggregateVersion", "occurredAt", "payloadDigest", "schemaVersion", "taxIdentityPublicId", "tenantId", "workerId"]
+    },
+    "XCON_025": {
+      "title": "WorkerBankAccountTokenChanged.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aggregateId": {"$ref": "#/$defs/Uuid"},
+        "aggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "causationId": {"$ref": "#/$defs/Uuid"},
+        "correlationId": {"$ref": "#/$defs/Uuid"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "eventId": {"$ref": "#/$defs/Uuid"},
+        "newAggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "occurredAt": {"$ref": "#/$defs/Instant"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "paymentDestinationPublicId": {"$ref": "#/$defs/Uuid"},
+        "schemaVersion": {"type": "integer", "minimum": 1, "maximum": 1},
+        "tenantId": {"type": "integer", "minimum": 1},
+        "workerId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["aggregateId", "aggregateVersion", "causationId", "correlationId", "effectiveFrom", "effectiveTo", "eventId", "newAggregateVersion", "occurredAt", "payloadDigest", "paymentDestinationPublicId", "schemaVersion", "tenantId", "workerId"]
+    },
+    "XCON_026": {
+      "title": "EmploymentContractIssued.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aggregateId": {"$ref": "#/$defs/Uuid"},
+        "aggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "causationId": {"$ref": "#/$defs/Uuid"},
+        "contractPublicId": {"$ref": "#/$defs/Uuid"},
+        "contractType": {"$ref": "#/$defs/Code"},
+        "correlationId": {"$ref": "#/$defs/Uuid"},
+        "documentReference": {"$ref": "#/$defs/DocumentReference"},
+        "eventId": {"$ref": "#/$defs/Uuid"},
+        "occurredAt": {"$ref": "#/$defs/Instant"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "schemaVersion": {"type": "integer", "minimum": 1, "maximum": 1},
+        "tenantId": {"type": "integer", "minimum": 1},
+        "validFrom": {"$ref": "#/$defs/Date"},
+        "validTo": {"$ref": "#/$defs/NullableDate"},
+        "workerPublicId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["aggregateId", "aggregateVersion", "causationId", "contractPublicId", "contractType", "correlationId", "documentReference", "eventId", "occurredAt", "payloadDigest", "schemaVersion", "tenantId", "validFrom", "validTo", "workerPublicId"]
     }
   }
 }

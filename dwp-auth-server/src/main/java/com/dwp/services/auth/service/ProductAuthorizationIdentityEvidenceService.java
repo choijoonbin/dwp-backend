@@ -39,14 +39,23 @@ class ProductAuthorizationIdentityEvidenceService {
                 .filter(value -> value != null && !value.isBlank())
                 .map(value -> value.trim().toUpperCase(Locale.ROOT))
                 .collect(Collectors.toUnmodifiableSet());
-        List<AppGovernanceDtos.ResourceRole> responsibilities = governanceService
-                .resourceRoles(tenantId, actorId).stream()
+        List<ScopedAdminDutyEvidenceService.EffectiveDuty> duties =
+                scopedDutyEvidenceService.effectiveDuties(tenantId, actorId);
+        List<AppGovernanceDtos.ResourceRole> responsibilities =
+                java.util.stream.Stream.concat(
+                        governanceService.resourceRoles(tenantId, actorId).stream(),
+                        duties.stream()
+                                .filter(ScopedAdminDutyEvidenceService
+                                        ::isExactHrisContractIssuerDuty)
+                                .map(duty -> new AppGovernanceDtos.ResourceRole(
+                                        duty.dutyCode(), "APP", duty.productResourceKey(),
+                                        duty.resourceSetId(), duty.resourceSetKey(),
+                                        duty.validTo())))
+                .distinct()
                 .sorted(Comparator.comparing(AppGovernanceDtos.ResourceRole::resourceSetKey)
                         .thenComparing(AppGovernanceDtos.ResourceRole::resourceKey)
                         .thenComparing(AppGovernanceDtos.ResourceRole::responsibilityCode))
                 .toList();
-        List<ScopedAdminDutyEvidenceService.EffectiveDuty> duties =
-                scopedDutyEvidenceService.effectiveDuties(tenantId, actorId);
         String material = tenantId + "\n" + actorId + "\n"
                 + permissions.stream().sorted().collect(Collectors.joining("\n"))
                 + "\n--roles--\n"

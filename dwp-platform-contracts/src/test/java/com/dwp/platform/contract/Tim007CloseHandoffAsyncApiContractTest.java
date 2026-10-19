@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,21 +12,21 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 
 class Tim007CloseHandoffAsyncApiContractTest {
 
-    private static final String CANONICAL_SHA256 =
-            "8109568c1cfafa5021b5e831ac17c5dbbfeaaf2b3a7472fc4ff488eacb0bc866";
+    private static final String TIM007_XCON_NORMALIZED_SHA256 =
+            "1d19a5d44969e482ecd9bcbb80b8ecaa264c45a0429dbb5d1f2228336eb45a08";
 
     @Test
     void publishesOnlyTheThreeSealedTim007EventsAgainstImmutableXcon() throws Exception {
         JsonNode document = new ObjectMapper(new YAMLFactory()).readTree(
                 rootFile("contracts/asyncapi/domain-events.yaml").toFile());
-        assertThat(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(
-                Files.readAllBytes(rootFile(
-                        "contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json")))))
-                .isEqualTo(CANONICAL_SHA256);
+        assertThat(tim007XconNormalizedDigest())
+                .isEqualTo(TIM007_XCON_NORMALIZED_SHA256);
 
         assertEvent(document, "timePeriodClosed", "TimePeriodClosed.v1",
                 "TimePeriodClosedEnvelope", "TimePeriodClosedData", "ClosePeriod",
@@ -87,6 +88,20 @@ class Tim007CloseHandoffAsyncApiContractTest {
         array.forEach(value -> values.add(value.has("$ref")
                 ? value.path("$ref").asText() : value.asText()));
         return values;
+    }
+
+    private static String tim007XconNormalizedDigest() throws Exception {
+        ObjectMapper mapper = new ObjectMapper()
+                .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+        JsonNode definitions = mapper.readTree(rootFile(
+                "contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json")
+                .toFile()).path("$defs");
+        Map<String, Object> selected = new TreeMap<>();
+        for (String name : List.of("XCON_009", "XCON_010", "XCON_011")) {
+            selected.put(name, mapper.convertValue(definitions.path(name), Object.class));
+        }
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(mapper.writeValueAsBytes(selected)));
     }
 
     private static Path rootFile(String relative) {

@@ -103,11 +103,75 @@ class HcmV3PepRegistryTest {
     }
 
     @Test
-    void loadsTheExactV52PeopleClosureAndRetainsTheV42Bindings() throws IOException {
-        assertThat(registry.bindingContracts()).hasSize(141);
+    void hrm011RequiresExactPurposePopulationResponsibilityAndRelationshipStepUp() {
+        String resourceSetKey = "RS_HRIS_CONTRACT_ISSUERS_LE_100";
+        HcmV3PepRegistry.Decision read = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET", "/v1/hris/workbench/operations/contracts/compensation/basis",
+                        Set.of("APP.HCM:VIEW", "DATA.HRIS_WORKFORCE:VIEW"),
+                        null, "NORMAL", Set.of(),
+                        "route.hcm.operations.contracts-compensation-basis.data", null,
+                        "HR_OPERATIONS", "ORG_UNIT"));
+        assertThat(read.allowed()).isTrue();
+        assertThat(read.authority().profileKey()).isEqualTo("people-operations-reader");
+        assertThat(read.authority().responseSchemaKey())
+                .isEqualTo("Hrm011ContractsCompensationBasisProjectionV2");
+        assertThat(read.authority().projectionPolicyKey()).isEqualTo(
+                "route.hcm.operations.contracts-compensation-basis.data."
+                        + "people-operations-reader.projection.v1");
+
+        var actionEvidence = new HcmV3PepRegistry.RequestEvidence(
+                "POST", "/v1/hris/employment-contracts",
+                Set.of("APP.HCM:VIEW", "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE"),
+                "HRIS_DUTY_CONTRACT_ISSUER@" + resourceSetKey,
+                "NORMAL", Set.of(),
+                "route.hcm.operations.employment-contract-issue.action", null,
+                "HR_LIFECYCLE", "ORG_UNIT");
+        HcmV3PepRegistry.Decision action = registry.authorize(actionEvidence);
+        assertThat(action.allowed()).isTrue();
+        assertThat(action.authority().profileKey()).isEqualTo("employment-contract-issuer");
+        assertThat(action.authority().activationPolicy()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertThat(action.authority().stepUpBinding().targetType())
+                .isEqualTo("WORK_RELATIONSHIP");
+        assertThat(action.authority().stepUpBinding().targetIdBodyFields())
+                .containsExactly("relationshipPublicId");
+
+        assertThat(registry.authorize(new HcmV3PepRegistry.RequestEvidence(
+                actionEvidence.method(), actionEvidence.path(), actionEvidence.permissions(),
+                null, actionEvidence.activeAccessMode(), actionEvidence.supportScopes(),
+                actionEvidence.trustedRouteContractKey(), actionEvidence.rawQuery(),
+                actionEvidence.trustedPurpose(), actionEvidence.trustedPopulationKind()))
+                .denialCode()).isEqualTo("EXACT_ROUTE_AUTHORITY_REQUIRED");
+        assertThat(registry.authorize(new HcmV3PepRegistry.RequestEvidence(
+                actionEvidence.method(), actionEvidence.path(), actionEvidence.permissions(),
+                actionEvidence.resourceRoles(), actionEvidence.activeAccessMode(),
+                actionEvidence.supportScopes(), actionEvidence.trustedRouteContractKey(),
+                actionEvidence.rawQuery(), "HR_OPERATIONS",
+                actionEvidence.trustedPopulationKind())).denialCode())
+                .isEqualTo("TRUSTED_PURPOSE_REQUIRED");
+
+        assertThat(registry.authorize(new HcmV3PepRegistry.RequestEvidence(
+                actionEvidence.method(), actionEvidence.path(), actionEvidence.permissions(),
+                "HRIS_DUTY_CONTRACT_ISSUER@RS_HRIS_CONTRACT_ISSUERS_LE_200",
+                actionEvidence.activeAccessMode(), actionEvidence.supportScopes(),
+                actionEvidence.trustedRouteContractKey(), actionEvidence.rawQuery(),
+                actionEvidence.trustedPurpose(), actionEvidence.trustedPopulationKind())).allowed())
+                .isTrue();
+        assertThat(registry.authorize(new HcmV3PepRegistry.RequestEvidence(
+                actionEvidence.method(), actionEvidence.path(), actionEvidence.permissions(),
+                "HRIS_DUTY_CONTRACT_ISSUER@WORKFORCE_TARGET_POPULATION",
+                actionEvidence.activeAccessMode(), actionEvidence.supportScopes(),
+                actionEvidence.trustedRouteContractKey(), actionEvidence.rawQuery(),
+                actionEvidence.trustedPurpose(), actionEvidence.trustedPopulationKind())).denialCode())
+                .isEqualTo("EXACT_ROUTE_AUTHORITY_REQUIRED");
+    }
+
+    @Test
+    void loadsTheExactV53PeopleClosureAndRetainsTheV42Bindings() throws IOException {
+        assertThat(registry.bindingContracts()).hasSize(144);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(114);
+                .distinct()).hasSize(117);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -156,7 +220,7 @@ class HcmV3PepRegistryTest {
         assertThat(v42Bindings).hasSize(124);
         assertThat(runtimeBindings).containsAll(v42Bindings);
         assertThat(registry.highRiskBindingContracts())
-                .hasSize(15)
+                .hasSize(16)
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
                 .containsExactlyInAnyOrder(
                         "route.hcm.management.org-publish.action",
@@ -173,7 +237,8 @@ class HcmV3PepRegistryTest {
                         "route.hcm.operations.assignment-proposal-submit.action",
                         "route.hcm.operations.employee-change-request-apply.action",
                         "route.hcm.operations.assignment-event-publish.action",
-                        "route.hcm.operations.certificate-issue.action");
+                        "route.hcm.operations.certificate-issue.action",
+                        "route.hcm.operations.employment-contract-issue.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
                 .hasSize(18)
                 .containsOnlyKeys(

@@ -95,7 +95,10 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.personal.requests.data",
             "route.hcm.operations.certificates-documents.page",
             "route.hcm.operations.certificates-documents.data",
-            "route.hcm.operations.certificate-issue.action");
+            "route.hcm.operations.certificate-issue.action",
+            "route.hcm.operations.contracts-compensation-basis.page",
+            "route.hcm.operations.contracts-compensation-basis.data",
+            "route.hcm.operations.employment-contract-issue.action");
     private static final Set<String> HRM007_ENTRY_QUERY_ROUTE_KEYS = Set.of(
             "route.hcm.team.people-changes.page",
             "route.hcm.team.people-changes.data",
@@ -120,6 +123,13 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     private static final String HRM009_ACTION_ROUTE_KEY =
             "route.hcm.operations.certificate-issue.action";
     private static final Set<String> HRM009_OPERATIONS_POPULATION_KINDS = Set.of(
+            "LEGAL_ENTITY", "NAMED_POPULATION", "ORG_TREE", "ORG_UNIT");
+    private static final Set<String> HRM011_ENTRY_QUERY_ROUTE_KEYS = Set.of(
+            "route.hcm.operations.contracts-compensation-basis.page",
+            "route.hcm.operations.contracts-compensation-basis.data");
+    private static final String HRM011_ACTION_ROUTE_KEY =
+            "route.hcm.operations.employment-contract-issue.action";
+    private static final Set<String> HRM011_POPULATION_KINDS = Set.of(
             "LEGAL_ENTITY", "NAMED_POPULATION", "ORG_TREE", "ORG_UNIT");
     private static final Set<String> TIM_WAVE2_ROUTE_KEYS = Set.of(
             "route.hcm.operations.time-interpretation.page",
@@ -183,6 +193,10 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.personal.requests.data", "hrm009.iaq-003.fields.v1",
             "route.hcm.operations.certificates-documents.page", "hrm009.iaq-010.fields.v1",
             "route.hcm.operations.certificates-documents.data", "hrm009.iaq-010.fields.v1");
+    private static final Map<String, String> HRM011_FIELD_POLICY_BY_ROUTE = Map.of(
+            "route.hcm.operations.contracts-compensation-basis.page", "HRM-AUTH-007",
+            "route.hcm.operations.contracts-compensation-basis.data", "HRM-AUTH-007",
+            HRM011_ACTION_ROUTE_KEY, "HRM-AUTH-015");
     private static final Map<String, String> WAVE2_OWNER_PURPOSE_BY_ROUTE = Map.ofEntries(
             Map.entry("route.hcm.personal.employment-documents.page", "HR_LIFECYCLE"),
             Map.entry("route.hcm.operations.employment-assignments.page", "HR_LIFECYCLE"),
@@ -351,7 +365,10 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             Map.entry("route.hcm.personal.requests.page", "EMPLOYEE_SELF_SERVICE"),
             Map.entry("route.hcm.personal.requests.data", "EMPLOYEE_SELF_SERVICE"),
             Map.entry("route.hcm.operations.certificates-documents.page", "HR_OPERATIONS"),
-            Map.entry("route.hcm.operations.certificates-documents.data", "HR_OPERATIONS"));
+            Map.entry("route.hcm.operations.certificates-documents.data", "HR_OPERATIONS"),
+            Map.entry("route.hcm.operations.contracts-compensation-basis.page", "HR_OPERATIONS"),
+            Map.entry("route.hcm.operations.contracts-compensation-basis.data", "HR_OPERATIONS"),
+            Map.entry(HRM011_ACTION_ROUTE_KEY, "HR_LIFECYCLE"));
     private static final List<String> INTERNAL_HEADERS = List.of(
             ROUTE_HEADER, CURRENT_REVISION_HEADER, CURRENT_REVALIDATE_AT_HEADER,
             RESPONSE_REVISION_HEADER, CONTEXT_HEADER, SCOPE_HEADER, ACTIVE_ACCESS_MODE_HEADER,
@@ -394,6 +411,8 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         List<String> expectedValues = exchange.getRequest().getHeaders()
                 .getOrEmpty(EXPECTED_REVISION_HEADER);
+        List<String> callerPurposeValues = exchange.getRequest().getHeaders()
+                .getOrEmpty(PURPOSE_HEADER);
         ServerHttpRequest sanitized = exchange.getRequest().mutate().headers(headers -> {
             INTERNAL_HEADERS.forEach(headers::remove);
             headers.remove(EXPECTED_REVISION_HEADER);
@@ -457,11 +476,17 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         sanitized = withoutScopeSelection(sanitized, scopeSelection);
         sanitizedExchange = sanitizedExchange.mutate().request(sanitized).build();
         GeneratedProductRouteCatalog.Route route = match.uniqueRoute();
-        if (HRM009_ACTION_ROUTE_KEY.equals(route.routeContractKey())
+        if ((HRM009_ACTION_ROUTE_KEY.equals(route.routeContractKey())
+                || HRM011_ACTION_ROUTE_KEY.equals(route.routeContractKey()))
                 && (!route.stateChanging() || !route.highRiskStepUp()
                 || !route.commandBoundStepUp())) {
             return error(sanitizedExchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
+        }
+        if (HRM011_ACTION_ROUTE_KEY.equals(route.routeContractKey())
+                && !validOptionalCanonicalPurpose(callerPurposeValues, "HR_LIFECYCLE")) {
+            return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
+                    "INVALID_PURPOSE", null);
         }
         if (WAVE2_OWNER_PURPOSE_BY_ROUTE.containsKey(route.routeContractKey())) {
             sanitized = sanitized.mutate().headers(headers -> headers.remove(PURPOSE_HEADER))
@@ -685,7 +710,9 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         String hrm007FieldPolicy = HRM007_FIELD_POLICY_BY_ROUTE.get(route.routeContractKey());
         String fieldPolicyKey = hrm007FieldPolicy != null
                 ? hrm007FieldPolicy
-                : HRM009_FIELD_POLICY_BY_ROUTE.get(route.routeContractKey());
+                : HRM009_FIELD_POLICY_BY_ROUTE.containsKey(route.routeContractKey())
+                        ? HRM009_FIELD_POLICY_BY_ROUTE.get(route.routeContractKey())
+                        : HRM011_FIELD_POLICY_BY_ROUTE.get(route.routeContractKey());
         String authorizationRevision = revisions == null
                 ? null : numericRevision("authorization", revisions.auth());
         if (purpose != null && (blank(subjectPrincipal)
@@ -701,6 +728,8 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 || HRM007_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())
                 || HRM009_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())
                 || HRM009_ACTION_ROUTE_KEY.equals(route.routeContractKey())
+                || HRM011_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())
+                || HRM011_ACTION_ROUTE_KEY.equals(route.routeContractKey())
                 || NAVIGATION_V2_TENANT_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey());
         String trustedPopulationKind = requiresPopulationKind
@@ -731,6 +760,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 && !"SELF".equals(trustedPopulationKind))
                 || (HRM009_OPERATIONS_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())
                 && !HRM009_OPERATIONS_POPULATION_KINDS.contains(trustedPopulationKind))) {
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+        }
+        if ((HRM011_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())
+                || HRM011_ACTION_ROUTE_KEY.equals(route.routeContractKey()))
+                && !HRM011_POPULATION_KINDS.contains(trustedPopulationKind)) {
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
@@ -767,15 +802,24 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             ProductSurfaceContextDtos.EffectiveScope scope) {
         if (scope == null) return null;
         String kind = scope.kind();
-        if (!HRM009_OPERATIONS_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())
+        boolean concreteOperationsPopulation =
+                HRM009_OPERATIONS_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())
+                        || HRM011_ENTRY_QUERY_ROUTE_KEYS.contains(route.routeContractKey())
+                        || HRM011_ACTION_ROUTE_KEY.equals(route.routeContractKey());
+        if (!concreteOperationsPopulation
                 || !"TARGET_POPULATION".equals(kind)) {
             return kind;
         }
         // People eligibility materializes the generic Auth resolver as TARGET_POPULATION
         // while sealing the concrete owner boundary in its trusted displayName. Canonicalize
         // only the four HRM-009 owner kinds; every other display fails the closed-set check.
-        return HRM009_OPERATIONS_POPULATION_KINDS.contains(scope.displayName())
+        return HRM011_POPULATION_KINDS.contains(scope.displayName())
                 ? scope.displayName() : null;
+    }
+
+    private boolean validOptionalCanonicalPurpose(List<String> values, String expected) {
+        return values.isEmpty()
+                || (values.size() == 1 && expected.equals(values.getFirst()));
     }
 
     private Mono<Void> deny(

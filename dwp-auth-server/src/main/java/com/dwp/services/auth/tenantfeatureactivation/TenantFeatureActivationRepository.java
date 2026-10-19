@@ -180,7 +180,9 @@ public class TenantFeatureActivationRepository implements TenantFeatureActivatio
         String source = String.join("|",
                 binding.minimumBundleVersion() < 51
                         ? "v259"
-                        : binding.minimumBundleVersion() < 52 ? "v260" : "v261",
+                        : binding.minimumBundleVersion() < 52
+                                ? "v260"
+                                : binding.minimumBundleVersion() < 53 ? "v261" : "v262",
                 binding.featureKey(),
                 String.valueOf(binding.policyVersion()),
                 binding.productKey(),

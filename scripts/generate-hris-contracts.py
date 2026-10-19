@@ -22,7 +22,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = Path("contracts/hris/canonical/hris-contract-codegen-manifest.v1.json")
 JAVA_OUTPUT_ROOT = Path("dwp-platform-contracts/src/main/java")
-EXPECTED_MANIFEST_SHA256 = "e72fc11eac5f6143706f053e3db56e5b91759a82ff6f32ae9a36511bbe31b3f4"
+EXPECTED_MANIFEST_SHA256 = "27b299247519b1c30227a675d98862f83a7557d29209be2ed95f84914f193af1"
 SHA256 = re.compile(r"[0-9a-f]{64}")
 FQN = re.compile(
     r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*\.[A-Z][A-Za-z0-9]*"
@@ -111,6 +111,10 @@ LOCAL_EXTENSION_VALUES: dict[tuple[str, str, str], Any] = {
         "RETRYABLE_STATE_ALONE_MAY_HAVE_NEXT_ATTEMPT_AND_FAILURE_METADATA",
     ("platform-dependency-v1", "#/$defs/PDX_014/x-invariants", "failure"):
         "DENIED_OR_FAILED_OUTCOME_REQUIRES_ERROR_CODE_AND_EVIDENCE_DIGEST",
+    ("platform-dependency-v1", "#/$defs/PDX_015/x-invariants", "effectiveRange"):
+        "HALF_OPEN_EFFECTIVE_TO_AFTER_EFFECTIVE_FROM",
+    ("platform-dependency-v1", "#/$defs/PDX_015/x-invariants", "scopeShape"):
+        "GLOBAL_REQUIRES_NULL_SCOPE_ID_OTHER_SCOPES_REQUIRE_SCOPE_ID",
 }
 DECIMAL_DESERIALIZERS = {
     "InputAmount": "InputAmountDeserializer",
@@ -1019,6 +1023,36 @@ def local_invariant_validation_lines(
             f'{indent}    throw new IllegalArgumentException("lineId must be unique within the snapshot");',
             f"{indent}}}",
         ]
+    if key in {
+        ("xcon-v1", "XCON_023"),
+        ("xcon-v1", "XCON_024"),
+        ("xcon-v1", "XCON_025"),
+    }:
+        fact_field = {
+            ("xcon-v1", "XCON_023"): "dependentPublicId",
+            ("xcon-v1", "XCON_024"): "taxIdentityPublicId",
+            ("xcon-v1", "XCON_025"): "paymentDestinationPublicId",
+        }[key]
+        return [
+            f"{indent}if (!aggregateId.equals({fact_field})) {{",
+            f'{indent}    throw new IllegalArgumentException("aggregateId must equal {fact_field}");',
+            f"{indent}}}",
+            f"{indent}if (aggregateVersion != newAggregateVersion) {{",
+            f'{indent}    throw new IllegalArgumentException("aggregateVersion must equal newAggregateVersion");',
+            f"{indent}}}",
+            f"{indent}if (effectiveTo != null && !effectiveTo.isAfter(effectiveFrom)) {{",
+            f'{indent}    throw new IllegalArgumentException("effectiveTo must be after effectiveFrom");',
+            f"{indent}}}",
+        ]
+    if key == ("xcon-v1", "XCON_026"):
+        return [
+            f"{indent}if (!aggregateId.equals(contractPublicId)) {{",
+            f'{indent}    throw new IllegalArgumentException("aggregateId must equal contractPublicId");',
+            f"{indent}}}",
+            f"{indent}if (validTo != null && !validTo.isAfter(validFrom)) {{",
+            f'{indent}    throw new IllegalArgumentException("validTo must be after validFrom");',
+            f"{indent}}}",
+        ]
     if key == ("platform-dependency-v1", "PDX_001"):
         return [
             f"{indent}if (effectiveTo != null && !effectiveTo.isAfter(effectiveFrom)) {{",
@@ -1122,6 +1156,18 @@ def local_invariant_validation_lines(
             f"{indent}}}",
             f"{indent}if (!unsuccessful && errorCode != null) {{",
             f'{indent}    throw new IllegalArgumentException("errorCode is forbidden for SUCCESS outcome");',
+            f"{indent}}}",
+        ]
+    if key == ("platform-dependency-v1", "PDX_015"):
+        return [
+            f"{indent}if (effectiveTo != null && !effectiveTo.isAfter(effectiveFrom)) {{",
+            f'{indent}    throw new IllegalArgumentException("effectiveTo must be after effectiveFrom");',
+            f"{indent}}}",
+            f"{indent}if (\"GLOBAL\".equals(scopeType) && scopeId != null) {{",
+            f'{indent}    throw new IllegalArgumentException("scopeId must be null for GLOBAL scope");',
+            f"{indent}}}",
+            f"{indent}if (!\"GLOBAL\".equals(scopeType) && scopeId == null) {{",
+            f'{indent}    throw new IllegalArgumentException("scopeId is required for non-GLOBAL scope");',
             f"{indent}}}",
         ]
     return []

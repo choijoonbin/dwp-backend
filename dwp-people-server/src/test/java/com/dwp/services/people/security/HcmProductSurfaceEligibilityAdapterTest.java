@@ -98,6 +98,27 @@ class HcmProductSurfaceEligibilityAdapterTest {
     }
 
     @Test
+    void hrm011WorkforceSelectorRebindsToOwnerDerivedOperationsPopulation() {
+        PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("HR_ADMIN"), Set.of());
+        when(populations.findOperations("READ")).thenReturn(Optional.of(teamPopulation()));
+        String authSelector = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations",
+                "WORKFORCE_TARGET_POPULATION", "TARGET_POPULATION");
+
+        ProductSurfaceEligibilityDtos.EligibilityResult result = adapter.evaluate(
+                request("hcm.operations", authSelector, "TARGET_POPULATION", null));
+
+        assertThat(result.decision()).isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(result.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.sourceScopeKey()).isEqualTo(authSelector);
+            assertThat(scope.key()).startsWith("hcm-scope-");
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+            assertThat(scope.isDefault()).isTrue();
+        });
+        verify(populations).findOperations("READ");
+    }
+
+    @Test
     void derivesASelfScopeFromTheLivePersonBindingWithoutTargetPopulationEvidence() {
         PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("WORKSPACE_MEMBER"), Set.of());
         HcmPopulationRepository.ActorWorkforce actor =

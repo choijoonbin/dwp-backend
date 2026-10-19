@@ -430,6 +430,49 @@
         "correlationId": {"$ref": "#/$defs/Uuid"}
       },
       "required": ["eventId", "tenantId", "occurredAt", "sourceService", "sourceModule", "aggregateType", "aggregateRef", "aggregateRevision", "action", "outcome", "actorType", "actorRef", "effectiveCapability", "purposeCode", "authorizationDecisionRef", "scopeRevision", "fieldPolicyRevision", "delegationRef", "supportSessionRef", "stepUpReceiptRef", "approvalReceiptId", "targetRef", "reasonCode", "errorCode", "beforeDigest", "afterDigest", "evidenceDigest", "classification", "retentionClass", "causationId", "correlationId"]
+    },
+    "TemplateContentReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectPublicId": {"$ref": "#/$defs/Uuid"},
+        "objectVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "contentSha256": {"$ref": "#/$defs/Digest"}
+      },
+      "required": ["objectPublicId", "objectVersion", "contentSha256"]
+    },
+    "PDX_015": {
+      "title": "EmploymentContractTemplateSnapshot.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "tenantBinding": "TENANT_ID_EQUALS_TRUSTED_REQUEST_TENANT",
+        "templateAuthority": "EXACT_IMMUTABLE_PDX_001_PUBLISHED_VERSION_WITH_APPROVAL_RECEIPT",
+        "effectiveRange": "HALF_OPEN_EFFECTIVE_TO_AFTER_EFFECTIVE_FROM",
+        "scopeShape": "GLOBAL_REQUIRES_NULL_SCOPE_ID_OTHER_SCOPES_REQUIRE_SCOPE_ID",
+        "contentBinding": "CONTENT_REFERENCE_DIGEST_AND_CONTENT_SCHEMA_VERSION_MATCH_PUBLISHED_TEMPLATE",
+        "ordering": "TEMPLATE_PUBLIC_ID_SOURCE_REVISION_MONOTONIC"
+      },
+      "properties": {
+        "approvalReceiptId": {"$ref": "#/$defs/Uuid"},
+        "contentSchemaVersion": {"$ref": "#/$defs/SchemaVersion"},
+        "contractType": {"$ref": "#/$defs/Code"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "locale": {"$ref": "#/$defs/Locale"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "publishedAt": {"$ref": "#/$defs/Instant"},
+        "scopeId": {"$ref": "#/$defs/NullableScopeId"},
+        "scopeType": {"$ref": "#/$defs/ScopeType"},
+        "sourceRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "state": {"type": "string", "enum": ["PUBLISHED"]},
+        "templateContentReference": {"$ref": "#/$defs/TemplateContentReference"},
+        "templatePublicId": {"$ref": "#/$defs/Uuid"},
+        "templateType": {"type": "string", "enum": ["EMPLOYMENT_CONTRACT"]},
+        "templateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "tenantId": {"$ref": "#/$defs/PositiveId"}
+      },
+      "required": ["approvalReceiptId", "contentSchemaVersion", "contractType", "effectiveFrom", "effectiveTo", "locale", "payloadDigest", "publishedAt", "scopeId", "scopeType", "sourceRevision", "state", "templateContentReference", "templatePublicId", "templateType", "templateVersion", "tenantId"]
     }
   }
 }

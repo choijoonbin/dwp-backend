@@ -33,7 +33,7 @@ class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestS
 
     @Test
     void v52CanonicalizesHrm009SameWireReadsAndSealsTheSingleHighAction() {
-        GeneratedProductRouteCatalog latest = catalog(52);
+        GeneratedProductRouteCatalog v52 = catalog(52);
         record Pair(String path, String dataRoute, String equivalenceKey) { }
         for (Pair pair : List.of(
                 new Pair(
@@ -44,7 +44,7 @@ class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestS
                         "/api/people/v1/hris/workbench/operations/certificates/documents",
                         "route.hcm.operations.certificates-documents.data",
                         "wire-authority.hcm.operations.certificates-documents.v1"))) {
-            GeneratedProductRouteCatalog.Match match = latest.match("GET", pair.path());
+            GeneratedProductRouteCatalog.Match match = v52.match("GET", pair.path());
             assertThat(match.status()).as(pair.path())
                     .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
             assertThat(match.routes()).as(pair.path()).hasSize(2)
@@ -57,7 +57,7 @@ class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestS
             });
         }
 
-        GeneratedProductRouteCatalog.Route action = latest.match(
+        GeneratedProductRouteCatalog.Route action = v52.match(
                 "POST", "/api/people/v1/hris/certificates").uniqueRoute();
         assertThat(action).isNotNull().satisfies(route -> {
             assertThat(route.routeContractKey())

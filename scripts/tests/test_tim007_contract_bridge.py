@@ -16,7 +16,9 @@ XCON = (
     ROOT
     / "contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json"
 )
-XCON_SHA256 = "8109568c1cfafa5021b5e831ac17c5dbbfeaaf2b3a7472fc4ff488eacb0bc866"
+XCON_001_022_NORMALIZED_SHA256 = (
+    "1b3199f8383a54b9873bbbb6569bbe1adfe8a521f623a6c4b9225d99c9c8ab89"
+)
 
 POST_OPERATIONS = {
     "/v1/close-periods/{periodId}/validations": (
@@ -303,8 +305,22 @@ class Tim007ContractBridgeTest(unittest.TestCase):
             " ".join(ownership["successorRuntimePrerequisites"]),
         )
 
-    def test_canonical_xcon_is_immutable(self) -> None:
-        self.assertEqual(XCON_SHA256, hashlib.sha256(XCON.read_bytes()).hexdigest())
+    def test_predecessor_xcon_definitions_are_immutable_under_append_only_growth(self) -> None:
+        document = json.loads(XCON.read_text(encoding="utf-8"))
+        definitions = {
+            f"XCON_{index:03d}": document["$defs"][f"XCON_{index:03d}"]
+            for index in range(1, 23)
+        }
+        normalized = json.dumps(
+            definitions,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        self.assertEqual(
+            XCON_001_022_NORMALIZED_SHA256,
+            hashlib.sha256(normalized).hexdigest(),
+        )
 
 
 if __name__ == "__main__":
