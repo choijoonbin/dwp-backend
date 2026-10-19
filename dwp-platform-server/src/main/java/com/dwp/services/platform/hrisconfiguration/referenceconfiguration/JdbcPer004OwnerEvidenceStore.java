@@ -276,8 +276,9 @@ class JdbcPer004OwnerEvidenceStore implements Per004OwnerEvidenceStore {
                 catch (com.fasterxml.jackson.core.JsonProcessingException exception) { throw new SQLException("PER004_SNAPSHOT_INVALID"); }
                 String state = node.get("lifecycle_state").asText();
                 boolean eligible = List.of("PUBLISHED", "REJECTED", "RETIRED", "FAILED_ACTIVATION").contains(state);
+                String wireState = eligible ? "NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE" : state;
                 return new OwnerProjection(target.configurationId(), node.get("version").asLong(),
-                        node.get("aggregate_version").asLong(), state, node.get("schema_key").asText(),
+                        node.get("aggregate_version").asLong(), wireState, node.get("schema_key").asText(),
                         target.scopeDigest(), OffsetDateTime.parse(node.get("effective_from").asText()),
                         node.get("scheduled_at").isNull() ? null : OffsetDateTime.parse(node.get("scheduled_at").asText()),
                         !node.get("owner_finalization_receipt_id").isNull(),

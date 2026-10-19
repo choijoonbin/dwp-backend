@@ -22,9 +22,7 @@ public final class Per004TargetActionsV2 {
                 || !FIELDS.equals(viewFields) || allowedActionRoutes == null || item.configurationId() == null
                 || item.lifecycleState() == null || item.schemaKey() == null || !SCHEMAS.contains(item.schemaKey())
                 || item.scopeDigest() == null || !item.scopeDigest().matches("^[a-f0-9]{64}$")) return List.of();
-        boolean noMutable = item.createEligible() && Set.of("NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE",
-                "PUBLISHED", "REJECTED", "RETIRED", "FAILED_ACTIVATION").contains(item.lifecycleState());
-        String verb = noMutable ? "create" : switch (item.lifecycleState()) {
+        String verb = switch (item.lifecycleState()) {
             case "NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE" -> item.createEligible() ? "create" : null;
             case "DRAFT" -> item.ownerFinalized() ? "validate" : null;
             case "VALIDATED" -> "simulate";

@@ -32,6 +32,22 @@ class Per004TargetActionsV2Test {
                     Set.of(route("publish")), feature(route("publish")), SUBJECT, 42, 7, true)).isEmpty();
         }
     }
+    @Test void onlySyntheticEligibleLifecycleCanSelectCreate() {
+        String route = route("create");
+        for (String terminal : new String[]{"PUBLISHED", "REJECTED", "RETIRED", "FAILED_ACTIVATION"}) {
+            assertThat(Per004TargetActionsV2.settings(item(terminal, NOW, NOW, true), NOW, NOW,
+                    FIELDS, Set.of(route), feature(route), SUBJECT, 42, 7, true)).isEmpty();
+        }
+        assertThat(Per004TargetActionsV2.settings(item("NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE", NOW, NOW, false),
+                NOW, NOW, FIELDS, Set.of(route), feature(route), SUBJECT, 42, 7, true)).isEmpty();
+        assertThat(Per004TargetActionsV2.settings(item("NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE", NOW, NOW, true),
+                NOW, NOW, FIELDS, Set.of(route), feature(route), SUBJECT, 42, 7, true))
+                .singleElement().satisfies(action -> {
+                    assertThat(action.actionKey()).isEqualTo("hris.action.sys.post.platform.v1.admin.hris.configurations.resource.versions");
+                    assertThat(action.targetVersion()).isNull();
+                    assertThat(action.expectedObjectVersion()).isNull();
+                });
+    }
     @Test void maskedStaleNotDueFeatureWrongTargetAndMissingCommandAuthoritySuppressActions() {
         String route = route("publish");
         assertThat(Per004TargetActionsV2.settings(item("APPROVED", NOW.plusSeconds(1), null), NOW, NOW,
@@ -50,8 +66,11 @@ class Per004TargetActionsV2Test {
                 FIELDS, Set.of(route), feature(route), SUBJECT, 42, 7, false)).isEmpty();
     }
     private OwnerProjection item(String state, OffsetDateTime effective, OffsetDateTime scheduled) {
+        return item(state, effective, scheduled, state.equals("NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE"));
+    }
+    private OwnerProjection item(String state, OffsetDateTime effective, OffsetDateTime scheduled, boolean createEligible) {
         return new OwnerProjection(CONFIG, 7L, 11L, state, "dwp.hris.performance.policy.v1", "a".repeat(64), effective, scheduled,
-                true, state.equals("NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE"));
+                true, createEligible);
     }
     private String route(String verb) { return "route.hcm.configuration.configuration-version-" + verb + ".action"; }
     private FeatureDecision feature(String route) {

@@ -165,35 +165,43 @@ class Per004OwnerEvidencePostgresTest {
     }
 
     @Test void terminalVersionRetainsMetadataAndAuthoritativelyEnablesCreate() {
-        long tenant = tenantSequence.incrementAndGet(); UUID id = UUID.randomUUID();
-        create(tenant, id, "terminal-target-create");
-        var query = new OwnerProjectionRequest(NOW, List.of(new ProjectionTarget(id, SCOPE)));
-        var working = run(() -> evidence.project(tenant, query)).getFirst();
-        assertThat(working.lifecycleState()).isEqualTo("DRAFT"); assertThat(working.createEligible()).isFalse();
-        run(() -> {
-            jdbc.update("UPDATE hris_reference_configuration_versions SET lifecycle_state = 'REJECTED', aggregate_version = aggregate_version + 1 WHERE tenant_id = ? AND configuration_id = ?", tenant, id);
-            jdbc.update("""
-                    INSERT INTO hris_reference_configuration_version_history
-                        (tenant_id,configuration_id,version,aggregate_version,scope_type,scope_id,captured_at,snapshot)
-                    SELECT tenant_id,configuration_id,version,aggregate_version,scope_type,scope_id,?,to_jsonb(v)
-                      FROM hris_reference_configuration_versions v WHERE tenant_id = ? AND configuration_id = ?
-                    """, NOW, tenant, id);
-            return null;
-        });
-        var terminal = run(() -> evidence.project(tenant, query)).getFirst();
-        assertThat(terminal.lifecycleState()).isEqualTo("REJECTED"); assertThat(terminal.createEligible()).isTrue();
-        assertThat(terminal.version()).isEqualTo(1); assertThat(terminal.aggregateVersion()).isEqualTo(2);
-        assertThat(terminal.payloadReference()).isEqualTo(PER_REFERENCE); assertThat(terminal.payloadDigest()).isEqualTo(PAYLOAD);
-        var a = access(tenant, 101);
-        String route = "route.hcm.configuration.configuration-version-create.action";
-        var feature = active(new FeatureRequest(tenant, a.subjectPublicId(), route, id, "PER", SCOPE, a.authorizationRevision(), UUID.randomUUID()));
-        var action = com.dwp.platform.contracts.hris.referenceconfiguration.Per004TargetActionsV2.settings(terminal, NOW, NOW,
-                java.util.Set.of("POLICY_VERSION", "PERFORMANCE_POLICY", "EFFECTIVE_STATUS"), java.util.Set.of(route),
-                feature, a.subjectPublicId(), tenant, a.authorizationRevision(), true);
-        assertThat(action).singleElement().satisfies(value -> {
-            assertThat(value.targetVersion()).isNull(); assertThat(value.expectedObjectVersion()).isNull();
-            assertThat(value.targetConfigurationId()).isEqualTo(id);
-        });
+        for (String persistedState : List.of("PUBLISHED", "REJECTED", "RETIRED", "FAILED_ACTIVATION")) {
+            long tenant = tenantSequence.incrementAndGet(); UUID id = UUID.randomUUID();
+            create(tenant, id, "terminal-target-create-" + persistedState.toLowerCase());
+            var query = new OwnerProjectionRequest(NOW, List.of(new ProjectionTarget(id, SCOPE)));
+            var working = run(() -> evidence.project(tenant, query)).getFirst();
+            assertThat(working.lifecycleState()).isEqualTo("DRAFT"); assertThat(working.createEligible()).isFalse();
+            run(() -> {
+                jdbc.update("UPDATE hris_reference_configuration_versions SET lifecycle_state = ?, aggregate_version = aggregate_version + 1 WHERE tenant_id = ? AND configuration_id = ?", persistedState, tenant, id);
+                jdbc.update("""
+                        INSERT INTO hris_reference_configuration_version_history
+                            (tenant_id,configuration_id,version,aggregate_version,scope_type,scope_id,captured_at,snapshot)
+                        SELECT tenant_id,configuration_id,version,aggregate_version,scope_type,scope_id,?,to_jsonb(v)
+                          FROM hris_reference_configuration_versions v WHERE tenant_id = ? AND configuration_id = ?
+                        """, NOW, tenant, id);
+                return null;
+            });
+            assertThat(jdbc.queryForObject("SELECT lifecycle_state FROM hris_reference_configuration_versions WHERE tenant_id = ? AND configuration_id = ?", String.class, tenant, id)).isEqualTo(persistedState);
+            var terminal = run(() -> evidence.project(tenant, query)).getFirst();
+            assertThat(terminal.lifecycleState()).isEqualTo("NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE");
+            assertThat(terminal.createEligible()).isTrue();
+            assertThat(terminal.version()).isEqualTo(1); assertThat(terminal.aggregateVersion()).isEqualTo(2);
+            assertThat(terminal.key()).isEqualTo(SCHEMA); assertThat(terminal.schemaKey()).isEqualTo(SCHEMA);
+            assertThat(terminal.scopeDigest()).isEqualTo(SCOPE); assertThat(terminal.schemaVersion()).isEqualTo(1);
+            assertThat(terminal.effectiveFrom()).isEqualTo(NOW); assertThat(terminal.effectiveTo()).isNull();
+            assertThat(terminal.payloadReference()).isEqualTo(PER_REFERENCE); assertThat(terminal.payloadDigest()).isEqualTo(PAYLOAD);
+            var a = access(tenant, 101);
+            String route = "route.hcm.configuration.configuration-version-create.action";
+            var feature = active(new FeatureRequest(tenant, a.subjectPublicId(), route, id, "PER", SCOPE, a.authorizationRevision(), UUID.randomUUID()));
+            var action = com.dwp.platform.contracts.hris.referenceconfiguration.Per004TargetActionsV2.settings(terminal, NOW, NOW,
+                    java.util.Set.of("POLICY_VERSION", "PERFORMANCE_POLICY", "EFFECTIVE_STATUS"), java.util.Set.of(route),
+                    feature, a.subjectPublicId(), tenant, a.authorizationRevision(), true);
+            assertThat(action).singleElement().satisfies(value -> {
+                assertThat(value.targetVersion()).isNull(); assertThat(value.expectedObjectVersion()).isNull();
+                assertThat(value.targetConfigurationId()).isEqualTo(id);
+            });
+            assertThat(jdbc.queryForObject("SELECT lifecycle_state FROM hris_reference_configuration_versions WHERE tenant_id = ? AND configuration_id = ?", String.class, tenant, id)).isEqualTo(persistedState);
+        }
     }
 
     @Test void unknownWrongScopeWrongSchemaAndOtherDomainNeverBecomeCreateTargets() {
