@@ -59,7 +59,7 @@ final class Pay003ProblemAdvice {
     @ExceptionHandler(Exception.class)
     ResponseEntity<Object> unexpected(
             Exception ignored, HttpServletRequest request) {
-        return response(ErrorCode.INTERNAL_SERVER_ERROR,
+        return response(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                 "The PAY-003 result is temporarily unavailable.", request);
     }
 

@@ -491,6 +491,8 @@ BEGIN
                AND receipt.pack_id = NEW.pack_id
                AND receipt.activation_revision = NEW.activation_revision
                AND receipt.correlation_id = NEW.correlation_id
+               AND receipt.subject_principal_public_id
+                   = NEW.activated_by_subject_public_id
                AND event.event_id = NEW.audit_event_id)
           INTO coherent;
     ELSIF TG_TABLE_NAME = 'pay_country_pack_command_receipts' THEN
@@ -508,7 +510,9 @@ BEGIN
                AND activation.receipt_id = NEW.receipt_id
                AND activation.pack_id = NEW.pack_id
                AND activation.activation_revision = NEW.activation_revision
-               AND activation.correlation_id = NEW.correlation_id)
+               AND activation.correlation_id = NEW.correlation_id
+               AND activation.activated_by_subject_public_id
+                   = NEW.subject_principal_public_id)
           INTO coherent;
     ELSE
         SELECT EXISTS (
@@ -520,6 +524,8 @@ BEGIN
                AND receipt.pack_id = activation.pack_id
                AND receipt.activation_revision = activation.activation_revision
                AND receipt.correlation_id = activation.correlation_id
+               AND receipt.subject_principal_public_id
+                   = activation.activated_by_subject_public_id
              WHERE activation.tenant_id = NEW.tenant_id
                AND activation.audit_event_id = NEW.event_id
                AND activation.receipt_id = NEW.receipt_id

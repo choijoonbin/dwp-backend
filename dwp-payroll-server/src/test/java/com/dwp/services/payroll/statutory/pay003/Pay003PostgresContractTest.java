@@ -536,6 +536,43 @@ class Pay003PostgresContractTest {
         }
     }
 
+    @Test
+    void activationReceiptActorCrossWireIsRejectedAtCommit() {
+        UUID pack = UUID.randomUUID();
+        approved(pack, "GB.ACTOR.CROSS", "v1", LocalDate.parse("2026-10-01"));
+        assertThatThrownBy(() -> inTransaction(adminDataSource, jdbc -> {
+            UUID receipt = UUID.randomUUID();
+            UUID event = UUID.randomUUID();
+            UUID correlation = UUID.randomUUID();
+            activeRow(jdbc, pack, receipt, event, correlation);
+            receipt(jdbc, receipt, pack, 3, 4, correlation,
+                    "pay003-actor-cross-00000001", UUID.randomUUID());
+            outbox(jdbc, event, receipt, pack, 4, correlation);
+        })).hasRootCauseInstanceOf(PSQLException.class).rootCause()
+                .hasMessageContaining("Activation receipt and audit outbox closure");
+        assertThat(admin.queryForObject("""
+                SELECT COUNT(*) FROM pay_country_pack_activation_versions
+                 WHERE pack_id = ? AND lifecycle_state = 'ACTIVE'
+                """, Long.class, pack)).isZero();
+        for (String table : TABLES.subList(2, 4)) {
+            assertThat(admin.queryForObject("SELECT COUNT(*) FROM " + table,
+                    Long.class)).isZero();
+        }
+    }
+
+    @Test
+    void identicalInstallerAndStatutoryApproverIsRejectedByPostgres() {
+        UUID pack = UUID.randomUUID();
+        assertThatThrownBy(() -> snapshot(admin, pack, "GB.SOD", "v1", 1,
+                LocalDate.parse("2026-10-01"), RECORDED, INSTALLER))
+                .hasRootCauseInstanceOf(PSQLException.class).rootCause()
+                .hasMessageContaining("pay_country_pack_snapshot_sod");
+        assertThat(admin.queryForObject("""
+                SELECT COUNT(*) FROM pay_country_pack_version_snapshots
+                 WHERE pack_id = ?
+                """, Long.class, pack)).isZero();
+    }
+
     private static void migrate(DataSource source, MigrationVersion target) {
         var configuration = Flyway.configure()
                 .dataSource(source)
@@ -572,6 +609,19 @@ class Pay003PostgresContractTest {
             long tenant,
             LocalDate effectiveFrom,
             Instant recordedAt) {
+        snapshot(jdbc, pack, packKey, version, tenant, effectiveFrom,
+                recordedAt, APPROVER);
+    }
+
+    private static void snapshot(
+            JdbcTemplate jdbc,
+            UUID pack,
+            String packKey,
+            String version,
+            long tenant,
+            LocalDate effectiveFrom,
+            Instant recordedAt,
+            UUID approver) {
         jdbc.update("""
                 INSERT INTO pay_country_pack_version_snapshots (
                     tenant_id, pack_id, pack_key, pack_version,
@@ -588,7 +638,7 @@ class Pay003PostgresContractTest {
                     'ED25519', 'key-1', '1', 'policy-v1', 'UK-REF-2026', ?,
                     ?, ?, ?, ?, NULL, ?)
                 """, tenant, pack, packKey, version, LEGAL_ENTITY, PAY_GROUP,
-                A, B, C, A, UUID.randomUUID(), INSTALLER, APPROVER,
+                A, B, C, A, UUID.randomUUID(), INSTALLER, approver,
                 Date.valueOf(effectiveFrom), Timestamp.from(recordedAt));
     }
 
@@ -651,6 +701,19 @@ class Pay003PostgresContractTest {
             long revision,
             UUID correlation,
             String idempotency) {
+        receipt(jdbc, receipt, pack, expected, revision, correlation,
+                idempotency, ACTOR);
+    }
+
+    private static void receipt(
+            JdbcTemplate jdbc,
+            UUID receipt,
+            UUID pack,
+            long expected,
+            long revision,
+            UUID correlation,
+            String idempotency,
+            UUID subject) {
         jdbc.update("""
                 INSERT INTO pay_country_pack_command_receipts (
                     tenant_id, receipt_id, subject_principal_public_id,
@@ -667,7 +730,7 @@ class Pay003PostgresContractTest {
                     ?, ?, ?, 'STATUTORY_CONFIGURATION', 17, 23, 'SUCCEEDED', ?,
                     'country-pack:' || ?::TEXT, 'challenge-1', 'nonce-1',
                     'issuer-1', ?, ?, 'decision-41', '{}'::JSONB, ?)
-                """, receipt, ACTOR, idempotency, A, pack, expected, revision,
+                """, receipt, subject, idempotency, A, pack, expected, revision,
                 LEGAL_ENTITY, PAY_GROUP, A, correlation, pack,
                 Timestamp.from(RECORDED.plusSeconds(3600)), B,
                 Timestamp.from(RECORDED.plusSeconds(10 + revision)));
