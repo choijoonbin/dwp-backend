@@ -333,6 +333,39 @@ class HcmProductSurfaceEligibilityAdapterTest {
     }
 
     @Test
+    void pay003LegalEntityGroupResolverCanonicalizesToTheExistingPayPopulationMaterial() {
+        PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("PAYROLL_ADMIN"), Set.of());
+        when(populations.findOperations("READ")).thenReturn(Optional.of(teamPopulation()));
+        String canonicalSource = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations", "PAY_TARGET_POPULATION",
+                "TARGET_POPULATION");
+        String statutorySource = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations",
+                "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE", "TARGET_POPULATION");
+
+        ProductSurfaceEligibilityDtos.EligibilityResult canonical = adapter.evaluate(
+                request("hcm.operations", canonicalSource, "TARGET_POPULATION", null));
+        ProductSurfaceEligibilityDtos.EligibilityResult statutory = adapter.evaluate(
+                request("hcm.operations", statutorySource, "TARGET_POPULATION",
+                        canonical.scopes().getFirst().key()));
+
+        assertThat(canonical.decision()).isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(statutory.decision()).isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(statutory.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.sourceScopeKey()).isEqualTo(statutorySource);
+            assertThat(scope.key()).isEqualTo(canonical.scopes().getFirst().key());
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+        });
+
+        String replayOnTeam = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.team",
+                "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE", "TARGET_POPULATION");
+        assertThat(adapter.evaluate(request(
+                "hcm.team", replayOnTeam, "TARGET_POPULATION", null)).decision())
+                .isEqualTo(ProductSurfaceEligibilityDtos.Decision.SCOPE_INVALID);
+    }
+
+    @Test
     void preservesBothPayAliasesWithIdenticalCanonicalDerivedMaterial() {
         PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("TENANT_ADMIN"), Set.of());
         when(populations.findOperations("READ")).thenReturn(Optional.of(teamPopulation()));

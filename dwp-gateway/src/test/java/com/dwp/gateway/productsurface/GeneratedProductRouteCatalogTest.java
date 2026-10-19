@@ -31,6 +31,38 @@ class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestS
             "route.hcm.time.timecard-correction.action",
             "route.hcm.time.timecard.data");
 
+    private static final Set<String> V54_GENERIC_SESSION_STEP_UP_ROUTES = Set.of(
+            "route.hcm.operations.pay-tax-social-insurance.page",
+            "route.hcm.operations.pay-tax-social-insurance.data");
+
+    @Test
+    void v54AddsOnlyTheTwoPay003GenericSessionReadsToTheSealedSet() {
+        GeneratedProductRouteCatalog v53 = catalog(53);
+        GeneratedProductRouteCatalog v54 = catalog(54);
+
+        assertThat(v53.routesForTesting().stream()
+                .filter(GeneratedProductRouteCatalog.Route::genericSessionStepUp)
+                .map(GeneratedProductRouteCatalog.Route::routeContractKey))
+                .containsExactlyInAnyOrderElementsOf(GENERIC_SESSION_STEP_UP_ROUTES);
+        assertThat(v54.routesForTesting().stream()
+                .filter(GeneratedProductRouteCatalog.Route::genericSessionStepUp)
+                .map(GeneratedProductRouteCatalog.Route::routeContractKey))
+                .containsExactlyInAnyOrderElementsOf(
+                        java.util.stream.Stream.concat(
+                                        GENERIC_SESSION_STEP_UP_ROUTES.stream(),
+                                        V54_GENERIC_SESSION_STEP_UP_ROUTES.stream())
+                                .collect(java.util.stream.Collectors.toSet()));
+        assertThat(V54_GENERIC_SESSION_STEP_UP_ROUTES).allSatisfy(routeKey ->
+                assertThat(v54.routesForTesting().stream()
+                        .filter(route -> routeKey.equals(route.routeContractKey()))
+                        .findFirst().orElseThrow())
+                        .satisfies(route -> {
+                            assertThat(route.highRiskStepUp()).isTrue();
+                            assertThat(route.commandBoundStepUp()).isFalse();
+                            assertThat(route.genericSessionStepUp()).isTrue();
+                        }));
+    }
+
     @Test
     void v52CanonicalizesHrm009SameWireReadsAndSealsTheSingleHighAction() {
         GeneratedProductRouteCatalog v52 = catalog(52);

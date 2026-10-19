@@ -124,6 +124,11 @@ public class ScopedAdminDutyEvidenceService {
                 && "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE".equals(authority.getValue())) {
             return duty.dutyCode();
         }
+        if (isExactHrisStatutoryOperatorDuty(duty)
+                && "hcm.operations.statutory.execute".equals(authority.getKey())
+                && "ACTION.HRIS_STATUTORY_FILING:EXECUTE".equals(authority.getValue())) {
+            return duty.dutyCode();
+        }
         return ScopedAuthorityToken.responsibilityCode(
                 authority.getKey(), authority.getValue());
     }
@@ -136,6 +141,16 @@ public class ScopedAdminDutyEvidenceService {
                 && duty.capabilityAuthorities().equals(Map.of(
                         "hcm.operations.contract.issue",
                         "ACTION.HRIS_EMPLOYMENT_CONTRACT:ISSUE"));
+    }
+
+    static boolean isExactHrisStatutoryOperatorDuty(EffectiveDuty duty) {
+        return "HRIS_DUTY_STATUTORY_OPERATOR".equals(duty.dutyCode())
+                && "hcm".equals(duty.productKey())
+                && "APP.HCM".equals(duty.productResourceKey())
+                && "ACTION.HRIS_STATUTORY_FILING".equals(duty.resourceKey())
+                && duty.capabilityAuthorities().equals(Map.of(
+                        "hcm.operations.statutory.execute",
+                        "ACTION.HRIS_STATUTORY_FILING:EXECUTE"));
     }
 
     @Transactional(readOnly = true)

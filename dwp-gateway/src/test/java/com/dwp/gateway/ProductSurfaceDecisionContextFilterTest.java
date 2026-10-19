@@ -451,6 +451,7 @@ class ProductSurfaceDecisionContextFilterTest {
                 .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
                         "10000000-0000-4000-8000-000000000041")
                 .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER, REVISION)
+                .header(ProductSurfaceDecisionContextFilter.EXPECTED_OBJECT_VERSION_HEADER, "4")
                 .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "HR_LIFECYCLE")
                 .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER,
                         "client.forged.fields")
@@ -473,6 +474,8 @@ class ProductSurfaceDecisionContextFilterTest {
                 .isEqualTo("HRM-AUTH-015");
         assertThat(forwarded.get().getHeaders().getFirst(
                 ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER)).isEqualTo("ORG_UNIT");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.EXPECTED_OBJECT_VERSION_HEADER)).isEqualTo("4");
     }
 
     @Test
@@ -527,6 +530,182 @@ class ProductSurfaceDecisionContextFilterTest {
         assertThat(exchange.getResponse().getStatusCode())
                 .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(body(exchange)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
+    }
+
+    @Test
+    void pay003ReadsForwardOnlyExactTrustedPurposeFieldPolicyAndPopulation() {
+        record Case(String path, String route, String purpose, String fieldPolicy,
+                    String authorityKind, String forwardedKind) { }
+        List<Case> cases = List.of(
+                new Case(
+                        "/api/payroll/v1/workbench/configuration/statutory",
+                        "route.hcm.configuration.statutory.data",
+                        "PAYROLL_CONFIGURATION", "pay003.iaq-026.fields.v1",
+                        "RESOURCE_SET", "CONFIG_SCOPE"),
+                new Case(
+                        "/api/payroll/v1/workbench/pay-tax-social-insurance",
+                        "route.hcm.operations.pay-tax-social-insurance.data",
+                        "PAYROLL_OPERATIONS", "pay003.iaq-048.fields.v1",
+                        "TARGET_POPULATION", "TARGET_POPULATION"));
+        String subject = "10000000-0000-4000-8000-000000000041";
+
+        for (Case requestCase : cases) {
+            GeneratedProductRouteCatalog.Match match = catalog.match("GET", requestCase.path());
+            assertThat(match.status()).as(requestCase.path())
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(match.routes()).as(requestCase.path()).hasSize(2);
+            assertThat(match.uniqueRoute().routeContractKey()).isEqualTo(requestCase.route());
+
+            MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(requestCase.path())
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER, subject)
+                    .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER,
+                            "client.forged.fields")
+                    .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                            "CLIENT_FORGED")
+                    .header(ProductSurfaceDecisionContextFilter.EXPECTED_OBJECT_VERSION_HEADER,
+                            "999"));
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter(authority(allowedWave2(requestCase.authorityKind())))
+                    .filter(exchange, filtered -> {
+                        forwarded.set(filtered.getRequest());
+                        return Mono.empty();
+                    }).block();
+
+            assertThat(forwarded.get()).as(requestCase.path()).isNotNull();
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                    .isEqualTo(requestCase.purpose());
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER))
+                    .isEqualTo(requestCase.fieldPolicy());
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                    .isEqualTo(requestCase.forwardedKind());
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.EXPECTED_OBJECT_VERSION_HEADER)).isFalse();
+        }
+    }
+
+    @Test
+    void pay003GenericResultReadChallengesNormalAndForwardsElevatedAuthority() {
+        String path = "/api/payroll/v1/workbench/pay-tax-social-insurance";
+        MockServerHttpRequest.BaseBuilder<?> request = MockServerHttpRequest.get(path)
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041");
+        MockServerWebExchange challenged = exchange(request);
+        AtomicReference<Boolean> challengedForwarded = new AtomicReference<>(false);
+
+        filter(authority(stepUpWave2("TARGET_POPULATION"))).filter(challenged, ignored -> {
+            challengedForwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(challengedForwarded.get()).isFalse();
+        assertThat(challenged.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(body(challenged)).contains("STEP_UP_REQUIRED");
+
+        MockServerWebExchange elevated = exchange(request);
+        elevated.getAttributes().put(
+                VerifiedIdentityFilter.VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE, "ELEVATED");
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+        filter(authority(allowedWave2("TARGET_POPULATION"))).filter(elevated, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER))
+                .isEqualTo("ELEVATED");
+    }
+
+    @Test
+    void pay003CountryPackActionForwardsCanonicalCasWithoutInventingOwnerHeaders() {
+        String packId = "10000000-0000-4000-8000-000000000054";
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.post(
+                        "/api/payroll/v1/country-packs/" + packId + "/activate")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041")
+                .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER, REVISION)
+                .header("If-Match", "\"7\"")
+                .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER,
+                        "STATUTORY_CONFIGURATION")
+                .header(VerifiedIdentityFilter.LEGAL_ENTITY_PUBLIC_ID_HEADER,
+                        "client-forged-legal-entity")
+                .header("X-DWP-Pay-Group-Public-Id", "client-forged-pay-group"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter(authority(allowedWave2("TARGET_POPULATION"))).filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst("If-Match")).isEqualTo("\"7\"");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.EXPECTED_OBJECT_VERSION_HEADER))
+                .isEqualTo("7");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                .isEqualTo("STATUTORY_CONFIGURATION");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                .isEqualTo("TARGET_POPULATION");
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.LEGAL_ENTITY_PUBLIC_ID_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey("X-DWP-Pay-Group-Public-Id"))
+                .isFalse();
+    }
+
+    @Test
+    void pay003CountryPackActionRejectsEveryNonCanonicalIfMatchAsConflictBeforeOwner() {
+        String path = "/api/payroll/v1/country-packs/"
+                + "10000000-0000-4000-8000-000000000054/activate";
+        List<List<String>> cases = List.of(
+                List.of(),
+                List.of("\"7\"", "\"8\""),
+                List.of("W/\"7\""),
+                List.of("\"07\""),
+                List.of("\"9223372036854775808\""));
+
+        for (List<String> values : cases) {
+            ProductSurfaceContextAggregationService authority = authority(
+                    allowedWave2("TARGET_POPULATION"));
+            MockServerHttpRequest.BaseBuilder<?> request = MockServerHttpRequest.post(path)
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                            REVISION);
+            values.forEach(value -> request.header("If-Match", value));
+            MockServerWebExchange exchange = exchange(request);
+            AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+            filter(authority).filter(exchange, ignored -> {
+                forwarded.set(true);
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(values.toString()).isFalse();
+            assertThat(exchange.getResponse().getStatusCode()).as(values.toString())
+                    .isEqualTo(HttpStatus.CONFLICT);
+            assertThat(body(exchange)).contains("OBJECT_VERSION_CONFLICT");
+            verify(authority, never()).evaluateProductTrusted(any(), any());
+        }
     }
 
     @Test
@@ -1607,7 +1786,11 @@ class ProductSurfaceDecisionContextFilterTest {
 
     @Test
     void exactTenantFeatureRouteFamilyAlwaysEvaluatesAuthAtRollout000And100() {
-        record RouteCase(String method, String path) {}
+        record RouteCase(String method, String path, boolean pay003Command) {
+            RouteCase(String method, String path) {
+                this(method, path, false);
+            }
+        }
         List<RouteCase> routes = List.of(
                 new RouteCase("GET", "/api/people/v1/hris/organizations/graph"),
                 new RouteCase("GET", "/api/platform/v1/hris/workbench/settings-operations"),
@@ -1622,7 +1805,11 @@ class ProductSurfaceDecisionContextFilterTest {
                 new RouteCase("POST", "/api/time/v1/close-periods/period-1/close"),
                 new RouteCase("POST", "/api/time/v1/close-periods/period-1/reopen"),
                 new RouteCase("POST", "/api/time/v1/close-periods/period-1/payroll-handoffs"),
-                new RouteCase("GET", "/api/time/v1/payroll-handoffs/handoff-1"));
+                new RouteCase("GET", "/api/time/v1/payroll-handoffs/handoff-1"),
+                new RouteCase("GET", "/api/payroll/v1/workbench/configuration/statutory"),
+                new RouteCase("GET", "/api/payroll/v1/workbench/pay-tax-social-insurance"),
+                new RouteCase("POST", "/api/payroll/v1/country-packs/"
+                        + "10000000-0000-4000-8000-000000000054/activate", true));
         ProductSurfaceContextAggregationService authority = authority(activationRequired(
                 "FEATURE_ACTIVATION_REQUIRED"));
         ProductSurfaceDecisionContextFilter filter = filter(authority);
@@ -1631,11 +1818,17 @@ class ProductSurfaceDecisionContextFilterTest {
         for (String rollout : List.of("000", "100")) {
             for (String tenant : List.of("7", "91")) {
                 for (RouteCase route : routes) {
-                    MockServerWebExchange exchange = exchange(MockServerHttpRequest.method(
+                    MockServerHttpRequest.BaseBuilder<?> request = MockServerHttpRequest.method(
                                     HttpMethod.valueOf(route.method()), route.path())
                             .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, rollout)
                             .header(VerifiedIdentityFilter.USER_HEADER, "41")
-                            .header(VerifiedIdentityFilter.TENANT_HEADER, tenant));
+                            .header(VerifiedIdentityFilter.TENANT_HEADER, tenant);
+                    if (route.pay003Command()) {
+                        request.header(
+                                ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                                REVISION).header("If-Match", "\"7\"");
+                    }
+                    MockServerWebExchange exchange = exchange(request);
                     AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
 
                     filter.filter(exchange, ignored -> {

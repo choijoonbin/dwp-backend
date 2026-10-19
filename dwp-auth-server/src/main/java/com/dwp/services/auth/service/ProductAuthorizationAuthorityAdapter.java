@@ -916,10 +916,11 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                                     scope.key(), scope.kind(), scope.displayName(), scope.isDefault(),
                                     readOnly, scope.validUntil())).toList()
                     : entryPolicyScopes;
-        } else if (roles.isEmpty() || usesResponsibilityBoundPopulationResolver(capability)) {
-            // HRM-011 deliberately keeps the duty assignment and the workforce population as
-            // independent evidence. The duty remains sealed on the capability grant while the
-            // owner service derives the concrete population from this policy scope selector.
+        } else if (roles.isEmpty()
+                || ProductAuthorizationAuthoritySupport
+                .usesResponsibilityBoundPopulationResolver(capability)) {
+            // Specialist duty assignment and owner population are independent evidence. The
+            // duty remains sealed on the grant while the owner derives the concrete population.
             scopes = policyScopes(request, capability.scopeResolver(), validUntil, readOnly);
         } else {
             scopes = responsibilityScopes(request, roles, readOnly);
@@ -938,14 +939,6 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 ProductSurfaceAuthorityDtos.AccessSource.MANAGEMENT,
                 grants, scopes, readOnly, validUntil, false,
                 capability.resourceKey());
-    }
-
-    private boolean usesResponsibilityBoundPopulationResolver(
-            ProductAuthorizationContractDtos.CapabilityContract capability) {
-        return "hcm.operations.contract.issue".equals(capability.contractKey())
-                && "WORKFORCE_TARGET_POPULATION".equals(capability.scopeResolver())
-                && "HRIS_DUTY_CONTRACT_ISSUER".equals(
-                        capability.requiredResponsibilityCode());
     }
 
     private Evaluation evaluateHcmAuditCapability(

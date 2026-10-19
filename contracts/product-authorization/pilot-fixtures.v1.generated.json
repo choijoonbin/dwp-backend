@@ -1704,7 +1704,7 @@
   ],
   "fixedClock": "2026-08-21T09:00:00Z",
   "fixtureBundleKey": "pilot-fixtures.v1",
-  "fixtureChecksum": "7afd07479645c7cfbd6bbeb3abf345686a649da3a9d7472e43c8dd10e2ffad9f",
+  "fixtureChecksum": "e86de2a063d5d19ba7927e3917faa00ccb456128929bac6c62280a4cee7a5a7f",
   "fixtureChecksumAlgorithm": "SHA-256",
   "negativeCases": [
     {
@@ -1942,8 +1942,8 @@
   "registryLineage": {
     "authority": "INFORMATIONAL_ONLY",
     "bundleKey": "product-surfaces",
-    "indexSha256": "6737681305de0964681c7302a300e7f4a1d15a00a9655b83c38a9c616f68d949",
-    "latestAliasVersion": 53,
+    "indexSha256": "24087c0ef250f1c9cfac60cef087b92debf5ef2d73ab44afc1b8a78c8f535028",
+    "latestAliasVersion": 54,
     "versions": [
       {
         "bundleKey": "product-surfaces",
@@ -2209,6 +2209,11 @@
         "bundleKey": "product-surfaces",
         "sha256": "c655a850ae2ac01466edb37f2e1c69f9e269dd2a4a529c3a87b1610c0561a359",
         "version": 53
+      },
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "1a199b3ec84b6d6c16aaec57c9be0b09092c5f81e0c5566f893c4dbe0e0deed4",
+        "version": 54
       }
     ]
   },

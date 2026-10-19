@@ -37,6 +37,8 @@ public class HcmProductSurfaceEligibilityAdapter
     private static final String CONFIG = "RS_HCM_CONFIG";
     private static final String PAY_TARGET_POPULATION = "PAY_TARGET_POPULATION";
     private static final String PAYROLL_LEGAL_ENTITY_SCOPE = "PAYROLL_LEGAL_ENTITY_SCOPE";
+    private static final String PAYROLL_LEGAL_ENTITY_GROUP_SCOPE =
+            "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE";
     private static final String ASSIGNED_REVIEW_POPULATION =
             "ASSIGNED_REVIEW_POPULATION";
     private static final Set<String> DOMAIN_POPULATIONS = Set.of(
@@ -179,6 +181,9 @@ public class HcmProductSurfaceEligibilityAdapter
         if (!"TARGET_POPULATION".equals(candidate.kind())) return false;
         if (match(request, candidate, OPERATIONS, candidate.kind())) return true;
         if (match(request, candidate, PAYROLL_LEGAL_ENTITY_SCOPE, candidate.kind())) return true;
+        if (match(request, candidate, PAYROLL_LEGAL_ENTITY_GROUP_SCOPE, candidate.kind())) {
+            return true;
+        }
         return DOMAIN_POPULATIONS.stream()
                 .anyMatch(source -> match(request, candidate, source, candidate.kind()));
     }
@@ -220,6 +225,7 @@ public class HcmProductSurfaceEligibilityAdapter
             ProductSurfaceEligibilityDtos.EvaluateRequest request,
             ProductSurfaceEligibilityDtos.CandidateScope candidate) {
         if (!match(request, candidate, PAYROLL_LEGAL_ENTITY_SCOPE, candidate.kind())
+                && !match(request, candidate, PAYROLL_LEGAL_ENTITY_GROUP_SCOPE, candidate.kind())
                 && !match(request, candidate, PAY_TARGET_POPULATION, candidate.kind())) {
             return null;
         }

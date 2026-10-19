@@ -84,7 +84,8 @@ final class ProductAuthorizationGateTopologyValidator {
                     + ": HCM audit evidence GET must not declare command step-up bindings.");
             return;
         }
-        if (elevatedStepUp && isExactGenericStepUpWithoutFreshCommandRoute(route)) {
+        if (elevatedStepUp
+                && isExactGenericStepUpWithoutFreshCommandRoute(route, capabilities)) {
             require(stepUps.isEmpty(), route.routeContractKey()
                     + ": generic session step-up must not synthesize fresh command bindings.");
             return;
@@ -135,9 +136,14 @@ final class ProductAuthorizationGateTopologyValidator {
     }
 
     private static boolean isExactGenericStepUpWithoutFreshCommandRoute(
-            ProductAuthorizationContractDtos.GovernedRoute route) {
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities) {
         return isExactGrandfatheredGenericStepUpRoute(route)
-                || isExactV49GenericStepUpWithoutFreshCommandRoute(route);
+                || isExactV49GenericStepUpWithoutFreshCommandRoute(route)
+                || (PayrollV49ElevatedAuthorityPolicy.STATUTORY_READ_ROUTES.contains(
+                        route.routeContractKey())
+                        && PayrollV49ElevatedAuthorityPolicy.isExactRoute(
+                                route, capabilities));
     }
 
     private static boolean isExactV49GenericStepUpWithoutFreshCommandRoute(

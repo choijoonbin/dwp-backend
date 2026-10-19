@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -40,6 +41,7 @@ class PayrollStepUpVerifierContractTest {
 
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private KeyPair keyPair;
+    private String publicKeyPem;
     private PayrollStepUpVerifier verifier;
     private PayrollHighRiskCommandGuard guard;
 
@@ -48,12 +50,12 @@ class PayrollStepUpVerifierContractTest {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);
         keyPair = generator.generateKeyPair();
-        String publicKey = "-----BEGIN PUBLIC KEY-----\n"
+        publicKeyPem = "-----BEGIN PUBLIC KEY-----\n"
                 + Base64.getEncoder().encodeToString(keyPair.getPublic().getEncoded())
                 + "\n-----END PUBLIC KEY-----";
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         verifier = new PayrollStepUpVerifier(
-                mapper, clock, publicKey, ISSUER, AUDIENCE, KEY_ID,
+                mapper, clock, publicKeyPem, ISSUER, AUDIENCE, KEY_ID,
                 "urn:dwp:acr:mfa", 600, 900);
         guard = new PayrollHighRiskCommandGuard(
                 verifier, new PayrollV41PepRegistry(mapper), clock);
@@ -248,7 +250,25 @@ class PayrollStepUpVerifierContractTest {
                 .getAnnotation(ConditionalOnExpression.class);
         assertThat(condition.value())
                 .contains("dwp.features.HRIS_PAYROLL_RUN_PREPARE.enabled")
+                .contains("dwp.features.HRIS_PAYROLL_STATUTORY_INSURANCE.enabled")
                 .contains("dwp.hris.payroll.calculation.enabled");
+    }
+
+    @Test
+    void statutoryInsuranceFeatureAloneRegistersTheSharedPayrollVerifier() {
+        new ApplicationContextRunner()
+                .withBean(ObjectMapper.class, () -> mapper)
+                .withUserConfiguration(PayrollStepUpVerifier.class)
+                .withPropertyValues(
+                        "dwp.features.HRIS_PAYROLL_STATUTORY_INSURANCE.enabled=true",
+                        "dwp.payroll.step-up.public-key-pem=" + publicKeyPem,
+                        "dwp.payroll.step-up.issuer=" + ISSUER,
+                        "dwp.payroll.step-up.audience=" + AUDIENCE,
+                        "dwp.payroll.step-up.key-id=" + KEY_ID)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(PayrollStepUpVerifier.class);
+                });
     }
 
     private void assertMismatch(

@@ -45,8 +45,10 @@ class ProductAuthorizationIdentityEvidenceService {
                 java.util.stream.Stream.concat(
                         governanceService.resourceRoles(tenantId, actorId).stream(),
                         duties.stream()
-                                .filter(ScopedAdminDutyEvidenceService
-                                        ::isExactHrisContractIssuerDuty)
+                                .filter(duty -> ScopedAdminDutyEvidenceService
+                                        .isExactHrisContractIssuerDuty(duty)
+                                        || ScopedAdminDutyEvidenceService
+                                        .isExactHrisStatutoryOperatorDuty(duty))
                                 .map(duty -> new AppGovernanceDtos.ResourceRole(
                                         duty.dutyCode(), "APP", duty.productResourceKey(),
                                         duty.resourceSetId(), duty.resourceSetKey(),

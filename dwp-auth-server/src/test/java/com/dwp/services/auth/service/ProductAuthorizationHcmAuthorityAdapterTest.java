@@ -652,6 +652,99 @@ class ProductAuthorizationHcmAuthorityAdapterTest {
         assertThat(denied.routeGrantRef()).isNull();
     }
 
+    @Test
+    void v54CountryPackActivationRequiresExactDutyAndPopulationBoundStepUp()
+            throws IOException {
+        useContract("product-surfaces-v1.bundle-v54.generated.json");
+        evidence(Set.of(
+                "APP.HCM:VIEW", "ACTION.HRIS_STATUTORY_FILING:EXECUTE"), List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult missingDuty = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.country-pack-activate.action",
+                null, null, null, null, List.of());
+        assertThat(missingDuty.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
+
+        String resourceSetKey = "RS_HRIS_STATUTORY_OPERATOR_LE_100_PG_7";
+        evidence(Set.of(
+                "APP.HCM:VIEW", "ACTION.HRIS_STATUTORY_FILING:EXECUTE"),
+                List.of(role("HRIS_DUTY_STATUTORY_OPERATOR", "APP.HCM", resourceSetKey)));
+        ProductSurfaceAuthorityDtos.AuthorityResult challenge = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.country-pack-activate.action",
+                null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult elevated = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                "route.hcm.operations.country-pack-activate.action",
+                null, null, null, null, List.of());
+
+        String populationSelector = ProductSurfaceScopeKey.key(
+                10, 20, "hcm", "hcm.operations",
+                "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE", "TARGET_POPULATION");
+        assertThat(challenge.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        assertThat(challenge.requestPolicyRef()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertThat(challenge.requiresProductEligibility()).isTrue();
+        assertThat(challenge.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.key()).isEqualTo(populationSelector);
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+            assertThat(scope.isDefault()).isTrue();
+            assertThat(scope.readOnly()).isFalse();
+        });
+        assertThat(challenge.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> {
+                            assertThat(grant.capabilityContractKey())
+                                    .isEqualTo("hcm.operations.statutory.execute");
+                            assertThat(grant.responsibility())
+                                    .isEqualTo(new ProductSurfaceAuthorityDtos.Responsibility(
+                                            "HRIS_DUTY_STATUTORY_OPERATOR", resourceSetKey));
+                            assertThat(grant.scopeKeys()).containsExactly(populationSelector);
+                            assertThat(grant.activationState()).isEqualTo(
+                                    ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE);
+                        });
+        assertThat(elevated.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(elevated.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.activationState()).isEqualTo(
+                                ProductSurfaceAuthorityDtos.ActivationState.ACTIVE));
+    }
+
+    @Test
+    void v54CountryPackActivationFailsClosedWhenOwnerSodDescriptorDrifts()
+            throws IOException {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        ObjectNode document;
+        try (var input = getClass().getResourceAsStream(
+                "/product-authorization/product-surfaces-v1.bundle-v54.generated.json")) {
+            document = (ObjectNode) mapper.readTree(input);
+        }
+        document.withArray("capabilities").forEach(capability -> {
+            if ("hcm.operations.statutory.execute".equals(
+                    capability.path("contractKey").asText())) {
+                ((ObjectNode) capability).put("sodPolicyId", "UNREGISTERED_OWNER_SOD");
+            }
+        });
+        useContract(mapper.treeToValue(
+                document, ProductAuthorizationContractDtos.BundleContract.class));
+        evidence(Set.of(
+                "APP.HCM:VIEW", "ACTION.HRIS_STATUTORY_FILING:EXECUTE"),
+                List.of(role("HRIS_DUTY_STATUTORY_OPERATOR", "APP.HCM",
+                        "RS_HRIS_STATUTORY_OPERATOR_LE_100_PG_7")));
+
+        ProductSurfaceAuthorityDtos.AuthorityResult denied = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                "route.hcm.operations.country-pack-activate.action",
+                null, null, null, null, List.of());
+
+        assertThat(denied.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SOD_CONFLICT);
+        assertThat(denied.routeGrantRef()).isNull();
+    }
+
     private void useContract(String resource) throws IOException {
         ProductAuthorizationContractDtos.BundleContract contract = new ObjectMapper()
                 .findAndRegisterModules().readValue(getClass().getResourceAsStream(

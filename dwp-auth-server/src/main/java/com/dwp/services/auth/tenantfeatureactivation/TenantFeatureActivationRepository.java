@@ -182,7 +182,10 @@ public class TenantFeatureActivationRepository implements TenantFeatureActivatio
                         ? "v259"
                         : binding.minimumBundleVersion() < 52
                                 ? "v260"
-                                : binding.minimumBundleVersion() < 53 ? "v261" : "v262",
+                                : binding.minimumBundleVersion() < 53
+                                        ? "v261"
+                                        : binding.minimumBundleVersion() < 54
+                                                ? "v262" : "v263",
                 binding.featureKey(),
                 String.valueOf(binding.policyVersion()),
                 binding.productKey(),

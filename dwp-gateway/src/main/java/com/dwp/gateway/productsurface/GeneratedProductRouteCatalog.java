@@ -68,6 +68,16 @@ public final class GeneratedProductRouteCatalog {
                             "/api/payroll/v1/workbench/population", "payroll",
                             "/v1/workbench/population",
                             List.of("payroll-support-viewer"))),
+            Map.entry("route.hcm.operations.pay-tax-social-insurance.page",
+                    new GenericSessionTopology("hcm.operations", "PAGE", "GET",
+                            "/api/payroll/v1/workbench/pay-tax-social-insurance", "payroll",
+                            "/v1/workbench/pay-tax-social-insurance",
+                            List.of("payroll-support-viewer"))),
+            Map.entry("route.hcm.operations.pay-tax-social-insurance.data",
+                    new GenericSessionTopology("hcm.operations", "DATA", "GET",
+                            "/api/payroll/v1/workbench/pay-tax-social-insurance", "payroll",
+                            "/v1/workbench/pay-tax-social-insurance",
+                            List.of("payroll-support-viewer"))),
             Map.entry("route.hcm.operations.payroll-run.data",
                     new GenericSessionTopology("hcm.operations", "DATA", "GET",
                             "/api/payroll/v1/runs/{runId}", "payroll",
@@ -120,6 +130,9 @@ public final class GeneratedProductRouteCatalog {
             "route.hcm.operations.time-close-validate.action",
             "route.hcm.operations.time-payroll-handoff-create.action",
             "route.hcm.operations.time-payroll-handoff.data");
+    private static final Set<String> V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = Set.of(
+            "route.hcm.operations.pay-tax-social-insurance.page",
+            "route.hcm.operations.pay-tax-social-insurance.data");
 
     private static final Set<String> AUTHORITY_ENDPOINT_FIELDS = Set.of(
             "endpointKey", "method", "publicPath", "serviceKey", "servicePath",
@@ -347,9 +360,14 @@ public final class GeneratedProductRouteCatalog {
                 }
             }
             if (result.isEmpty()) throw new IllegalStateException("PRODUCT routes are absent.");
+            Set<String> expectedGenericSessionRoutes = new HashSet<>(
+                    GENERIC_SESSION_STEP_UP_TOPOLOGIES.keySet());
+            if (bundleVersion < 54) {
+                expectedGenericSessionRoutes.removeAll(
+                        V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS);
+            }
             if (bundleVersion >= 49
-                    && !genericSessionRoutes.equals(
-                    GENERIC_SESSION_STEP_UP_TOPOLOGIES.keySet())) {
+                    && !genericSessionRoutes.equals(expectedGenericSessionRoutes)) {
                 throw new IllegalStateException(
                         "The PRODUCT generic session step-up closed set is incomplete.");
             }
@@ -461,6 +479,9 @@ public final class GeneratedProductRouteCatalog {
         GenericSessionTopology topology = GENERIC_SESSION_STEP_UP_TOPOLOGIES.get(key);
         if (topology == null) return false;
         if (bundleVersion < 49 && V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS.contains(key)) {
+            return false;
+        }
+        if (bundleVersion < 54 && V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS.contains(key)) {
             return false;
         }
         JsonNode subject = route.path("subject");

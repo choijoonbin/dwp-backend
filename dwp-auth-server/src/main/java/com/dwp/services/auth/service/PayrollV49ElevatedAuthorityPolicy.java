@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Exact NORMAL-challenge admission for the four sealed v49 ELEVATED payroll routes. */
+/** Exact NORMAL-challenge admission for sealed elevated payroll routes and v54 result reads. */
 final class PayrollV49ElevatedAuthorityPolicy {
 
     static final String SUPPORT_CAPABILITY = "hcm.operations.payroll-support.view";
@@ -19,16 +19,28 @@ final class PayrollV49ElevatedAuthorityPolicy {
             "predicate.hcm-payroll-run-prepare-authority.v1";
     static final String WIRE_AUTHORITY =
             "wire-authority.hcm.operations.payroll-population.v1";
+    static final String STATUTORY_RESULT_WIRE_AUTHORITY =
+            "wire-authority.hcm.operations.pay-tax-social-insurance.v1";
 
-    static final Set<String> READ_ROUTES = Set.of(
+    static final Set<String> LEGACY_READ_ROUTES = Set.of(
             "route.hcm.operations.payroll-population.page",
             "route.hcm.operations.payroll-support.data");
+    static final Set<String> STATUTORY_READ_ROUTES = Set.of(
+            "route.hcm.operations.pay-tax-social-insurance.page",
+            "route.hcm.operations.pay-tax-social-insurance.data");
+    static final Set<String> READ_ROUTES = Set.of(
+            "route.hcm.operations.payroll-population.page",
+            "route.hcm.operations.payroll-support.data",
+            "route.hcm.operations.pay-tax-social-insurance.page",
+            "route.hcm.operations.pay-tax-social-insurance.data");
     static final Set<String> COMMAND_ROUTES = Set.of(
             "route.hcm.operations.payroll-run.action",
             "route.hcm.operations.payroll-run-calculate.action");
     static final Set<String> ROUTES = Set.of(
             "route.hcm.operations.payroll-population.page",
             "route.hcm.operations.payroll-support.data",
+            "route.hcm.operations.pay-tax-social-insurance.page",
+            "route.hcm.operations.pay-tax-social-insurance.data",
             "route.hcm.operations.payroll-run.action",
             "route.hcm.operations.payroll-run-calculate.action");
 
@@ -76,8 +88,9 @@ final class PayrollV49ElevatedAuthorityPolicy {
     private static boolean exactRead(
             ProductAuthorizationContractDtos.GovernedRoute route,
             ProductAuthorizationContractDtos.CapabilityContract capability) {
-        boolean page = "route.hcm.operations.payroll-population.page"
-                .equals(route.routeContractKey());
+        boolean statutory = route.routeContractKey()
+                .startsWith("route.hcm.operations.pay-tax-social-insurance.");
+        boolean page = route.routeContractKey().endsWith(".page");
         String bindingKey = route.routeContractKey() + ".binding.01";
         var profile = route.accessProfiles().getFirst();
         var access = profile.requiredAccess();
@@ -88,15 +101,23 @@ final class PayrollV49ElevatedAuthorityPolicy {
                 && (page ? route.sideEffectFree() == null
                         : Boolean.TRUE.equals(route.sideEffectFree()))
                 && (page
-                        ? "hcm.operations.payroll-population".equals(route.uiRouteId())
-                                && "/hr/operations/payroll/population"
-                                .equals(route.uiRoutePattern())
+                        ? (statutory
+                                ? "hcm.operations.pay-tax-social-insurance"
+                                        .equals(route.uiRouteId())
+                                        && "/hr/operations/payroll/tax-social-insurance"
+                                        .equals(route.uiRoutePattern())
+                                : "hcm.operations.payroll-population"
+                                        .equals(route.uiRouteId())
+                                        && "/hr/operations/payroll/population"
+                                        .equals(route.uiRoutePattern()))
                         : route.uiRouteId() == null && route.uiRoutePattern() == null)
-                && WIRE_AUTHORITY.equals(route.authorizationEquivalenceKey())
+                && (statutory ? STATUTORY_RESULT_WIRE_AUTHORITY : WIRE_AUTHORITY)
+                .equals(route.authorizationEquivalenceKey())
                 && empty(route.stepUpCommandBindings())
                 && "payroll-support-viewer".equals(profile.profileKey())
                 && profile.precedence() == 300
-                && List.of("ELEVATED").equals(profile.activeAccessModes())
+                && (statutory ? List.of("NORMAL", "ELEVATED") : List.of("ELEVATED"))
+                .equals(profile.activeAccessModes())
                 && profile.readOnly()
                 && List.of("TARGET_POPULATION").equals(profile.targetBindingKinds())
                 && List.of(POPULATION_PREDICATE).equals(profile.predicatePolicyKeys())
@@ -104,15 +125,18 @@ final class PayrollV49ElevatedAuthorityPolicy {
                 && SUPPORT_CAPABILITY.equals(access.capabilityContractKey())
                 && projections != null && projections.size() == 1
                 && bindingKey.equals(projections.getFirst().apiBindingKey())
-                && (route.routeContractKey()
+                && (statutory ? "pay003.iaq-048.fields.v1" : route.routeContractKey()
                 + ".payroll-support-viewer.projection.v1")
                 .equals(projections.getFirst().projectionPolicyKey())
-                && "route.hcm.operations.payroll-support.data.response.v1"
+                && (statutory ? "Pay003TaxSocialInsuranceProjectionV1"
+                        : "route.hcm.operations.payroll-support.data.response.v1")
                 .equals(projections.getFirst().responseSchemaKey())
                 && exactWire(gateway, service, bindingKey, "GET",
-                        "/api/payroll/v1/workbench/population",
-                        "/v1/workbench/population")
-                && exactSupportCapability(capability);
+                        statutory ? "/api/payroll/v1/workbench/pay-tax-social-insurance"
+                                : "/api/payroll/v1/workbench/population",
+                        statutory ? "/v1/workbench/pay-tax-social-insurance"
+                                : "/v1/workbench/population")
+                && exactSupportCapability(capability, statutory);
     }
 
     private static boolean exactCommand(
@@ -185,14 +209,25 @@ final class PayrollV49ElevatedAuthorityPolicy {
     }
 
     private static boolean exactSupportCapability(
-            ProductAuthorizationContractDtos.CapabilityContract capability) {
-        return exactCapability(capability, SUPPORT_CAPABILITY,
+            ProductAuthorizationContractDtos.CapabilityContract capability,
+            boolean statutoryRoute) {
+        boolean legacy = exactCapability(capability, SUPPORT_CAPABILITY,
                 "DATA.HRIS_PAYROLL_STATUS:VIEW", "DATA.HRIS_PAYROLL_STATUS", "VIEW",
                 Set.of(
                         "route.hcm.operations.payroll-population.page",
                         "route.hcm.operations.payroll-run.data",
                         "route.hcm.operations.payroll-support.data"),
                 "PAY_TARGET_POPULATION", "HIGH");
+        boolean expanded = exactCapability(capability, SUPPORT_CAPABILITY,
+                "DATA.HRIS_PAYROLL_STATUS:VIEW", "DATA.HRIS_PAYROLL_STATUS", "VIEW",
+                Set.of(
+                        "route.hcm.operations.payroll-population.page",
+                        "route.hcm.operations.payroll-run.data",
+                        "route.hcm.operations.payroll-support.data",
+                        "route.hcm.operations.pay-tax-social-insurance.page",
+                        "route.hcm.operations.pay-tax-social-insurance.data"),
+                "PAY_TARGET_POPULATION", "HIGH");
+        return statutoryRoute ? expanded : legacy || expanded;
     }
 
     private static boolean exactRunCapability(

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -21,7 +22,7 @@ class PayrollV49ElevatedAuthorityPolicyTest {
 
     @Test
     void admitsOnlyTheFourExactV49ElevatedContractsForNormalChallenge() throws Exception {
-        ProductAuthorizationContractDtos.BundleContract bundle = bundle();
+        ProductAuthorizationContractDtos.BundleContract bundle = bundle(49);
         Map<String, ProductAuthorizationContractDtos.GovernedRoute> routes = bundle.routes()
                 .stream().collect(Collectors.toMap(
                         ProductAuthorizationContractDtos.GovernedRoute::routeContractKey,
@@ -31,7 +32,11 @@ class PayrollV49ElevatedAuthorityPolicyTest {
                         ProductAuthorizationContractDtos.CapabilityContract::contractKey,
                         Function.identity()));
 
-        for (String routeKey : PayrollV49ElevatedAuthorityPolicy.ROUTES) {
+        Set<String> v49Routes = java.util.stream.Stream.concat(
+                        PayrollV49ElevatedAuthorityPolicy.LEGACY_READ_ROUTES.stream(),
+                        PayrollV49ElevatedAuthorityPolicy.COMMAND_ROUTES.stream())
+                .collect(Collectors.toSet());
+        for (String routeKey : v49Routes) {
             ProductAuthorizationContractDtos.GovernedRoute route = routes.get(routeKey);
             assertThat(PayrollV49ElevatedAuthorityPolicy.isExactRoute(route, capabilities))
                     .as(routeKey).isTrue();
@@ -52,8 +57,40 @@ class PayrollV49ElevatedAuthorityPolicyTest {
     }
 
     @Test
+    void v54AdmitsTheTwoStatutoryReadsOnlyWithTheExpandedCapabilitySeal()
+            throws Exception {
+        ProductAuthorizationContractDtos.BundleContract bundle = bundle(54);
+        Map<String, ProductAuthorizationContractDtos.GovernedRoute> routes = bundle.routes()
+                .stream().collect(Collectors.toMap(
+                        ProductAuthorizationContractDtos.GovernedRoute::routeContractKey,
+                        Function.identity()));
+        Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities =
+                bundle.capabilities().stream().collect(Collectors.toMap(
+                        ProductAuthorizationContractDtos.CapabilityContract::contractKey,
+                        Function.identity()));
+
+        for (String routeKey : PayrollV49ElevatedAuthorityPolicy.STATUTORY_READ_ROUTES) {
+            ProductAuthorizationContractDtos.GovernedRoute route = routes.get(routeKey);
+            assertThat(PayrollV49ElevatedAuthorityPolicy.isExactRoute(route, capabilities))
+                    .as(routeKey).isTrue();
+            assertThat(PayrollV49ElevatedAuthorityPolicy.isNormalChallengeCandidate(
+                    request(ProductSurfaceAuthorityDtos.AccessMode.NORMAL, routeKey),
+                    route, capabilities)).as(routeKey).isTrue();
+        }
+
+        ProductAuthorizationContractDtos.BundleContract legacy = bundle(49);
+        Map<String, ProductAuthorizationContractDtos.CapabilityContract> legacyCapabilities =
+                legacy.capabilities().stream().collect(Collectors.toMap(
+                        ProductAuthorizationContractDtos.CapabilityContract::contractKey,
+                        Function.identity()));
+        assertThat(PayrollV49ElevatedAuthorityPolicy.isExactRoute(
+                routes.get("route.hcm.operations.pay-tax-social-insurance.data"),
+                legacyCapabilities)).isFalse();
+    }
+
+    @Test
     void rejectsModeProfileBindingAndCapabilityDrift() throws Exception {
-        ProductAuthorizationContractDtos.BundleContract bundle = bundle();
+        ProductAuthorizationContractDtos.BundleContract bundle = bundle(49);
         Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities =
                 bundle.capabilities().stream().collect(Collectors.toMap(
                         ProductAuthorizationContractDtos.CapabilityContract::contractKey,
@@ -93,9 +130,10 @@ class PayrollV49ElevatedAuthorityPolicyTest {
                 prepare, wrongCapability)).isFalse();
     }
 
-    private ProductAuthorizationContractDtos.BundleContract bundle() throws Exception {
+    private ProductAuthorizationContractDtos.BundleContract bundle(int version) throws Exception {
         try (var input = getClass().getResourceAsStream(
-                "/product-authorization/product-surfaces-v1.bundle-v49.generated.json")) {
+                "/product-authorization/product-surfaces-v1.bundle-v" + version
+                        + ".generated.json")) {
             return mapper.readValue(input, ProductAuthorizationContractDtos.BundleContract.class);
         }
     }

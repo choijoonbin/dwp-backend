@@ -26,6 +26,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -267,6 +268,78 @@ class AppAdminPresetPostgresIntegrationTest {
                     assertThat(permission.getResourceKey())
                             .isEqualTo("ACTION.HRIS_EMPLOYMENT_CONTRACT");
                     assertThat(permission.getPermissionCode()).isEqualTo("ISSUE");
+                });
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM com_tenant_feature_enrollment_changes
+                 WHERE tenant_id = ?
+                """, Integer.class, fixture.tenantId())).isZero();
+    }
+
+    @Test
+    void hrisStatutoryOperatorPresetMintsTheExactRealSessionDutyWithoutEnrollment() {
+        UUID hcmSet = productResourceSet(
+                fixture.tenantId(), "APP.HCM", "RS_HRIS_STATUTORY_OPERATOR_LE_100_PG_7",
+                "HRIS statutory operator LE 100 pay group 7");
+        grantResponsibility(
+                fixture.tenantId(), fixture.approver(), "APP_ACCESS_APPROVER",
+                hcmSet, fixture.catalogAdmin());
+        grantResponsibility(
+                fixture.tenantId(), fixture.fulfiller(), "APP_ACCESS_MANAGER",
+                hcmSet, fixture.catalogAdmin());
+
+        var request = new AppGovernanceDtos.CreateAppAdminPresetAssignmentRequest(
+                "USER", fixture.subject().toString(), "HRIS_STATUTORY_OPERATOR", hcmSet,
+                VALID_TO, REVIEW_DUE,
+                "Assign independently governed statutory country-pack activation authority.");
+        AppGovernanceDtos.AppAdminPresetAssignment pending = inTransaction(() ->
+                requestService.requestGoverned(
+                        fixture.tenantId(), fixture.catalogAdmin(),
+                        "hris-statutory-operator-request", request));
+        assertThat(pending.duties())
+                .extracting(AppGovernanceDtos.AppAdminPresetDutyAssignment::dutyCode)
+                .containsExactly("HRIS_DUTY_STATUTORY_OPERATOR");
+
+        AppGovernanceDtos.AppAdminPresetAssignment approved = inTransaction(() ->
+                service.decide(
+                        fixture.tenantId(), fixture.approver(),
+                        "hris-statutory-operator-approve", pending.presetAssignmentId(),
+                        decision("APPROVED", pending.version())));
+        AppGovernanceDtos.AppAdminPresetAssignment active = inTransaction(() ->
+                service.activate(
+                        fixture.tenantId(), fixture.fulfiller(),
+                        "hris-statutory-operator-activate", approved.presetAssignmentId(),
+                        activation(approved.version())));
+
+        assertThat(active.lifecycleState()).isEqualTo("ACTIVE");
+        ScopedAdminDutyEvidenceService evidence = new ScopedAdminDutyEvidenceService(jdbc);
+        assertThat(evidence.effectiveDuties(fixture.tenantId(), fixture.subject()))
+                .singleElement()
+                .satisfies(duty -> {
+                    assertThat(duty.dutyCode()).isEqualTo("HRIS_DUTY_STATUTORY_OPERATOR");
+                    assertThat(duty.productResourceKey()).isEqualTo("APP.HCM");
+                    assertThat(duty.resourceKey())
+                            .isEqualTo("ACTION.HRIS_STATUTORY_FILING");
+                    assertThat(duty.resourceSetKey())
+                            .isEqualTo("RS_HRIS_STATUTORY_OPERATOR_LE_100_PG_7");
+                    assertThat(duty.capabilityAuthorities())
+                            .containsExactly(Map.entry(
+                                    "hcm.operations.statutory.execute",
+                                    "ACTION.HRIS_STATUTORY_FILING:EXECUTE"));
+                });
+        assertThat(evidence.resourceRoles(fixture.tenantId(), fixture.subject()))
+                .singleElement()
+                .satisfies(role -> {
+                    assertThat(role.responsibilityCode())
+                            .isEqualTo("HRIS_DUTY_STATUTORY_OPERATOR");
+                    assertThat(role.resourceSetKey())
+                            .isEqualTo("RS_HRIS_STATUTORY_OPERATOR_LE_100_PG_7");
+                });
+        assertThat(evidence.capabilityPermissions(fixture.tenantId(), fixture.subject()))
+                .singleElement()
+                .satisfies(permission -> {
+                    assertThat(permission.getResourceKey())
+                            .isEqualTo("ACTION.HRIS_STATUTORY_FILING");
+                    assertThat(permission.getPermissionCode()).isEqualTo("EXECUTE");
                 });
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM com_tenant_feature_enrollment_changes

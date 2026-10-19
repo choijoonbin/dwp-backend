@@ -12,7 +12,8 @@ import java.time.Clock;
 @Component
 @ConditionalOnExpression(
         "'${dwp.hris.payroll.calculation.enabled:false}' == 'true' || "
-                + "'${dwp.features.HRIS_PAYROLL_RUN_PREPARE.enabled:false}' == 'true'")
+                + "'${dwp.features.HRIS_PAYROLL_RUN_PREPARE.enabled:false}' == 'true' || "
+                + "'${dwp.features.HRIS_PAYROLL_STATUTORY_INSURANCE.enabled:false}' == 'true'")
 public final class PayrollStepUpVerifier {
 
     private final ProductSurfaceStepUpChallengeVerifier delegate;

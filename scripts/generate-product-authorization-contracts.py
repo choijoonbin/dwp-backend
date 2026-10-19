@@ -272,12 +272,24 @@ HCM_PLATFORM_PEP_V53_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
 HCM_PAYROLL_PEP_V53_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
     "hcm-payroll-pep-v53.generated.json"
 )
+HCM_PEOPLE_PEP_V54_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v54.generated.json"
+)
+HCM_TIME_PEP_V54_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
+    "hcm-time-pep-v54.generated.json"
+)
+HCM_PLATFORM_PEP_V54_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v54.generated.json"
+)
+HCM_PAYROLL_PEP_V54_OUTPUT = LEGACY_HCM_PAYROLL_PEP_V38_OUTPUT.with_name(
+    "hcm-payroll-pep-v54.generated.json"
+)
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 54))
+BUNDLE_VERSIONS = tuple(range(1, 55))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -417,6 +429,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 81, "routes": 1092, "PAGE": 151, "DATA": 331, "ACTION": 610},
     53: {"capabilities": 269, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 81, "routes": 1095, "PAGE": 152, "DATA": 332, "ACTION": 611},
+    54: {"capabilities": 270, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 82, "routes": 1100, "PAGE": 154, "DATA": 334, "ACTION": 612},
 }
 
 V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
@@ -517,9 +531,14 @@ V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = frozenset({
     "route.hcm.operations.time-payroll-handoff-create.action",
     "route.hcm.operations.time-payroll-handoff.data",
 })
+V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = frozenset({
+    "route.hcm.operations.pay-tax-social-insurance.page",
+    "route.hcm.operations.pay-tax-social-insurance.data",
+})
 GENERIC_SESSION_STEP_UP_ROUTE_KEYS = (
     GRANDFATHERED_GENERIC_SESSION_STEP_UP_ROUTE_KEYS
     | V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS
+    | V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS
 )
 
 REQUIRED_RESPONSIBILITY_BY_CAPABILITY = {
@@ -532,6 +551,7 @@ REQUIRED_RESPONSIBILITY_BY_CAPABILITY = {
     "hcm.operations.time.close": "HRIS_DUTY_TIME_CLOSE_OPERATOR",
     "hcm.operations.time.reopen": "HRIS_DUTY_TIME_REOPEN_OPERATOR",
     "hcm.operations.contract.issue": "HRIS_DUTY_CONTRACT_ISSUER",
+    "hcm.operations.statutory.execute": "HRIS_DUTY_STATUTORY_OPERATOR",
 }
 
 V42_HCM_AUDIT_ELEVATED_READ_PROJECTIONS = {
@@ -2980,11 +3000,13 @@ def _is_generic_session_step_up_exception(
     service_bindings: dict[str, dict[str, Any]],
     bundle_version: int,
 ) -> bool:
-    """Allow only the sealed twelve generic session step-up route topologies."""
+    """Allow only the sealed, version-gated generic session step-up topologies."""
     key = route["routeContractKey"]
     if key not in GENERIC_SESSION_STEP_UP_ROUTE_KEYS:
         return False
     if key in V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS and bundle_version < 49:
+        return False
+    if key in V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS and bundle_version < 54:
         return False
     require(
         len(gateway_bindings) == len(service_bindings) == 1
@@ -2996,7 +3018,31 @@ def _is_generic_session_step_up_exception(
             route, gateway_bindings, service_bindings
         )
     profile = route["accessProfiles"][0] if len(route["accessProfiles"]) == 1 else {}
-    if key == "route.hcm.operations.payroll-run.data":
+    if key in V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS:
+        binding = next(iter(gateway_bindings.values()))
+        owner_binding = next(iter(service_bindings.values()))
+        suffix = "page" if key.endswith(".page") else "data"
+        require(
+            route["routeKind"] == ("PAGE" if suffix == "page" else "DATA")
+            and route.get("sideEffectFree") is (None if suffix == "page" else True)
+            and binding["method"] == "GET"
+            and binding["path"] == "/api/payroll/v1/workbench/pay-tax-social-insurance"
+            and owner_binding["method"] == "GET"
+            and owner_binding["serviceKey"] == "payroll"
+            and owner_binding["path"] == "/v1/workbench/pay-tax-social-insurance"
+            and profile.get("profileKey") == "payroll-support-viewer"
+            and profile.get("activeAccessModes") == ["NORMAL", "ELEVATED"]
+            and profile.get("requiredAccess") == {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "hcm.operations.payroll-support.view",
+            }
+            and profile.get("targetBindingKinds") == ["TARGET_POPULATION"]
+            and profile.get("predicatePolicyKeys")
+                == ["predicate.hcm-payroll-population-authority.v1"]
+            and profile.get("readOnly") is True,
+            f"{key}: invalid v54 statutory-result generic-session exception",
+        )
+    elif key == "route.hcm.operations.payroll-run.data":
         binding = next(iter(gateway_bindings.values()))
         owner_binding = next(iter(service_bindings.values()))
         require(
@@ -4240,6 +4286,10 @@ def verify_no_out_of_lineage_artifacts() -> None:
         HCM_TIME_PEP_V53_OUTPUT,
         HCM_PLATFORM_PEP_V53_OUTPUT,
         HCM_PAYROLL_PEP_V53_OUTPUT,
+        HCM_PEOPLE_PEP_V54_OUTPUT,
+        HCM_TIME_PEP_V54_OUTPUT,
+        HCM_PLATFORM_PEP_V54_OUTPUT,
+        HCM_PAYROLL_PEP_V54_OUTPUT,
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -5138,6 +5188,50 @@ def main() -> int:
             version=53,
             product_key="hcm",
         )
+        hcm_people_pep_v54 = build_approvals_pep(
+            snapshots[53], "people", "hcm-people-pep-v54",
+            {
+                "routes": 117, "bindings": 144,
+                "routeKinds": {"ACTION": 50, "DATA": 26, "PAGE": 41},
+                "capabilities": 58, "accessPolicies": 5,
+                "entitlementExpressions": 3, "predicatePolicies": 18,
+            },
+            version=54,
+            product_key="hcm",
+        )
+        hcm_time_pep_v54 = build_approvals_pep(
+            snapshots[53], "time", "hcm-time-pep-v54",
+            {
+                "routes": 29, "bindings": 29,
+                "routeKinds": {"ACTION": 16, "DATA": 6, "PAGE": 7},
+                "capabilities": 15, "accessPolicies": 0,
+                "entitlementExpressions": 0, "predicatePolicies": 9,
+            },
+            version=54,
+            product_key="hcm",
+        )
+        hcm_platform_pep_v54 = build_approvals_pep(
+            snapshots[53], "platform", "hcm-platform-pep-v54",
+            {
+                "routes": 53, "bindings": 54,
+                "routeKinds": {"ACTION": 27, "DATA": 19, "PAGE": 7},
+                "capabilities": 21, "accessPolicies": 4,
+                "entitlementExpressions": 3, "predicatePolicies": 11,
+            },
+            version=54,
+            product_key="hcm",
+        )
+        hcm_payroll_pep_v54 = build_approvals_pep(
+            snapshots[53], "payroll", "hcm-payroll-pep-v54",
+            {
+                "routes": 39, "bindings": 39,
+                "routeKinds": {"ACTION": 22, "DATA": 13, "PAGE": 4},
+                "capabilities": 17, "accessPolicies": 0,
+                "entitlementExpressions": 0, "predicatePolicies": 9,
+            },
+            version=54,
+            product_key="hcm",
+        )
     except ContractError as exc:
         print(f"authorization contract error: {exc}", file=sys.stderr)
         return 1
@@ -5464,6 +5558,26 @@ def main() -> int:
                 render(hcm_payroll_pep_v53),
                 args.check,
             ),
+            write_or_check(
+                HCM_PEOPLE_PEP_V54_OUTPUT,
+                render(hcm_people_pep_v54),
+                args.check,
+            ),
+            write_or_check(
+                HCM_TIME_PEP_V54_OUTPUT,
+                render(hcm_time_pep_v54),
+                args.check,
+            ),
+            write_or_check(
+                HCM_PLATFORM_PEP_V54_OUTPUT,
+                render(hcm_platform_pep_v54),
+                args.check,
+            ),
+            write_or_check(
+                HCM_PAYROLL_PEP_V54_OUTPUT,
+                render(hcm_payroll_pep_v54),
+                args.check,
+            ),
         ]
     )
     if not all(outcomes):
@@ -5596,6 +5710,10 @@ def main() -> int:
         verify_approvals_pep(HCM_TIME_PEP_V53_OUTPUT, hcm_time_pep_v53)
         verify_approvals_pep(HCM_PLATFORM_PEP_V53_OUTPUT, hcm_platform_pep_v53)
         verify_approvals_pep(HCM_PAYROLL_PEP_V53_OUTPUT, hcm_payroll_pep_v53)
+        verify_approvals_pep(HCM_PEOPLE_PEP_V54_OUTPUT, hcm_people_pep_v54)
+        verify_approvals_pep(HCM_TIME_PEP_V54_OUTPUT, hcm_time_pep_v54)
+        verify_approvals_pep(HCM_PLATFORM_PEP_V54_OUTPUT, hcm_platform_pep_v54)
+        verify_approvals_pep(HCM_PAYROLL_PEP_V54_OUTPUT, hcm_payroll_pep_v54)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1

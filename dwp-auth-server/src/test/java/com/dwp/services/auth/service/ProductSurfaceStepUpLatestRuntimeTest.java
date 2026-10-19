@@ -664,6 +664,47 @@ class ProductSurfaceStepUpLatestRuntimeTest {
     }
 
     @Test
+    void genuineV54SealedRuntimeResolvesOnlyExactCountryPackActivationCommand() {
+        rollback(() -> {
+            var contracts = context.getBean(ProductAuthorizationContractService.class);
+            contracts.approve(KEY, 54L, "test-checker");
+            contracts.activate(KEY, 54L, "test-release",
+                    repository.findActivePointer(KEY).orElseThrow().revision());
+
+            var request = countryPackActivationRequest();
+            var resolved = resolver.resolve(request);
+
+            assertThat(resolved.bundleVersion()).isEqualTo(54L);
+            assertThat(resolved.bundleChecksum()).isEqualTo(
+                    "1a199b3ec84b6d6c16aaec57c9be0b09092c5f81e0c5566f893c4dbe0e0deed4");
+            assertThat(resolved.routeContractKey())
+                    .isEqualTo("route.hcm.operations.country-pack-activate.action");
+            assertThat(resolved.capabilityContractKey())
+                    .isEqualTo("hcm.operations.statutory.execute");
+            assertThat(resolved.activationPolicy()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+            assertThat(resolved.scopeResolver())
+                    .isEqualTo("PAYROLL_LEGAL_ENTITY_GROUP_SCOPE");
+            assertThat(resolved.targetType()).isEqualTo("COUNTRY_PACK");
+            assertThat(resolved.targetIdPathParameter()).isEqualTo("packId");
+            assertThat(resolved.targetIdBodyFields()).isEmpty();
+            assertThat(resolved.expectedObjectVersionSource()).isEqualTo("COMMAND_HEADER");
+            assertThat(resolved.expectedObjectVersionName())
+                    .isEqualTo("X-DWP-Expected-Object-Version");
+            assertThat(resolved.ownerServiceKey()).isEqualTo("payroll");
+            assertThat(resolved.audience()).isEqualTo("dwp-payroll-server");
+
+            assertThatThrownBy(() -> resolver.resolve(changed(
+                    request, "POST",
+                    "/api/payroll/v1/country-packs/"
+                            + "00000000-0000-4000-8000-000000000055/activate",
+                    "COUNTRY_PACK", request.targetId(), request.payload())))
+                    .isInstanceOfSatisfying(BaseException.class, error ->
+                            assertThat(error.getErrorCode())
+                                    .isEqualTo(ErrorCode.STEP_UP_CHALLENGE_MISMATCH));
+        });
+    }
+
+    @Test
     void genuineFourteenAllowsOnlyNonPublishingReviewRejectionWithoutStepUp() {
         rollback(() -> {
             var contracts = context.getBean(ProductAuthorizationContractService.class);
@@ -861,6 +902,15 @@ class ProductSurfaceStepUpLatestRuntimeTest {
                 "hrm011-employment-contract-issue-53",
                 JSON.createObjectNode().put("relationshipPublicId", relationship), null,
                 "/hr/operations/people/contracts-compensation-basis");
+    }
+
+    private static ProductSurfaceStepUpDtos.IssueRequest countryPackActivationRequest() {
+        String packId = "00000000-0000-4000-8000-000000000054";
+        return new ProductSurfaceStepUpDtos.IssueRequest(
+                "POST", "/api/payroll/v1/country-packs/" + packId + "/activate",
+                "opaque-context", "pay003-selected-scope", "COUNTRY_PACK", packId, 7L,
+                "pay003-country-pack-activate-54", JSON.createObjectNode(), null,
+                "/hr/settings/statutory");
     }
 
     @Test

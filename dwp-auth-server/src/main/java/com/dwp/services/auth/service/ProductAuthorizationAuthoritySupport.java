@@ -116,10 +116,7 @@ final class ProductAuthorizationAuthoritySupport {
                     scopes.stream().map(ProductSurfaceAuthorityDtos.EffectiveScope::key).toList(),
                     readOnly, activationEligible, null));
         }
-        if ("hcm.operations.contract.issue".equals(capability.contractKey())
-                && "WORKFORCE_TARGET_POPULATION".equals(capability.scopeResolver())
-                && "HRIS_DUTY_CONTRACT_ISSUER".equals(
-                        capability.requiredResponsibilityCode())) {
+        if (usesResponsibilityBoundPopulationResolver(capability)) {
             List<String> populationScopes = scopes.stream()
                     .map(ProductSurfaceAuthorityDtos.EffectiveScope::key)
                     .toList();
@@ -245,6 +242,12 @@ final class ProductAuthorizationAuthoritySupport {
             // target and command version. Descriptor drift fails closed.
             return !"NO_APPROVE_OWN_CHANGE".equals(capability.sodPolicyId());
         }
+        if ("hcm.operations.statutory.execute".equals(capability.contractKey())) {
+            // Installer and statutory approver are immutable Payroll-owned object facts.
+            // Auth seals the policy identifier; Payroll evaluates the bound pack facts.
+            return !"PACK_INSTALLER_NE_STATUTORY_APPROVER"
+                    .equals(capability.sodPolicyId());
+        }
         boolean exactScope = hasExactResponsibility(capability, matchingResponsibilities);
         if (!exactScope) return false;
         return switch (capability.contractKey()) {
@@ -270,6 +273,18 @@ final class ProductAuthorizationAuthoritySupport {
                 responsibilityCode.equals(value.responsibilityCode())
                         && resourceSetKey.equals(value.resourceSetKey())
                         && capability.resourceKey().equals(value.resourceKey()));
+    }
+
+    static boolean usesResponsibilityBoundPopulationResolver(
+            ProductAuthorizationContractDtos.CapabilityContract capability) {
+        return ("hcm.operations.contract.issue".equals(capability.contractKey())
+                && "WORKFORCE_TARGET_POPULATION".equals(capability.scopeResolver())
+                && "HRIS_DUTY_CONTRACT_ISSUER".equals(
+                        capability.requiredResponsibilityCode()))
+                || ("hcm.operations.statutory.execute".equals(capability.contractKey())
+                && "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE".equals(capability.scopeResolver())
+                && "HRIS_DUTY_STATUTORY_OPERATOR".equals(
+                        capability.requiredResponsibilityCode()));
     }
 
     static List<AppGovernanceDtos.ResourceRole> matchingResponsibilities(

@@ -978,7 +978,7 @@ class ProductAuthorizationAuthorityAdapterTest {
         useContract("product-surfaces-v1.bundle-v49.generated.json");
         evidence(Set.of("DATA.HRIS_PAYROLL_STATUS:VIEW"), List.of());
 
-        for (String route : PayrollV49ElevatedAuthorityPolicy.READ_ROUTES) {
+        for (String route : PayrollV49ElevatedAuthorityPolicy.LEGACY_READ_ROUTES) {
             ProductSurfaceAuthorityDtos.AuthorityResult challenge = evaluate(
                     "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                     route, null, null, null, null, List.of());
@@ -1072,6 +1072,54 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "psc-client-forged", null, null, null, List.of());
         assertThat(stale.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+    }
+
+    @Test
+    void v54StatutoryResultReadsChallengeNormalAndAllowOnlyExactElevatedAuthority()
+            throws Exception {
+        useContract("product-surfaces-v1.bundle-v54.generated.json");
+        evidence(Set.of("DATA.HRIS_PAYROLL_STATUS:VIEW"), List.of());
+
+        for (String route : PayrollV49ElevatedAuthorityPolicy.STATUTORY_READ_ROUTES) {
+            ProductSurfaceAuthorityDtos.AuthorityResult challenge = evaluate(
+                    "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                    route, null, null, null, null, List.of());
+            assertThat(challenge.decision()).as(route)
+                    .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+            assertThat(challenge.requiredAssurance()).as(route)
+                    .isEqualTo("urn:dwp:acr:mfa");
+            assertThat(challenge.scopes()).as(route).singleElement().satisfies(scope -> {
+                assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+                assertThat(scope.readOnly()).isTrue();
+            });
+
+            ProductSurfaceAuthorityDtos.AuthorityResult elevated = evaluate(
+                    "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                    route, null, null, null, null, List.of());
+            assertThat(elevated.decision()).as(route)
+                    .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+            assertThat(elevated.effectiveGrants()).as(route).singleElement()
+                    .isInstanceOfSatisfying(
+                            ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                            grant -> {
+                                assertThat(grant.capabilityContractKey())
+                                        .isEqualTo(PayrollV49ElevatedAuthorityPolicy
+                                                .SUPPORT_CAPABILITY);
+                                assertThat(grant.predicatePolicyKeys())
+                                        .containsExactly(PayrollV49ElevatedAuthorityPolicy
+                                                .POPULATION_PREDICATE);
+                                assertThat(grant.activationState()).isEqualTo(
+                                        ProductSurfaceAuthorityDtos.ActivationState.ACTIVE);
+                            });
+        }
+
+        evidence(Set.of(), List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult unqualified = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.pay-tax-social-insurance.data",
+                null, null, null, null, List.of());
+        assertThat(unqualified.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
     }
 
     @Test

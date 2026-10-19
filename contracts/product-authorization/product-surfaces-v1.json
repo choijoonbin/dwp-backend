@@ -3759,7 +3759,9 @@
         "route.hcm.configuration.people-employment.data",
         "route.hcm.configuration.people-employment.page",
         "route.hcm.configuration.settings-operations.page",
-        "route.hcm.configuration.settings-reference.page"
+        "route.hcm.configuration.settings-reference.page",
+        "route.hcm.configuration.statutory.data",
+        "route.hcm.configuration.statutory.page"
       ],
       "scopeResolver": "APP_RESOURCE_SET:RS_HCM_CONFIG",
       "sodPolicyId": null,
@@ -4615,6 +4617,8 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "HIGH",
       "routeContractKeys": [
+        "route.hcm.operations.pay-tax-social-insurance.data",
+        "route.hcm.operations.pay-tax-social-insurance.page",
         "route.hcm.operations.payroll-population.page",
         "route.hcm.operations.payroll-run.data",
         "route.hcm.operations.payroll-support.data"
@@ -4824,6 +4828,31 @@
       ],
       "scopeResolver": "TALENT_TARGET_POPULATION",
       "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
+      "action": "EXECUTE",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.statutory.execute",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiredResponsibilityCode": "HRIS_DUTY_STATUTORY_OPERATOR",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ACTION.HRIS_STATUTORY_FILING:EXECUTE",
+      "resourceKey": "ACTION.HRIS_STATUTORY_FILING",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.operations.country-pack-activate.action"
+      ],
+      "scopeResolver": "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE",
+      "sodPolicyId": "PACK_INSTALLER_NE_STATUTORY_APPROVER",
       "sunsetAt": null,
       "surfaceKey": "hcm.operations"
     },
@@ -8122,7 +8151,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "c655a850ae2ac01466edb37f2e1c69f9e269dd2a4a529c3a87b1610c0561a359",
+  "checksum": "1a199b3ec84b6d6c16aaec57c9be0b09092c5f81e0c5566f893c4dbe0e0deed4",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -9678,10 +9707,33 @@
         "route.hcm.configuration.payroll-foundation-simulate.action",
         "route.hcm.configuration.payroll-foundation-update.action",
         "route.hcm.configuration.payroll-foundation-versions.data",
-        "route.hcm.configuration.payroll.page"
+        "route.hcm.configuration.payroll.page",
+        "route.hcm.configuration.statutory.data",
+        "route.hcm.configuration.statutory.page"
       ],
       "targetBindingKinds": [
         "CONFIG_SCOPE",
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "HcmPayrollCountryPackAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Payroll + HCM + Security",
+      "ownerServiceKey": "payroll",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-payroll-country-pack-authority.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-payroll-country-pack-authority.v1",
+      "routeContractKeys": [
+        "route.hcm.operations.country-pack-activate.action"
+      ],
+      "targetBindingKinds": [
         "OBJECT",
         "TARGET_POPULATION"
       ]
@@ -9763,6 +9815,8 @@
       "policyVersion": 1,
       "predicatePolicyKey": "predicate.hcm-payroll-population-authority.v1",
       "routeContractKeys": [
+        "route.hcm.operations.pay-tax-social-insurance.data",
+        "route.hcm.operations.pay-tax-social-insurance.page",
         "route.hcm.operations.payroll-population.page",
         "route.hcm.operations.payroll-support.data"
       ],
@@ -42129,6 +42183,130 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-payroll-configuration-authority.v1"
+          ],
+          "profileKey": "configuration-workbench-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.configuration.workbench.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.configuration.statutory.data.binding.01",
+              "projectionPolicyKey": "pay003.iaq-026.fields.v1",
+              "responseSchemaKey": "Pay003StatutoryConfigurationProjectionV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.configuration.statutory.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.statutory.data.binding.01",
+          "method": "GET",
+          "path": "/api/payroll/v1/workbench/configuration/statutory",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.statutory.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.statutory.data.binding.01",
+          "method": "GET",
+          "path": "/v1/workbench/configuration/statutory",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-configuration-authority.v1"
+          ],
+          "profileKey": "configuration-workbench-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.configuration.workbench.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.configuration.statutory.page.binding.01",
+              "projectionPolicyKey": "pay003.iaq-026.fields.v1",
+              "responseSchemaKey": "Pay003StatutoryConfigurationProjectionV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.configuration.statutory.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.statutory.page.binding.01",
+          "method": "GET",
+          "path": "/api/payroll/v1/workbench/configuration/statutory",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.statutory.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.statutory.page.binding.01",
+          "method": "GET",
+          "path": "/v1/workbench/configuration/statutory",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.configuration.statutory",
+      "uiRoutePattern": "/hr/settings/statutory"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-configuration-scope.v1"
           ],
           "profileKey": "hris-workflow-reader",
@@ -46111,6 +46289,72 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-payroll-country-pack-authority.v1"
+          ],
+          "profileKey": "statutory-operator",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.statutory.execute",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.country-pack-activate.action.binding.01",
+          "method": "POST",
+          "path": "/api/payroll/v1/country-packs/{packId}/activate",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.country-pack-activate.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.country-pack-activate.action.binding.01",
+          "method": "POST",
+          "path": "/v1/country-packs/{packId}/activate",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-payroll-server",
+          "bindingKey": "route.hcm.operations.country-pack-activate.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "payroll",
+          "targetIdPathParameter": "packId",
+          "targetType": "COUNTRY_PACK"
+        }
+      ],
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-employee-change-authority.v1"
           ],
           "profileKey": "full-management",
@@ -47032,6 +47276,130 @@
       },
       "uiRouteId": "hcm.operations.overview",
       "uiRoutePattern": "/hr/operations"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-population-authority.v1"
+          ],
+          "profileKey": "payroll-support-viewer",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll-support.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.pay-tax-social-insurance.data.binding.01",
+              "projectionPolicyKey": "pay003.iaq-048.fields.v1",
+              "responseSchemaKey": "Pay003TaxSocialInsuranceProjectionV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.operations.pay-tax-social-insurance.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.pay-tax-social-insurance.data.binding.01",
+          "method": "GET",
+          "path": "/api/payroll/v1/workbench/pay-tax-social-insurance",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.pay-tax-social-insurance.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.pay-tax-social-insurance.data.binding.01",
+          "method": "GET",
+          "path": "/v1/workbench/pay-tax-social-insurance",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-payroll-population-authority.v1"
+          ],
+          "profileKey": "payroll-support-viewer",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.payroll-support.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.pay-tax-social-insurance.page.binding.01",
+              "projectionPolicyKey": "pay003.iaq-048.fields.v1",
+              "responseSchemaKey": "Pay003TaxSocialInsuranceProjectionV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.operations.pay-tax-social-insurance.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.pay-tax-social-insurance.page.binding.01",
+          "method": "GET",
+          "path": "/api/payroll/v1/workbench/pay-tax-social-insurance",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "Payroll + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.pay-tax-social-insurance.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.pay-tax-social-insurance.page.binding.01",
+          "method": "GET",
+          "path": "/v1/workbench/pay-tax-social-insurance",
+          "pathParameterConstraints": {},
+          "serviceKey": "payroll"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.pay-tax-social-insurance",
+      "uiRoutePattern": "/hr/operations/payroll/tax-social-insurance"
     },
     {
       "accessProfiles": [
@@ -77719,5 +78087,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 53
+  "version": 54
 }
