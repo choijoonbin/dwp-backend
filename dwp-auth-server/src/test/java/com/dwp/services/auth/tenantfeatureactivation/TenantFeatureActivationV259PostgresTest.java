@@ -33,11 +33,11 @@ class TenantFeatureActivationV259PostgresTest {
     @Test
     void cleanAndV258UpgradeRemainDefaultOffThenEnforceWorkflowAndRuntimeGate() {
         PGSimpleDataSource source = source();
-        Flyway fresh = flyway(source, null);
+        Flyway fresh = flyway(source, "259");
         fresh.clean();
         fresh.migrate();
         JdbcTemplate jdbc = new JdbcTemplate(source);
-        assertCatalogOnly(jdbc, 7, 29);
+        assertCatalogOnly(jdbc, 4, 16);
 
         flyway(source, null).clean();
         flyway(source, "258").migrate();

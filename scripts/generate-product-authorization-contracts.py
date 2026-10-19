@@ -289,7 +289,12 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 55))
+HCM_PEP_V55_OUTPUTS = {
+    service: ROOT / f"dwp-{service}-server/src/main/resources/product-authorization/"
+    f"hcm-{service}-pep-v55.generated.json"
+    for service in ("people", "time", "platform", "payroll")
+}
+BUNDLE_VERSIONS = tuple(range(1, 56))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -431,6 +436,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 81, "routes": 1095, "PAGE": 152, "DATA": 332, "ACTION": 611},
     54: {"capabilities": 270, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 82, "routes": 1100, "PAGE": 154, "DATA": 334, "ACTION": 612},
+    55: {"capabilities": 270, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 82, "routes": 1104, "PAGE": 156, "DATA": 336, "ACTION": 612},
 }
 
 V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
@@ -4290,6 +4297,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         HCM_TIME_PEP_V54_OUTPUT,
         HCM_PLATFORM_PEP_V54_OUTPUT,
         HCM_PAYROLL_PEP_V54_OUTPUT,
+        *HCM_PEP_V55_OUTPUTS.values(),
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -5232,6 +5240,30 @@ def main() -> int:
             version=54,
             product_key="hcm",
         )
+        hcm_peps_v55 = {
+            service: build_approvals_pep(
+                snapshots[54], service, f"hcm-{service}-pep-v55", counts,
+                version=55, product_key="hcm",
+            )
+            for service, counts in {
+                "people": {"routes": 121, "bindings": 148,
+                           "routeKinds": {"ACTION": 50, "DATA": 28, "PAGE": 43},
+                           "capabilities": 58, "accessPolicies": 5,
+                           "entitlementExpressions": 3, "predicatePolicies": 18},
+                "time": {"routes": 29, "bindings": 29,
+                         "routeKinds": {"ACTION": 16, "DATA": 6, "PAGE": 7},
+                         "capabilities": 15, "accessPolicies": 0,
+                         "entitlementExpressions": 0, "predicatePolicies": 9},
+                "platform": {"routes": 53, "bindings": 54,
+                             "routeKinds": {"ACTION": 27, "DATA": 19, "PAGE": 7},
+                             "capabilities": 21, "accessPolicies": 4,
+                             "entitlementExpressions": 3, "predicatePolicies": 11},
+                "payroll": {"routes": 39, "bindings": 39,
+                            "routeKinds": {"ACTION": 22, "DATA": 13, "PAGE": 4},
+                            "capabilities": 17, "accessPolicies": 0,
+                            "entitlementExpressions": 0, "predicatePolicies": 9},
+            }.items()
+        }
     except ContractError as exc:
         print(f"authorization contract error: {exc}", file=sys.stderr)
         return 1
@@ -5580,6 +5612,10 @@ def main() -> int:
             ),
         ]
     )
+    outcomes.extend(
+        write_or_check(HCM_PEP_V55_OUTPUTS[service], render(pep), args.check)
+        for service, pep in hcm_peps_v55.items()
+    )
     if not all(outcomes):
         return 1
     try:
@@ -5714,6 +5750,8 @@ def main() -> int:
         verify_approvals_pep(HCM_TIME_PEP_V54_OUTPUT, hcm_time_pep_v54)
         verify_approvals_pep(HCM_PLATFORM_PEP_V54_OUTPUT, hcm_platform_pep_v54)
         verify_approvals_pep(HCM_PAYROLL_PEP_V54_OUTPUT, hcm_payroll_pep_v54)
+        for service, pep in hcm_peps_v55.items():
+            verify_approvals_pep(HCM_PEP_V55_OUTPUTS[service], pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1

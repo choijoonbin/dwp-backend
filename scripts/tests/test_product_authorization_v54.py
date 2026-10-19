@@ -132,15 +132,12 @@ class ProductAuthorizationV54Test(unittest.TestCase):
             binding["ownerServiceKey"], binding["audience"],
         ))
 
-    def test_latest_alias_index_seed_and_owner_peps_pin_v54(self) -> None:
-        alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
-        seed = json.loads((AUTH / "product-surfaces-v1.generated.json").read_text())
+    def test_historical_index_seed_and_owner_peps_pin_v54(self) -> None:
+        seed = json.loads((AUTH / "product-surfaces-v1.bundle-v54.generated.json").read_text())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual(self.v54, alias)
         self.assertEqual(self.v54, seed)
-        self.assertEqual((54, V54_CHECKSUM, 54), (
-            index["latestVersion"], index["latestChecksum"], len(index["versions"])
-        ))
+        historical = next(item for item in index["versions"] if item["version"] == 54)
+        self.assertEqual(V54_CHECKSUM, historical["checksum"])
         for service in ("people", "time", "platform", "payroll"):
             pep = json.loads((
                 ROOT / f"dwp-{service}-server/src/main/resources/product-authorization/"

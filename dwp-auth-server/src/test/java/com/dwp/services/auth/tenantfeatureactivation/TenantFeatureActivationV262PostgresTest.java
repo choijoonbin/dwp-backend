@@ -24,7 +24,7 @@ class TenantFeatureActivationV262PostgresTest {
     @Test
     void freshInstallKeepsAllEightFeaturesOffAndAddsNoActivationOrEnrollment() {
         PGSimpleDataSource source = source();
-        Flyway flyway = flyway(source, null);
+        Flyway flyway = flyway(source, "262");
         flyway.clean();
         flyway.migrate();
         JdbcTemplate jdbc = new JdbcTemplate(source);

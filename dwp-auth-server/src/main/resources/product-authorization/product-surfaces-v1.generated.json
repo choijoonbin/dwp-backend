@@ -3759,6 +3759,8 @@
         "route.hcm.configuration.people-employment.data",
         "route.hcm.configuration.people-employment.page",
         "route.hcm.configuration.settings-operations.page",
+        "route.hcm.configuration.settings-performance.data",
+        "route.hcm.configuration.settings-performance.page",
         "route.hcm.configuration.settings-reference.page",
         "route.hcm.configuration.statutory.data",
         "route.hcm.configuration.statutory.page"
@@ -4823,6 +4825,8 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
+        "route.hcm.operations.performance-forms-scales.data",
+        "route.hcm.operations.performance-forms-scales.page",
         "route.hcm.operations.performance-multirater-surveys.page",
         "route.hcm.operations.performance-review-operations.page"
       ],
@@ -8151,7 +8155,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "1a199b3ec84b6d6c16aaec57c9be0b09092c5f81e0c5566f893c4dbe0e0deed4",
+  "checksum": "7fb2121a1209b87234bcb389a9bd4c4addca3c4e8c8776a9aac70d278c74d4e6",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -9292,6 +9296,8 @@
       "routeContractKeys": [
         "route.hcm.configuration.people-employment.data",
         "route.hcm.configuration.people-employment.page",
+        "route.hcm.configuration.settings-performance.data",
+        "route.hcm.configuration.settings-performance.page",
         "route.hcm.configuration.workflow.page",
         "route.hcm.management.integration-create.action",
         "route.hcm.management.integration.page",
@@ -9389,6 +9395,8 @@
         "route.hcm.operations.performance-cycle-update.action",
         "route.hcm.operations.performance-cycle-validate.action",
         "route.hcm.operations.performance-cycles-list.data",
+        "route.hcm.operations.performance-forms-scales.data",
+        "route.hcm.operations.performance-forms-scales.page",
         "route.hcm.operations.performance-goal-cycles.page",
         "route.hcm.operations.performance-multirater-surveys.page",
         "route.hcm.operations.performance-population-freeze.action",
@@ -42122,6 +42130,130 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-configuration-scope.v1"
+          ],
+          "profileKey": "configuration-workbench-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.configuration.workbench.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.configuration.settings-performance.data.binding.01",
+              "projectionPolicyKey": "per004.iaq-056.fields.v1",
+              "responseSchemaKey": "Per004SettingsPerformanceProjectionV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.configuration.settings-performance.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.settings-performance.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/workbench/settings-performance",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.settings-performance.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.settings-performance.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/workbench/settings-performance",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-configuration-scope.v1"
+          ],
+          "profileKey": "configuration-workbench-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.configuration.workbench.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.configuration.settings-performance.page.binding.01",
+              "projectionPolicyKey": "per004.iaq-056.fields.v1",
+              "responseSchemaKey": "Per004SettingsPerformanceProjectionV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.configuration.settings-performance.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.settings-performance.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/workbench/settings-performance",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.management",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.configuration.settings-performance.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.configuration.settings-performance.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/workbench/settings-performance",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.management.settings-performance",
+      "uiRoutePattern": "/hr/settings/performance"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.hcm-reference-configuration-authority.v1"
           ],
           "profileKey": "configuration-reader",
@@ -49478,6 +49610,130 @@
       },
       "uiRouteId": null,
       "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-domain-target-population.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.performance.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.performance-forms-scales.data.binding.01",
+              "projectionPolicyKey": "per004.iaq-020.fields.v1",
+              "responseSchemaKey": "Per004FormsScalesProjectionV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.operations.performance-forms-scales.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.performance-forms-scales.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/workbench/forms-scales",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.performance-forms-scales.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.performance-forms-scales.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/workbench/forms-scales",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-domain-target-population.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.operations.performance.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.operations.performance-forms-scales.page.binding.01",
+              "projectionPolicyKey": "per004.iaq-020.fields.v1",
+              "responseSchemaKey": "Per004FormsScalesProjectionV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.operations.performance-forms-scales.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.operations.performance-forms-scales.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/workbench/forms-scales",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.operations.performance-forms-scales.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.operations.performance-forms-scales.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/workbench/forms-scales",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.operations.performance-forms-scales",
+      "uiRoutePattern": "/hr/operations/performance/forms-scales"
     },
     {
       "accessProfiles": [
@@ -78087,5 +78343,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 54
+  "version": 55
 }
