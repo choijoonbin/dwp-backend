@@ -33,6 +33,13 @@ class Per004WorkbenchProjectionTest {
         }
         assertThat(output("NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE", false, "create", allView(), true)
                 .path("items").get(0).path("availableActions")).isEmpty();
+        var absentBinding = adapter.assemble(Per004WorkbenchProjection.Variant.PERFORMANCE,
+                context("create", allView()), NOW,
+                new OwnerProjectionResponse(NOW,
+                        List.of(owner("NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE", true, NOW, NOW)),
+                        "CURRENT", null), List.of());
+        assertThat(absentBinding.path("queryState").path("state").asText()).isEqualTo("PARTIAL");
+        assertThat(absentBinding.path("items")).isEmpty();
     }
 
     @Test void submitIsBetweenSimulationAndApprovalAndPublishNeedsExactDueClock() {
@@ -105,7 +112,7 @@ class Per004WorkbenchProjectionTest {
                 "POLICY_STATUS", Per004WorkbenchProjection.FieldDecision.VIEW);
         var context = new Per004WorkbenchProjection.TrustedContext(42, SUBJECT, SCOPE, "scope-1",
                 "auth-1", 7, UUID.randomUUID(), fields, Set.of(route("validate")),
-                feature("validate"), true);
+                Map.of(CONFIG, feature("validate")), true);
         var form = new Per004WorkbenchProjection.LocalSnapshot(CONFIG, 7, ARTIFACT, FORM,
                 "ref_per_artifact_" + ARTIFACT, DIGEST, SCOPE, 2,
                 "Review Form", template, "d".repeat(64));
@@ -128,6 +135,49 @@ class Per004WorkbenchProjectionTest {
                 .isEqualTo(scaleArtifact.toString());
         assertThat(result.path("items").get(0).path("deepLink").path("route").asText())
                 .isEqualTo("/hr/operations/performance/forms-scales");
+    }
+
+    @Test void twoItemsUseOnlyTheirOwnExactFeatureDecision() {
+        UUID other = UUID.randomUUID(), otherArtifact = UUID.randomUUID();
+        OwnerProjection create = owner("NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE", true, NOW, NOW);
+        OwnerProjection simulate = new OwnerProjection(other, 8L, 12L, "VALIDATED", POLICY, SCOPE,
+                NOW, NOW, true, false, "other.policy", null, 1,
+                "ref_per_artifact_" + otherArtifact, "f".repeat(64));
+        var otherLocal = new Per004WorkbenchProjection.LocalSnapshot(other, 8, otherArtifact, POLICY,
+                "ref_per_artifact_" + otherArtifact, "f".repeat(64), SCOPE, 2,
+                "Other policy", null, null);
+        var decisions = Map.of(CONFIG, featureFor(CONFIG, "create"),
+                other, featureFor(other, "simulate"));
+        var exact = multi(List.of(create, simulate), List.of(local(POLICY), otherLocal), decisions);
+        assertThat(exact.path("items")).hasSize(2);
+        assertThat(exact.path("items").get(0).path("availableActions").get(0)
+                .path("actionKey").asText()).endsWith(".versions");
+        assertThat(exact.path("items").get(1).path("availableActions").get(0)
+                .path("actionKey").asText()).endsWith(".simulate");
+        assertThat(multi(List.of(create, simulate), List.of(local(POLICY), otherLocal),
+                Map.of(CONFIG, featureFor(CONFIG, "create"))).path("items").get(1)
+                .path("availableActions")).isEmpty();
+        assertThat(multi(List.of(create, simulate), List.of(local(POLICY), otherLocal),
+                Map.of(CONFIG, featureFor(CONFIG, "create"), other, featureFor(CONFIG, "simulate")))
+                .path("items").get(1).path("availableActions")).isEmpty();
+        assertThat(multi(List.of(create, simulate), List.of(local(POLICY), otherLocal),
+                Map.of(CONFIG, featureFor(CONFIG, "create"), other, featureFor(other, "validate")))
+                .path("items").get(1).path("availableActions")).isEmpty();
+        UUID extra = UUID.randomUUID();
+        assertThat(multi(List.of(create, simulate), List.of(local(POLICY), otherLocal),
+                Map.of(CONFIG, featureFor(CONFIG, "create"), other, featureFor(other, "simulate"),
+                        extra, featureFor(extra, "create"))).path("items").get(0)
+                .path("availableActions")).isEmpty();
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode multi(List<OwnerProjection> owners,
+            List<Per004WorkbenchProjection.LocalSnapshot> local,
+            Map<UUID, FeatureDecision> decisions) {
+        var context = new Per004WorkbenchProjection.TrustedContext(42, SUBJECT, SCOPE, "scope-1",
+                "auth-1", 7, UUID.randomUUID(), allView(),
+                Set.of(route("create"), route("simulate")), decisions, true);
+        return adapter.assemble(Per004WorkbenchProjection.Variant.PERFORMANCE, context, NOW,
+                new OwnerProjectionResponse(NOW, owners, "CURRENT", null), local);
     }
 
     private com.fasterxml.jackson.databind.JsonNode output(String state, boolean eligible, String verb,
@@ -160,14 +210,18 @@ class Per004WorkbenchProjectionTest {
     private static Per004WorkbenchProjection.TrustedContext context(String verb,
             Map<String, Per004WorkbenchProjection.FieldDecision> fields) {
         return new Per004WorkbenchProjection.TrustedContext(42, SUBJECT, SCOPE, "scope-1",
-                "auth-1", 7, UUID.randomUUID(), fields, Set.of(route(verb)), feature(verb), true);
+                "auth-1", 7, UUID.randomUUID(), fields, Set.of(route(verb)),
+                Map.of(CONFIG, feature(verb)), true);
     }
     private static String route(String verb) {
         return "route.hcm.configuration.configuration-version-" + verb + ".action";
     }
     private static FeatureDecision feature(String verb) {
+        return featureFor(CONFIG, verb);
+    }
+    private static FeatureDecision featureFor(UUID configuration, String verb) {
         String route = route(verb);
-        return new FeatureDecision(new FeatureRequest(42, SUBJECT, route, CONFIG, "PER", SCOPE,
+        return new FeatureDecision(new FeatureRequest(42, SUBJECT, route, configuration, "PER", SCOPE,
                 7, UUID.randomUUID()), FEATURE, FEATURE_ROUTE, "ACTIVE", "ALLOWED",
                 "feature-1", NOW, NOW.plusSeconds(30));
     }

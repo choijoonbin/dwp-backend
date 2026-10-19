@@ -33,8 +33,7 @@ class Per004TransactionProxyTest {
         assertThat(AopUtils.isCglibProxy(proxy(new Per004WorkbenchQueries(jdbc, protection,
                 new Per004PayloadCodec(mapper), mapper,
                 empty.getBeanProvider(Per004WorkbenchController.PlatformOwnerProjectionPort.class),
-                empty.getBeanProvider(Per004WorkbenchController.TrustedConfigurationScopePort.class),
-                empty.getBeanProvider(Per004WorkbenchController.PlatformCreateCandidatePort.class))))).isTrue();
+                empty.getBeanProvider(Per004WorkbenchController.TrustedConfigurationScopePort.class))))).isTrue();
         assertThatThrownBy(() -> owner.prepare(null)).isInstanceOf(IllegalArgumentException.class);
     }
 

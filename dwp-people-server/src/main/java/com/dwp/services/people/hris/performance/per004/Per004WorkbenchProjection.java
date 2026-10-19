@@ -25,7 +25,7 @@ final class Per004WorkbenchProjection {
     record TrustedContext(long tenantId, UUID subject, String scopeDigest, String scopeRevision,
             String authorizationDecisionRevision, long authorizationRevision,
             UUID correlationId, Map<String, FieldDecision> fields, Set<String> allowedActionRoutes,
-            FeatureDecision featureDecision, boolean makerCheckerAndStepUpSatisfied) { }
+            Map<UUID, FeatureDecision> featureDecisions, boolean makerCheckerAndStepUpSatisfied) { }
     record LocalSnapshot(UUID configurationId, long version, UUID artifactId, String schemaKey,
             String payloadReference, String payloadDigest, String scopeDigest, long artifactRevision,
             String title, UUID templateVersionId, String templateDigest) { }
@@ -52,49 +52,21 @@ final class Per004WorkbenchProjection {
         ObjectNode response = shell(variant, context, asOf);
         ArrayNode items = (ArrayNode) response.get("items");
         ArrayNode failures = (ArrayNode) response.path("queryState").path("partialFailures");
+        Set<UUID> platformIds = new HashSet<>();
+        for (OwnerProjection row : platform.items()) if (row != null && row.configurationId() != null)
+            platformIds.add(row.configurationId());
+        boolean decisionsClosed = platformIds.containsAll(context.featureDecisions().keySet());
         Set<UUID> seen = new HashSet<>();
         int views = 0, masks = 0, omits = 0;
         for (OwnerProjection owner : platform.items()) {
-            boolean unboundCreate = variant == Variant.PERFORMANCE && owner != null
-                    && "NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE".equals(owner.lifecycleState())
-                    && owner.createEligible() && !owner.ownerFinalized()
-                    && owner.version() == null && owner.aggregateVersion() == null
-                    && owner.payloadReference() == null && owner.payloadDigest() == null
-                    && "dwp.hris.performance.policy.v1".equals(owner.schemaKey());
             if (owner == null || owner.configurationId() == null || !seen.add(owner.configurationId())
                     || !context.scopeDigest().equals(owner.scopeDigest())
                     || !SCHEMAS.contains(owner.schemaKey()) || owner.schemaVersion() == null
-                    || owner.schemaVersion() != 1 || !unboundCreate && (owner.version() == null || owner.version() < 1
+                    || owner.schemaVersion() != 1 || owner.version() == null || owner.version() < 1
                     || owner.aggregateVersion() == null || owner.aggregateVersion() < 0
-                    || !ownerReference(owner.payloadReference()) || !digest(owner.payloadDigest()))
+                    || !ownerReference(owner.payloadReference()) || !digest(owner.payloadDigest())
                     || owner.lifecycleState() == null) {
                 fail(failures, context, "platform_projection", "PLATFORM_PROJECTION_MISMATCH");
-                continue;
-            }
-            if (unboundCreate) {
-                if (localByConfiguration.containsKey(owner.configurationId())) {
-                    fail(failures, context, "owner_artifact", "OWNER_BINDING_INCOMPLETE");
-                    continue;
-                }
-                ObjectNode item = items.addObject();
-                item.put("itemPublicId", owner.configurationId().toString());
-                item.put("title", owner.key() == null || owner.key().isBlank()
-                        ? "Performance configuration" : owner.key());
-                item.put("statusCode", owner.lifecycleState());
-                item.putObject("fieldGroups"); // No typed payload exists yet; all fields are omitted.
-                omits += 3;
-                ObjectNode link = item.putObject("deepLink");
-                link.put("route", "/hr/settings/performance");
-                link.put("resourcePublicId", owner.configurationId().toString());
-                ArrayNode actions = item.putArray("availableActions");
-                if (context.fields().values().stream().allMatch(decision -> decision == FieldDecision.VIEW)
-                        && failures.isEmpty()) {
-                    for (TargetActionV2 descriptor : Per004ActionSelector.select(owner, asOf, asOf,
-                            context.fields().keySet(), context.allowedActionRoutes(), context.featureDecision(),
-                            context.subject(), context.tenantId(), context.authorizationRevision(),
-                            context.makerCheckerAndStepUpSatisfied()))
-                        actions.add(mapper.valueToTree(descriptor));
-                }
                 continue;
             }
             List<LocalSnapshot> matches = localByConfiguration.getOrDefault(owner.configurationId(), List.of())
@@ -153,10 +125,11 @@ final class Per004WorkbenchProjection {
                     ? "/hr/operations/performance/forms-scales" : "/hr/settings/performance");
             link.put("resourcePublicId", owner.configurationId().toString());
             ArrayNode actions = item.putArray("availableActions");
-            if (variant == Variant.PERFORMANCE && context.fields().values().stream()
+            if (variant == Variant.PERFORMANCE && decisionsClosed && context.fields().values().stream()
                     .allMatch(decision -> decision == FieldDecision.VIEW) && failures.isEmpty()) {
                 for (TargetActionV2 descriptor : Per004ActionSelector.select(owner, asOf, asOf,
-                        context.fields().keySet(), context.allowedActionRoutes(), context.featureDecision(),
+                        context.fields().keySet(), context.allowedActionRoutes(),
+                        context.featureDecisions().get(owner.configurationId()),
                         context.subject(), context.tenantId(), context.authorizationRevision(),
                         context.makerCheckerAndStepUpSatisfied())) actions.add(mapper.valueToTree(descriptor));
             }
@@ -261,7 +234,8 @@ final class Per004WorkbenchProjection {
                 || context.authorizationDecisionRevision().isBlank()
                 || context.fields() == null || !context.fields().keySet().equals(Set.copyOf(groups(variant)))
                 || context.fields().values().stream().anyMatch(value -> value == null)
-                || context.allowedActionRoutes() == null) throw invalid();
+                || context.allowedActionRoutes() == null || context.featureDecisions() == null)
+            throw invalid();
     }
     private static boolean digest(String value) { return value != null && value.matches("^[a-f0-9]{64}$"); }
     private static IllegalArgumentException invalid() { return new IllegalArgumentException("PER004_PROJECTION_INVALID"); }

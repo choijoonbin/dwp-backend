@@ -43,10 +43,6 @@ final class Per004WorkbenchController {
         List<ProjectionTarget> targets(Per004WorkbenchProjection.TrustedContext context,
                 int limit, String cursor);
     }
-    /** Platform, not People, decides whether a configuration without a local binding can create. */
-    interface PlatformCreateCandidatePort {
-        OwnerProjectionResponse query(long tenantId, OwnerProjectionRequest request);
-    }
 
     private final TrustedQueryContextPort contexts;
     private final Per004WorkbenchQueries queries;
@@ -92,21 +88,18 @@ class Per004WorkbenchQueries {
     private final com.fasterxml.jackson.databind.ObjectMapper mapper;
     private final Per004WorkbenchController.PlatformOwnerProjectionPort platform;
     private final Per004WorkbenchController.TrustedConfigurationScopePort scope;
-    private final Per004WorkbenchController.PlatformCreateCandidatePort candidates;
     private final Per004WorkbenchProjection projection;
 
     Per004WorkbenchQueries(JdbcTemplate jdbc, Per004ArtifactProtection protection,
             Per004PayloadCodec codec, com.fasterxml.jackson.databind.ObjectMapper mapper,
             ObjectProvider<Per004WorkbenchController.PlatformOwnerProjectionPort> platform,
-            ObjectProvider<Per004WorkbenchController.TrustedConfigurationScopePort> scope,
-            ObjectProvider<Per004WorkbenchController.PlatformCreateCandidatePort> candidates) {
+            ObjectProvider<Per004WorkbenchController.TrustedConfigurationScopePort> scope) {
         this.jdbc = jdbc;
         this.protection = protection;
         this.codec = codec;
         this.mapper = mapper;
         this.platform = platform.getIfAvailable();
         this.scope = scope.getIfAvailable();
-        this.candidates = candidates.getIfAvailable();
         this.projection = new Per004WorkbenchProjection(mapper);
     }
 
@@ -118,7 +111,7 @@ class Per004WorkbenchQueries {
                 SERVICE_UNAVAILABLE, "PER004_TRUST_UNAVAILABLE");
         jdbc.queryForObject("SELECT set_config('dwp.tenant_id', ?::text, TRUE)",
                 String.class, context.tenantId());
-        if (scope == null || platform == null || candidates == null)
+        if (scope == null || platform == null)
             return projection.unavailable(variant, context, asOf);
         List<ProjectionTarget> targets;
         try { targets = scope.targets(context, limit, cursor); }
@@ -143,35 +136,17 @@ class Per004WorkbenchQueries {
                 new OwnerProjectionFilter(Set.of(), null), List.of("configurationId:ASC"));
         try {
             OwnerProjectionResponse remote = platform.query(context.tenantId(), request);
-            OwnerProjectionResponse createResponse = variant == Per004WorkbenchProjection.Variant.PERFORMANCE
-                    ? candidates.query(context.tenantId(), request)
-                    : new OwnerProjectionResponse(asOf, List.of(), "CURRENT", null);
-            if (remote == null || remote.items() == null || createResponse == null
-                    || createResponse.items() == null || createResponse.items().size() > 100
-                    || createResponse.asOf() == null || !createResponse.asOf().isEqual(asOf)
-                    || !"CURRENT".equals(createResponse.freshness()) || createResponse.nextCursor() != null
+            if (remote == null || remote.items() == null
                     || remote.asOf() == null || !remote.asOf().isEqual(asOf)
                     || !"CURRENT".equals(remote.freshness())
-                    || createResponse.items().stream().anyMatch(candidate -> candidate == null
-                        || !"NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE".equals(candidate.lifecycleState())
-                        || !candidate.createEligible() || candidate.version() != null
-                        || candidate.payloadReference() != null || candidate.payloadDigest() != null
-                        || snapshots.stream().anyMatch(row -> row.configurationId().equals(candidate.configurationId()))
-                        || authorizedTargets.stream().noneMatch(target -> target.configurationId().equals(candidate.configurationId())
-                            && target.scopeDigest().equals(candidate.scopeDigest())))
                     || remote.items().stream().anyMatch(item -> item == null || item.version() == null
                         || !ownerReference(item.payloadReference()) || item.payloadDigest() == null
                         || authorizedTargets.stream().noneMatch(target -> target.configurationId().equals(item.configurationId())
-                            && target.scopeDigest().equals(item.scopeDigest()))))
+                            && target.scopeDigest().equals(item.scopeDigest())))
+                    || snapshots.stream().anyMatch(snapshot -> remote.items().stream()
+                        .noneMatch(item -> snapshot.configurationId().equals(item.configurationId()))))
                 return projection.unavailable(variant, context, asOf);
-            List<OwnerProjection> merged = new ArrayList<>(remote.items());
-            for (OwnerProjection candidate : createResponse.items()) {
-                if (merged.stream().noneMatch(item -> item.configurationId().equals(candidate.configurationId())))
-                    merged.add(candidate);
-            }
-            if (merged.size() > 100) return projection.unavailable(variant, context, asOf);
-            return projection.assemble(variant, context, asOf,
-                    new OwnerProjectionResponse(asOf, List.copyOf(merged), "CURRENT", remote.nextCursor()), snapshots);
+            return projection.assemble(variant, context, asOf, remote, snapshots);
         } catch (RuntimeException unavailable) { return projection.unavailable(variant, context, asOf); }
     }
 

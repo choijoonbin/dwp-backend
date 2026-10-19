@@ -46,6 +46,7 @@ class Per004OwnerPostgresTest {
     private JdbcTemplate jdbc;
     private TransactionTemplate transaction;
     private Per004OwnerService service;
+    private Per004ArtifactProtection protection;
     private final AtomicReference<Per004OwnerService.EvaluatedSample> sampleOverride = new AtomicReference<>();
     private boolean sampleUnavailable;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -66,7 +67,7 @@ class Per004OwnerPostgresTest {
                 .table("flyway_performance_schema_history").load().migrate();
         transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
         Map<UUID, byte[]> plaintext = new ConcurrentHashMap<>();
-        Per004ArtifactProtection protection = mock(Per004ArtifactProtection.class);
+        protection = mock(Per004ArtifactProtection.class);
         when(protection.protect(eq(TENANT), any(UUID.class), anyString(), any(byte[].class)))
                 .thenAnswer(invocation -> {
                     UUID id = invocation.getArgument(1);
@@ -275,7 +276,13 @@ class Per004OwnerPostgresTest {
         })).hasMessageContaining("PER004_PREPARATION_IMMUTABLE_OR_ILLEGAL_TRANSITION");
     }
 
-    @Test void trustedPlatformCreateCandidateWorksWithoutLocalBindingAndFailsClosed() {
+    @Test void samePlatformRowAndExactLocalBindingAreRequiredForCreate() throws Exception {
+        OwnerReceipt form = prepare(FORM, formJson(), configuration);
+        OwnerReceipt scale = prepare(SCALE, scaleJson(), configuration);
+        finalize(form, 1);
+        finalize(scale, 2);
+        OwnerReceipt policy = prepare(POLICY, policyJson(form, scale), configuration);
+        OwnerReceipt bound = finalize(policy, 3);
         String route = "route.hcm.configuration.configuration-version-create.action";
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         FeatureDecision feature = new FeatureDecision(new FeatureRequest(TENANT, subject, route,
@@ -286,40 +293,55 @@ class Per004OwnerPostgresTest {
                     "POLICY_VERSION", Per004WorkbenchProjection.FieldDecision.VIEW,
                     "PERFORMANCE_POLICY", Per004WorkbenchProjection.FieldDecision.VIEW,
                     "EFFECTIVE_STATUS", Per004WorkbenchProjection.FieldDecision.VIEW),
-                Set.of(route), feature, true);
-        OwnerProjection candidate = new OwnerProjection(configuration, null, null,
-                "NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE", POLICY, SCOPE, null, null,
-                false, true, "performance.policy", null, 1, null, null);
-        AtomicReference<List<OwnerProjection>> create = new AtomicReference<>(List.of(candidate));
+                Set.of(route), Map.of(configuration, feature), true);
+        OwnerProjection latest = new OwnerProjection(configuration, 3L, 11L,
+                "NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE", POLICY, SCOPE, now, null,
+                true, true, "performance.policy", null, 1,
+                bound.tuple().payloadReference(), bound.tuple().payloadDigest());
+        AtomicReference<OwnerProjection> platformRow = new AtomicReference<>(latest);
+        AtomicReference<Boolean> platformUnavailable = new AtomicReference<>(false);
         StaticListableBeanFactory providers = new StaticListableBeanFactory();
         providers.addBean("scope", (Per004WorkbenchController.TrustedConfigurationScopePort)
                 (trusted, limit, cursor) -> List.of(new ProjectionTarget(configuration, SCOPE)));
         providers.addBean("platform", (Per004WorkbenchController.PlatformOwnerProjectionPort)
-                (tenant, request) -> new OwnerProjectionResponse(request.asOf(), List.of(), "CURRENT", null));
-        providers.addBean("candidates", (Per004WorkbenchController.PlatformCreateCandidatePort)
-                (tenant, request) -> create.get() == null ? null :
-                        new OwnerProjectionResponse(request.asOf(), create.get(), "CURRENT", null));
-        var queries = new Per004WorkbenchQueries(jdbc, mock(Per004ArtifactProtection.class),
+                (tenant, request) -> {
+                    if (platformUnavailable.get()) throw new IllegalStateException("PLATFORM_UNAVAILABLE");
+                    return new OwnerProjectionResponse(request.asOf(), platformRow.get() == null
+                            ? List.of() : List.of(platformRow.get()), "CURRENT", null);
+                });
+        var queries = new Per004WorkbenchQueries(jdbc, protection,
                 new Per004PayloadCodec(mapper), mapper,
                 providers.getBeanProvider(Per004WorkbenchController.PlatformOwnerProjectionPort.class),
-                providers.getBeanProvider(Per004WorkbenchController.TrustedConfigurationScopePort.class),
-                providers.getBeanProvider(Per004WorkbenchController.PlatformCreateCandidatePort.class));
+                providers.getBeanProvider(Per004WorkbenchController.TrustedConfigurationScopePort.class));
         var result = transaction.execute(status -> queries.query(
                 Per004WorkbenchProjection.Variant.PERFORMANCE, context, 100, null));
         assertThat(result.path("queryState").path("state").asText()).isEqualTo("COMPLETE");
-        assertThat(result.path("items").get(0).path("fieldGroups").size()).isZero();
+        assertThat(result.path("items").get(0).path("fieldGroups").size()).isEqualTo(3);
         assertThat(result.path("items").get(0).path("availableActions")).hasSize(1);
         assertThat(result.path("items").get(0).path("availableActions").get(0)
                 .path("resolvedHref").asText()).isEqualTo(
                         "/api/platform/v1/admin/hris/configurations/" + configuration + "/versions");
-        create.set(List.of(new OwnerProjection(configuration, null, null,
-                "NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE", POLICY, SCOPE, null, null,
-                false, false, "performance.policy", null, 1, null, null)));
-        var ineligible = transaction.execute(status -> queries.query(
+        platformRow.set(new OwnerProjection(configuration, 3L, 11L,
+                "PUBLISHED", POLICY, SCOPE, now, null, true, true,
+                "performance.policy", null, 1,
+                bound.tuple().payloadReference(), bound.tuple().payloadDigest()));
+        var rawTerminal = transaction.execute(status -> queries.query(
                 Per004WorkbenchProjection.Variant.PERFORMANCE, context, 100, null));
-        assertThat(ineligible.path("queryState").path("state").asText()).isEqualTo("UNAVAILABLE");
-        assertThat(ineligible.path("items")).isEmpty();
-        create.set(null);
+        assertThat(rawTerminal.path("items").get(0).path("availableActions")).isEmpty();
+        platformRow.set(new OwnerProjection(configuration, 3L, 11L,
+                "NO_MUTABLE_VERSION_AND_CREATE_ELIGIBLE", POLICY, SCOPE, now, null,
+                true, true, "performance.policy", null, 1,
+                bound.tuple().payloadReference(), "f".repeat(64)));
+        var mismatch = transaction.execute(status -> queries.query(
+                Per004WorkbenchProjection.Variant.PERFORMANCE, context, 100, null));
+        assertThat(mismatch.path("queryState").path("state").asText()).isEqualTo("PARTIAL");
+        assertThat(mismatch.path("items")).isEmpty();
+        platformRow.set(null);
+        var absent = transaction.execute(status -> queries.query(
+                Per004WorkbenchProjection.Variant.PERFORMANCE, context, 100, null));
+        assertThat(absent.path("queryState").path("state").asText()).isEqualTo("UNAVAILABLE");
+        assertThat(absent.path("items")).isEmpty();
+        platformUnavailable.set(true);
         var outage = transaction.execute(status -> queries.query(
                 Per004WorkbenchProjection.Variant.PERFORMANCE, context, 100, null));
         assertThat(outage.path("queryState").path("state").asText()).isEqualTo("UNAVAILABLE");
