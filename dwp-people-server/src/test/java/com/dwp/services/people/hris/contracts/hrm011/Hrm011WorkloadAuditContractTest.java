@@ -111,16 +111,9 @@ class Hrm011WorkloadAuditContractTest {
                 new RecordingTransactionManager(phases);
         RecordingAuditPort audit = new RecordingAuditPort(phases);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-        Hrm011WorkloadIngress.WorkloadAuthorityPort authority = (evidence, purpose) ->
-                new Hrm011WorkloadIngress.TrustedWorkload(
-                        71L, Hrm011WorkloadIngress.PAYROLL_CALLER,
-                        Hrm011WorkloadIngress.AUDIENCE, purpose,
-                        true, true, true, true, 7);
 
         new ApplicationContextRunner()
                 .withBean(PlatformTransactionManager.class, () -> transactionManager)
-                .withBean(Hrm011WorkloadIngress.WorkloadAuthorityPort.class,
-                        () -> authority)
                 .withBean(Hrm011WorkloadIngress.PayrollWorkerFactSource.class,
                         () -> mock(Hrm011WorkloadIngress.PayrollWorkerFactSource.class))
                 .withBean(ObjectMapper.class, () -> mapper)
@@ -142,13 +135,23 @@ class Hrm011WorkloadAuditContractTest {
                             .anySatisfy(advisor -> assertThat(advisor.getAdvice())
                                     .isInstanceOf(TransactionInterceptor.class));
 
+                    var request = new Hrm011WorkloadIngress.SnapshotRequest(
+                            Hrm011WorkloadIngress.SVC003_PURPOSE, NOW,
+                            Hrm011WorkloadIngress.COMPENSATION, 100, null);
                     ingress.compensationSnapshots(
-                            new Hrm011WorkloadIngress.WorkloadEvidence(
-                                    "signed-jwt", "spiffe://dwp/payroll/dwp-payroll-server",
-                                    "TLSv1.3", CORRELATION),
-                            new Hrm011WorkloadIngress.SnapshotRequest(
-                                    Hrm011WorkloadIngress.SVC003_PURPOSE, NOW,
-                                    Hrm011WorkloadIngress.COMPENSATION, 100, null));
+                            new Hrm011WorkloadRequestContext.VerifiedRequest(
+                                    "GET", Hrm011WorkloadIngressFilter.COMPENSATION_PATH,
+                                    "fixture-fingerprint",
+                                    Hrm011WorkloadIngressFilter.COMPENSATION_BINDING,
+                                    UUID.fromString(
+                                            "88888888-8888-4888-8888-888888888888"),
+                                    CORRELATION, 3,
+                                    new Hrm011WorkloadIngress.TrustedWorkload(
+                                            71L, Hrm011WorkloadIngress.PAYROLL_CALLER,
+                                            Hrm011WorkloadIngress.AUDIENCE,
+                                            request.purposeCode(), true, true,
+                                            true, true, 7),
+                                    request));
 
                     assertThat(phases).containsExactly("begin", "audit", "commit");
                     assertThat(audit.envelope).isNotNull();

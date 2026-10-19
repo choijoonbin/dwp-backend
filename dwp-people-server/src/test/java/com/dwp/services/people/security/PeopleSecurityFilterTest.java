@@ -1,6 +1,7 @@
 package com.dwp.services.people.security;
 
 import com.dwp.services.people.integration.LocalSyntheticPeopleWorkforceBootstrapPaths;
+import com.dwp.services.people.hris.contracts.hrm011.Hrm011WorkloadRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -17,6 +18,33 @@ class PeopleSecurityFilterTest {
     private static final String PERSON =
             "00000000-0000-4000-8000-000000000017";
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+
+    @Test
+    void rawHrm011PathsHeadersAndArbitraryAttributesCannotBypassTheGenericFilter()
+            throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("", objectMapper);
+        for (String path : new String[] {
+                "/internal/hris-people/v1/compensation-basis-snapshots",
+                "/internal/hris-people/v1/payroll-worker-fact-snapshots"}) {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+            request.addHeader("Authorization", "Bearer attacker-token");
+            request.addHeader("X-Correlation-ID",
+                    "10000000-0000-4000-8000-000000000001");
+            request.addHeader("X-DWP-Workload-SPIFFE-ID",
+                    "spiffe://dwp/service/dwp-payroll-server");
+            request.addHeader("X-DWP-TLS-Protocol", "TLSv1.3");
+            request.setAttribute(
+                    Hrm011WorkloadRequestContext.class.getName() + ".verified",
+                    Boolean.TRUE);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+
+            filter.doFilter(request, response, chain);
+
+            assertThat(response.getStatus()).as(path).isEqualTo(502);
+            assertThat(chain.getRequest()).isNull();
+        }
+    }
 
     @Test
     void delegatesOnlyAnAuthorizedExactSyntheticPeoplePostToItsPurposeBuiltBoundary()

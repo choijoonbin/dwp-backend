@@ -35,7 +35,7 @@ class SvcHrm005PayrollWorkerFactSnapshotProviderContractTest {
                         projection, "tax-owner-v7", List.of(second, first)), audit);
 
         Hrm011WorkloadIngress.SnapshotPage page = ingress.payrollWorkerFacts(
-                evidence(), request("TAX_IDENTITY_V1"));
+                verified(request("TAX_IDENTITY_V1")));
 
         assertThat(page.items()).isEqualTo(List.of(first, second));
         assertThat(page.ownerRevision()).isEqualTo("tax-owner-v7");
@@ -86,7 +86,7 @@ class SvcHrm005PayrollWorkerFactSnapshotProviderContractTest {
                         projection, "mixed-v1", List.of(tax, dependent)), audit);
 
         assertThatThrownBy(() -> ingress.payrollWorkerFacts(
-                evidence(), request("TAX_IDENTITY_V1")))
+                verified(request("TAX_IDENTITY_V1"))))
                 .isInstanceOf(EmploymentContractException.class)
                 .satisfies(error -> assertThat(
                         ((EmploymentContractException) error).status()).isEqualTo(503));
@@ -111,14 +111,9 @@ class SvcHrm005PayrollWorkerFactSnapshotProviderContractTest {
     private Hrm011WorkloadIngress ingress(
             Hrm011WorkloadIngress.PayrollWorkerFactSource source,
             Hrm011WorkloadAuditPort audit) {
-        Hrm011WorkloadIngress.WorkloadAuthorityPort authority = (evidence, purpose) ->
-                new Hrm011WorkloadIngress.TrustedWorkload(
-                        71L, Hrm011WorkloadIngress.PAYROLL_CALLER,
-                        Hrm011WorkloadIngress.AUDIENCE, purpose,
-                        true, true, true, true, 7);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         return new Hrm011WorkloadIngress(
-                authority, source, new EmploymentContractCanonicalizer(mapper), mapper,
+                source, new EmploymentContractCanonicalizer(mapper), mapper,
                 audit,
                 "01234567890123456789012345678901");
     }
@@ -129,9 +124,17 @@ class SvcHrm005PayrollWorkerFactSnapshotProviderContractTest {
                 Instant.parse("2026-10-19T03:00:00Z"), projection, 100, null);
     }
 
-    private Hrm011WorkloadIngress.WorkloadEvidence evidence() {
-        return new Hrm011WorkloadIngress.WorkloadEvidence(
-                "signed-jwt", "spiffe://dwp/payroll/dwp-payroll-server", "TLSv1.3",
-                UUID.fromString("55555555-5555-4555-8555-555555555555"));
+    private Hrm011WorkloadRequestContext.VerifiedRequest verified(
+            Hrm011WorkloadIngress.SnapshotRequest request) {
+        return new Hrm011WorkloadRequestContext.VerifiedRequest(
+                "GET", Hrm011WorkloadIngressFilter.PAYROLL_FACTS_PATH,
+                "fixture-fingerprint", Hrm011WorkloadIngressFilter.PAYROLL_FACTS_BINDING,
+                UUID.fromString("66666666-6666-4666-8666-666666666666"),
+                UUID.fromString("55555555-5555-4555-8555-555555555555"), 3,
+                new Hrm011WorkloadIngress.TrustedWorkload(
+                        71L, Hrm011WorkloadIngress.PAYROLL_CALLER,
+                        Hrm011WorkloadIngress.AUDIENCE, request.purposeCode(),
+                        true, true, true, true, 7),
+                request);
     }
 }

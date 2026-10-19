@@ -32,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-/** Dedicated, not-yet-final-chain-admitted SVC-003/SVC-005 workload handler. */
+/** Dedicated SVC-003/SVC-005 handler consuming only filter-established authority. */
 @Service
 @ConditionalOnProperty(prefix = "dwp.hris.contract-compensation-workbench",
         name = "enabled", havingValue = "true", matchIfMissing = false)
@@ -49,7 +49,6 @@ public class Hrm011WorkloadIngress {
     public static final Set<String> PAYROLL_PROJECTIONS = Set.of(
             "DEPENDENT_ELIGIBILITY_V1", "TAX_IDENTITY_V1", "BANK_ACCOUNT_TOKEN_V1");
 
-    private final WorkloadAuthorityPort authority;
     private final PayrollWorkerFactSource payrollFacts;
     private final EmploymentContractCanonicalizer canonicalizer;
     private final ObjectMapper mapper;
@@ -58,14 +57,12 @@ public class Hrm011WorkloadIngress {
     private final Clock clock;
 
     public Hrm011WorkloadIngress(
-            WorkloadAuthorityPort authority,
             PayrollWorkerFactSource payrollFacts,
             EmploymentContractCanonicalizer canonicalizer,
             ObjectMapper mapper,
             Hrm011WorkloadAuditPort audit,
             @Value("${dwp.hris.contract-compensation-workbench.workload-cursor-key:}")
             String cursorKey) {
-        this.authority = Objects.requireNonNull(authority);
         this.payrollFacts = Objects.requireNonNull(payrollFacts);
         this.canonicalizer = Objects.requireNonNull(canonicalizer);
         this.mapper = Objects.requireNonNull(mapper);
@@ -77,10 +74,13 @@ public class Hrm011WorkloadIngress {
 
     @Transactional
     public SnapshotPage compensationSnapshots(
-            WorkloadEvidence evidence, SnapshotRequest request) {
+            Hrm011WorkloadRequestContext.VerifiedRequest verified) {
+        requireVerified(verified, Hrm011WorkloadIngressFilter.COMPENSATION_BINDING,
+                Hrm011WorkloadIngressFilter.COMPENSATION_PATH, SVC003_PURPOSE);
+        SnapshotRequest request = verified.snapshotRequest();
+        TrustedWorkload trusted = verified.trusted();
         requireRequest(request, SVC003_PURPOSE, Set.of(COMPENSATION));
-        TrustedWorkload trusted = authority.require(evidence, SVC003_PURPOSE);
-        requireTrusted(trusted, evidence, SVC003_PURPOSE);
+        requireTrusted(trusted, verified.correlationId(), SVC003_PURPOSE);
         if (request.cursor() != null) {
             verifyCursor(request.cursor(), trusted, request,
                     "pay-group-source-unadmitted:v1");
@@ -89,15 +89,19 @@ public class Hrm011WorkloadIngress {
         // therefore the only safe production result is a valid homogeneous empty page.
         SnapshotPage result = page(
                 request, "pay-group-source-unadmitted:v1", List.of(), null);
-        return auditedSuccess(SVC003_OPERATION, evidence, trusted, request, result);
+        return auditedSuccess(
+                SVC003_OPERATION, verified.correlationId(), trusted, request, result);
     }
 
     @Transactional
     public SnapshotPage payrollWorkerFacts(
-            WorkloadEvidence evidence, SnapshotRequest request) {
+            Hrm011WorkloadRequestContext.VerifiedRequest verified) {
+        requireVerified(verified, Hrm011WorkloadIngressFilter.PAYROLL_FACTS_BINDING,
+                Hrm011WorkloadIngressFilter.PAYROLL_FACTS_PATH, SVC005_PURPOSE);
+        SnapshotRequest request = verified.snapshotRequest();
+        TrustedWorkload trusted = verified.trusted();
         requireRequest(request, SVC005_PURPOSE, PAYROLL_PROJECTIONS);
-        TrustedWorkload trusted = authority.require(evidence, SVC005_PURPOSE);
-        requireTrusted(trusted, evidence, SVC005_PURPOSE);
+        requireTrusted(trusted, verified.correlationId(), SVC005_PURPOSE);
         CursorClaims claims = request.cursor() == null ? null
                 : verifyCursor(request.cursor(), trusted, request, null);
         PayrollSlice slice = payrollFacts.read(
@@ -122,7 +126,24 @@ public class Hrm011WorkloadIngress {
                 trusted.tenantId(), trusted.caller(), request.purposeCode(),
                 request.projection(), request.asOf(), slice.ownerRevision(), lastKey)) : null;
         SnapshotPage result = page(request, slice.ownerRevision(), items, next);
-        return auditedSuccess(SVC005_OPERATION, evidence, trusted, request, result);
+        return auditedSuccess(
+                SVC005_OPERATION, verified.correlationId(), trusted, request, result);
+    }
+
+    private void requireVerified(
+            Hrm011WorkloadRequestContext.VerifiedRequest verified,
+            String bindingId,
+            String path,
+            String purpose) {
+        if (verified == null || !"GET".equals(verified.method())
+                || !bindingId.equals(verified.bindingId())
+                || !path.equals(verified.path())
+                || verified.tenantGrantRevision() < 1
+                || verified.attemptId().equals(verified.correlationId())
+                || !purpose.equals(verified.snapshotRequest().purposeCode())) {
+            throw EmploymentContractException.denied(
+                    "Verified HRM-011 workload authority is required.");
+        }
     }
 
     private void requireRequest(
@@ -138,8 +159,8 @@ public class Hrm011WorkloadIngress {
     }
 
     private void requireTrusted(
-            TrustedWorkload trusted, WorkloadEvidence evidence, String purpose) {
-        if (trusted == null || evidence == null || evidence.correlationId() == null
+            TrustedWorkload trusted, UUID correlationId, String purpose) {
+        if (trusted == null || correlationId == null
                 || trusted.tenantId() < 1
                 || !PAYROLL_CALLER.equals(trusted.caller())
                 || !AUDIENCE.equals(trusted.audience())
@@ -155,7 +176,7 @@ public class Hrm011WorkloadIngress {
 
     private SnapshotPage auditedSuccess(
             String operation,
-            WorkloadEvidence evidence,
+            UUID correlationId,
             TrustedWorkload trusted,
             SnapshotRequest request,
             SnapshotPage page) {
@@ -166,7 +187,7 @@ public class Hrm011WorkloadIngress {
         data.put("purposeCode", request.purposeCode());
         data.put("projectionId", request.projection());
         data.put("policyRevision", trusted.policyRevision());
-        data.put("correlationId", evidence.correlationId().toString());
+        data.put("correlationId", correlationId.toString());
         data.put("outcome", "SUCCESS");
         data.put("rowCount", page.items().size());
         data.put("payloadDigest", page.pageDigest());
@@ -175,7 +196,7 @@ public class Hrm011WorkloadIngress {
                 eventId.toString(), URI.create(Hrm011WorkloadAuditPort.SOURCE),
                 Hrm011WorkloadAuditPort.TYPE,
                 Hrm011WorkloadAuditPort.SPEC_VERSION, clock.instant(), operation,
-                Long.toString(trusted.tenantId()), evidence.correlationId().toString(),
+                Long.toString(trusted.tenantId()), correlationId.toString(),
                 null, Hrm011WorkloadAuditPort.SCHEMA_VERSION,
                 DataClassification.RESTRICTED, data));
         return page;
@@ -290,13 +311,6 @@ public class Hrm011WorkloadIngress {
         }
     }
 
-    public record WorkloadEvidence(
-            String bearerToken,
-            String spiffeId,
-            String tlsProtocol,
-            UUID correlationId) {
-    }
-
     public record TrustedWorkload(
             long tenantId,
             String caller,
@@ -344,11 +358,6 @@ public class Hrm011WorkloadIngress {
             Instant asOf,
             String ownerRevision,
             String lastKey) {
-    }
-
-    /** Supplied only after the final People workload chain authenticates the call. */
-    public interface WorkloadAuthorityPort {
-        TrustedWorkload require(WorkloadEvidence evidence, String purposeCode);
     }
 
     /** Typed source. It may return only one exact XCON projection per page. */

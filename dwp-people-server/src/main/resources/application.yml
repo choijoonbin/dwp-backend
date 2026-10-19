@@ -102,6 +102,19 @@ dwp:
     navigation-legal-entity-owner:
       # Platform-to-People native owner verification is an explicit two-sided opt-in.
       enabled: ${DWP_HRIS_NAVIGATION_LEGAL_ENTITY_OWNER_ENABLED:false}
+    contract-compensation-workbench:
+      # HRM-011 remains dark and unenrolled. Workload trust is an independent,
+      # additive gate and does not activate the feature or bind a data provider.
+      enabled: ${DWP_HRIS_CONTRACT_COMPENSATION_WORKBENCH_ENABLED:false}
+      enrolled-tenants: ${DWP_HRIS_CONTRACT_COMPENSATION_WORKBENCH_ENROLLED_TENANTS:}
+      workload-cursor-key: ${DWP_HRIS_CONTRACT_COMPENSATION_WORKBENCH_CURSOR_KEY:}
+      workload-service:
+        enabled: ${DWP_HRIS_CONTRACT_COMPENSATION_WORKBENCH_WORKLOAD_SERVICE_ENABLED:false}
+        jwt-public-jwk: ${DWP_HRIS_CONTRACT_COMPENSATION_WORKBENCH_WORKLOAD_JWT_PUBLIC_JWK:}
+        jwt-issuer: ${DWP_HRIS_CONTRACT_COMPENSATION_WORKBENCH_WORKLOAD_JWT_ISSUER:}
+        payroll-tenant-grants: ${DWP_HRIS_CONTRACT_COMPENSATION_WORKBENCH_WORKLOAD_TENANT_GRANTS:}
+        max-concurrent-per-tenant: ${DWP_HRIS_CONTRACT_COMPENSATION_WORKBENCH_WORKLOAD_MAX_CONCURRENT_PER_TENANT:2}
+        requests-per-minute: ${DWP_HRIS_CONTRACT_COMPENSATION_WORKBENCH_WORKLOAD_REQUESTS_PER_MINUTE:60}
     performance:
       compensation:
         snapshot-service:

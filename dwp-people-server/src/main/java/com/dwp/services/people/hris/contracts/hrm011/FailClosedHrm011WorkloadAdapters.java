@@ -6,21 +6,9 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 
-/** Fail-closed adapters until central admits the final People security chain and data source. */
+/** Fail-closed data adapter until a typed payroll fact provider is separately admitted. */
 public final class FailClosedHrm011WorkloadAdapters {
     private FailClosedHrm011WorkloadAdapters() {
-    }
-
-    @Component
-    @ConditionalOnProperty(prefix = "dwp.hris.contract-compensation-workbench",
-            name = "enabled", havingValue = "true", matchIfMissing = false)
-    static final class Authority implements Hrm011WorkloadIngress.WorkloadAuthorityPort {
-        @Override
-        public Hrm011WorkloadIngress.TrustedWorkload require(
-                Hrm011WorkloadIngress.WorkloadEvidence evidence, String purposeCode) {
-            throw EmploymentContractException.denied(
-                    "The HRM-011 workload ingress is not admitted to the final security chain.");
-        }
     }
 
     @Component

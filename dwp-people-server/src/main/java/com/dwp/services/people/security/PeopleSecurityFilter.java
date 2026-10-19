@@ -4,6 +4,7 @@ import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.people.hr.performance.compensationplanning.ApprovedCompensationSnapshotRequestContext;
+import com.dwp.services.people.hris.contracts.hrm011.Hrm011WorkloadRequestContext;
 import com.dwp.services.people.integration.LocalSyntheticPeopleWorkforceBootstrapPaths;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -79,6 +80,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 || path.startsWith("/v3/api-docs")
                 || path.startsWith("/internal/provider/")
                 || ApprovedCompensationSnapshotRequestContext.isVerifiedRequest(request)
+                || Hrm011WorkloadRequestContext.isVerifiedRequest(request)
                 || isAuthorizedSyntheticBootstrap(request, path)
                 || isHomeProviderPost(request, path)
                 || employeeChangeEnabled
