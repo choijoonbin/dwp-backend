@@ -4,6 +4,8 @@ import com.dwp.gateway.audit.GatewayDenialAuditSink;
 import com.dwp.gateway.productsurface.GeneratedProductRouteCatalog;
 import com.dwp.gateway.productsurface.ProductSurfaceContextAggregationService;
 import com.dwp.gateway.productsurface.ProductSurfaceContextDtos;
+import com.dwp.gateway.productsurface.Per004GatewayRoutes;
+import com.dwp.gateway.productsurface.Per004DecisionContextForwarder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -19,17 +21,18 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.net.URI;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import com.dwp.gateway.filter.ProductSurfaceScopeSelection.ScopeSelection;
+import static com.dwp.gateway.filter.ProductSurfaceScopeSelection.scopeSelection;
+import static com.dwp.gateway.filter.ProductSurfaceScopeSelection.withoutScopeSelection;
 
 /** Product-agnostic generated route PEP that emits only server-owned decision evidence. */
 @Component
@@ -71,7 +74,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "X-DWP-Masked-Field-Groups";
     public static final String OMITTED_FIELD_GROUPS_HEADER =
             "X-DWP-Omitted-Field-Groups";
-    public static final String SCOPE_QUERY_PARAMETER = "contextScopeKey";
+    public static final String SCOPE_QUERY_PARAMETER = ProductSurfaceScopeSelection.SCOPE_QUERY_PARAMETER;
     private static final Set<String> ROLLOUT_STATES = Set.of("000", "100", "110", "111");
     private static final Set<String> HOME_RUNTIME_ROUTE_KEYS = Set.of(
             "route.workplace.work.home-read-model.data",
@@ -112,7 +115,11 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.configuration.statutory.data",
             "route.hcm.operations.pay-tax-social-insurance.page",
             "route.hcm.operations.pay-tax-social-insurance.data",
-            "route.hcm.operations.country-pack-activate.action");
+            "route.hcm.operations.country-pack-activate.action",
+            "route.hcm.operations.performance-forms-scales.page",
+            "route.hcm.operations.performance-forms-scales.data",
+            "route.hcm.configuration.settings-performance.page",
+            "route.hcm.configuration.settings-performance.data");
     private static final Set<String> HRM007_ENTRY_QUERY_ROUTE_KEYS = Set.of(
             "route.hcm.team.people-changes.page",
             "route.hcm.team.people-changes.data",
@@ -419,17 +426,29 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     private final GeneratedProductRouteCatalog routeCatalog;
     private final ObjectMapper objectMapper;
     private final GatewayDenialAuditSink denialAudit;
+    private final Per004DecisionContextForwarder per004Forwarder;
 
     @Autowired
     public ProductSurfaceDecisionContextFilter(
             ProductSurfaceContextAggregationService aggregationService,
             GeneratedProductRouteCatalog routeCatalog,
             ObjectMapper objectMapper,
-            GatewayDenialAuditSink denialAudit) {
+            GatewayDenialAuditSink denialAudit,
+            Per004DecisionContextForwarder per004Forwarder) {
         this.aggregationService = aggregationService;
         this.routeCatalog = routeCatalog;
         this.objectMapper = objectMapper;
         this.denialAudit = denialAudit;
+        this.per004Forwarder = per004Forwarder;
+    }
+
+    public ProductSurfaceDecisionContextFilter(
+            ProductSurfaceContextAggregationService aggregationService,
+            GeneratedProductRouteCatalog routeCatalog,
+            ObjectMapper objectMapper,
+            GatewayDenialAuditSink denialAudit) {
+        this(aggregationService, routeCatalog, objectMapper, denialAudit,
+                new Per004DecisionContextForwarder(objectMapper));
     }
 
     /** Test-only constructor retaining isolated PRODUCT authority fixtures. */
@@ -442,6 +461,11 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        boolean per004 = Per004GatewayRoutes.isPath(exchange.getRequest().getURI().getPath())
+                && exchange.getRequest().getMethod() != HttpMethod.OPTIONS;
+        if (per004 && !per004Forwarder.validInbound(exchange)) {
+            return error(exchange, HttpStatus.BAD_REQUEST, "INVALID_PER004_AUTHORITY_INPUT", null);
+        }
         List<String> expectedValues = exchange.getRequest().getHeaders()
                 .getOrEmpty(EXPECTED_REVISION_HEADER);
         List<String> callerPurposeValues = exchange.getRequest().getHeaders()
@@ -487,6 +511,13 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         GeneratedProductRouteCatalog.Match match = routeCatalog.match(
                 sanitized.getMethod() == null ? null : sanitized.getMethod().name(),
                 sanitized.getURI().getPath(), sanitized.getURI().getRawQuery());
+        if (per004 && (match.uniqueRoute() == null
+                || !Per004GatewayRoutes.ROUTE_KEYS.contains(match.uniqueRoute().routeContractKey())
+                || !sanitized.getURI().getPath().equals(
+                        Per004GatewayRoutes.policy(match.uniqueRoute().routeContractKey()).path()))) {
+            return error(sanitizedExchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
+        }
         if (match.status() == GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED
                 || match.status()
                     == GeneratedProductRouteCatalog.MatchStatus.LEGACY_EXEMPT) {
@@ -877,7 +908,11 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 headers.set(POPULATION_KIND_HEADER, populationKind);
             }
         }).build();
-        return chain.filter(exchange.mutate().request(trusted).build());
+        ServerWebExchange trustedExchange = exchange.mutate().request(trusted).build();
+        if (Per004GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey())) {
+            return per004Forwarder.forward(trustedExchange, chain, route, trustedResult);
+        }
+        return chain.filter(trustedExchange);
     }
 
     private String trustedPopulationKind(
@@ -956,61 +991,6 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 && HOME_RUNTIME_ROUTE_KEYS.contains(route.routeContractKey());
     }
 
-    private ScopeSelection scopeSelection(String rawQuery) {
-        if (rawQuery == null || rawQuery.isEmpty()) {
-            return new ScopeSelection(false, true, null, null);
-        }
-        List<String> retained = new ArrayList<>();
-        String selected = null;
-        int occurrences = 0;
-        try {
-            for (String pair : rawQuery.split("&", -1)) {
-                if (pair.isEmpty()) return ScopeSelection.invalid();
-                int separator = pair.indexOf('=');
-                String key = URLDecoder.decode(
-                        separator < 0 ? pair : pair.substring(0, separator),
-                        StandardCharsets.UTF_8);
-                String value = URLDecoder.decode(
-                        separator < 0 ? "" : pair.substring(separator + 1),
-                        StandardCharsets.UTF_8);
-                if (!SCOPE_QUERY_PARAMETER.equals(key)) {
-                    retained.add(pair);
-                    continue;
-                }
-                occurrences++;
-                selected = value;
-            }
-        } catch (IllegalArgumentException exception) {
-            return ScopeSelection.invalid();
-        }
-        if (occurrences == 0) {
-            return new ScopeSelection(false, true, null, rawQuery);
-        }
-        if (occurrences != 1 || selected == null || selected.isBlank()
-                || selected.length() > 200 || !selected.equals(selected.trim())
-                || !selected.matches("[A-Za-z0-9][A-Za-z0-9._:-]{2,199}")) {
-            return ScopeSelection.invalid();
-        }
-        return new ScopeSelection(
-                true, true, selected, retained.isEmpty() ? null : String.join("&", retained));
-    }
-
-    private ServerHttpRequest withoutScopeSelection(
-            ServerHttpRequest request,
-            ScopeSelection selection) {
-        if (!selection.present()) return request;
-        URI uri = request.getURI();
-        String raw = uri.toString();
-        int fragment = raw.indexOf('#');
-        String suffix = fragment < 0 ? "" : raw.substring(fragment);
-        String withoutFragment = fragment < 0 ? raw : raw.substring(0, fragment);
-        int query = withoutFragment.indexOf('?');
-        String base = query < 0 ? withoutFragment : withoutFragment.substring(0, query);
-        String rebuilt = base + (selection.retainedRawQuery() == null
-                ? "" : "?" + selection.retainedRawQuery()) + suffix;
-        return request.mutate().uri(URI.create(rebuilt)).build();
-    }
-
     private List<String> splitScopes(String value) {
         if (value == null || value.isBlank()) return List.of();
         return Arrays.stream(value.split(",", -1))
@@ -1082,14 +1062,4 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         return -92;
     }
 
-    private record ScopeSelection(
-            boolean present,
-            boolean valid,
-            String value,
-            String retainedRawQuery) {
-
-        static ScopeSelection invalid() {
-            return new ScopeSelection(true, false, null, null);
-        }
-    }
 }

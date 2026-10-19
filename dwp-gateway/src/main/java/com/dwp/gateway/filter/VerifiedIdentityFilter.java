@@ -4,6 +4,7 @@ import com.dwp.gateway.audit.GatewayDenialAuditSink;
 import com.dwp.observability.api.ApiHistoryAttributes;
 import com.dwp.gateway.security.SessionVerifier;
 import com.dwp.gateway.security.VerifiedIdentity;
+import com.dwp.gateway.productsurface.Per004GatewayRoutes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -118,6 +119,10 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
         return verification
                 .switchIfEmpty(Mono.error(new AuthenticationRequiredException()))
                 .flatMap(identity -> {
+                    if (Per004GatewayRoutes.isPath(sanitizedRequest.getURI().getPath())) {
+                        sanitizedExchange.getAttributes().put(
+                                Per004GatewayRoutes.VERIFIED_IDENTITY_ATTRIBUTE, identity);
+                    }
                     String clientTenant = sanitizedRequest.getHeaders().getFirst("X-Tenant-ID");
                     if (isStepUpIssuer(sanitizedRequest.getURI().getPath())
                             && clientTenant != null
