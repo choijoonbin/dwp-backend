@@ -64,6 +64,23 @@ class ApiHistoryServiceTest {
     }
 
     @Test
+    void defaultServiceRegistryAcceptsTheHrisTimeAndPayrollServices() {
+        ApiHistoryService defaultRegistry = new ApiHistoryService(
+                repository,
+                mock(ApiHistoryCursorCodec.class),
+                ApiHistoryService.DEFAULT_ALLOWED_SERVICES,
+                90);
+        ApiHistoryEvent timeEvent = event("dwp-time-server", "/v1/time/work-plans");
+        ApiHistoryEvent payrollEvent = event("dwp-payroll-server", "/v1/payroll/runs");
+
+        assertThat(defaultRegistry.ingest("dwp-time-server", List.of(timeEvent))).isEqualTo(1);
+        assertThat(defaultRegistry.ingest("dwp-payroll-server", List.of(payrollEvent))).isEqualTo(1);
+
+        verify(repository).ingest(List.of(timeEvent));
+        verify(repository).ingest(List.of(payrollEvent));
+    }
+
+    @Test
     void rejectsUnknownServicesAndQueryStrings() {
         assertThatThrownBy(() -> service.ingest(
                 "unknown", List.of(event("unknown", "/health"))))

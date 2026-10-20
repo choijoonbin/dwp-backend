@@ -95,6 +95,12 @@ final class DomainPrivilegeControl {
                     + ") ON TABLE " + grant.qualifiedTable() + " TO "
                     + quoteIdentifier(environment.runtimePrincipal()));
         }
+        for (RuntimeColumnUpdateGrant grant
+                : environment.plan().auditOutboxRuntimeColumnUpdateGrants()) {
+            DatabaseControl.execute(connection, "GRANT UPDATE (" + grant.columnList()
+                    + ") ON TABLE " + grant.qualifiedTable() + " TO "
+                    + quoteIdentifier(environment.runtimePrincipal()));
+        }
         if (!"notification".equals(environment.plan().service())) {
             DomainEventLedgerAclControl.normalize(connection, environment);
         }

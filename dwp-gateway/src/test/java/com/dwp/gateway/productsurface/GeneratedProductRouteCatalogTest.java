@@ -36,6 +36,48 @@ class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestS
             "route.hcm.operations.pay-tax-social-insurance.data");
 
     @Test
+    void v47ResolvesOnlyTheGeneratorValidatedFirstReadSources() {
+        record CanonicalRead(String path, String query, String canonicalPage, String source) { }
+        List<CanonicalRead> reads = List.of(
+                new CanonicalRead(
+                        "/api/time/v1/hris/work-plans", "effectiveOn=2026-10-20",
+                        "route.hcm.operations.time-work-plans.page",
+                        "route.hcm.operations.work-plans-list.data"),
+                new CanonicalRead(
+                        "/api/people/v1/hris/performance/cycles", null,
+                        "route.hcm.operations.performance-goal-cycles.page",
+                        "route.hcm.operations.performance-cycles-list.data"),
+                new CanonicalRead(
+                        "/api/people/v1/hr/team/absence", null,
+                        "route.hcm.team.leave.page", "route.hcm.team.absence.page"),
+                new CanonicalRead(
+                        "/api/people/v1/hr/operations/ABSENCE", null,
+                        "route.hcm.operations.time-leave-operations.page",
+                        "route.hcm.operations.absence.page"),
+                new CanonicalRead(
+                        "/api/people/v1/workforce/operations/overview", null,
+                        "route.hcm.operations.home.page",
+                        "route.hcm.operations.overview.page"));
+
+        for (GeneratedProductRouteCatalog candidate : List.of(catalog(47), catalog(55))) {
+            for (CanonicalRead read : reads) {
+                GeneratedProductRouteCatalog.Match match =
+                        candidate.match("GET", read.path(), read.query());
+                assertThat(match.status()).as(read.path())
+                        .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+                assertThat(match.routes()).as(read.path()).hasSize(2)
+                        .extracting(GeneratedProductRouteCatalog.Route::routeContractKey)
+                        .containsExactlyInAnyOrder(read.canonicalPage(), read.source());
+                assertThat(match.uniqueRoute()).as(read.path()).isNotNull()
+                        .satisfies(route -> {
+                            assertThat(route.routeContractKey()).isEqualTo(read.source());
+                            assertThat(route.stateChanging()).isFalse();
+                        });
+            }
+        }
+    }
+
+    @Test
     void v54AddsOnlyTheTwoPay003GenericSessionReadsToTheSealedSet() {
         GeneratedProductRouteCatalog v53 = catalog(53);
         GeneratedProductRouteCatalog v54 = catalog(54);

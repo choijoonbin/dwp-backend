@@ -26,7 +26,7 @@ import static com.dwp.services.platform.hrisconfiguration.controlledtransfer.Con
 import static com.dwp.services.platform.hrisconfiguration.controlledtransfer.ControlledTransferRepository.*;
 
 @Repository
-final class JdbcControlledTransferRepository implements ControlledTransferRepository {
+class JdbcControlledTransferRepository implements ControlledTransferRepository {
 
     static final String ACTION = "CONTROLLED_TRANSFER_CREATE";
     private final JdbcTemplate jdbc;

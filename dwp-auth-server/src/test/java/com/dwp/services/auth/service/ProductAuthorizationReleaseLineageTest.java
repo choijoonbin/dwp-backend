@@ -14,7 +14,7 @@ class ProductAuthorizationReleaseLineageTest {
             new ProductAuthorizationContractValidator(mapper);
 
     @Test
-    void acceptsThePinnedV51ThroughPay003V54Successors() throws Exception {
+    void acceptsThePinnedV51ThroughPer004V55Successors() throws Exception {
         try (var v51Input = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v51.generated.json")
                 .getInputStream();
@@ -26,11 +26,15 @@ class ProductAuthorizationReleaseLineageTest {
                      .getInputStream();
              var v54Input = new ClassPathResource(
                      "product-authorization/product-surfaces-v1.bundle-v54.generated.json")
+                     .getInputStream();
+             var v55Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v55.generated.json")
                      .getInputStream()) {
             var v51 = validator.validateDocument(v51Input);
             var v52 = validator.validateDocument(v52Input);
             var v53 = validator.validateDocument(v53Input);
             var v54 = validator.validateDocument(v54Input);
+            var v55 = validator.validateDocument(v55Input);
             assertThat(v51.checksum()).isEqualTo(
                     "3beda5c13a3af0e265ace4533a3afcee3691c2b7486465dcf46156e58ae5ed2c");
             assertThat(v51.capabilities()).hasSize(265);
@@ -47,6 +51,10 @@ class ProductAuthorizationReleaseLineageTest {
                     "1a199b3ec84b6d6c16aaec57c9be0b09092c5f81e0c5566f893c4dbe0e0deed4");
             assertThat(v54.capabilities()).hasSize(270);
             assertThat(v54.routes()).hasSize(1100);
+            assertThat(v55.checksum()).isEqualTo(
+                    "7fb2121a1209b87234bcb389a9bd4c4addca3c4e8c8776a9aac70d278c74d4e6");
+            assertThat(v55.capabilities()).hasSize(270);
+            assertThat(v55.routes()).hasSize(1104);
         }
     }
 

@@ -81,6 +81,36 @@ class AuditControlServiceTest {
     }
 
     @Test
+    void defaultServiceRegistryAcceptsTimeAndPayrollAuditEvents() {
+        AuditControlService defaultRegistry = new AuditControlService(
+                repository,
+                new AuditRiskEngine(),
+                mock(AuditIntegrityService.class),
+                mock(AuditOutboxRecorder.class),
+                new ObjectMapper().findAndRegisterModules(),
+                AuditControlService.DEFAULT_ALLOWED_SERVICES);
+        AuditEvent timeEvent = AuditEvent.builder()
+                .tenantId(1L)
+                .category("SYSTEM_EVENT")
+                .action("time.command-receipt.provider-resolution")
+                .sourceService("dwp-time-server")
+                .targetType("TIME_COMMAND_RECEIPT")
+                .targetId(UUID.randomUUID().toString())
+                .build();
+        AuditEvent payrollEvent = AuditEvent.builder()
+                .tenantId(1L)
+                .category("SYSTEM_EVENT")
+                .action("payroll.runtime.audit")
+                .sourceService("dwp-payroll-server")
+                .targetType("PAYROLL_RUNTIME")
+                .targetId(UUID.randomUUID().toString())
+                .build();
+
+        assertThat(defaultRegistry.ingest("dwp-time-server", List.of(timeEvent))).isZero();
+        assertThat(defaultRegistry.ingest("dwp-payroll-server", List.of(payrollEvent))).isZero();
+    }
+
+    @Test
     void defaultServiceRegistryAcceptsGatewayAuthorizationDenials() {
         AuditControlService defaultRegistry = new AuditControlService(
                 repository,

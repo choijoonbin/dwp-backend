@@ -272,6 +272,25 @@ record ControlPlan(
                 projectionRuntimeLockGrant("tim_target_population_members"));
     }
 
+    /** Exact mutable delivery columns required by the shared durable audit relay. */
+    List<RuntimeColumnUpdateGrant> auditOutboxRuntimeColumnUpdateGrants() {
+        if (!Set.of("time", "payroll").contains(service)) {
+            return List.of();
+        }
+        return List.of(new RuntimeColumnUpdateGrant(
+                "public",
+                "sys_audit_outbox",
+                List.of(
+                        "status",
+                        "attempt_count",
+                        "available_at",
+                        "locked_by",
+                        "locked_until",
+                        "published_at",
+                        "last_error",
+                        "updated_at")));
+    }
+
     static ControlPlan forService(String service) {
         return switch (service) {
             case "auth" -> single(
@@ -326,7 +345,8 @@ record ControlPlan(
                     List.of(
                             projectionRuntimeReadOnly("tim_target_population_projections"),
                             projectionRuntimeReadOnly("tim_target_population_actor_grants"),
-                            projectionRuntimeReadOnly("tim_target_population_members")),
+                            projectionRuntimeReadOnly("tim_target_population_members"),
+                            auditOutboxRuntimeUpdateDenied()),
                     List.of());
             case "payroll" -> single(
                     service,
@@ -339,7 +359,8 @@ record ControlPlan(
                             projectionRuntimeReadOnly(
                                     "pay_legal_entity_scope_projections"),
                             projectionRuntimeReadOnly(
-                                    "pay_legal_entity_scope_members")),
+                                    "pay_legal_entity_scope_members"),
+                            auditOutboxRuntimeUpdateDenied()),
                     List.of());
             case "approval" -> single(
                     service,
@@ -493,26 +514,64 @@ record ControlPlan(
                 "public", table, List.of("INSERT", "UPDATE", "DELETE"));
     }
 
+    private static RuntimeTableDenial auditOutboxRuntimeUpdateDenied() {
+        return new RuntimeTableDenial(
+                "public", "sys_audit_outbox",
+                List.of("UPDATE", "TRUNCATE", "REFERENCES", "TRIGGER"));
+    }
+
     private static RuntimeColumnUpdateGrant projectionRuntimeLockGrant(String table) {
         return new RuntimeColumnUpdateGrant("public", table, List.of("updated_at"));
     }
 
     private static Set<AllowedPrivilege> payrollPublisherPrivileges() {
         String role = "dwp_payroll_projection_publisher";
-        return Set.of(
-                allowed(role, "SCHEMA", "public", "USAGE"),
-                allowedObject(role, "RELATION", "public",
-                        "public.pay_legal_entity_scope_projections", "SELECT"),
-                allowedObject(role, "RELATION", "public",
-                        "public.pay_legal_entity_scope_projections", "INSERT"),
-                allowedObject(role, "COLUMN", "public",
-                        "public.pay_legal_entity_scope_projections.status", "UPDATE"),
-                allowedObject(role, "COLUMN", "public",
-                        "public.pay_legal_entity_scope_projections.valid_until", "UPDATE"),
-                allowedObject(role, "RELATION", "public",
-                        "public.pay_legal_entity_scope_members", "SELECT"),
-                allowedObject(role, "RELATION", "public",
-                        "public.pay_legal_entity_scope_members", "INSERT"));
+        LinkedHashSet<AllowedPrivilege> privileges = new LinkedHashSet<>();
+        privileges.add(allowed(role, "SCHEMA", "public", "USAGE"));
+        for (String table : List.of(
+                "pay_legal_entity_scope_projections",
+                "pay_legal_entity_scope_members",
+                "pay_population_source_revisions",
+                "pay_population_source_members",
+                "pay_semantic_source_revisions")) {
+            privileges.add(allowedObject(role, "RELATION", "public",
+                    "public." + table, "SELECT"));
+            privileges.add(allowedObject(role, "RELATION", "public",
+                    "public." + table, "INSERT"));
+        }
+        privileges.add(allowedObject(role, "COLUMN", "public",
+                "public.pay_legal_entity_scope_projections.status", "UPDATE"));
+        privileges.add(allowedObject(role, "COLUMN", "public",
+                "public.pay_legal_entity_scope_projections.valid_until", "UPDATE"));
+        for (String table : List.of(
+                "pay_country_pack_version_snapshots",
+                "pay_country_pack_activation_versions",
+                "pay_country_pack_command_receipts",
+                "pay_country_pack_audit_outbox_events",
+                "pay_social_insurance_result_facts")) {
+            privileges.add(allowedObject(role, "RELATION", "public",
+                    "public." + table, "SELECT"));
+        }
+        for (String table : List.of(
+                "pay_country_pack_version_snapshots",
+                "pay_country_pack_activation_versions",
+                "pay_social_insurance_result_facts")) {
+            privileges.add(allowedObject(role, "RELATION", "public",
+                    "public." + table, "INSERT"));
+        }
+        for (String sequence : List.of(
+                "pay_population_source_revisio_population_source_internal_id_seq",
+                "pay_population_source_members_population_member_internal_id_seq",
+                "pay_semantic_source_revisions_semantic_source_internal_id_seq",
+                "pay_country_pack_version_snap_country_pack_snapshot_interna_seq",
+                "pay_country_pack_activation_v_country_pack_activation_inter_seq",
+                "pay_social_insurance_result_f_social_insurance_fact_interna_seq")) {
+            privileges.add(allowedObject(role, "RELATION", "public",
+                    "public." + sequence, "USAGE"));
+            privileges.add(allowedObject(role, "RELATION", "public",
+                    "public." + sequence, "SELECT"));
+        }
+        return Set.copyOf(privileges);
     }
 
     private static Set<AllowedPrivilege> timePublisherPrivileges() {
@@ -546,6 +605,12 @@ record ControlPlan(
                 "public.tme_timecard_outbox_events.publish_attempts", "UPDATE"));
         privileges.add(allowedObject(role, "COLUMN", "public",
                 "public.tme_timecard_outbox_events.published_at", "UPDATE"));
+        privileges.add(allowedObject(role, "RELATION", "public",
+                "public.tme_close_outbox_events", "SELECT"));
+        privileges.add(allowedObject(role, "COLUMN", "public",
+                "public.tme_close_outbox_events.publish_attempts", "UPDATE"));
+        privileges.add(allowedObject(role, "COLUMN", "public",
+                "public.tme_close_outbox_events.published_at", "UPDATE"));
         for (String column : List.of(
                 "tim_target_population_projections.projection_revision",
                 "tim_target_population_projections.lifecycle_state",

@@ -134,6 +134,25 @@ public final class GeneratedProductRouteCatalog {
             "route.hcm.operations.pay-tax-social-insurance.page",
             "route.hcm.operations.pay-tax-social-insurance.data");
 
+    /**
+     * PAGE routes introduced by the v47 canonical-entry migration intentionally share the exact
+     * first-read wire contract of their pre-existing DATA/PAGE source. The contract generator
+     * validates each pair's complete authority semantics, but deliberately leaves the historical
+     * source active and does not add a general-purpose equivalence marker. Keep the runtime
+     * collapse boundary to this exact, code-owned set. API forwarding must keep the source route:
+     * owner-service PEPs and command/read adapters still validate that exact route key, while the
+     * canonical PAGE route is used independently for UI admission.
+     */
+    private static final Map<String, String> V47_CANONICAL_PAGE_FIRST_READ_SOURCES = Map.of(
+            "route.hcm.operations.time-work-plans.page",
+                    "route.hcm.operations.work-plans-list.data",
+            "route.hcm.operations.performance-goal-cycles.page",
+                    "route.hcm.operations.performance-cycles-list.data",
+            "route.hcm.team.leave.page", "route.hcm.team.absence.page",
+            "route.hcm.operations.time-leave-operations.page",
+                    "route.hcm.operations.absence.page",
+            "route.hcm.operations.home.page", "route.hcm.operations.overview.page");
+
     private static final Set<String> AUTHORITY_ENDPOINT_FIELDS = Set.of(
             "endpointKey", "method", "publicPath", "serviceKey", "servicePath",
             "requiresAuthentication", "requiresCsrf",
@@ -716,6 +735,8 @@ public final class GeneratedProductRouteCatalog {
         public Route uniqueRoute() {
             if (status != MatchStatus.GOVERNED || routes.isEmpty()) return null;
             if (routes.size() == 1) return routes.getFirst();
+            Route sourceRoute = v47FirstReadSource(routes);
+            if (sourceRoute != null) return sourceRoute;
             String equivalenceKey = routes.getFirst().authorizationEquivalenceKey();
             if (equivalenceKey == null || routes.stream().anyMatch(
                     route -> !equivalenceKey.equals(route.authorizationEquivalenceKey()))) {
@@ -724,6 +745,20 @@ public final class GeneratedProductRouteCatalog {
             return routes.stream().min(java.util.Comparator.comparing(Route::routeContractKey))
                     .orElse(null);
         }
+    }
+
+    private static Route v47FirstReadSource(List<Route> routes) {
+        if (routes.size() != 2) return null;
+        Set<String> routeKeys = routes.stream()
+                .map(Route::routeContractKey)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return V47_CANONICAL_PAGE_FIRST_READ_SOURCES.entrySet().stream()
+                .filter(entry -> routeKeys.equals(Set.of(entry.getKey(), entry.getValue())))
+                .findFirst()
+                .flatMap(entry -> routes.stream()
+                        .filter(route -> entry.getValue().equals(route.routeContractKey()))
+                        .findFirst())
+                .orElse(null);
     }
 
     public record Route(

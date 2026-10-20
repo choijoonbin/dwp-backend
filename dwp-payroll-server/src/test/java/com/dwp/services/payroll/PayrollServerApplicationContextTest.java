@@ -110,30 +110,33 @@ class PayrollServerApplicationContextTest {
     }
 
     @Test
-    void publisherPolicyAcceptsOnlyTheExactV52ProjectionObjectsAndPrivileges() {
+    void publisherPolicyAcceptsOnlyTheExactProjectionObjectsAndPrivileges() {
         String publisher = "payroll_projection_publisher";
         var policy = PayrollDatabaseMigrationConfiguration.publisherPolicy(
                 publisher, true);
 
         assertThat(policy.allowedAclPrivileges().stream()
-                .filter(privilege -> privilege.objectIdentity().contains(
-                        "population_source")
-                        || privilege.objectIdentity().contains(
-                        "semantic_source"))
                 .map(privilege -> privilege.objectClass() + ":"
                         + privilege.objectIdentity() + ":"
                         + privilege.privilege()))
                 .containsExactlyInAnyOrder(
+                        "SCHEMA:public:USAGE",
+                        "RELATION:public.pay_legal_entity_scope_projections:SELECT",
+                        "RELATION:public.pay_legal_entity_scope_projections:INSERT",
+                        "COLUMN:public.pay_legal_entity_scope_projections.status:UPDATE",
+                        "COLUMN:public.pay_legal_entity_scope_projections.valid_until:UPDATE",
+                        "RELATION:public.pay_legal_entity_scope_members:SELECT",
+                        "RELATION:public.pay_legal_entity_scope_members:INSERT",
                         "RELATION:public.pay_population_source_revisions:SELECT",
                         "RELATION:public.pay_population_source_revisions:INSERT",
                         "RELATION:public.pay_population_source_members:SELECT",
                         "RELATION:public.pay_population_source_members:INSERT",
                         "RELATION:public.pay_semantic_source_revisions:SELECT",
                         "RELATION:public.pay_semantic_source_revisions:INSERT",
-                        "RELATION:public.pay_population_source_revisions_"
-                                + "population_source_internal_id_s:USAGE",
-                        "RELATION:public.pay_population_source_revisions_"
-                                + "population_source_internal_id_s:SELECT",
+                        "RELATION:public.pay_population_source_revisio_"
+                                + "population_source_internal_id_seq:USAGE",
+                        "RELATION:public.pay_population_source_revisio_"
+                                + "population_source_internal_id_seq:SELECT",
                         "RELATION:public.pay_population_source_members_"
                                 + "population_member_internal_id_seq:USAGE",
                         "RELATION:public.pay_population_source_members_"
@@ -141,7 +144,27 @@ class PayrollServerApplicationContextTest {
                         "RELATION:public.pay_semantic_source_revisions_"
                                 + "semantic_source_internal_id_seq:USAGE",
                         "RELATION:public.pay_semantic_source_revisions_"
-                                + "semantic_source_internal_id_seq:SELECT");
+                                + "semantic_source_internal_id_seq:SELECT",
+                        "RELATION:public.pay_country_pack_version_snapshots:SELECT",
+                        "RELATION:public.pay_country_pack_version_snapshots:INSERT",
+                        "RELATION:public.pay_country_pack_activation_versions:SELECT",
+                        "RELATION:public.pay_country_pack_activation_versions:INSERT",
+                        "RELATION:public.pay_country_pack_command_receipts:SELECT",
+                        "RELATION:public.pay_country_pack_audit_outbox_events:SELECT",
+                        "RELATION:public.pay_social_insurance_result_facts:SELECT",
+                        "RELATION:public.pay_social_insurance_result_facts:INSERT",
+                        "RELATION:public.pay_country_pack_version_snap_"
+                                + "country_pack_snapshot_interna_seq:USAGE",
+                        "RELATION:public.pay_country_pack_version_snap_"
+                                + "country_pack_snapshot_interna_seq:SELECT",
+                        "RELATION:public.pay_country_pack_activation_v_"
+                                + "country_pack_activation_inter_seq:USAGE",
+                        "RELATION:public.pay_country_pack_activation_v_"
+                                + "country_pack_activation_inter_seq:SELECT",
+                        "RELATION:public.pay_social_insurance_result_f_"
+                                + "social_insurance_fact_interna_seq:USAGE",
+                        "RELATION:public.pay_social_insurance_result_f_"
+                                + "social_insurance_fact_interna_seq:SELECT");
         assertThat(policy.requiredAclPrivileges())
                 .isEqualTo(policy.allowedAclPrivileges());
         assertThat(policy.allowedAclPrivileges()).doesNotContain(
@@ -157,25 +180,20 @@ class PayrollServerApplicationContextTest {
     }
 
     @Test
-    void publisherAclGuardAcceptsV52RowsAndRejectsAnActualOverGrant()
+    void publisherAclGuardAcceptsDeclaredRowsAndRejectsAnActualOverGrant()
             throws Exception {
         String publisher = "payroll_projection_publisher";
         var policy = PayrollDatabaseMigrationConfiguration.publisherPolicy(
                 publisher, false);
-        Set<AuxiliaryRoleAclGuard.AllowedPrivilege> v52Privileges =
-                policy.allowedAclPrivileges().stream()
-                        .filter(privilege -> privilege.objectIdentity().contains(
-                                "population_source")
-                                || privilege.objectIdentity().contains(
-                                "semantic_source"))
-                        .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        Set<AuxiliaryRoleAclGuard.AllowedPrivilege> declaredPrivileges =
+                policy.allowedAclPrivileges();
 
         AuxiliaryRoleAclGuard.verify(
-                "Payroll", aclCatalog(v52Privileges), List.of("public"),
-                Set.of(publisher), policy.allowedAclPrivileges(), v52Privileges);
+                "Payroll", aclCatalog(declaredPrivileges), List.of("public"),
+                Set.of(publisher), policy.allowedAclPrivileges(), declaredPrivileges);
 
         List<AuxiliaryRoleAclGuard.AllowedPrivilege> overGranted =
-                new ArrayList<>(v52Privileges);
+                new ArrayList<>(declaredPrivileges);
         overGranted.add(new AuxiliaryRoleAclGuard.AllowedPrivilege(
                 publisher, "RELATION", "public",
                 "public.pay_population_source_revisions", "UPDATE"));

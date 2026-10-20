@@ -40,7 +40,7 @@ public class AuditControlService {
     static final String DEFAULT_ALLOWED_SERVICES =
             "dwp-gateway,dwp-auth-server,dwp-platform-server,dwp-people-server,dwp-provider-server,"
                     + "dwp-approval-server,dwp-space-server,dwp-messaging-server,dwp-meeting-server,"
-                    + "dwp-notification-server,dwp-agent-runtime";
+                    + "dwp-notification-server,dwp-time-server,dwp-payroll-server,dwp-agent-runtime";
     private final AuditControlRepository repository;
     private final AuditRiskEngine riskEngine;
     private final AuditIntegrityService integrityService;

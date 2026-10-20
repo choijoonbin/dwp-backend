@@ -22,3 +22,6 @@ and revokes direct execution while preserving trigger-only enforcement for runti
 `V51` applies the same trigger-only execution boundary to the owner functions introduced by
 `V49` and `V50`; their immutable ledgers remain usable through DML triggers but never through
 direct runtime or projection-publisher execution.
+
+`V54` provisions the shared service audit outbox used by `dwp-core`, with the runtime limited
+to enqueue/read/delete and the eight delivery-state columns required by the relay.

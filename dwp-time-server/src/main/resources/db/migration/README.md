@@ -21,3 +21,5 @@ approved, immutable versioned migrations in this location.
 - `V8` creates immutable clock-ingestion facts, durable command receipts, and their local outbox.
 - `V9` binds corrective voids to one-time Auth-signed v36 step-up challenges and persists their
   replay evidence in the same tenant transaction as the clock fact.
+- `V13` provisions the shared service audit outbox used by `dwp-core`, with the runtime limited
+  to enqueue/read/delete and the eight delivery-state columns required by the relay.

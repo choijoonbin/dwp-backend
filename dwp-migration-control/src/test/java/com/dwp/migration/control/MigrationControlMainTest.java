@@ -321,6 +321,86 @@ class MigrationControlMainTest {
     }
 
     @Test
+    void timeAndPayrollControlPinTheAuditOutboxRuntimeMutationSurface() {
+        Set<String> expectedUpdates = Set.of(
+                "public.sys_audit_outbox:status,attempt_count,available_at,locked_by,"
+                        + "locked_until,published_at,last_error,updated_at");
+        for (String service : List.of("time", "payroll")) {
+            ControlPlan plan = ControlPlan.forService(service);
+            assertEquals(
+                    expectedUpdates,
+                    plan.auditOutboxRuntimeColumnUpdateGrants().stream()
+                            .map(grant -> grant.schema() + "." + grant.table() + ":"
+                                    + String.join(",", grant.columns()))
+                            .collect(java.util.stream.Collectors.toSet()),
+                    service);
+            assertEquals(
+                    Set.of("sys_audit_outbox:UPDATE, TRUNCATE, REFERENCES, TRIGGER"),
+                    plan.runtimeTableDenials().stream()
+                            .filter(denial -> "sys_audit_outbox".equals(denial.table()))
+                            .map(denial -> denial.table() + ":" + denial.privilegeList())
+                            .collect(java.util.stream.Collectors.toSet()),
+                    service);
+        }
+    }
+
+    @Test
+    void payrollControlAdmitsOnlyTheDeclaredProjectionPublisherSurface() {
+        assertEquals(
+                Set.of(
+                        "SCHEMA:*:USAGE",
+                        "RELATION:public.pay_legal_entity_scope_projections:SELECT",
+                        "RELATION:public.pay_legal_entity_scope_projections:INSERT",
+                        "COLUMN:public.pay_legal_entity_scope_projections.status:UPDATE",
+                        "COLUMN:public.pay_legal_entity_scope_projections.valid_until:UPDATE",
+                        "RELATION:public.pay_legal_entity_scope_members:SELECT",
+                        "RELATION:public.pay_legal_entity_scope_members:INSERT",
+                        "RELATION:public.pay_population_source_revisions:SELECT",
+                        "RELATION:public.pay_population_source_revisions:INSERT",
+                        "RELATION:public.pay_population_source_members:SELECT",
+                        "RELATION:public.pay_population_source_members:INSERT",
+                        "RELATION:public.pay_semantic_source_revisions:SELECT",
+                        "RELATION:public.pay_semantic_source_revisions:INSERT",
+                        "RELATION:public.pay_population_source_revisio_"
+                                + "population_source_internal_id_seq:USAGE",
+                        "RELATION:public.pay_population_source_revisio_"
+                                + "population_source_internal_id_seq:SELECT",
+                        "RELATION:public.pay_population_source_members_"
+                                + "population_member_internal_id_seq:USAGE",
+                        "RELATION:public.pay_population_source_members_"
+                                + "population_member_internal_id_seq:SELECT",
+                        "RELATION:public.pay_semantic_source_revisions_"
+                                + "semantic_source_internal_id_seq:USAGE",
+                        "RELATION:public.pay_semantic_source_revisions_"
+                                + "semantic_source_internal_id_seq:SELECT",
+                        "RELATION:public.pay_country_pack_version_snapshots:SELECT",
+                        "RELATION:public.pay_country_pack_version_snapshots:INSERT",
+                        "RELATION:public.pay_country_pack_activation_versions:SELECT",
+                        "RELATION:public.pay_country_pack_activation_versions:INSERT",
+                        "RELATION:public.pay_country_pack_command_receipts:SELECT",
+                        "RELATION:public.pay_country_pack_audit_outbox_events:SELECT",
+                        "RELATION:public.pay_social_insurance_result_facts:SELECT",
+                        "RELATION:public.pay_social_insurance_result_facts:INSERT",
+                        "RELATION:public.pay_country_pack_version_snap_"
+                                + "country_pack_snapshot_interna_seq:USAGE",
+                        "RELATION:public.pay_country_pack_version_snap_"
+                                + "country_pack_snapshot_interna_seq:SELECT",
+                        "RELATION:public.pay_country_pack_activation_v_"
+                                + "country_pack_activation_inter_seq:USAGE",
+                        "RELATION:public.pay_country_pack_activation_v_"
+                                + "country_pack_activation_inter_seq:SELECT",
+                        "RELATION:public.pay_social_insurance_result_f_"
+                                + "social_insurance_fact_interna_seq:USAGE",
+                        "RELATION:public.pay_social_insurance_result_f_"
+                                + "social_insurance_fact_interna_seq:SELECT"),
+                ControlPlan.forService("payroll").auxiliaryAclPrivileges().stream()
+                        .map(privilege -> privilege.objectClass() + ":"
+                                + privilege.objectIdentity() + ":"
+                                + privilege.privilege())
+                        .collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
     void timeControlAdmitsOnlyTheDeclaredOutboxPublisherSurfaces() {
         assertEquals(
                 Set.of(
@@ -332,7 +412,10 @@ class MigrationControlMainTest {
                         "RELATION:public.tme_interpretation_outbox_events:SELECT",
                         "COLUMN:public.tme_timecard_outbox_events.publish_attempts:UPDATE",
                         "COLUMN:public.tme_timecard_outbox_events.published_at:UPDATE",
-                        "RELATION:public.tme_timecard_outbox_events:SELECT"),
+                        "RELATION:public.tme_timecard_outbox_events:SELECT",
+                        "COLUMN:public.tme_close_outbox_events.publish_attempts:UPDATE",
+                        "COLUMN:public.tme_close_outbox_events.published_at:UPDATE",
+                        "RELATION:public.tme_close_outbox_events:SELECT"),
                 ControlPlan.forService("time").auxiliaryAclPrivileges().stream()
                         .filter(privilege -> privilege.objectIdentity()
                                 .startsWith("public.tme_")
