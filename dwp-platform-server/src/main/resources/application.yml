@@ -67,6 +67,10 @@ dwp:
         base-url: ${DWP_HRIS_CONTROLLED_TRANSFER_AUTHORITY_BASE_URL:}
         service-token: ${DWP_HRIS_CONTROLLED_TRANSFER_AUTHORITY_SERVICE_TOKEN:}
         timeout: ${DWP_HRIS_CONTROLLED_TRANSFER_AUTHORITY_TIMEOUT:PT2S}
+    automation-control-plane:
+      # SYS-006 remains dark until the separately admitted owner/runtime packet.
+      # This switch only admits the shared receipt/evidence bridge.
+      enabled: ${DWP_HRIS_AUTOMATION_CONTROL_PLANE_ENABLED:false}
     explorer:
       enabled: ${DWP_HRIS_EXPLORER_ENABLED:false}
       auth-url: ${DWP_HRIS_EXPLORER_AUTH_URL:http://localhost:8001}

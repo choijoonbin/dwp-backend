@@ -6,6 +6,7 @@ import com.dwp.gateway.productsurface.ProductSurfaceContextAggregationService;
 import com.dwp.gateway.productsurface.ProductSurfaceContextDtos;
 import com.dwp.gateway.productsurface.Per004GatewayRoutes;
 import com.dwp.gateway.productsurface.Per004DecisionContextForwarder;
+import com.dwp.gateway.productsurface.Sys006GatewayRoutes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -61,6 +62,10 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     public static final String EXPECTED_OBJECT_VERSION_HEADER =
             "X-DWP-Expected-Object-Version";
     private static final String IF_MATCH_HEADER = "If-Match";
+    private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+    private static final Pattern SYS006_IDEMPOTENCY_KEY = Pattern.compile(
+            "[A-Za-z0-9][A-Za-z0-9._:-]{0,119}");
+    private static final long SYS006_MAX_SAFE_OBJECT_REVISION = 9_007_199_254_740_991L;
     private static final String PAY_GROUP_PUBLIC_ID_HEADER = "X-DWP-Pay-Group-Public-Id";
     private static final Pattern COUNTRY_PACK_ACTIVATION_PATH = Pattern.compile(
             "^/api/payroll/v1/country-packs/"
@@ -81,10 +86,10 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.workplace.work.home-shadow-receipt.action",
             "route.workplace.work.home-widget-action-execute.action");
     /**
-     * Default-off tenant-feature routes authorized by decision
-     * HRIS-WAVE7-TENANT-FEATURE-ACTIVATION-20261017-R1. This closed set is deliberately
-     * code-owned: rollout state, tenant identity, environment or operator configuration cannot
-     * bypass direct Auth evaluation.
+     * Default-off tenant-feature routes authorized by the sealed HRIS activation decisions,
+     * including the SYS-006 automation control plane. This closed set is deliberately code-owned:
+     * rollout state, tenant identity, environment or operator configuration cannot bypass direct
+     * Auth evaluation.
      */
     private static final Set<String> TENANT_FEATURE_GOVERNED_ROUTE_KEYS = Set.of(
             "route.hcm.operations.organization-positions.page",
@@ -119,7 +124,23 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.operations.performance-forms-scales.page",
             "route.hcm.operations.performance-forms-scales.data",
             "route.hcm.configuration.settings-performance.page",
-            "route.hcm.configuration.settings-performance.data");
+            "route.hcm.configuration.settings-performance.data",
+            "route.hcm.configuration.automation-catalog.data",
+            "route.hcm.configuration.automation-definition-create.action",
+            "route.hcm.configuration.automation-run-queue.action",
+            "route.hcm.configuration.automation-run-detail.data",
+            "route.hcm.configuration.automation-run-retry.action",
+            "route.hcm.configuration.automation-version-create.action",
+            "route.hcm.configuration.automation-version-validate.action",
+            "route.hcm.configuration.automation-version-submit.action",
+            "route.hcm.configuration.automation-version-approve.action",
+            "route.hcm.configuration.automation-version-activate.action",
+            "route.hcm.configuration.automation-schedule-create.action",
+            "route.hcm.configuration.automation-schedule-submit.action",
+            "route.hcm.configuration.automation-schedule-approve.action",
+            "route.hcm.configuration.automation-schedule-activate.action",
+            "route.hcm.configuration.automation-schedule-suspend.action",
+            "route.hcm.configuration.automation-run-cancel.action");
     private static final Set<String> HRM007_ENTRY_QUERY_ROUTE_KEYS = Set.of(
             "route.hcm.team.people-changes.page",
             "route.hcm.team.people-changes.data",
@@ -463,8 +484,14 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         boolean per004 = Per004GatewayRoutes.isPath(exchange.getRequest().getURI().getPath())
                 && exchange.getRequest().getMethod() != HttpMethod.OPTIONS;
+        boolean sys006 = Sys006GatewayRoutes.claimsPath(
+                exchange.getRequest().getURI().getPath())
+                && exchange.getRequest().getMethod() != HttpMethod.OPTIONS;
         if (per004 && !per004Forwarder.validInbound(exchange)) {
             return error(exchange, HttpStatus.BAD_REQUEST, "INVALID_PER004_AUTHORITY_INPUT", null);
+        }
+        if (sys006 && !Sys006InboundAuthorityFilter.validInbound(exchange)) {
+            return error(exchange, HttpStatus.BAD_REQUEST, "INVALID_SYS006_AUTHORITY_INPUT", null);
         }
         List<String> expectedValues = exchange.getRequest().getHeaders()
                 .getOrEmpty(EXPECTED_REVISION_HEADER);
@@ -472,6 +499,8 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 .getOrEmpty(PURPOSE_HEADER);
         List<String> ifMatchValues = exchange.getRequest().getHeaders()
                 .getOrEmpty(IF_MATCH_HEADER);
+        List<String> idempotencyKeyValues = exchange.getRequest().getHeaders()
+                .getOrEmpty(IDEMPOTENCY_KEY_HEADER);
         ServerHttpRequest sanitized = exchange.getRequest().mutate().headers(headers -> {
             INTERNAL_HEADERS.forEach(headers::remove);
             headers.remove(EXPECTED_REVISION_HEADER);
@@ -515,6 +544,13 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 || !Per004GatewayRoutes.ROUTE_KEYS.contains(match.uniqueRoute().routeContractKey())
                 || !sanitized.getURI().getPath().equals(
                         Per004GatewayRoutes.policy(match.uniqueRoute().routeContractKey()).path()))) {
+            return error(sanitizedExchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
+        }
+        if (sys006 && !Sys006GatewayRoutes.matches(
+                match.uniqueRoute(),
+                sanitized.getMethod() == null ? null : sanitized.getMethod().name(),
+                sanitized.getURI().getPath())) {
             return error(sanitizedExchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
         }
@@ -562,6 +598,43 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
                     "INVALID_PURPOSE", null);
         }
+        if (Sys006GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey())
+                && !validSys006Purpose(callerPurposeValues, route.stateChanging())) {
+            return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
+                    "INVALID_PURPOSE", null);
+        }
+        if (Sys006GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey())) {
+            if (!route.stateChanging()) {
+                if (!idempotencyKeyValues.isEmpty() || !ifMatchValues.isEmpty()) {
+                    return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
+                            "INVALID_SYS006_COMMAND_HEADERS", null);
+                }
+            } else {
+                String idempotencyKey = safeSys006IdempotencyKey(idempotencyKeyValues);
+                boolean requiresObjectRevision =
+                        Sys006GatewayRoutes.requiresExpectedObjectRevision(
+                                route.routeContractKey());
+                String expectedObjectVersion = requiresObjectRevision
+                        ? strongSys006IfMatchVersion(ifMatchValues) : null;
+                if (idempotencyKey == null
+                        || (requiresObjectRevision && expectedObjectVersion == null)
+                        || (!requiresObjectRevision && !ifMatchValues.isEmpty())) {
+                    return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
+                            "INVALID_SYS006_COMMAND_HEADERS", null);
+                }
+                sanitized = sanitized.mutate().headers(headers -> {
+                    headers.set(IDEMPOTENCY_KEY_HEADER, idempotencyKey);
+                    if (expectedObjectVersion == null) {
+                        headers.remove(IF_MATCH_HEADER);
+                        headers.remove(EXPECTED_OBJECT_VERSION_HEADER);
+                    } else {
+                        headers.set(IF_MATCH_HEADER, '"' + expectedObjectVersion + '"');
+                        headers.set(EXPECTED_OBJECT_VERSION_HEADER, expectedObjectVersion);
+                    }
+                }).build();
+                sanitizedExchange = sanitizedExchange.mutate().request(sanitized).build();
+            }
+        }
         if (PAY003_ACTION_ROUTE_KEY.equals(route.routeContractKey())) {
             String expectedObjectVersion = strongIfMatchVersion(ifMatchValues);
             if (!validOptionalCanonicalPurpose(
@@ -585,7 +658,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             }).build();
             sanitizedExchange = sanitizedExchange.mutate().request(sanitized).build();
         }
-        if (WAVE2_OWNER_PURPOSE_BY_ROUTE.containsKey(route.routeContractKey())) {
+        if (ownerPurpose(route.routeContractKey()) != null) {
             sanitized = sanitized.mutate().headers(headers -> headers.remove(PURPOSE_HEADER))
                     .build();
             sanitizedExchange = sanitizedExchange.mutate().request(sanitized).build();
@@ -798,7 +871,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
-        String purpose = WAVE2_OWNER_PURPOSE_BY_ROUTE.get(route.routeContractKey());
+        String purpose = ownerPurpose(route.routeContractKey());
         String subjectPrincipal = request.getHeaders().getFirst(
                 VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER);
         ProductSurfaceContextDtos.SourceRevisions revisions = trustedResult.revisions();
@@ -833,7 +906,8 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 || PAY003_RESULT_ROUTE_KEYS.contains(route.routeContractKey())
                 || PAY003_ACTION_ROUTE_KEY.equals(route.routeContractKey())
                 || NAVIGATION_V2_TENANT_ROUTE_KEYS.contains(route.routeContractKey())
-                || NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey());
+                || NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey())
+                || Sys006GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey());
         String trustedPopulationKind = requiresPopulationKind
                 ? trustedPopulationKind(route, trustedResult.scope()) : null;
         if (requiresPopulationKind && blank(trustedPopulationKind)) {
@@ -885,6 +959,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         }
         String populationKind = hrm007ConfigurationEntry || pay003Configuration
                 ? "CONFIG_SCOPE" : trustedPopulationKind;
+        if (Sys006GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey())
+                && (result.revalidateAt() == null
+                || !Sys006InboundAuthorityFilter.validInbound(exchange))) {
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+        }
         responseRevision(exchange, result.decisionRevision());
         ServerHttpRequest trusted = request.mutate().headers(headers -> {
             headers.set(ROUTE_HEADER, route.routeContractKey());
@@ -940,6 +1020,18 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 || (values.size() == 1 && expected.equals(values.getFirst()));
     }
 
+    private boolean validSys006Purpose(List<String> values, boolean stateChanging) {
+        return stateChanging
+                ? values.equals(List.of(Sys006GatewayRoutes.PURPOSE))
+                : validOptionalCanonicalPurpose(values, Sys006GatewayRoutes.PURPOSE);
+    }
+
+    private String ownerPurpose(String routeContractKey) {
+        return Sys006GatewayRoutes.ROUTE_KEYS.contains(routeContractKey)
+                ? Sys006GatewayRoutes.PURPOSE
+                : WAVE2_OWNER_PURPOSE_BY_ROUTE.get(routeContractKey);
+    }
+
     private boolean canonicalCountryPackActivationPath(String path) {
         return path != null && COUNTRY_PACK_ACTIVATION_PATH.matcher(path).matches();
     }
@@ -952,6 +1044,26 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         try {
             Long.parseLong(version);
             return version;
+        } catch (NumberFormatException invalid) {
+            return null;
+        }
+    }
+
+    private String safeSys006IdempotencyKey(List<String> values) {
+        if (values.size() != 1) return null;
+        String value = values.getFirst();
+        return value != null && SYS006_IDEMPOTENCY_KEY.matcher(value).matches()
+                ? value : null;
+    }
+
+    private String strongSys006IfMatchVersion(List<String> values) {
+        if (values.size() != 1) return null;
+        String value = values.getFirst();
+        if (value == null || !value.matches("\"[1-9][0-9]{0,15}\"")) return null;
+        String version = value.substring(1, value.length() - 1);
+        try {
+            long parsed = Long.parseLong(version);
+            return parsed <= SYS006_MAX_SAFE_OBJECT_REVISION ? version : null;
         } catch (NumberFormatException invalid) {
             return null;
         }

@@ -129,15 +129,17 @@ class ProductAuthorizationContractReleaseLineageTest
                 generatedDocument("product-surfaces-v1.bundle-v54.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionFiftyFive = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v55.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(55);
-        assertThat(index.latestChecksum()).isEqualTo(versionFiftyFive.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionFiftySix = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v56.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(56);
+        assertThat(index.latestChecksum()).isEqualTo(versionFiftySix.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
                         26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L,
                         39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L, 49L, 50L,
-                        51L, 52L, 53L, 54L, 55L);
+                        51L, 52L, 53L, 54L, 55L, 56L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -755,6 +757,33 @@ class ProductAuthorizationContractReleaseLineageTest
                         "route.hcm.operations.performance-forms-scales.data",
                         "route.hcm.configuration.settings-performance.page",
                         "route.hcm.configuration.settings-performance.data");
+        assertThat(versionFiftySix.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionFiftyFive.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionFiftySix.routes()).hasSize(1120)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionFiftyFive.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.hcm.configuration.automation-catalog.data",
+                        "route.hcm.configuration.automation-definition-create.action",
+                        "route.hcm.configuration.automation-run-queue.action",
+                        "route.hcm.configuration.automation-run-detail.data",
+                        "route.hcm.configuration.automation-run-retry.action",
+                        "route.hcm.configuration.automation-version-create.action",
+                        "route.hcm.configuration.automation-version-validate.action",
+                        "route.hcm.configuration.automation-version-submit.action",
+                        "route.hcm.configuration.automation-version-approve.action",
+                        "route.hcm.configuration.automation-version-activate.action",
+                        "route.hcm.configuration.automation-schedule-create.action",
+                        "route.hcm.configuration.automation-schedule-submit.action",
+                        "route.hcm.configuration.automation-schedule-approve.action",
+                        "route.hcm.configuration.automation-schedule-activate.action",
+                        "route.hcm.configuration.automation-schedule-suspend.action",
+                        "route.hcm.configuration.automation-run-cancel.action");
         String voidRoute = "route.hcm.operations.time-clock-event-void.action";
         assertThat(versionThirtySix.routes())
                 .filteredOn(route -> voidRoute.equals(route.routeContractKey()))

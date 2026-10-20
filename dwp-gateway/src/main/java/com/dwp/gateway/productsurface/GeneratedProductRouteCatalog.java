@@ -116,7 +116,18 @@ public final class GeneratedProductRouteCatalog {
                     new GenericSessionTopology("hcm.operations", "DATA", "GET",
                             "/api/time/v1/timecards/{timecardId}", "time",
                             "/v1/timecards/{timecardId}",
-                            List.of("time-operator", "manager-approver", "self-reader"))));
+                            List.of("time-operator", "manager-approver", "self-reader"))),
+            Map.entry("route.hcm.configuration.automation-catalog.data",
+                    new GenericSessionTopology("hcm.management", "DATA", "GET",
+                            "/api/platform/v1/admin/hris/automations", "platform",
+                            "/v1/admin/hris/automations",
+                            List.of("automation-author", "automation-publisher",
+                                    "automation-executor"))),
+            Map.entry("route.hcm.configuration.automation-run-detail.data",
+                    new GenericSessionTopology("hcm.management", "DATA", "GET",
+                            "/api/platform/v1/admin/hris/automation-runs/{runId}", "platform",
+                            "/v1/admin/hris/automation-runs/{runId}",
+                            List.of("automation-executor"))));
     private static final Set<String> OTHER_EXACT_NO_COMMAND_STEP_UP_ROUTE_KEYS = Set.of(
             "route.approvals.admin.form-publish-review-reject.action",
             "route.approvals.admin.retention-policy-publication-command.data",
@@ -133,6 +144,9 @@ public final class GeneratedProductRouteCatalog {
     private static final Set<String> V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = Set.of(
             "route.hcm.operations.pay-tax-social-insurance.page",
             "route.hcm.operations.pay-tax-social-insurance.data");
+    private static final Set<String> V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = Set.of(
+            "route.hcm.configuration.automation-catalog.data",
+            "route.hcm.configuration.automation-run-detail.data");
 
     /**
      * PAGE routes introduced by the v47 canonical-entry migration intentionally share the exact
@@ -385,6 +399,10 @@ public final class GeneratedProductRouteCatalog {
                 expectedGenericSessionRoutes.removeAll(
                         V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS);
             }
+            if (bundleVersion < 56) {
+                expectedGenericSessionRoutes.removeAll(
+                        V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS);
+            }
             if (bundleVersion >= 49
                     && !genericSessionRoutes.equals(expectedGenericSessionRoutes)) {
                 throw new IllegalStateException(
@@ -501,6 +519,9 @@ public final class GeneratedProductRouteCatalog {
             return false;
         }
         if (bundleVersion < 54 && V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS.contains(key)) {
+            return false;
+        }
+        if (bundleVersion < 56 && V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS.contains(key)) {
             return false;
         }
         JsonNode subject = route.path("subject");

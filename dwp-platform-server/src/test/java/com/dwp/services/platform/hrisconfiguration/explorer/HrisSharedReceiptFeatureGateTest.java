@@ -33,7 +33,7 @@ class HrisSharedReceiptFeatureGateTest {
                             AuthHrisExplorerAuthorityEvidenceQuery.class);
 
     @Test
-    void bothFeaturesOffExposeNeitherExplorerNorSharedReceiptBoundary() {
+    void allFeaturesOffExposeNeitherExplorerNorSharedReceiptBoundary() {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).doesNotHaveBean(HrisExplorerController.class);
@@ -49,7 +49,8 @@ class HrisSharedReceiptFeatureGateTest {
         contextRunner
                 .withPropertyValues(
                         "dwp.hris.explorer.enabled=false",
-                        "dwp.hris.controlled-transfer.enabled=true")
+                        "dwp.hris.controlled-transfer.enabled=true",
+                        "dwp.hris.automation-control-plane.enabled=false")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).doesNotHaveBean(HrisExplorerController.class);
@@ -67,7 +68,8 @@ class HrisSharedReceiptFeatureGateTest {
         contextRunner
                 .withPropertyValues(
                         "dwp.hris.explorer.enabled=true",
-                        "dwp.hris.controlled-transfer.enabled=false")
+                        "dwp.hris.controlled-transfer.enabled=false",
+                        "dwp.hris.automation-control-plane.enabled=false")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(HrisExplorerController.class);
@@ -75,6 +77,25 @@ class HrisSharedReceiptFeatureGateTest {
                             .hasSingleBean(HrisCommandReceiptController.class);
                     assertThat(context)
                             .hasSingleBean(HrisExplorerOwnerEvidenceFilter.class);
+                    assertThat(context).hasSingleBean(
+                            AuthHrisExplorerAuthorityEvidenceQuery.class);
+                });
+    }
+
+    @Test
+    void automationAloneExposesOnlySharedReceiptControllerAndAuthorityQuery() {
+        contextRunner
+                .withPropertyValues(
+                        "dwp.hris.explorer.enabled=false",
+                        "dwp.hris.controlled-transfer.enabled=false",
+                        "dwp.hris.automation-control-plane.enabled=true")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean(HrisExplorerController.class);
+                    assertThat(context)
+                            .hasSingleBean(HrisCommandReceiptController.class);
+                    assertThat(context)
+                            .doesNotHaveBean(HrisExplorerOwnerEvidenceFilter.class);
                     assertThat(context).hasSingleBean(
                             AuthHrisExplorerAuthorityEvidenceQuery.class);
                 });

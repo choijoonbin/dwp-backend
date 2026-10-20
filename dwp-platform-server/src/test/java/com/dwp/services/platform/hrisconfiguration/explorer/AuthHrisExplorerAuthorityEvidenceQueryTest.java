@@ -104,16 +104,76 @@ class AuthHrisExplorerAuthorityEvidenceQueryTest {
                     "route.hcm.configuration.navigation-policy-revision-publish.action"),
             Map.entry("RESTORE",
                     "route.hcm.configuration.navigation-policy-revision-restore.action"),
-            Map.entry("CONTROLLED_TRANSFER_CREATE", CONTROLLED_TRANSFER_ROUTE));
+            Map.entry("CONTROLLED_TRANSFER_CREATE", CONTROLLED_TRANSFER_ROUTE),
+            Map.entry("hris.action.sys.post.platform.v1.admin.hris.automations",
+                    "route.hcm.configuration.automation-definition-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.runs",
+                    "route.hcm.configuration.automation-run-queue.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.retry",
+                    "route.hcm.configuration.automation-run-retry.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions",
+                    "route.hcm.configuration.automation-version-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.validate",
+                    "route.hcm.configuration.automation-version-validate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.submit",
+                    "route.hcm.configuration.automation-version-submit.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.approve",
+                    "route.hcm.configuration.automation-version-approve.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.activate",
+                    "route.hcm.configuration.automation-version-activate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.schedules",
+                    "route.hcm.configuration.automation-schedule-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.submit",
+                    "route.hcm.configuration.automation-schedule-submit.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.approve",
+                    "route.hcm.configuration.automation-schedule-approve.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.activate",
+                    "route.hcm.configuration.automation-schedule-activate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.suspend",
+                    "route.hcm.configuration.automation-schedule-suspend.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.cancel",
+                    "route.hcm.configuration.automation-run-cancel.action"));
 
     @Test
-    void acceptsExactlyTheSeventeenProducerActionRoutePairs() {
+    void acceptsExactlyTheThirtyOneProducerActionRoutePairs() {
         assertThat(AuthHrisExplorerAuthorityEvidenceQuery
                 .PLATFORM_ORIGIN_ROUTES_BY_ACTION)
                 .containsExactlyInAnyOrderEntriesOf(EXPECTED_ORIGINS);
         EXPECTED_ORIGINS.forEach((action, route) ->
                 assertThat(AuthHrisExplorerAuthorityEvidenceQuery
                         .exactPlatformOrigin(action, route)).isTrue());
+    }
+
+    @Test
+    void automationReceiptBridgeContainsExactlyTheFourteenSealedPairs() {
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery
+                .AUTOMATION_ORIGIN_ROUTES_BY_ACTION)
+                .hasSize(14)
+                .allSatisfy((action, route) -> {
+                    assertThat(action).startsWith("hris.action.sys.post.platform.");
+                    assertThat(EXPECTED_ORIGINS).containsEntry(action, route);
+                    assertThat(AuthHrisExplorerAuthorityEvidenceQuery
+                            .exactPlatformOrigin(action, route)).isTrue();
+                    assertThat(AuthHrisExplorerAuthorityEvidenceQuery
+                            .exactPlatformOriginPurpose(
+                                    action, "HRIS_SYSTEM_ADMIN")).isTrue();
+                });
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery
+                .AUTOMATION_ORIGIN_ROUTES_BY_ACTION.values())
+                .doesNotHaveDuplicates();
     }
 
     @Test
@@ -129,6 +189,9 @@ class AuthHrisExplorerAuthorityEvidenceQueryTest {
                 "PUBLISH", null)).isFalse();
         assertThat(AuthHrisExplorerAuthorityEvidenceQuery.exactPlatformOrigin(
                 null, CONTROLLED_TRANSFER_ROUTE)).isFalse();
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery.exactPlatformOrigin(
+                "hris.action.sys.post.platform.v1.admin.hris.automations",
+                "route.hcm.configuration.automation-run-cancel.action")).isFalse();
     }
 
     @Test

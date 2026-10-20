@@ -45,7 +45,8 @@ import static com.dwp.services.platform.hrisconfiguration.explorer.HrisPlatformR
 @Component
 @ConditionalOnExpression(
         "'${dwp.hris.explorer.enabled:false}' == 'true' || "
-                + "'${dwp.hris.controlled-transfer.enabled:false}' == 'true'")
+                + "'${dwp.hris.controlled-transfer.enabled:false}' == 'true' || "
+                + "'${dwp.hris.automation-control-plane.enabled:false}' == 'true'")
 final class AuthHrisExplorerAuthorityEvidenceQuery
         implements HrisExplorerAuthorityEvidenceQuery,
         HrisExplorerReceiptAuthoritySource,
@@ -97,7 +98,8 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
             "route.hcm.utility.explorer-preferences-update.action",
             JdbcHrisExplorerRepository.RECENT_ACTION,
             "route.hcm.utility.explorer-recent-create.action");
-    static final Map<String, String> PLATFORM_ORIGIN_ROUTES_BY_ACTION = Map.ofEntries(
+    private static final Map<String, String> EXISTING_PLATFORM_ORIGIN_ROUTES_BY_ACTION =
+            Map.ofEntries(
             Map.entry("configuration.version.create",
                     "route.hcm.configuration.configuration-version-create.action"),
             Map.entry("configuration.version.validate",
@@ -132,6 +134,62 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
                     "route.hcm.configuration.navigation-policy-revision-restore.action"),
             Map.entry(CONTROLLED_TRANSFER_ACTION,
                     "route.hcm.management.controlled-transfer-create.action"));
+    static final Map<String, String> AUTOMATION_ORIGIN_ROUTES_BY_ACTION = Map.ofEntries(
+            Map.entry("hris.action.sys.post.platform.v1.admin.hris.automations",
+                    "route.hcm.configuration.automation-definition-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.runs",
+                    "route.hcm.configuration.automation-run-queue.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.retry",
+                    "route.hcm.configuration.automation-run-retry.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions",
+                    "route.hcm.configuration.automation-version-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.validate",
+                    "route.hcm.configuration.automation-version-validate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.submit",
+                    "route.hcm.configuration.automation-version-submit.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.approve",
+                    "route.hcm.configuration.automation-version-approve.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.activate",
+                    "route.hcm.configuration.automation-version-activate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automations.resource.schedules",
+                    "route.hcm.configuration.automation-schedule-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.submit",
+                    "route.hcm.configuration.automation-schedule-submit.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.approve",
+                    "route.hcm.configuration.automation-schedule-approve.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.activate",
+                    "route.hcm.configuration.automation-schedule-activate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.suspend",
+                    "route.hcm.configuration.automation-schedule-suspend.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.cancel",
+                    "route.hcm.configuration.automation-run-cancel.action"));
+    static final Map<String, String> PLATFORM_ORIGIN_ROUTES_BY_ACTION =
+            platformOriginRoutes();
+
+    private static Map<String, String> platformOriginRoutes() {
+        Map<String, String> routes = new LinkedHashMap<>(
+                EXISTING_PLATFORM_ORIGIN_ROUTES_BY_ACTION);
+        AUTOMATION_ORIGIN_ROUTES_BY_ACTION.forEach((action, route) -> {
+            if (routes.putIfAbsent(action, route) != null) {
+                throw new IllegalStateException(
+                        "Duplicate Platform receipt originating action: " + action);
+            }
+        });
+        return Map.copyOf(routes);
+    }
 
     private final RestClient auth;
     private final RestClient people;

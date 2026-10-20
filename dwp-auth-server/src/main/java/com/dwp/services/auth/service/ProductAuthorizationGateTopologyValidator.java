@@ -140,10 +140,83 @@ final class ProductAuthorizationGateTopologyValidator {
             Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities) {
         return isExactGrandfatheredGenericStepUpRoute(route)
                 || isExactV49GenericStepUpWithoutFreshCommandRoute(route)
+                || isExactV56AutomationReadRoute(route)
                 || (PayrollV49ElevatedAuthorityPolicy.STATUTORY_READ_ROUTES.contains(
                         route.routeContractKey())
                         && PayrollV49ElevatedAuthorityPolicy.isExactRoute(
                                 route, capabilities));
+    }
+
+    private static boolean isExactV56AutomationReadRoute(
+            ProductAuthorizationContractDtos.GovernedRoute route) {
+        String key = route.routeContractKey();
+        if (!Set.of(
+                "route.hcm.configuration.automation-catalog.data",
+                "route.hcm.configuration.automation-run-detail.data").contains(key)
+                || route.subject() == null
+                || !"PRODUCT".equals(route.subject().type())
+                || !"hcm".equals(route.subject().productKey())
+                || route.gatewayApiBindings() == null
+                || route.gatewayApiBindings().size() != 1
+                || route.servicePepBindings() == null
+                || route.servicePepBindings().size() != 1
+                || route.accessProfiles() == null) {
+            return false;
+        }
+        String bindingKey = key + ".binding.01";
+        if (!bindingKey.equals(route.gatewayApiBindings().getFirst().bindingKey())
+                || !bindingKey.equals(route.servicePepBindings().getFirst().bindingKey())) {
+            return false;
+        }
+        if (key.endsWith("automation-catalog.data")) {
+            return exactRouteWire(route, "hcm.management", "DATA", true, "GET",
+                    "/api/platform/v1/admin/hris/automations", "platform",
+                    "/v1/admin/hris/automations")
+                    && route.accessProfiles().size() == 3
+                    && exactCapabilityProfile(route.accessProfiles().get(0),
+                    "automation-author", 300, true, List.of("CONFIG_SCOPE"),
+                    "predicate.hcm-settings-operations-authority.v1",
+                    "hcm.configuration.policy.update")
+                    && exactProjection(route.accessProfiles().get(0), bindingKey,
+                    "sys006.iaq-059.automation-author.fields.v1",
+                    "SysApi017GetResponseV1")
+                    && exactCapabilityProfile(route.accessProfiles().get(1),
+                    "automation-publisher", 200, true, List.of("CONFIG_SCOPE"),
+                    "predicate.hcm-settings-operations-authority.v1",
+                    "hcm.configuration.policy.publish")
+                    && exactProjection(route.accessProfiles().get(1), bindingKey,
+                    "sys006.iaq-059.automation-publisher.fields.v1",
+                    "SysApi017GetResponseV1")
+                    && exactCapabilityProfile(route.accessProfiles().get(2),
+                    "automation-executor", 100, true, List.of("CONFIG_SCOPE"),
+                    "predicate.hcm-settings-operations-authority.v1",
+                    "hcm.integration.execute")
+                    && exactProjection(route.accessProfiles().get(2), bindingKey,
+                    "sys006.iaq-059.automation-executor.fields.v1",
+                    "SysApi017GetResponseV1");
+        }
+        var profile = route.accessProfiles().size() == 1
+                ? route.accessProfiles().getFirst() : null;
+        var access = profile == null ? null : profile.requiredAccess();
+        return exactRouteWire(route, "hcm.management", "DATA", true, "GET",
+                "/api/platform/v1/admin/hris/automation-runs/{runId}", "platform",
+                "/v1/admin/hris/automation-runs/{runId}")
+                && profile != null
+                && "automation-executor".equals(profile.profileKey())
+                && profile.precedence() == 300
+                && List.of("NORMAL", "ELEVATED").equals(profile.activeAccessModes())
+                && profile.readOnly()
+                && List.of("CONFIG_SCOPE", "OBJECT").equals(profile.targetBindingKinds())
+                && List.of(
+                        "predicate.hcm-settings-operations-authority.v1",
+                        "predicate.hcm-reference-configuration-authority.v1")
+                        .equals(profile.predicatePolicyKeys())
+                && access != null
+                && "CAPABILITY".equals(access.type())
+                && "hcm.integration.execute".equals(access.capabilityContractKey())
+                && exactProjection(profile, bindingKey,
+                "sys006.iaq-059.automation-executor.fields.v1",
+                "SysApi019GetResponseV1");
     }
 
     private static boolean isExactV49GenericStepUpWithoutFreshCommandRoute(

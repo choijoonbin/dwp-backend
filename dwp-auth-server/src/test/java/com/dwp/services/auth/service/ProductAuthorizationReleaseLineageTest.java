@@ -14,7 +14,7 @@ class ProductAuthorizationReleaseLineageTest {
             new ProductAuthorizationContractValidator(mapper);
 
     @Test
-    void acceptsThePinnedV51ThroughPer004V55Successors() throws Exception {
+    void acceptsThePinnedV51ThroughSys006V56Successors() throws Exception {
         try (var v51Input = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v51.generated.json")
                 .getInputStream();
@@ -29,12 +29,16 @@ class ProductAuthorizationReleaseLineageTest {
                      .getInputStream();
              var v55Input = new ClassPathResource(
                      "product-authorization/product-surfaces-v1.bundle-v55.generated.json")
+                     .getInputStream();
+             var v56Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v56.generated.json")
                      .getInputStream()) {
             var v51 = validator.validateDocument(v51Input);
             var v52 = validator.validateDocument(v52Input);
             var v53 = validator.validateDocument(v53Input);
             var v54 = validator.validateDocument(v54Input);
             var v55 = validator.validateDocument(v55Input);
+            var v56 = validator.validateDocument(v56Input);
             assertThat(v51.checksum()).isEqualTo(
                     "3beda5c13a3af0e265ace4533a3afcee3691c2b7486465dcf46156e58ae5ed2c");
             assertThat(v51.capabilities()).hasSize(265);
@@ -55,6 +59,10 @@ class ProductAuthorizationReleaseLineageTest {
                     "7fb2121a1209b87234bcb389a9bd4c4addca3c4e8c8776a9aac70d278c74d4e6");
             assertThat(v55.capabilities()).hasSize(270);
             assertThat(v55.routes()).hasSize(1104);
+            assertThat(v56.checksum()).isEqualTo(
+                    "4c1e82c4ac70f7bbc4aba7a41d77b8fd238da0478501cbdfed97ebd4b5dd0930");
+            assertThat(v56.capabilities()).hasSize(270);
+            assertThat(v56.routes()).hasSize(1120);
         }
     }
 

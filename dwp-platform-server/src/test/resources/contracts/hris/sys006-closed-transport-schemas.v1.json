@@ -1,0 +1,2604 @@
+{
+  "SYS_API_017_GET_QUERY": {
+    "additionalProperties": false,
+    "properties": {
+      "asOf": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Instant"
+      },
+      "cursor": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Cursor"
+      },
+      "fields": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Fields"
+      },
+      "filter": {
+        "maxLength": 1000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "freshness": {
+        "enum": [
+          "FRESH_ONLY",
+          "ALLOW_STALE"
+        ]
+      },
+      "limit": {
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "resourceTypes": {
+        "items": {
+          "enum": [
+            "AUTOMATION_DEFINITION",
+            "AUTOMATION_VERSION",
+            "AUTOMATION_SCHEDULE"
+          ]
+        },
+        "maxItems": 3,
+        "minItems": 1,
+        "type": "array",
+        "uniqueItems": true
+      }
+    },
+    "required": [
+      "asOf",
+      "fields",
+      "freshness",
+      "limit"
+    ],
+    "type": "object"
+  },
+  "SYS_API_017_GET_RESPONSE": {
+    "actionUniqueness": "collectionActions and every availableActions array are unique by actionKey.",
+    "additionalProperties": false,
+    "itemUnion": {
+      "AUTOMATION_DEFINITION": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "definitionPublicId": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "definitionPublicId"
+                  ]
+                },
+                {
+                  "properties": {
+                    "automationKey": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "automationKey"
+                  ]
+                },
+                {
+                  "properties": {
+                    "ownerDomain": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "ownerDomain"
+                  ]
+                },
+                {
+                  "properties": {
+                    "derivedLifecycleState": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "derivedLifecycleState"
+                  ]
+                },
+                {
+                  "properties": {
+                    "activeVersionNumber": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "activeVersionNumber"
+                  ]
+                },
+                {
+                  "properties": {
+                    "objectRevision": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "objectRevision"
+                  ]
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "derivedLifecycleState": {
+                  "const": "DRAFT"
+                }
+              },
+              "required": [
+                "derivedLifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "items": {
+                    "properties": {
+                      "actionKey": {
+                        "enum": [
+                          "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions",
+                          "hris.action.sys.post.platform.v1.admin.hris.automations.resource.schedules"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "actionKey"
+                    ]
+                  },
+                  "maxItems": 2
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "derivedLifecycleState": {
+                  "enum": [
+                    "SUSPENDED",
+                    "RETIRED"
+                  ]
+                }
+              },
+              "required": [
+                "derivedLifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "activeVersionNumber": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "activeVersionNumber"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "items": {
+                    "properties": {
+                      "actionKey": {
+                        "enum": [
+                          "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions",
+                          "hris.action.sys.post.platform.v1.admin.hris.automations.resource.schedules"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "actionKey"
+                    ]
+                  },
+                  "maxItems": 2
+                }
+              }
+            }
+          }
+        ],
+        "properties": {
+          "activeVersionNumber": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedNullablePositiveInteger"
+          },
+          "automationKey": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedAutomationKey"
+          },
+          "availableActions": {
+            "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/DefinitionActionArray"
+          },
+          "definitionPublicId": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedUuid"
+          },
+          "derivedLifecycleState": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedDefinitionState"
+          },
+          "objectRevision": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedPositiveInteger"
+          },
+          "ownerDomain": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedOwnerDomain"
+          },
+          "resourceType": {
+            "const": "AUTOMATION_DEFINITION"
+          }
+        },
+        "required": [
+          "resourceType",
+          "definitionPublicId",
+          "automationKey",
+          "ownerDomain",
+          "derivedLifecycleState",
+          "activeVersionNumber",
+          "objectRevision",
+          "availableActions"
+        ],
+        "type": "object"
+      },
+      "AUTOMATION_SCHEDULE": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "schedulePublicId": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "schedulePublicId"
+                  ]
+                },
+                {
+                  "properties": {
+                    "definitionPublicId": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "definitionPublicId"
+                  ]
+                },
+                {
+                  "properties": {
+                    "pinnedVersionNumber": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "pinnedVersionNumber"
+                  ]
+                },
+                {
+                  "properties": {
+                    "lifecycleState": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "lifecycleState"
+                  ]
+                },
+                {
+                  "properties": {
+                    "timezone": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "timezone"
+                  ]
+                },
+                {
+                  "properties": {
+                    "nextFireAt": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "nextFireAt"
+                  ]
+                },
+                {
+                  "properties": {
+                    "objectRevision": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "objectRevision"
+                  ]
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "lifecycleState": {
+                  "const": "DRAFT"
+                }
+              },
+              "required": [
+                "lifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "items": {
+                    "properties": {
+                      "actionKey": {
+                        "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.submit"
+                      }
+                    },
+                    "required": [
+                      "actionKey"
+                    ]
+                  },
+                  "maxItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "lifecycleState": {
+                  "const": "PENDING_APPROVAL"
+                }
+              },
+              "required": [
+                "lifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "items": {
+                    "properties": {
+                      "actionKey": {
+                        "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.approve"
+                      }
+                    },
+                    "required": [
+                      "actionKey"
+                    ]
+                  },
+                  "maxItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "lifecycleState": {
+                  "const": "APPROVED"
+                }
+              },
+              "required": [
+                "lifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "items": {
+                    "properties": {
+                      "actionKey": {
+                        "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.activate"
+                      }
+                    },
+                    "required": [
+                      "actionKey"
+                    ]
+                  },
+                  "maxItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "lifecycleState": {
+                  "const": "ACTIVE"
+                }
+              },
+              "required": [
+                "lifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "items": {
+                    "properties": {
+                      "actionKey": {
+                        "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.suspend"
+                      }
+                    },
+                    "required": [
+                      "actionKey"
+                    ]
+                  },
+                  "maxItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "lifecycleState": {
+                  "const": "SUSPENDED"
+                }
+              },
+              "required": [
+                "lifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "maxItems": 0
+                }
+              }
+            }
+          }
+        ],
+        "properties": {
+          "availableActions": {
+            "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/ScheduleActionArray"
+          },
+          "definitionPublicId": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedUuid"
+          },
+          "lifecycleState": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedScheduleState"
+          },
+          "nextFireAt": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedNullableInstant"
+          },
+          "objectRevision": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedPositiveInteger"
+          },
+          "pinnedVersionNumber": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedPositiveInteger"
+          },
+          "resourceType": {
+            "const": "AUTOMATION_SCHEDULE"
+          },
+          "schedulePublicId": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedUuid"
+          },
+          "timezone": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedTimezone"
+          }
+        },
+        "required": [
+          "resourceType",
+          "schedulePublicId",
+          "definitionPublicId",
+          "pinnedVersionNumber",
+          "lifecycleState",
+          "timezone",
+          "nextFireAt",
+          "objectRevision",
+          "availableActions"
+        ],
+        "type": "object"
+      },
+      "AUTOMATION_VERSION": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "definitionPublicId": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "definitionPublicId"
+                  ]
+                },
+                {
+                  "properties": {
+                    "versionNumber": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "versionNumber"
+                  ]
+                },
+                {
+                  "properties": {
+                    "lifecycleState": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "lifecycleState"
+                  ]
+                },
+                {
+                  "properties": {
+                    "handlerKey": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "handlerKey"
+                  ]
+                },
+                {
+                  "properties": {
+                    "handlerContractVersion": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "handlerContractVersion"
+                  ]
+                },
+                {
+                  "properties": {
+                    "objectRevision": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "objectRevision"
+                  ]
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "lifecycleState": {
+                  "const": "DRAFT"
+                }
+              },
+              "required": [
+                "lifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "items": {
+                    "properties": {
+                      "actionKey": {
+                        "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.validate"
+                      }
+                    },
+                    "required": [
+                      "actionKey"
+                    ]
+                  },
+                  "maxItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "lifecycleState": {
+                  "const": "VALIDATED"
+                }
+              },
+              "required": [
+                "lifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "items": {
+                    "properties": {
+                      "actionKey": {
+                        "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.submit"
+                      }
+                    },
+                    "required": [
+                      "actionKey"
+                    ]
+                  },
+                  "maxItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "lifecycleState": {
+                  "const": "PENDING_APPROVAL"
+                }
+              },
+              "required": [
+                "lifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "items": {
+                    "properties": {
+                      "actionKey": {
+                        "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.approve"
+                      }
+                    },
+                    "required": [
+                      "actionKey"
+                    ]
+                  },
+                  "maxItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "lifecycleState": {
+                  "const": "APPROVED"
+                }
+              },
+              "required": [
+                "lifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "items": {
+                    "properties": {
+                      "actionKey": {
+                        "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.activate"
+                      }
+                    },
+                    "required": [
+                      "actionKey"
+                    ]
+                  },
+                  "maxItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "lifecycleState": {
+                  "enum": [
+                    "ACTIVE",
+                    "SUSPENDED",
+                    "RETIRED"
+                  ]
+                }
+              },
+              "required": [
+                "lifecycleState"
+              ]
+            },
+            "then": {
+              "properties": {
+                "availableActions": {
+                  "maxItems": 0
+                }
+              }
+            }
+          }
+        ],
+        "properties": {
+          "availableActions": {
+            "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/VersionActionArray"
+          },
+          "definitionPublicId": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedUuid"
+          },
+          "handlerContractVersion": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedSchemaVersion"
+          },
+          "handlerKey": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedHandlerKey"
+          },
+          "lifecycleState": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedVersionState"
+          },
+          "objectRevision": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedPositiveInteger"
+          },
+          "resourceType": {
+            "const": "AUTOMATION_VERSION"
+          },
+          "versionNumber": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/ProjectedPositiveInteger"
+          }
+        },
+        "required": [
+          "resourceType",
+          "definitionPublicId",
+          "versionNumber",
+          "lifecycleState",
+          "handlerKey",
+          "handlerContractVersion",
+          "objectRevision",
+          "availableActions"
+        ],
+        "type": "object"
+      },
+      "discriminator": "resourceType"
+    },
+    "properties": {
+      "asOf": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Instant"
+      },
+      "authorizationRevision": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "collectionActions": {
+        "items": {
+          "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/CollectionActionDescriptor"
+        },
+        "maxItems": 1,
+        "type": "array",
+        "uniqueItems": true
+      },
+      "correlationId": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+      },
+      "fieldDecisionSummary": {
+        "$ref": "#/contractDecision/closedTransportSchemas/fieldDecisionSummary"
+      },
+      "freshUntil": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Instant"
+      },
+      "items": {
+        "items": {
+          "oneOf": [
+            {
+              "$ref": "#/contractDecision/closedTransportSchemas/SYS_API_017_GET_RESPONSE/itemUnion/AUTOMATION_DEFINITION"
+            },
+            {
+              "$ref": "#/contractDecision/closedTransportSchemas/SYS_API_017_GET_RESPONSE/itemUnion/AUTOMATION_VERSION"
+            },
+            {
+              "$ref": "#/contractDecision/closedTransportSchemas/SYS_API_017_GET_RESPONSE/itemUnion/AUTOMATION_SCHEDULE"
+            }
+          ]
+        },
+        "maxItems": 100,
+        "type": "array"
+      },
+      "nextCursor": {
+        "oneOf": [
+          {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Cursor"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "staleAfter": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Instant"
+      }
+    },
+    "required": [
+      "asOf",
+      "items",
+      "nextCursor",
+      "freshUntil",
+      "staleAfter",
+      "collectionActions",
+      "fieldDecisionSummary",
+      "authorizationRevision",
+      "correlationId"
+    ],
+    "stableOrder": "resourceType ascending, then automationKey for definitions or definitionPublicId plus versionNumber/schedulePublicId for other variants; the exact terminal sort tuple is cursor-bound.",
+    "type": "object"
+  },
+  "SYS_API_017_POST_REQUEST": {
+    "additionalProperties": false,
+    "properties": {
+      "automationKey": {
+        "pattern": "^[a-z][a-z0-9.-]{2,63}$",
+        "type": "string"
+      },
+      "description": {
+        "oneOf": [
+          {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "displayName": {
+        "maxLength": 120,
+        "minLength": 1,
+        "type": "string"
+      },
+      "ownerDomain": {
+        "enum": [
+          "HRM",
+          "PER",
+          "TIM",
+          "PAY"
+        ]
+      }
+    },
+    "required": [
+      "automationKey",
+      "displayName",
+      "description",
+      "ownerDomain"
+    ],
+    "type": "object"
+  },
+  "SYS_API_017_POST_RESPONSE": {
+    "additionalProperties": false,
+    "allOf": [
+      {
+        "else": {
+          "not": {
+            "required": [
+              "resultRef"
+            ]
+          }
+        },
+        "if": {
+          "required": [
+            "aggregateVersion"
+          ]
+        },
+        "then": {
+          "required": [
+            "resultRef"
+          ]
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "status": {
+              "enum": [
+                "ACCEPTED",
+                "REJECTED"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "then": {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "aggregateVersion"
+                ]
+              },
+              {
+                "required": [
+                  "resultRef"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "status": {
+              "const": "SUCCEEDED"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "then": {
+          "required": [
+            "aggregateVersion",
+            "resultRef"
+          ]
+        }
+      }
+    ],
+    "description": "The closed SYS-006 profile of the reused HrisCommandReceiptV1 wire object returned with 202. A replay may return the receipt's current closed status. aggregateVersion and resultRef are omitted until the durable positive-revision aggregate tuple exists; all other fields are required.",
+    "properties": {
+      "aggregateVersion": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "authorizationRevision": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "commandType": {
+        "maxLength": 100,
+        "minLength": 1,
+        "type": "string"
+      },
+      "correlationId": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+      },
+      "createdAt": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Instant"
+      },
+      "fieldPolicyRevision": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "originatingAction": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "populationScopeDigest": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Digest"
+      },
+      "purposeCode": {
+        "maxLength": 64,
+        "minLength": 3,
+        "type": "string"
+      },
+      "receiptId": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+      },
+      "requestDigest": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Digest"
+      },
+      "resultRef": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "status": {
+        "enum": [
+          "ACCEPTED",
+          "RUNNING",
+          "SUCCEEDED",
+          "REJECTED",
+          "FAILED",
+          "RESULT_UNKNOWN"
+        ]
+      },
+      "subjectPrincipalPublicId": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+      }
+    },
+    "required": [
+      "receiptId",
+      "commandType",
+      "originatingAction",
+      "subjectPrincipalPublicId",
+      "populationScopeDigest",
+      "fieldPolicyRevision",
+      "purposeCode",
+      "authorizationRevision",
+      "status",
+      "correlationId",
+      "requestDigest",
+      "createdAt"
+    ],
+    "title": "Sys006HrisCommandReceipt202V1",
+    "type": "object"
+  },
+  "SYS_API_019_GET_QUERY": {
+    "additionalProperties": false,
+    "properties": {
+      "asOf": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Instant"
+      },
+      "attemptCursor": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Cursor"
+      },
+      "checkpointCursor": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Cursor"
+      },
+      "freshness": {
+        "enum": [
+          "FRESH_ONLY",
+          "ALLOW_STALE"
+        ]
+      },
+      "itemCursor": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Cursor"
+      },
+      "limit": {
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "asOf",
+      "freshness",
+      "limit"
+    ],
+    "type": "object"
+  },
+  "SYS_API_019_GET_RESPONSE": {
+    "actionUniqueness": "availableActions is unique by actionKey.",
+    "additionalProperties": false,
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "enum": [
+                "SUCCEEDED",
+                "CANCELLED",
+                "DEAD_LETTER"
+              ]
+            }
+          },
+          "required": [
+            "state"
+          ]
+        },
+        "then": {
+          "properties": {
+            "availableActions": {
+              "maxItems": 0
+            },
+            "cancelEligibility": {
+              "const": "INELIGIBLE"
+            },
+            "outputDigest": {
+              "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Digest"
+            },
+            "retryEligibleItemCount": {
+              "const": 0
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "enum": [
+                "QUEUED",
+                "LEASED"
+              ]
+            }
+          },
+          "required": [
+            "state"
+          ]
+        },
+        "then": {
+          "properties": {
+            "availableActions": {
+              "items": {
+                "properties": {
+                  "actionKey": {
+                    "const": "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.cancel"
+                  }
+                },
+                "required": [
+                  "actionKey"
+                ]
+              },
+              "maxItems": 1
+            },
+            "cancelEligibility": {
+              "const": "ELIGIBLE_NO_EFFECT"
+            },
+            "retryEligibleItemCount": {
+              "const": 0
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "const": "RUNNING"
+            }
+          },
+          "required": [
+            "state"
+          ]
+        },
+        "then": {
+          "properties": {
+            "availableActions": {
+              "items": {
+                "properties": {
+                  "actionKey": {
+                    "const": "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.cancel"
+                  }
+                },
+                "required": [
+                  "actionKey"
+                ]
+              },
+              "maxItems": 1
+            },
+            "retryEligibleItemCount": {
+              "const": 0
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "cancelEligibility": {
+              "const": "INELIGIBLE"
+            },
+            "state": {
+              "const": "RUNNING"
+            }
+          },
+          "required": [
+            "state",
+            "cancelEligibility"
+          ]
+        },
+        "then": {
+          "properties": {
+            "availableActions": {
+              "maxItems": 0
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "enum": [
+                "PARTIAL",
+                "FAILED"
+              ]
+            }
+          },
+          "required": [
+            "state"
+          ]
+        },
+        "then": {
+          "properties": {
+            "cancelEligibility": {
+              "const": "INELIGIBLE"
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "retryBudgetRemaining": {
+              "minimum": 1
+            },
+            "retryEligibleItemCount": {
+              "minimum": 1
+            },
+            "state": {
+              "enum": [
+                "PARTIAL",
+                "FAILED"
+              ]
+            }
+          },
+          "required": [
+            "state",
+            "retryBudgetRemaining",
+            "retryEligibleItemCount"
+          ]
+        },
+        "then": {
+          "properties": {
+            "availableActions": {
+              "items": {
+                "properties": {
+                  "actionKey": {
+                    "const": "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.retry"
+                  }
+                },
+                "required": [
+                  "actionKey"
+                ]
+              },
+              "maxItems": 1
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "anyOf": [
+            {
+              "properties": {
+                "retryBudgetRemaining": {
+                  "const": 0
+                }
+              },
+              "required": [
+                "retryBudgetRemaining"
+              ]
+            },
+            {
+              "properties": {
+                "retryEligibleItemCount": {
+                  "const": 0
+                }
+              },
+              "required": [
+                "retryEligibleItemCount"
+              ]
+            }
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "PARTIAL",
+                "FAILED"
+              ]
+            }
+          },
+          "required": [
+            "state"
+          ]
+        },
+        "then": {
+          "properties": {
+            "availableActions": {
+              "maxItems": 0
+            }
+          }
+        }
+      }
+    ],
+    "closedNestedProjections": {
+      "AttemptProjection": {
+        "additionalProperties": false,
+        "properties": {
+          "attemptNumber": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "completedAt": {
+            "oneOf": [
+              {
+                "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "selectedItemCount": {
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "selectedItemDigest": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Digest"
+          },
+          "selectionMode": {
+            "enum": [
+              "ALL_ITEMS",
+              "FAILED_ITEMS_ONLY"
+            ]
+          },
+          "startedAt": {
+            "oneOf": [
+              {
+                "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "enum": [
+              "QUEUED",
+              "LEASED",
+              "RUNNING",
+              "SUCCEEDED",
+              "PARTIAL",
+              "FAILED",
+              "CANCELLED",
+              "DEAD_LETTER"
+            ]
+          }
+        },
+        "required": [
+          "attemptNumber",
+          "selectionMode",
+          "selectedItemCount",
+          "selectedItemDigest",
+          "state",
+          "startedAt",
+          "completedAt"
+        ],
+        "type": "object"
+      },
+      "CheckpointProjection": {
+        "additionalProperties": false,
+        "properties": {
+          "attemptNumber": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "checkpointOrdinal": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "checkpointPublicId": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+          },
+          "committedAt": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Instant"
+          },
+          "outputDigest": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Digest"
+          },
+          "processedItemCount": {
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "processedItemDigest": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Digest"
+          }
+        },
+        "required": [
+          "checkpointPublicId",
+          "attemptNumber",
+          "checkpointOrdinal",
+          "processedItemCount",
+          "processedItemDigest",
+          "outputDigest",
+          "committedAt"
+        ],
+        "type": "object"
+      },
+      "ItemProjection": {
+        "additionalProperties": false,
+        "properties": {
+          "attemptCount": {
+            "maximum": 20,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "compensationState": {
+            "enum": [
+              "NOT_REQUIRED",
+              "PENDING",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "RESULT_UNKNOWN"
+            ]
+          },
+          "effectState": {
+            "enum": [
+              "NOT_STARTED",
+              "PREPARED",
+              "NO_EFFECT_CONFIRMED",
+              "COMMITTED",
+              "RESULT_UNKNOWN"
+            ]
+          },
+          "errorCode": {
+            "oneOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9._-]{0,79}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "itemPublicId": {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+          },
+          "itemSequence": {
+            "maximum": 1000000000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "resultDigest": {
+            "oneOf": [
+              {
+                "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "enum": [
+              "PENDING",
+              "LEASED",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED_RETRYABLE",
+              "FAILED_FINAL",
+              "CANCELLED",
+              "DEAD_LETTER"
+            ]
+          }
+        },
+        "required": [
+          "itemPublicId",
+          "itemSequence",
+          "state",
+          "attemptCount",
+          "resultDigest",
+          "errorCode",
+          "effectState",
+          "compensationState"
+        ],
+        "type": "object"
+      }
+    },
+    "properties": {
+      "attempts": {
+        "items": {
+          "$ref": "#/contractDecision/closedTransportSchemas/SYS_API_019_GET_RESPONSE/closedNestedProjections/AttemptProjection"
+        },
+        "maxItems": 20,
+        "type": "array"
+      },
+      "authorizationRevision": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "availableActions": {
+        "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/RunActionArray"
+      },
+      "cancelEligibility": {
+        "description": "Owner-derived from the complete persisted effect and compensation set before pagination. ELIGIBLE_ALL_REQUIRED_PATHS means every uncertain effect has a trusted reconciliation path and every committed effect has an exact declared idempotent compensation path.",
+        "enum": [
+          "ELIGIBLE_NO_EFFECT",
+          "ELIGIBLE_ALL_REQUIRED_PATHS",
+          "INELIGIBLE"
+        ]
+      },
+      "checkpoints": {
+        "items": {
+          "$ref": "#/contractDecision/closedTransportSchemas/SYS_API_019_GET_RESPONSE/closedNestedProjections/CheckpointProjection"
+        },
+        "maxItems": 100,
+        "type": "array"
+      },
+      "correlationId": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+      },
+      "definitionPublicId": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+      },
+      "itemFailed": {
+        "maximum": 1000000000,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "itemSucceeded": {
+        "maximum": 1000000000,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "itemTotal": {
+        "maximum": 1000000000,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "items": {
+        "items": {
+          "$ref": "#/contractDecision/closedTransportSchemas/SYS_API_019_GET_RESPONSE/closedNestedProjections/ItemProjection"
+        },
+        "maxItems": 100,
+        "type": "array"
+      },
+      "nextAttemptCursor": {
+        "oneOf": [
+          {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Cursor"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "nextCheckpointCursor": {
+        "oneOf": [
+          {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Cursor"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "nextItemCursor": {
+        "oneOf": [
+          {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Cursor"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "objectRevision": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "outputDigest": {
+        "oneOf": [
+          {
+            "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Digest"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "retryBudgetRemaining": {
+        "maximum": 20,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "retryEligibleItemCount": {
+        "description": "Owner-derived count after exact current manifest mode, retryable receipt state, frozen selection integrity, dedupe evidence and both retry budgets are applied. It is zero outside PARTIAL or FAILED and never exceeds itemFailed.",
+        "maximum": 1000000000,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "runPublicId": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+      },
+      "selectionMode": {
+        "enum": [
+          "ALL_ITEMS",
+          "FAILED_ITEMS_ONLY"
+        ]
+      },
+      "state": {
+        "enum": [
+          "QUEUED",
+          "LEASED",
+          "RUNNING",
+          "SUCCEEDED",
+          "PARTIAL",
+          "FAILED",
+          "CANCELLED",
+          "DEAD_LETTER"
+        ]
+      },
+      "versionNumber": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "runPublicId",
+      "definitionPublicId",
+      "versionNumber",
+      "state",
+      "objectRevision",
+      "selectionMode",
+      "itemTotal",
+      "itemSucceeded",
+      "itemFailed",
+      "outputDigest",
+      "retryBudgetRemaining",
+      "retryEligibleItemCount",
+      "cancelEligibility",
+      "attempts",
+      "items",
+      "checkpoints",
+      "nextAttemptCursor",
+      "nextItemCursor",
+      "nextCheckpointCursor",
+      "availableActions",
+      "authorizationRevision",
+      "correlationId"
+    ],
+    "stableOrder": "attempts by attemptNumber ascending, items by itemSequence ascending and checkpoints by attemptNumber then checkpointOrdinal ascending; each next cursor binds its collection kind and terminal tuple.",
+    "type": "object"
+  },
+  "actionDescriptorSchemas": {
+    "CollectionActionDescriptor": {
+      "additionalProperties": false,
+      "forbidden": [
+        "targetPublicId",
+        "targetVersion",
+        "expectedObjectRevision"
+      ],
+      "properties": {
+        "actionKey": {
+          "const": "hris.action.sys.post.platform.v1.admin.hris.automations"
+        },
+        "idempotencyPolicy": {
+          "const": "REQUIRED_IDEMPOTENCY_KEY"
+        },
+        "method": {
+          "const": "POST"
+        },
+        "resolvedHref": {
+          "const": "/api/platform/v1/admin/hris/automations"
+        },
+        "stepUpPolicy": {
+          "const": "OWNER_PEP_RISK_POLICY_DECISION_REQUIRED"
+        },
+        "targetResourceType": {
+          "const": "AUTOMATION_DEFINITION_COLLECTION"
+        }
+      },
+      "required": [
+        "method",
+        "actionKey",
+        "targetResourceType",
+        "resolvedHref",
+        "idempotencyPolicy",
+        "stepUpPolicy"
+      ],
+      "type": "object"
+    },
+    "DefinitionActionArray": {
+      "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/ResourceActionArray",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/ResourceActionDescriptor"
+          },
+          {
+            "properties": {
+              "actionKey": {
+                "enum": [
+                  "hris.action.sys.post.platform.v1.admin.hris.automations.resource.runs",
+                  "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions",
+                  "hris.action.sys.post.platform.v1.admin.hris.automations.resource.schedules"
+                ]
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          }
+        ]
+      },
+      "maxItems": 3
+    },
+    "ResourceActionArray": {
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.runs"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.retry"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.validate"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.submit"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.approve"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.activate"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.schedules"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.submit"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.approve"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.activate"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.suspend"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        },
+        {
+          "contains": {
+            "properties": {
+              "actionKey": {
+                "const": "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.cancel"
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
+        }
+      ],
+      "items": {
+        "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/ResourceActionDescriptor"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "ResourceActionDescriptor": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "not": {
+              "required": [
+                "targetVersion"
+              ]
+            }
+          },
+          "if": {
+            "properties": {
+              "targetResourceType": {
+                "const": "AUTOMATION_VERSION"
+              }
+            },
+            "required": [
+              "targetResourceType"
+            ]
+          },
+          "then": {
+            "required": [
+              "targetVersion"
+            ]
+          }
+        }
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.runs"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/runs$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_DEFINITION"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.retry"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automation-runs/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/retry$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_RUN"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/versions$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_DEFINITION"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.validate"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/versions/[1-9][0-9]*/validate$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_VERSION"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.submit"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/versions/[1-9][0-9]*/submit$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_VERSION"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.approve"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/versions/[1-9][0-9]*/approve$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_VERSION"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.activate"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/versions/[1-9][0-9]*/activate$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_VERSION"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automations.resource.schedules"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/schedules$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_DEFINITION"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.submit"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automation-schedules/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/submit$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_SCHEDULE"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.approve"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automation-schedules/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/approve$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_SCHEDULE"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.activate"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automation-schedules/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/activate$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_SCHEDULE"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.suspend"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automation-schedules/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/suspend$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_SCHEDULE"
+            }
+          }
+        },
+        {
+          "properties": {
+            "actionKey": {
+              "const": "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.cancel"
+            },
+            "resolvedHref": {
+              "pattern": "^/api/platform/v1/admin/hris/automation-runs/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/cancel$"
+            },
+            "targetResourceType": {
+              "const": "AUTOMATION_RUN"
+            }
+          }
+        }
+      ],
+      "properties": {
+        "actionKey": {
+          "enum": [
+            "hris.action.sys.post.platform.v1.admin.hris.automations.resource.runs",
+            "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.retry",
+            "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions",
+            "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.validate",
+            "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.submit",
+            "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.approve",
+            "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.activate",
+            "hris.action.sys.post.platform.v1.admin.hris.automations.resource.schedules",
+            "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.submit",
+            "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.approve",
+            "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.activate",
+            "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.suspend",
+            "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.cancel"
+          ]
+        },
+        "expectedObjectRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idempotencyPolicy": {
+          "const": "REQUIRED_IDEMPOTENCY_KEY"
+        },
+        "method": {
+          "const": "POST"
+        },
+        "resolvedHref": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^/api/platform/v1/admin/hris/[^{}?#]+$",
+          "type": "string"
+        },
+        "stepUpPolicy": {
+          "const": "OWNER_PEP_RISK_POLICY_DECISION_REQUIRED"
+        },
+        "targetPublicId": {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+        },
+        "targetResourceType": {
+          "enum": [
+            "AUTOMATION_DEFINITION",
+            "AUTOMATION_VERSION",
+            "AUTOMATION_SCHEDULE",
+            "AUTOMATION_RUN"
+          ]
+        },
+        "targetVersion": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "method",
+        "actionKey",
+        "targetResourceType",
+        "targetPublicId",
+        "expectedObjectRevision",
+        "resolvedHref",
+        "idempotencyPolicy",
+        "stepUpPolicy"
+      ],
+      "type": "object"
+    },
+    "RunActionArray": {
+      "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/ResourceActionArray",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/ResourceActionDescriptor"
+          },
+          {
+            "properties": {
+              "actionKey": {
+                "enum": [
+                  "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.retry",
+                  "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.cancel"
+                ]
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          }
+        ]
+      },
+      "maxItems": 2
+    },
+    "ScheduleActionArray": {
+      "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/ResourceActionArray",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/ResourceActionDescriptor"
+          },
+          {
+            "properties": {
+              "actionKey": {
+                "enum": [
+                  "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.submit",
+                  "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.approve",
+                  "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.activate",
+                  "hris.action.sys.post.platform.v1.admin.hris.automation-schedules.resource.suspend"
+                ]
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          }
+        ]
+      },
+      "maxItems": 4
+    },
+    "VersionActionArray": {
+      "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/ResourceActionArray",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/contractDecision/closedTransportSchemas/actionDescriptorSchemas/ResourceActionDescriptor"
+          },
+          {
+            "properties": {
+              "actionKey": {
+                "enum": [
+                  "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.validate",
+                  "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.submit",
+                  "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.approve",
+                  "hris.action.sys.post.platform.v1.admin.hris.automations.resource.versions.resource.activate"
+                ]
+              }
+            },
+            "required": [
+              "actionKey"
+            ]
+          }
+        ]
+      },
+      "maxItems": 4
+    }
+  },
+  "catalogProjectionClosure": {
+    "allowedFields": [
+      "definitionPublicId",
+      "automationKey",
+      "ownerDomain",
+      "derivedLifecycleState",
+      "activeVersionNumber",
+      "versionNumber",
+      "lifecycleState",
+      "handlerKey",
+      "handlerContractVersion",
+      "objectRevision",
+      "schedulePublicId",
+      "pinnedVersionNumber",
+      "timezone",
+      "nextFireAt"
+    ],
+    "decisionRule": "Field policy is evaluated independently for every returned resource and field. Visible, masked and omitted names are reflected in fieldDecisionSummary. An unrequested allowed field is OmittedField. If any projected business field in a row is MaskedField or OmittedField, availableActions is empty for that row; this conservative closed rule prevents state, identity or authorization inference and no hidden value is copied into a descriptor.",
+    "queryRule": "SYS-API-017 GET rejects any fields value outside allowedFields with 400. resourceType and availableActions are control fields and are always present; each requested or policy-controlled business field remains a required property whose value is either its visible scalar, MaskedField or OmittedField, so MASK/OMIT never violates the closed union.",
+    "stableSortRule": "Sorting and cursor binding use owner-side persisted values before projection. Masking or omission never changes the terminal tuple or leaks it through the cursor."
+  },
+  "commonTypes": {
+    "Cursor": {
+      "maxLength": 2048,
+      "minLength": 16,
+      "type": "string"
+    },
+    "Digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "Fields": {
+      "description": "Closed SYS-API-017 catalog field-name set used by the query and field decision summary.",
+      "items": {
+        "enum": [
+          "definitionPublicId",
+          "automationKey",
+          "ownerDomain",
+          "derivedLifecycleState",
+          "activeVersionNumber",
+          "versionNumber",
+          "lifecycleState",
+          "handlerKey",
+          "handlerContractVersion",
+          "objectRevision",
+          "schedulePublicId",
+          "pinnedVersionNumber",
+          "timezone",
+          "nextFireAt"
+        ],
+        "type": "string"
+      },
+      "maxItems": 14,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "Instant": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "MaskedField": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "const": "MASK"
+        },
+        "displayValue": {
+          "const": "••••"
+        }
+      },
+      "required": [
+        "decision",
+        "displayValue"
+      ],
+      "type": "object"
+    },
+    "OmittedField": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "const": "OMIT"
+        }
+      },
+      "required": [
+        "decision"
+      ],
+      "type": "object"
+    },
+    "ProjectedAutomationKey": {
+      "oneOf": [
+        {
+          "pattern": "^[a-z][a-z0-9.-]{2,63}$",
+          "type": "string"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedDefinitionState": {
+      "oneOf": [
+        {
+          "enum": [
+            "DRAFT",
+            "ACTIVE",
+            "SUSPENDED",
+            "RETIRED"
+          ]
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedHandlerKey": {
+      "oneOf": [
+        {
+          "pattern": "^[a-z][a-z0-9._-]{2,127}$",
+          "type": "string"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedNullableInstant": {
+      "oneOf": [
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Instant"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedNullablePositiveInteger": {
+      "oneOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedOwnerDomain": {
+      "oneOf": [
+        {
+          "enum": [
+            "HRM",
+            "PER",
+            "TIM",
+            "PAY"
+          ]
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedPositiveInteger": {
+      "oneOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedScheduleState": {
+      "oneOf": [
+        {
+          "enum": [
+            "DRAFT",
+            "PENDING_APPROVAL",
+            "APPROVED",
+            "ACTIVE",
+            "SUSPENDED"
+          ]
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedSchemaVersion": {
+      "oneOf": [
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/SchemaVersion"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedTimezone": {
+      "oneOf": [
+        {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedUuid": {
+      "oneOf": [
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Uuid"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "ProjectedVersionState": {
+      "oneOf": [
+        {
+          "enum": [
+            "DRAFT",
+            "VALIDATED",
+            "PENDING_APPROVAL",
+            "APPROVED",
+            "ACTIVE",
+            "SUSPENDED",
+            "RETIRED"
+          ]
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/MaskedField"
+        },
+        {
+          "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/OmittedField"
+        }
+      ]
+    },
+    "SchemaVersion": {
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,127}\\.v[1-9][0-9]*$",
+      "type": "string"
+    },
+    "Uuid": {
+      "format": "uuid",
+      "type": "string"
+    }
+  },
+  "cursorBinding": "Every cursor is authenticated and binds tenant ID, caller subject, owner-query ID, resource-type/filter digest, purpose, authorization revision, asOf, stable sort tuple and page limit. SYS-API-017 additionally binds the requested field set and field-policy revision. SYS-API-019 binds the invariant run-detail projection version and collection kind instead of accepting a field set. A mismatch, expiry or tamper returns 400 and never silently restarts pagination.",
+  "fieldDecisionSummary": {
+    "additionalProperties": false,
+    "properties": {
+      "fieldPolicyRevision": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "masked": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Fields"
+      },
+      "omitted": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Fields"
+      },
+      "visible": {
+        "$ref": "#/contractDecision/closedTransportSchemas/commonTypes/Fields"
+      }
+    },
+    "required": [
+      "visible",
+      "masked",
+      "omitted",
+      "fieldPolicyRevision"
+    ],
+    "type": "object"
+  },
+  "numericInteropRule": {
+    "bigintStringRule": "A signed-BIGINT value used in a JCS identity or digest beyond the safe-number domain is encoded as a no-leading-zero positive base-10 JSON string and parsed without coercion with an exact upper bound 9223372036854775807. Raw tenant IDs, database IDs and fence epochs never enter JSON/JCS as unsafe numbers.",
+    "numberRule": "Every SYS-006 integer emitted as a JSON number, including API, PDX and event envelope revisions, versions and ordinals, is schema- and storage-bounded to 9007199254740991. Materialized item counts and item sequences are additionally bounded to canonical PDX-005 expectedItemCount 1000000000; attempt numbers remain bounded to 20.",
+    "safeJsonIntegerMaximum": 9007199254740991,
+    "signedDocumentRule": "Every RFC-8785/JCS-signed definition, execution policy, handler manifest or schedule policy document applies the same number-or-decimal-string rule to versionNumber, objectRevision, handlerManifestRevision, compatibilityBaselineVersion, submittedSubjectRevision, approvedSubjectRevision and every nested integer token before signature verification."
+  },
+  "runDetailProjectionClosure": {
+    "actionRule": "runPublicId and objectRevision are invariant control fields used to bind RETRY_RUN or CANCEL_RUN descriptors. Only RunActionArray is legal. retryEligibleItemCount and cancelEligibility are derived from the complete owner-side persisted item/effect set before pagination; the state, budget and eligibility schema is an executable upper bound, and authorization may only remove an otherwise eligible descriptor.",
+    "cursorRule": "attempt, item and checkpoint cursors bind the invariant run-detail projection version, collection kind and terminal tuple. Empty arrays mean genuinely empty authorized collections and never encode field omission.",
+    "decision": "INVARIANT_ADMINISTRATIVE_CONTROL_PROJECTION",
+    "fieldDecisionSummary": "NOT_APPLICABLE_AND_FORBIDDEN",
+    "queryRule": "SYS-API-019 does not accept fields. Its exact top-level and nested properties are invariant automation-control metadata after the route-level owner authorization decision; they are never individually MASKed, OMITted or inferred from a client field set."
+  },
+  "schemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "schemaRule": "These authoritative JSON-Schema-shaped fragments supersede the historical prose and obsolete monolithic AutomationCommand only for SYS-API-017 GET/POST and SYS-API-019. Every object has additionalProperties false; every nullable field in the newly owned catalog and run-detail responses is required and encoded as explicit null; the reused canonical HrisCommandReceiptV1 response alone preserves NON_NULL omission for its optional aggregateVersion and resultRef; optional query fields are omitted when absent; arrays preserve the stated stable order; and validation failure returns the existing closed Problem schema."
+}
