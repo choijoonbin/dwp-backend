@@ -2274,6 +2274,16 @@ def reset_database(confirmed: bool) -> None:
     print("Local PostgreSQL and Redis data was removed. Run './dev up full' for a fresh schema.")
 
 
+def bootstrap_hris_authority(confirmed: bool) -> None:
+    try:
+        from scripts.hris_local_authority_bootstrap import bootstrap_local_authority
+    except ModuleNotFoundError:
+        from hris_local_authority_bootstrap import bootstrap_local_authority
+
+    evidence = bootstrap_local_authority(local_environment(), confirmed)
+    print(json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -2292,6 +2302,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     reset_parser = commands.add_parser("reset", help="delete the local PostgreSQL volume")
     reset_parser.add_argument("--yes", action="store_true")
+    bootstrap_help = (
+        "publish local Time/Payroll authority; conflicting revisions fail closed "
+        "and are never implicitly replaced"
+    )
+    bootstrap_parser = commands.add_parser(
+        "bootstrap-hris-authority",
+        help=bootstrap_help,
+        description=bootstrap_help,
+    )
+    bootstrap_parser.add_argument("--yes", action="store_true")
     return parser
 
 
@@ -2334,6 +2354,8 @@ def main() -> None:
         show_logs(args.service, args.follow)
     elif args.command == "reset":
         reset_database(args.yes)
+    elif args.command == "bootstrap-hris-authority":
+        bootstrap_hris_authority(args.yes)
 
 
 if __name__ == "__main__":
