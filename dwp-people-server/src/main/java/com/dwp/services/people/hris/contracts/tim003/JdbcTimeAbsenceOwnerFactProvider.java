@@ -1,5 +1,6 @@
 package com.dwp.services.people.hris.contracts.tim003;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,7 @@ final class JdbcTimeAbsenceOwnerFactProvider
     private final TransactionTemplate repeatableRead;
     private final Clock clock;
 
+    @Autowired
     JdbcTimeAbsenceOwnerFactProvider(
             NamedParameterJdbcTemplate jdbc,
             PlatformTransactionManager transactions) {

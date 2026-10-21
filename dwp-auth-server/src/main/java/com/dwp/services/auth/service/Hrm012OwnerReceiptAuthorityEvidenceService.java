@@ -6,6 +6,7 @@ import com.dwp.core.security.Hrm012OwnerReceiptAuthorityContract;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +29,7 @@ public final class Hrm012OwnerReceiptAuthorityEvidenceService {
     private final String keyId;
     private final PrivateKey privateKey;
 
+    @Autowired
     public Hrm012OwnerReceiptAuthorityEvidenceService(
             ObjectMapper mapper,
             @Value("${dwp.auth.hrm012-owner-receipt.active-key-id:}") String keyId,

@@ -7,6 +7,7 @@ import com.dwp.core.security.ProductSurfaceStepUpChallengeVerifier;
 import com.dwp.services.auth.dto.Hrm012ReceiptFirstStepUpDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +30,7 @@ public final class Hrm012ReceiptFirstStepUpVerificationService {
     private final ProductSurfaceAuthorityService authorityService;
     private final ProductSurfaceStepUpChallengeVerifier verifier;
 
+    @Autowired
     public Hrm012ReceiptFirstStepUpVerificationService(
             ProductSurfaceAuthorityService authorityService,
             ObjectMapper mapper,

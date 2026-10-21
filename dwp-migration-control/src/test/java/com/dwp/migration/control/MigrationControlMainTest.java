@@ -321,6 +321,16 @@ class MigrationControlMainTest {
     }
 
     @Test
+    void timeControlAllowsOnlyTheTim003AssignmentSnapshotValidatorRoutine() {
+        assertEquals(
+                List.of(new RuntimeRoutine(
+                        "public",
+                        "tim003_assignment_snapshots_structurally_valid",
+                        "jsonb,uuid")),
+                ControlPlan.forService("time").runtimeRoutineAllowlist());
+    }
+
+    @Test
     void timeAndPayrollControlPinTheAuditOutboxRuntimeMutationSurface() {
         Set<String> expectedUpdates = Set.of(
                 "public.sys_audit_outbox:status,attempt_count,available_at,locked_by,"

@@ -1,6 +1,7 @@
 package com.dwp.services.people.hris.contracts.tim003;
 
 import com.dwp.contracts.hris.xcon.v1.Xcon027EmploymentAbsenceSnapshotV1;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -26,6 +27,7 @@ final class TimeAbsenceOwnerService {
     private final TimeAbsenceOwnerCanonicalJson canonical;
     private final Clock clock;
 
+    @Autowired
     TimeAbsenceOwnerService(
             TimeAbsenceOwnerPorts.OwnerGrantVerifierAuthority grants,
             TimeAbsenceOwnerPorts.ReplayReservation replay,

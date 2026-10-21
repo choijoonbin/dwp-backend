@@ -341,7 +341,10 @@ record ControlPlan(
                     false,
                     false,
                     "timeRuntimeRole",
-                    List.of(),
+                    List.of(new RuntimeRoutine(
+                            "public",
+                            "tim003_assignment_snapshots_structurally_valid",
+                            "jsonb,uuid")),
                     List.of(
                             projectionRuntimeReadOnly("tim_target_population_projections"),
                             projectionRuntimeReadOnly("tim_target_population_actor_grants"),

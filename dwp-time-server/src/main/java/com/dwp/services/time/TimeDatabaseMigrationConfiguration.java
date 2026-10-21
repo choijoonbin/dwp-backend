@@ -213,10 +213,23 @@ public class TimeDatabaseMigrationConfiguration {
         DomainEventLedgerRuntimeGuard.verify(
                 "Time", applicationDataSource,
                 DomainEventLedgerRuntimeGuard.Profile.ACTIVE);
+        verifyOwnerTriggerExecutionBoundary(
+                applicationDataSource, configurationGuard.migrationUser());
+    }
+
+    static void verifyOwnerTriggerExecutionBoundary(
+            DataSource applicationDataSource,
+            String migrationPrincipal) {
         OwnerTriggerExecutionBoundaryGuard.verify(
-                "Time", applicationDataSource,
+                "Time",
+                applicationDataSource,
                 List.of(SystemFlywayConfigurationGuard.SCHEMA),
-                configurationGuard.migrationUser());
+                List.of(SystemFlywayConfigurationGuard.SCHEMA),
+                Set.of(migrationPrincipal),
+                Set.of(
+                        "search_path=pg_catalog, public, pg_temp",
+                        "search_path=pg_catalog"),
+                Set.of(migrationPrincipal));
     }
 
     static Set<RuntimeRoutineExecutionGuard.Routine> runtimeRoutines() {

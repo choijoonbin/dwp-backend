@@ -4,6 +4,7 @@ import com.dwp.core.security.Hrm012OwnerReceiptAuthorityContract;
 import com.dwp.core.security.Hrm012OwnerReceiptAuthorityVerifier;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,7 @@ public final class Hrm012OwnerReceiptAuthorityEvidenceVerifier {
 
     private final Hrm012OwnerReceiptAuthorityVerifier verifier;
 
+    @Autowired
     public Hrm012OwnerReceiptAuthorityEvidenceVerifier(
             ObjectMapper mapper,
             @Value("${dwp.people.hrm012-owner-receipt.current-key-id:}") String keyId,

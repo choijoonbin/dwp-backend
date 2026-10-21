@@ -2,6 +2,7 @@ package com.dwp.services.people.security;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -25,6 +26,7 @@ public final class Hrm012ReceiptFirstStepUpClient {
     private final RestClient client;
     private final String token;
 
+    @Autowired
     public Hrm012ReceiptFirstStepUpClient(
             RestClient.Builder builder,
             @Value("${dwp.people.hrm012-receipt-first.auth-url:${SERVICE_AUTH_URL:http://localhost:8001}}")
