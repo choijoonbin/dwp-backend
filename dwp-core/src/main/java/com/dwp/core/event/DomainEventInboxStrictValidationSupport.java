@@ -151,6 +151,127 @@ public final class DomainEventInboxStrictValidationSupport {
                 stored.withDeadReason(finalReason));
     }
 
+    /** Completes only a TIM-003 delivery whose exact lease is still active. */
+    void completeActiveLease(
+            String consumerName,
+            DomainEventEnvelope event,
+            String lockToken) {
+        requireTim003Consumer(consumerName);
+        int inboxChanged = jdbc.update("""
+                UPDATE sys_domain_event_inbox
+                   SET status = 'SUCCEEDED', processed_at = CURRENT_TIMESTAMP,
+                       locked_by = NULL, lock_token = NULL, locked_until = NULL,
+                       last_error = NULL, updated_at = CURRENT_TIMESTAMP
+                 WHERE consumer_name = :consumerName
+                   AND event_id = :eventId
+                   AND status = 'PROCESSING'
+                   AND lock_token = :lockToken
+                   AND locked_until > CURRENT_TIMESTAMP
+                """, new MapSqlParameterSource()
+                        .addValue("consumerName", consumerName)
+                        .addValue("eventId", event.id())
+                        .addValue("lockToken", lockToken));
+        if (inboxChanged != 1) {
+            throw new IllegalStateException(
+                    "TIM-003 inbox completion lost its active lease.");
+        }
+
+        int offsetChanged = jdbc.update("""
+                UPDATE sys_domain_event_offsets
+                   SET last_sequence = :aggregateSequence,
+                       last_event_id = :eventId,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE consumer_name = :consumerName
+                   AND tenant_id = :tenantScope
+                   AND event_source = :eventSource
+                   AND aggregate_type = :aggregateType
+                   AND aggregate_id = :aggregateId
+                   AND last_sequence = :expectedPredecessor
+                """, offsetParameters(consumerName, event)
+                        .addValue("eventId", event.id())
+                        .addValue("aggregateSequence", event.aggregateSequence())
+                        .addValue("expectedPredecessor", event.aggregateSequence() - 1));
+        requireOne(offsetChanged, "TIM-003 aggregate-offset completion");
+    }
+
+    /** Records a TIM-003 failure only while the exact processing lease remains active. */
+    DomainEventInboxRepository.FailureState failActiveLease(
+            String consumerName,
+            UUID eventId,
+            String lockToken,
+            int attempt,
+            int maximumAttempts,
+            String error) {
+        requireTim003Consumer(consumerName);
+        DomainEventInboxRepository.FailureState state = attempt >= maximumAttempts
+                ? DomainEventInboxRepository.FailureState.DEAD
+                : DomainEventInboxRepository.FailureState.RETRYABLE;
+        int delaySeconds = Math.min(300, Math.max(2, 1 << Math.min(8, attempt)));
+        int changed = jdbc.update("""
+                UPDATE sys_domain_event_inbox
+                   SET status = :status,
+                       available_at = CURRENT_TIMESTAMP
+                           + make_interval(secs => :delaySeconds),
+                       dead_lettered_at = CASE
+                           WHEN :status = 'DEAD' THEN CURRENT_TIMESTAMP ELSE NULL END,
+                       locked_by = NULL, lock_token = NULL, locked_until = NULL,
+                       last_error = :error, updated_at = CURRENT_TIMESTAMP
+                 WHERE consumer_name = :consumerName
+                   AND event_id = :eventId
+                   AND status = 'PROCESSING'
+                   AND lock_token = :lockToken
+                   AND locked_until > CURRENT_TIMESTAMP
+                """, new MapSqlParameterSource()
+                        .addValue("status",
+                                state == DomainEventInboxRepository.FailureState.DEAD
+                                        ? "DEAD" : "FAILED")
+                        .addValue("delaySeconds", delaySeconds)
+                        .addValue("error", consumerFailure(error))
+                        .addValue("consumerName", consumerName)
+                        .addValue("eventId", eventId)
+                        .addValue("lockToken", lockToken));
+        if (changed != 1) {
+            throw new IllegalStateException(
+                    "TIM-003 failure outcome lost its active lease.");
+        }
+        return state;
+    }
+
+    /** Quarantines a TIM-003 delivery without overwriting immutable conflict evidence. */
+    void quarantinePreservingPayloadConflict(
+            String consumerName,
+            DomainEventEnvelope event,
+            String reason) {
+        requireTim003Consumer(consumerName);
+        validateBoundedEnvelope(event);
+        PreparedEvent prepared = prepare(event);
+        jdbc.update("""
+                INSERT INTO sys_domain_event_inbox (
+                    consumer_name, event_id, event_source, event_type, schema_version,
+                    tenant_id, aggregate_type, aggregate_id, aggregate_sequence,
+                    correlation_id, causation_id, trace_parent, payload, payload_sha256,
+                    status, attempt_count, available_at, dead_lettered_at, last_error,
+                    created_at, updated_at)
+                VALUES (
+                    :consumerName, :eventId, :eventSource, :eventType, :schemaVersion,
+                    :tenantId, :aggregateType, :aggregateId, :aggregateSequence,
+                    :correlationId, :causationId, :traceParent, CAST(:payload AS jsonb),
+                    :payloadHash, 'DEAD', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                    :reason, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (consumer_name, event_id) DO UPDATE
+                   SET status = 'DEAD', dead_lettered_at = CURRENT_TIMESTAMP,
+                       last_error = CASE
+                           WHEN sys_domain_event_inbox.last_error = :payloadConflictReason
+                               THEN sys_domain_event_inbox.last_error
+                           ELSE EXCLUDED.last_error
+                       END,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE sys_domain_event_inbox.payload_sha256 = EXCLUDED.payload_sha256
+                """, eventParameters(consumerName, event, prepared)
+                        .addValue("reason", consumerFailure(reason))
+                        .addValue("payloadConflictReason", PAYLOAD_CONFLICT_REASON));
+    }
+
     Optional<Boolean> replayDecision(
             String consumerName,
             UUID eventId,
@@ -306,6 +427,17 @@ public final class DomainEventInboxStrictValidationSupport {
                 .addValue("payloadHash", prepared.payloadSha256());
     }
 
+    private static MapSqlParameterSource offsetParameters(
+            String consumerName,
+            DomainEventEnvelope event) {
+        return new MapSqlParameterSource()
+                .addValue("consumerName", consumerName)
+                .addValue("tenantScope", event.tenantId() == null ? 0L : event.tenantId())
+                .addValue("eventSource", event.source())
+                .addValue("aggregateType", event.aggregateType())
+                .addValue("aggregateId", event.aggregateId());
+    }
+
     static void requireTim003Consumer(String consumerName) {
         if (!TIM003_CONSUMER_NAME.equals(consumerName)) {
             throw new IllegalArgumentException("Strict inbox operations are reserved for TIM-003.");
@@ -351,6 +483,13 @@ public final class DomainEventInboxStrictValidationSupport {
     private static String boundedReason(String value) {
         String normalized = value == null || value.isBlank() ? "Unspecified" : value.strip();
         return normalized.length() <= 900 ? normalized : normalized.substring(0, 900);
+    }
+
+    private static String consumerFailure(String value) {
+        if (value == null || value.isBlank()) {
+            return "Unknown domain-event consumer failure";
+        }
+        return value.length() <= 1000 ? value : value.substring(0, 1000);
     }
 
     private static Map<String, Object> identityMap(ClaimedIdentity identity) {

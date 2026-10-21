@@ -193,7 +193,6 @@ public class DomainEventInboxRepository {
                    AND event_id = :eventId
                    AND status = 'PROCESSING'
                    AND lock_token = :lockToken
-                   AND locked_until > CURRENT_TIMESTAMP
                 """, new MapSqlParameterSource()
                         .addValue("consumerName", consumerName)
                         .addValue("eventId", event.id())
@@ -221,6 +220,14 @@ public class DomainEventInboxRepository {
         }
     }
 
+    /** TIM-003-only completion fenced by the still-active lease. */
+    public void completeTim003ActiveLease(
+            String consumerName,
+            DomainEventEnvelope event,
+            String lockToken) {
+        strictValidation.completeActiveLease(consumerName, event, lockToken);
+    }
+
     public FailureState fail(
             String consumerName,
             UUID eventId,
@@ -245,7 +252,6 @@ public class DomainEventInboxRepository {
                    AND event_id = :eventId
                    AND status = 'PROCESSING'
                    AND lock_token = :lockToken
-                   AND locked_until > CURRENT_TIMESTAMP
                 """, new MapSqlParameterSource()
                         .addValue("status", state == FailureState.DEAD ? "DEAD" : "FAILED")
                         .addValue("delaySeconds", delaySeconds)
@@ -259,10 +265,29 @@ public class DomainEventInboxRepository {
         return state;
     }
 
+    /** TIM-003-only failure transition fenced by the still-active lease. */
+    public FailureState failTim003ActiveLease(
+            String consumerName,
+            UUID eventId,
+            String lockToken,
+            int attempt,
+            int maximumAttempts,
+            String error) {
+        return strictValidation.failActiveLease(
+                consumerName, eventId, lockToken,
+                attempt, maximumAttempts, error);
+    }
+
     public void quarantine(
             String consumerName,
             DomainEventEnvelope event,
             String reason) {
+        if (DomainEventInboxStrictValidationSupport.TIM003_CONSUMER_NAME
+                .equals(consumerName)) {
+            strictValidation.quarantinePreservingPayloadConflict(
+                    consumerName, event, reason);
+            return;
+        }
         String payload = DomainEventJson.serialize(objectMapper, event);
         String payloadHash = DomainEventJson.sha256(payload);
         jdbc.update("""
@@ -280,18 +305,10 @@ public class DomainEventInboxRepository {
                     :reason, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT (consumer_name, event_id) DO UPDATE
                    SET status = 'DEAD', dead_lettered_at = CURRENT_TIMESTAMP,
-                       last_error = CASE
-                           WHEN sys_domain_event_inbox.last_error = :payloadConflictReason
-                               THEN sys_domain_event_inbox.last_error
-                           ELSE EXCLUDED.last_error
-                       END,
-                       updated_at = CURRENT_TIMESTAMP
+                       last_error = EXCLUDED.last_error, updated_at = CURRENT_TIMESTAMP
                  WHERE sys_domain_event_inbox.payload_sha256 = EXCLUDED.payload_sha256
                 """, eventParameters(consumerName, event, payload, payloadHash)
-                        .addValue("reason", truncate(reason, 1000))
-                        .addValue(
-                                "payloadConflictReason",
-                                DomainEventInboxStrictValidationSupport.PAYLOAD_CONFLICT_REASON));
+                        .addValue("reason", truncate(reason, 1000)));
     }
 
     public boolean replayDead(

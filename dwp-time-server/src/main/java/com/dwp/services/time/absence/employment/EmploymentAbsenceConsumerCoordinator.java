@@ -286,7 +286,8 @@ public final class EmploymentAbsenceConsumerCoordinator {
             EmploymentAbsenceProjection next = quarantined.observeWhileQuarantined(
                     valid.invalidation(), event.aggregateSequence());
             persist(existing, next);
-            inbox.complete(EmploymentAbsenceContract.CONSUMER, event, begun.lockToken());
+            inbox.completeTim003ActiveLease(
+                    EmploymentAbsenceContract.CONSUMER, event, begun.lockToken());
             appendEventAudit(valid, "TIM003_QUARANTINE_PRECEDENCE", "DENIED");
             return Prepared.terminal(DeliveryOutcome.APPLIED);
         }
@@ -302,7 +303,8 @@ public final class EmploymentAbsenceConsumerCoordinator {
                         event.tenantId(), valid.body().relationshipPublicId(),
                         next.lastObservedEventSequence());
             }
-            inbox.complete(EmploymentAbsenceContract.CONSUMER, event, begun.lockToken());
+            inbox.completeTim003ActiveLease(
+                    EmploymentAbsenceContract.CONSUMER, event, begun.lockToken());
             appendEventAudit(valid, "TIM003_GAP_BACKFILL", "SUCCESS");
             return Prepared.terminal(DeliveryOutcome.APPLIED);
         }
@@ -315,7 +317,8 @@ public final class EmploymentAbsenceConsumerCoordinator {
             EmploymentAbsenceProjection next = base.covered(
                     valid.invalidation(), event.aggregateSequence(), clock.instant());
             persist(existing, next);
-            inbox.complete(EmploymentAbsenceContract.CONSUMER, event, begun.lockToken());
+            inbox.completeTim003ActiveLease(
+                    EmploymentAbsenceContract.CONSUMER, event, begun.lockToken());
             appendEventAudit(valid, "TIM003_CONTIGUOUS_COVERED", "SUCCESS");
             return Prepared.terminal(DeliveryOutcome.APPLIED_NO_REFETCH);
         }
@@ -375,7 +378,7 @@ public final class EmploymentAbsenceConsumerCoordinator {
                     recovered.grant().businessTimeZone(), claim.minimumRevision,
                     claim.event.envelope().aggregateSequence(), clock.instant());
             projections.updateExpectedVersion(next, current.projectionVersion());
-            inbox.complete(EmploymentAbsenceContract.CONSUMER,
+            inbox.completeTim003ActiveLease(EmploymentAbsenceContract.CONSUMER,
                     claim.event.envelope(), claim.lockToken);
             appendEventAudit(claim.event, "TIM003_SEQUENTIAL_RECOVERY", "SUCCESS");
             return DeliveryOutcome.APPLIED;
@@ -386,9 +389,11 @@ public final class EmploymentAbsenceConsumerCoordinator {
             case CONTEXT_REFRESH -> claim.attempt + 1;
             case RETRYABLE -> MAXIMUM_ATTEMPTS;
         };
-        DomainEventInboxRepository.FailureState ledgerFailure = inbox.fail(
-                EmploymentAbsenceContract.CONSUMER, claim.event.envelope().id(),
-                claim.lockToken, claim.attempt, effectiveMaximum, failure.code());
+        DomainEventInboxRepository.FailureState ledgerFailure =
+                inbox.failTim003ActiveLease(
+                        EmploymentAbsenceContract.CONSUMER,
+                        claim.event.envelope().id(), claim.lockToken,
+                        claim.attempt, effectiveMaximum, failure.code());
         OwnerFailure projectionFailure = ledgerFailure
                 == DomainEventInboxRepository.FailureState.DEAD
                 ? OwnerFailure.permanent(failure.code()) : failure;

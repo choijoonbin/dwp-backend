@@ -162,10 +162,49 @@ class EmploymentAbsenceProjectionOrderingTest {
                 .isEqualTo("EVENT_CONTRACT_VIOLATION");
         assertThat(after.sharedOffsetSequence()).isEqualTo(1);
         assertThat(after.lastObservedEventSequence()).isEqualTo(1);
-        verify(inbox).complete(EmploymentAbsenceContract.CONSUMER, event, "lease-token");
+        verify(inbox).completeTim003ActiveLease(
+                EmploymentAbsenceContract.CONSUMER, event, "lease-token");
         verify(owner, never()).recover(
                 org.mockito.ArgumentMatchers.anyLong(), any(),
                 org.mockito.ArgumentMatchers.anyLong(), any());
+    }
+
+    @Test
+    void sequentialOwnerFailureUsesTim003ActiveLeaseFailure() {
+        var store = new EmploymentAbsenceTestSupport.InMemoryProjectionStore();
+        var event = EmploymentAbsenceTestSupport.event(1);
+        DomainEventInboxRepository inbox = mock(DomainEventInboxRepository.class);
+        when(inbox.registerForStrictValidation(anyString(), any()))
+                .thenReturn(new DomainEventInboxStrictValidationSupport.RegistrationResult(
+                        DomainEventInboxStrictValidationSupport.RegistrationState.REGISTERED,
+                        new DomainEventInboxStrictValidationSupport.PreparedEvent(
+                                "{}", EmploymentAbsenceTestSupport.DIGEST_A),
+                        null, null));
+        when(inbox.begin(anyString(), any(), anyString(), any()))
+                .thenReturn(new DomainEventInboxRepository.BeginResult(
+                        DomainEventInboxRepository.BeginState.ACQUIRED,
+                        "lease-token", 1));
+        when(inbox.failTim003ActiveLease(
+                EmploymentAbsenceContract.CONSUMER, event.id(), "lease-token",
+                1, 5, "OWNER_TEMPORARILY_UNAVAILABLE"))
+                .thenReturn(DomainEventInboxRepository.FailureState.RETRYABLE);
+        EmploymentAbsenceOwnerClient owner = mock(EmploymentAbsenceOwnerClient.class);
+        when(owner.recover(anyLong(), any(), anyLong(), any()))
+                .thenReturn(new EmploymentAbsenceContract.OwnerDenied(
+                        EmploymentAbsenceContract.OwnerFailure.retryable(
+                                "OWNER_TEMPORARILY_UNAVAILABLE")));
+        when(owner.revalidateForFinalization(any(), any(), anyLong()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(coordinator(inbox, store, owner).consume(event))
+                .isEqualTo(EmploymentAbsenceConsumerCoordinator.DeliveryOutcome.RETRYABLE);
+
+        verify(inbox).failTim003ActiveLease(
+                EmploymentAbsenceContract.CONSUMER, event.id(), "lease-token",
+                1, 5, "OWNER_TEMPORARILY_UNAVAILABLE");
+        verify(inbox, never()).fail(
+                EmploymentAbsenceContract.CONSUMER, event.id(), "lease-token",
+                1, 5, "OWNER_TEMPORARILY_UNAVAILABLE");
     }
 
     @Test
@@ -236,7 +275,7 @@ class EmploymentAbsenceProjectionOrderingTest {
         assertThat(recovered.lastObservedEventSequence()).isEqualTo(3);
         verify(owner).recover(eq(EmploymentAbsenceTestSupport.TENANT),
                 eq(EmploymentAbsenceTestSupport.RELATIONSHIP), eq(5L), any());
-        verify(inbox, never()).complete(anyString(), any(), any());
+        verify(inbox, never()).completeTim003ActiveLease(anyString(), any(), any());
         verify(inbox, never()).recoverOffsetFromOwnerSnapshot(any());
     }
 

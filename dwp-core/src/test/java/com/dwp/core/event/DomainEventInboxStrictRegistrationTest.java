@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -158,6 +159,118 @@ class DomainEventInboxStrictRegistrationTest {
     }
 
     @Test
+    void genericCompletionAndFailureKeepBaseLeaseSemantics() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        DomainEventInboxRepository repository = new DomainEventInboxRepository(
+                jdbc, new ObjectMapper().findAndRegisterModules());
+        DomainEventEnvelope envelope = event("HIRED", RELATIONSHIP_ID);
+        when(jdbc.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+
+        repository.complete("generic-consumer", envelope, "lease-token");
+        assertThat(repository.fail(
+                "generic-consumer", EVENT_ID, "lease-token", 1, 5, "retry"))
+                .isEqualTo(DomainEventInboxRepository.FailureState.RETRYABLE);
+
+        ArgumentCaptor<String> statements = ArgumentCaptor.forClass(String.class);
+        verify(jdbc, times(3)).update(
+                statements.capture(), any(MapSqlParameterSource.class));
+        String completionSql = statements.getAllValues().stream()
+                .filter(sql -> sql.contains("status = 'SUCCEEDED'"))
+                .findFirst().orElseThrow();
+        String failureSql = statements.getAllValues().stream()
+                .filter(sql -> sql.contains("make_interval"))
+                .findFirst().orElseThrow();
+        assertThat(completionSql)
+                .contains("status = 'PROCESSING'", "lock_token = :lockToken")
+                .doesNotContain("locked_until > CURRENT_TIMESTAMP");
+        assertThat(failureSql)
+                .contains("status = 'PROCESSING'", "lock_token = :lockToken")
+                .doesNotContain("locked_until > CURRENT_TIMESTAMP");
+    }
+
+    @Test
+    void tim003CompletionAndFailureRequireAnActiveLeaseAndFailClosed() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        DomainEventInboxRepository repository = new DomainEventInboxRepository(
+                jdbc, new ObjectMapper().findAndRegisterModules());
+        DomainEventEnvelope envelope = event("HIRED", RELATIONSHIP_ID);
+        when(jdbc.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(0);
+
+        assertThatThrownBy(() -> repository.completeTim003ActiveLease(
+                DomainEventInboxStrictValidationSupport.TIM003_CONSUMER_NAME,
+                envelope, "expired-lease"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("lost its active lease");
+        assertThatThrownBy(() -> repository.failTim003ActiveLease(
+                DomainEventInboxStrictValidationSupport.TIM003_CONSUMER_NAME,
+                EVENT_ID, "lost-lease", 1, 5, "retry"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("lost its active lease");
+
+        ArgumentCaptor<String> statements = ArgumentCaptor.forClass(String.class);
+        verify(jdbc, times(2)).update(
+                statements.capture(), any(MapSqlParameterSource.class));
+        assertThat(statements.getAllValues()).allSatisfy(sql -> assertThat(sql)
+                .contains("status = 'PROCESSING'", "lock_token = :lockToken",
+                        "locked_until > CURRENT_TIMESTAMP"));
+    }
+
+    @Test
+    void genericQuarantineKeepsBaseConflictUpdateSemantics() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        DomainEventInboxRepository repository = new DomainEventInboxRepository(jdbc, mapper);
+        DomainEventEnvelope envelope = event("HIRED", RELATIONSHIP_ID);
+        when(jdbc.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+
+        repository.quarantine("generic-consumer", envelope, "generic failure");
+
+        ArgumentCaptor<String> statement = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).update(statement.capture(), parameters.capture());
+        assertThat(statement.getValue())
+                .contains("last_error = EXCLUDED.last_error")
+                .contains("payload_sha256 = EXCLUDED.payload_sha256")
+                .doesNotContain("CASE")
+                .doesNotContain("payloadConflictReason");
+        assertThat(parameters.getValue().hasValue("payloadConflictReason")).isFalse();
+        assertThat(parameters.getValue().getValue("reason")).isEqualTo("generic failure");
+        assertThat(parameters.getValue().getValue("payloadHash")).isEqualTo(
+                DomainEventJson.sha256(DomainEventJson.serialize(mapper, envelope)));
+    }
+
+    @Test
+    void tim003QuarantinePreservesPayloadConflictEvidenceForTheSameDigest() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        DomainEventInboxRepository repository = new DomainEventInboxRepository(jdbc, mapper);
+        DomainEventEnvelope envelope = event("HIRED", RELATIONSHIP_ID);
+        when(jdbc.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+
+        repository.quarantine(
+                DomainEventInboxStrictValidationSupport.TIM003_CONSUMER_NAME,
+                envelope, "replacement failure");
+
+        ArgumentCaptor<String> statement = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).update(statement.capture(), parameters.capture());
+        assertThat(statement.getValue())
+                .contains("payload_sha256 = EXCLUDED.payload_sha256")
+                .contains("last_error = CASE")
+                .contains("sys_domain_event_inbox.last_error = :payloadConflictReason")
+                .contains("THEN sys_domain_event_inbox.last_error")
+                .contains("ELSE EXCLUDED.last_error");
+        assertThat(parameters.getValue().getValue("payloadConflictReason"))
+                .isEqualTo(DomainEventInboxStrictValidationSupport.PAYLOAD_CONFLICT_REASON);
+        assertThat(parameters.getValue().getValue("reason"))
+                .isEqualTo("replacement failure");
+        assertThat(parameters.getValue().getValue("payloadHash")).isEqualTo(
+                DomainEventJson.sha256(DomainEventJson.serialize(mapper, envelope)));
+    }
+
+    @Test
     void strictOperationsRejectEveryOtherConsumerBeforeDatabaseAccess() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
         DomainEventInboxRepository repository = new DomainEventInboxRepository(
@@ -165,6 +278,14 @@ class DomainEventInboxStrictRegistrationTest {
 
         assertThatThrownBy(() -> repository.registerForStrictValidation(
                 "another-consumer", event("HIRED", RELATIONSHIP_ID)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("reserved for TIM-003");
+        assertThatThrownBy(() -> repository.completeTim003ActiveLease(
+                "another-consumer", event("HIRED", RELATIONSHIP_ID), "lease"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("reserved for TIM-003");
+        assertThatThrownBy(() -> repository.failTim003ActiveLease(
+                "another-consumer", EVENT_ID, "lease", 1, 5, "retry"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("reserved for TIM-003");
         verify(jdbc, never()).update(anyString(), any(MapSqlParameterSource.class));
