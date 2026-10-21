@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Runtime-only, closed People PEP projection generated from the shared HRIS v53 registry.
+ * Runtime-only, closed People PEP projection generated from the shared HRIS v57 registry.
  * Provider-support profiles are parsed to detect contract drift, but they are not a service
  * readiness signal: {@link HcmProductSurfacePepFilter} denies them until the trusted request
  * carries the contractual legal-entity population boundary as well as the support session.
@@ -34,11 +34,11 @@ import java.util.stream.Collectors;
 public final class HcmV3PepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-people-pep-v53.generated.json";
-    static final String REGISTRY_V53_CHECKSUM =
-            "c655a850ae2ac01466edb37f2e1c69f9e269dd2a4a529c3a87b1610c0561a359";
-    static final String PROJECTION_V53_CHECKSUM =
-            "fc1442f8ae1782dc30833014d13f0d75de25c4c7fc43c94cc3fabdf36efabd66";
+            "product-authorization/hcm-people-pep-v57.generated.json";
+    static final String REGISTRY_V57_CHECKSUM =
+            "f7d6e2ef92f563747ed062e496638ea83498a33414fc12586c794f517e626d6e";
+    static final String PROJECTION_V57_CHECKSUM =
+            "1fb7e38d5cfae1a49a71967e9ead995e92dc7d200ee2083b796b72f9c6a89577";
     static final String ORGANIZATION_RESPONSIBILITY_BOUNDARY =
             "ORGANIZATION_TARGET_POPULATION";
     private static final String HRM011_CONTRACT_ISSUE_CAPABILITY =
@@ -498,17 +498,27 @@ public final class HcmV3PepRegistry {
                             ? route.path("stepUpCommandBindings").size() : 0),
                     routeKey + ": invalid step-up binding closure");
         }
-        require(result.size() == 144, "HCM People PEP binding count changed");
+        require(result.size() == 151, "HCM People PEP binding count changed");
         return List.copyOf(result);
     }
 
     private StepUpBinding stepUp(JsonNode value) {
+        boolean standardVersionHeader = "X-DWP-Expected-Object-Version".equals(
+                value.path("expectedObjectVersionName").asText());
+        boolean hrm012ReceiptFirstVersionHeader = "If-Match".equals(
+                value.path("expectedObjectVersionName").asText())
+                && "WORKFORCE_INGESTION_OBJECT".equals(
+                        value.path("targetType").asText())
+                && (value.path("targetIdPathParameter").isMissingNode()
+                    || value.path("targetIdPathParameter").isNull())
+                && value.path("targetIdBodyFields").isArray()
+                && value.path("targetIdBodyFields").size() == 1
+                && "objectRef".equals(value.path("targetIdBodyFields").get(0).asText());
         require("people".equals(value.path("ownerServiceKey").asText())
                         && "dwp-people-server".equals(value.path("audience").asText())
                         && "COMMAND_HEADER".equals(
                         value.path("expectedObjectVersionSource").asText())
-                        && "X-DWP-Expected-Object-Version".equals(
-                        value.path("expectedObjectVersionName").asText()),
+                        && (standardVersionHeader || hrm012ReceiptFirstVersionHeader),
                 "Invalid People step-up owner/version binding");
         String pathParameter = value.path("targetIdPathParameter").asText(null);
         List<String> bodyFields = new ArrayList<>();
@@ -525,29 +535,29 @@ public final class HcmV3PepRegistry {
 
     private void validateEnvelope(ObjectNode projection) {
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-people-pep-v53".equals(projection.path("projectionKey").asText())
+                        && "hcm-people-pep-v57".equals(projection.path("projectionKey").asText())
                         && "people".equals(projection.path("ownerServiceKey").asText()),
                 "Unexpected HCM People PEP envelope");
         JsonNode registry = projection.path("registryRef");
         require("product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 53
-                        && REGISTRY_V53_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 57
+                        && REGISTRY_V57_CHECKSUM.equals(registry.path("sha256").asText()),
                 "HCM People registry reference mismatch");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 1095
-                        && projection.path("projectedRouteContractCount").asInt() == 117
-                        && projection.path("bindingPairCount").asInt() == 144,
+        require(projection.path("sourceRegistryRouteCount").asInt() == 1123
+                        && projection.path("projectedRouteContractCount").asInt() == 124
+                        && projection.path("bindingPairCount").asInt() == 151,
                 "HCM People release counts changed");
         ObjectNode payload = projection.deepCopy();
         JsonNode checksum = payload.remove("projectionChecksum");
         require(checksum != null
-                        && PROJECTION_V53_CHECKSUM.equals(checksum.asText())
-                        && PROJECTION_V53_CHECKSUM.equals(sha256(payload)),
+                        && PROJECTION_V57_CHECKSUM.equals(checksum.asText())
+                        && PROJECTION_V57_CHECKSUM.equals(sha256(payload)),
                 "HCM People projection checksum mismatch");
     }
 
     private void validateClosure(ObjectNode projection) {
-        require(capabilities.size() == 58 && policies.size() == 5
-                        && expressions.size() == 3 && predicates.size() == 18,
+        require(capabilities.size() == 59 && policies.size() == 5
+                        && expressions.size() == 3 && predicates.size() == 19,
                 "HCM People descriptor closure count changed");
         Set<String> routes = new LinkedHashSet<>();
         for (JsonNode route : requiredArray(projection, "routes")) {

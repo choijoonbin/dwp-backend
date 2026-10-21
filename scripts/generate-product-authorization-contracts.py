@@ -299,7 +299,12 @@ HCM_PEP_V56_OUTPUTS = {
     f"hcm-{service}-pep-v56.generated.json"
     for service in ("people", "time", "platform", "payroll")
 }
-BUNDLE_VERSIONS = tuple(range(1, 57))
+HCM_PEP_V57_OUTPUTS = {
+    service: ROOT / f"dwp-{service}-server/src/main/resources/product-authorization/"
+    f"hcm-{service}-pep-v57.generated.json"
+    for service in ("people", "time", "platform", "payroll")
+}
+BUNDLE_VERSIONS = tuple(range(1, 58))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -445,6 +450,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 82, "routes": 1104, "PAGE": 156, "DATA": 336, "ACTION": 612},
     56: {"capabilities": 270, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 82, "routes": 1120, "PAGE": 156, "DATA": 338, "ACTION": 626},
+    57: {"capabilities": 271, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 83, "routes": 1123, "PAGE": 157, "DATA": 339, "ACTION": 627},
 }
 
 V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
@@ -571,6 +578,7 @@ REQUIRED_RESPONSIBILITY_BY_CAPABILITY = {
     "hcm.operations.time.reopen": "HRIS_DUTY_TIME_REOPEN_OPERATOR",
     "hcm.operations.contract.issue": "HRIS_DUTY_CONTRACT_ISSUER",
     "hcm.operations.statutory.execute": "HRIS_DUTY_STATUTORY_OPERATOR",
+    "hcm.integration.workforce-ingestion.execute": "HRIS_DUTY_INTEGRATION_EXECUTOR",
 }
 
 V42_HCM_AUDIT_ELEVATED_READ_PROJECTIONS = {
@@ -4376,6 +4384,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         HCM_PAYROLL_PEP_V54_OUTPUT,
         *HCM_PEP_V55_OUTPUTS.values(),
         *HCM_PEP_V56_OUTPUTS.values(),
+        *HCM_PEP_V57_OUTPUTS.values(),
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -5366,6 +5375,30 @@ def main() -> int:
                             "entitlementExpressions": 0, "predicatePolicies": 9},
             }.items()
         }
+        hcm_peps_v57 = {
+            service: build_approvals_pep(
+                snapshots[56], service, f"hcm-{service}-pep-v57", counts,
+                version=57, product_key="hcm",
+            )
+            for service, counts in {
+                "people": {"routes": 124, "bindings": 151,
+                           "routeKinds": {"ACTION": 51, "DATA": 29, "PAGE": 44},
+                           "capabilities": 59, "accessPolicies": 5,
+                           "entitlementExpressions": 3, "predicatePolicies": 19},
+                "time": {"routes": 29, "bindings": 29,
+                         "routeKinds": {"ACTION": 16, "DATA": 6, "PAGE": 7},
+                         "capabilities": 15, "accessPolicies": 0,
+                         "entitlementExpressions": 0, "predicatePolicies": 9},
+                "platform": {"routes": 69, "bindings": 70,
+                             "routeKinds": {"ACTION": 41, "DATA": 21, "PAGE": 7},
+                             "capabilities": 22, "accessPolicies": 4,
+                             "entitlementExpressions": 3, "predicatePolicies": 11},
+                "payroll": {"routes": 39, "bindings": 39,
+                            "routeKinds": {"ACTION": 22, "DATA": 13, "PAGE": 4},
+                            "capabilities": 17, "accessPolicies": 0,
+                            "entitlementExpressions": 0, "predicatePolicies": 9},
+            }.items()
+        }
     except ContractError as exc:
         print(f"authorization contract error: {exc}", file=sys.stderr)
         return 1
@@ -5722,6 +5755,10 @@ def main() -> int:
         write_or_check(HCM_PEP_V56_OUTPUTS[service], render(pep), args.check)
         for service, pep in hcm_peps_v56.items()
     )
+    outcomes.extend(
+        write_or_check(HCM_PEP_V57_OUTPUTS[service], render(pep), args.check)
+        for service, pep in hcm_peps_v57.items()
+    )
     if not all(outcomes):
         return 1
     try:
@@ -5860,6 +5897,8 @@ def main() -> int:
             verify_approvals_pep(HCM_PEP_V55_OUTPUTS[service], pep)
         for service, pep in hcm_peps_v56.items():
             verify_approvals_pep(HCM_PEP_V56_OUTPUTS[service], pep)
+        for service, pep in hcm_peps_v57.items():
+            verify_approvals_pep(HCM_PEP_V57_OUTPUTS[service], pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1

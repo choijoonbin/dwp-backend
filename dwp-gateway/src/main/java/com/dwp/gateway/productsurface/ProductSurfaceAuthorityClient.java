@@ -68,6 +68,31 @@ public class ProductSurfaceAuthorityClient {
                 .onErrorReturn(unavailable(context, productKey, surfaceKey));
     }
 
+    Mono<ProductSurfaceContextDtos.AuthorityResult> evaluateHrm012OwnerReceipt(
+            ProductSurfaceContextDtos.RequestContext context,
+            String correlationId,
+            String idempotencyKeySha256,
+            String opaqueStepUpChallengeRef) {
+        if (serviceToken.isBlank()) return Mono.just(unavailable(
+                context, "hcm", "hcm.operations"));
+        var request = new ProductSurfaceContextDtos.AuthorityEvaluateRequest(
+                context.tenantId(), context.actorId(), "hcm", "hcm.operations",
+                context.activeAccessMode(),
+                "route.hcm.operations.workforce-ingestion.action",
+                null, null, null, null, List.of(), correlationId,
+                idempotencyKeySha256, opaqueStepUpChallengeRef, "POST",
+                "/v1/hris/integrations/workforce-ingestions");
+        return authClient.post()
+                .uri(INTERNAL_PATH)
+                .headers(headers -> trustedHeaders(headers, context))
+                .bodyValue(request)
+                .exchangeToMono(response -> response.statusCode().is2xxSuccessful()
+                        ? response.bodyToMono(ProductSurfaceContextDtos.AuthorityResult.class)
+                        : response.createException().flatMap(Mono::error))
+                .timeout(timeout)
+                .onErrorReturn(unavailable(context, "hcm", "hcm.operations"));
+    }
+
     private void trustedHeaders(
             HttpHeaders headers,
             ProductSurfaceContextDtos.RequestContext context) {

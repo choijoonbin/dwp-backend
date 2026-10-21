@@ -28,6 +28,7 @@ public final class ProductSurfaceContextDtos {
         EXPIRED,
         ACTIVATION_REQUIRED,
         STEP_UP_REQUIRED,
+        OWNER_RECEIPT_AUTH_REQUIRED,
         SOD_CONFLICT,
         SUPPORT_SCOPE_DENIED,
         AUTHORITY_UNAVAILABLE
@@ -329,7 +330,21 @@ public final class ProductSurfaceContextDtos {
             String contextScopeKey,
             String supportSessionRef,
             String supportRevision,
-            List<String> supportScopes) {
+            List<String> supportScopes,
+            String correlationId,
+            String idempotencyKeySha256,
+            String opaqueStepUpChallengeRef,
+            String commandMethod,
+            String commandPath) {
+        AuthorityEvaluateRequest(
+                Long tenantId, Long actorId, String productKey, String surfaceKey,
+                AccessMode activeAccessMode, String routeContractKey, String contextKey,
+                String contextScopeKey, String supportSessionRef, String supportRevision,
+                List<String> supportScopes) {
+            this(tenantId, actorId, productKey, surfaceKey, activeAccessMode,
+                    routeContractKey, contextKey, contextScopeKey, supportSessionRef,
+                    supportRevision, supportScopes, null, null, null, null, null);
+        }
     }
 
     record AuthorityResult(
@@ -355,7 +370,8 @@ public final class ProductSurfaceContextDtos {
             String requiredAssurance,
             String requestPolicyRef,
             OffsetDateTime revalidateAt,
-            String evidenceRef) {
+            String evidenceRef,
+            String ownerReceiptAuthority) {
 
         AuthorityResult {
             effectiveGrants = effectiveGrants == null ? List.of() : List.copyOf(effectiveGrants);
@@ -412,7 +428,25 @@ public final class ProductSurfaceContextDtos {
                     requiredAssurance,
                     requestPolicyRef,
                     revalidateAt,
-                    evidenceRef);
+                    evidenceRef,
+                    null);
+        }
+
+        AuthorityResult(
+                Decision decision, String reasonCode, String authRevision,
+                String policyRevision, String tenantControlRevision, String contextKey,
+                String productKey, String surfaceKey, String plane, AccessMode accessMode,
+                AccessSource accessSource, String appResourceKey,
+                List<EffectiveGrant> effectiveGrants, List<EffectiveScope> scopes,
+                String routeGrantRef, boolean effectiveReadOnly,
+                boolean requiresProductEligibility, OffsetDateTime validUntil,
+                OffsetDateTime expiredAt, String requiredAssurance,
+                String requestPolicyRef, OffsetDateTime revalidateAt, String evidenceRef) {
+            this(decision, reasonCode, authRevision, policyRevision, tenantControlRevision,
+                    contextKey, productKey, surfaceKey, plane, accessMode, accessSource,
+                    appResourceKey, effectiveGrants, scopes, routeGrantRef, effectiveReadOnly,
+                    requiresProductEligibility, validUntil, expiredAt, requiredAssurance,
+                    requestPolicyRef, revalidateAt, evidenceRef, null);
         }
     }
 

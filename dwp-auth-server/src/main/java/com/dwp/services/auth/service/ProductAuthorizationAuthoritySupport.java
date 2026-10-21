@@ -284,6 +284,11 @@ final class ProductAuthorizationAuthoritySupport {
                 || ("hcm.operations.statutory.execute".equals(capability.contractKey())
                 && "PAYROLL_LEGAL_ENTITY_GROUP_SCOPE".equals(capability.scopeResolver())
                 && "HRIS_DUTY_STATUTORY_OPERATOR".equals(
+                        capability.requiredResponsibilityCode()))
+                || ("hcm.integration.workforce-ingestion.execute".equals(
+                        capability.contractKey())
+                && "CONNECTOR_OR_LEGAL_ENTITY_SCOPE".equals(capability.scopeResolver())
+                && "HRIS_DUTY_INTEGRATION_EXECUTOR".equals(
                         capability.requiredResponsibilityCode()));
     }
 

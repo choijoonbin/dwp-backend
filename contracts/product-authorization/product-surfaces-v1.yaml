@@ -63253,6 +63253,39 @@
           "stepUpCommandBindings": [{"bindingKey": "route.hcm.configuration.automation-run-cancel.action.binding.01", "targetType": "HRIS_AUTOMATION_RUN", "targetIdPathParameter": "runId", "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "If-Match", "ownerServiceKey": "platform", "audience": "dwp-platform-server"}], "owner": "Platform + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 57,
+      "capabilities": [
+        {
+          "contractKey": "hcm.integration.workforce-ingestion.execute", "productKey": "hcm", "surfaceKey": "hcm.operations", "resolvedCapabilityCode": "ACTION.HRIS_INTEGRATION_EXECUTE:EXECUTE", "resourceKey": "ACTION.HRIS_INTEGRATION_EXECUTE", "action": "EXECUTE", "mappingVersion": 1, "requiresProductEntitlement": true, "authorityMode": "PERMISSION_AND_RELATIONSHIP", "scopeResolver": "CONNECTOR_OR_LEGAL_ENTITY_SCOPE", "riskTier": "HIGH", "activationPolicy": "STEPUP-MGMT-HIGH-V1", "responsibilityRequirement": "REQUIRED", "requiredResponsibilityCode": "HRIS_DUTY_INTEGRATION_EXECUTOR", "sodPolicyId": null, "legacySource": null, "sunsetAt": null, "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [
+        {
+          "predicatePolicyKey": "predicate.hcm-workforce-ingestion-scope.v1", "ownerServiceKey": "people", "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "inputEvidenceSchemaKey": "HcmWorkforceIngestionScopeEvidenceV1", "parameterSchemaKey": "predicate.hcm-workforce-ingestion-scope.v1.parameters.v1", "parameterSchema": {"type": "object", "additionalProperties": false, "properties": {}}, "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ],
+      "routes": [
+        {
+          "routeContractKey": "route.hcm.operations.people-data-quality.page", "authorizationEquivalenceKey": "wire-authority.hcm.operations.people-data-quality.v1", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "PAGE", "sideEffectFree": null, "uiRouteId": "hcm.operations.people-data-quality", "uiRoutePattern": "/hr/operations/people/data-quality",
+          "accessProfiles": [{"profileKey": "people-data-quality-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.people.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-ingestion-scope.v1"], "projectionPolicyKey": "route.hcm.operations.people-data-quality.page.people-data-quality-reader.projection.v1", "responseSchemaKey": "Hrm012DataQualityProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.people-data-quality.page.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/operations/data/quality", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.people-data-quality.page.binding.01", "method": "GET", "path": "/v1/hris/workbench/operations/data/quality", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.people-data-quality.data", "authorizationEquivalenceKey": "wire-authority.hcm.operations.people-data-quality.v1", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "people-data-quality-reader", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.people.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-ingestion-scope.v1"], "projectionPolicyKey": "route.hcm.operations.people-data-quality.data.people-data-quality-reader.projection.v1", "responseSchemaKey": "Hrm012DataQualityProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.people-data-quality.data.binding.01", "method": "GET", "path": "/api/people/v1/hris/workbench/operations/data/quality", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.people-data-quality.data.binding.01", "method": "GET", "path": "/v1/hris/workbench/operations/data/quality", "pathParameterConstraints": {}, "serviceKey": "people"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.workforce-ingestion.action", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "ACTION", "sideEffectFree": null, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "workforce-ingestion-executor", "precedence": 300, "activeAccessModes": ["ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.integration.workforce-ingestion.execute"}, "targetBindingKinds": ["OBJECT", "TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-workforce-ingestion-scope.v1", "predicate.people.object-version.v1"], "readOnly": false}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.workforce-ingestion.action.binding.01", "method": "POST", "path": "/api/people/v1/hris/integrations/workforce-ingestions", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.workforce-ingestion.action.binding.01", "method": "POST", "path": "/v1/hris/integrations/workforce-ingestions", "pathParameterConstraints": {}, "serviceKey": "people"}],
+          "stepUpCommandBindings": [{"bindingKey": "route.hcm.operations.workforce-ingestion.action.binding.01", "targetType": "WORKFORCE_INGESTION_OBJECT", "targetIdBodyFields": ["objectRef"], "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "If-Match", "ownerServiceKey": "people", "audience": "dwp-people-server"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {
@@ -63678,6 +63711,10 @@
       {
         "contractKey": "hcm.operations.statutory.execute",
         "requiredResponsibilityCode": "HRIS_DUTY_STATUTORY_OPERATOR"
+      },
+      {
+        "contractKey": "hcm.integration.workforce-ingestion.execute",
+        "requiredResponsibilityCode": "HRIS_DUTY_INTEGRATION_EXECUTOR"
       }
     ],
     "routes": [

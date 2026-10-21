@@ -32,6 +32,7 @@ public final class ProductSurfaceAuthorityDtos {
         EXPIRED,
         ACTIVATION_REQUIRED,
         STEP_UP_REQUIRED,
+        OWNER_RECEIPT_AUTH_REQUIRED,
         SOD_CONFLICT,
         SUPPORT_SCOPE_DENIED,
         AUTHORITY_UNAVAILABLE
@@ -82,7 +83,12 @@ public final class ProductSurfaceAuthorityDtos {
             @Size(max = 500) String contextScopeKey,
             @Size(max = 500) String supportSessionRef,
             @Size(max = 500) String supportRevision,
-            List<@NotBlank @Size(max = 160) String> supportScopes) {
+            List<@NotBlank @Size(max = 160) String> supportScopes,
+            @Size(max = 200) String correlationId,
+            @Size(max = 64) String idempotencyKeySha256,
+            @Size(max = 8192) String opaqueStepUpChallengeRef,
+            @Size(max = 16) String commandMethod,
+            @Size(max = 500) String commandPath) {
 
         public EvaluateRequest {
             supportScopes = supportScopes == null ? List.of() : List.copyOf(supportScopes);
@@ -90,6 +96,22 @@ public final class ProductSurfaceAuthorityDtos {
 
         public boolean directRouteEvaluation() {
             return routeContractKey != null && !routeContractKey.isBlank();
+        }
+
+        public EvaluateRequest(
+                Long tenantId, Long actorId, String productKey, String surfaceKey,
+                AccessMode activeAccessMode, String routeContractKey, String contextKey,
+                String contextScopeKey, String supportSessionRef, String supportRevision,
+                List<String> supportScopes) {
+            this(tenantId, actorId, productKey, surfaceKey, activeAccessMode,
+                    routeContractKey, contextKey, contextScopeKey, supportSessionRef,
+                    supportRevision, supportScopes, null, null, null, null, null);
+        }
+
+        public boolean ownerReceiptRequest() {
+            return correlationId != null || idempotencyKeySha256 != null
+                    || opaqueStepUpChallengeRef != null || commandMethod != null
+                    || commandPath != null;
         }
     }
 
@@ -117,7 +139,8 @@ public final class ProductSurfaceAuthorityDtos {
             String requiredAssurance,
             String requestPolicyRef,
             OffsetDateTime revalidateAt,
-            String evidenceRef) {
+            String evidenceRef,
+            String ownerReceiptAuthority) {
 
         public AuthorityResult {
             effectiveGrants = effectiveGrants == null ? List.of() : List.copyOf(effectiveGrants);
@@ -157,7 +180,24 @@ public final class ProductSurfaceAuthorityDtos {
                     productKey, surfaceKey, plane, accessMode, accessSource, appResourceKey,
                     effectiveGrants, scopes, routeGrantRef, effectiveReadOnly,
                     requiresProductEligibility, validUntil, expiredAt, requiredAssurance,
-                    requestPolicyRef, revalidateAt, evidenceRef);
+                    requestPolicyRef, revalidateAt, evidenceRef, null);
+        }
+
+        public AuthorityResult(
+                Decision decision, String reasonCode, String authRevision,
+                String policyRevision, String tenantControlRevision, String contextKey,
+                String productKey, String surfaceKey, String plane, AccessMode accessMode,
+                AccessSource accessSource, String appResourceKey,
+                List<EffectiveGrant> effectiveGrants, List<EffectiveScope> scopes,
+                String routeGrantRef, boolean effectiveReadOnly,
+                boolean requiresProductEligibility, OffsetDateTime validUntil,
+                OffsetDateTime expiredAt, String requiredAssurance,
+                String requestPolicyRef, OffsetDateTime revalidateAt, String evidenceRef) {
+            this(decision, reasonCode, authRevision, policyRevision, tenantControlRevision,
+                    contextKey, productKey, surfaceKey, plane, accessMode, accessSource,
+                    appResourceKey, effectiveGrants, scopes, routeGrantRef, effectiveReadOnly,
+                    requiresProductEligibility, validUntil, expiredAt, requiredAssurance,
+                    requestPolicyRef, revalidateAt, evidenceRef, null);
         }
 
         public static AuthorityResult unavailable(EvaluateRequest request) {
@@ -179,6 +219,7 @@ public final class ProductSurfaceAuthorityDtos {
                     null,
                     true,
                     false,
+                    null,
                     null,
                     null,
                     null,

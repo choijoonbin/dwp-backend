@@ -4,6 +4,7 @@ import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.security.RolePlaneBoundary;
+import com.dwp.core.security.Hrm012OwnerReceiptAuthorityContract;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -65,6 +66,8 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             "route.hcm.operations.certificate-issue.action";
     private static final String HRM009_SELF_PROFILE = "certificate-self-requester";
     private static final String HRM009_OPERATIONS_PROFILE = "certificate-operations-issuer";
+    private static final String HRM012_ACTION_ROUTE =
+            Hrm012OwnerReceiptAuthorityContract.ROUTE;
 
     private final boolean productAuthorizationV3Enabled;
     private final HcmV3PepRegistry registry;
@@ -72,6 +75,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
     private final boolean organizationPositionsEnabled;
     private final Set<Long> organizationPositionsEnrolledTenants;
+    private final Hrm012OwnerReceiptAuthorityEvidenceVerifier hrm012Verifier;
 
     @Autowired
     public HcmProductSurfacePepFilter(
@@ -80,11 +84,13 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             HcmV3PepRegistry registry,
             HcmScopeSelectionValidator scopeValidator,
             ObjectMapper objectMapper,
+            Hrm012OwnerReceiptAuthorityEvidenceVerifier hrm012Verifier,
             @Value("${dwp.hris.organization-positions.enabled:false}")
             boolean organizationPositionsEnabled,
             @Value("${dwp.hris.organization-positions.enrolled-tenants:}")
             String organizationPositionsEnrolledTenants) {
         this(productAuthorizationV3Enabled, registry, scopeValidator, objectMapper,
+                hrm012Verifier,
                 organizationPositionsEnabled,
                 parseEnrolledTenants(organizationPositionsEnrolledTenants));
     }
@@ -96,14 +102,38 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             HcmScopeSelectionValidator scopeValidator,
             ObjectMapper objectMapper) {
         this(productAuthorizationV3Enabled, registry, scopeValidator, objectMapper,
-                false, Set.of());
+                null, false, Set.of());
     }
 
-    private HcmProductSurfacePepFilter(
+    public HcmProductSurfacePepFilter(
             boolean productAuthorizationV3Enabled,
             HcmV3PepRegistry registry,
             HcmScopeSelectionValidator scopeValidator,
             ObjectMapper objectMapper,
+            boolean organizationPositionsEnabled,
+            String organizationPositionsEnrolledTenants) {
+        this(productAuthorizationV3Enabled, registry, scopeValidator, objectMapper,
+                null, organizationPositionsEnabled,
+                parseEnrolledTenants(organizationPositionsEnrolledTenants));
+    }
+
+    HcmProductSurfacePepFilter(
+            boolean productAuthorizationV3Enabled,
+            HcmV3PepRegistry registry,
+            HcmScopeSelectionValidator scopeValidator,
+            ObjectMapper objectMapper,
+            boolean organizationPositionsEnabled,
+            Set<Long> organizationPositionsEnrolledTenants) {
+        this(productAuthorizationV3Enabled, registry, scopeValidator, objectMapper,
+                null, organizationPositionsEnabled, organizationPositionsEnrolledTenants);
+    }
+
+    HcmProductSurfacePepFilter(
+            boolean productAuthorizationV3Enabled,
+            HcmV3PepRegistry registry,
+            HcmScopeSelectionValidator scopeValidator,
+            ObjectMapper objectMapper,
+            Hrm012OwnerReceiptAuthorityEvidenceVerifier hrm012Verifier,
             boolean organizationPositionsEnabled,
             Set<Long> organizationPositionsEnrolledTenants) {
         this.productAuthorizationV3Enabled = productAuthorizationV3Enabled;
@@ -112,6 +142,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
         this.objectMapper = objectMapper;
         this.organizationPositionsEnabled = organizationPositionsEnabled;
         this.organizationPositionsEnrolledTenants = organizationPositionsEnrolledTenants;
+        this.hrm012Verifier = hrm012Verifier;
     }
 
     @Override
@@ -145,6 +176,20 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
                     "The requested HCM route is unavailable.");
             return;
         }
+        String trustedRoute = exactHeader(request, ROUTE_CONTRACT_HEADER);
+        if (HRM012_ACTION_ROUTE.equals(trustedRoute)
+                || Hrm012OwnerReceiptAuthorityContract.SERVICE_PATH.equals(
+                        request.getRequestURI())) {
+            handleHrm012OwnerReceipt(request, response, filterChain, trustedRoute);
+            return;
+        }
+        if (request.getHeaders(Hrm012OwnerReceiptAuthorityContract.HEADER).hasMoreElements()
+                || request.getHeaders(
+                        Hrm012OwnerReceiptAuthorityContract.CHALLENGE_HEADER).hasMoreElements()) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Owner-receipt authority input is not valid for this HCM route.");
+            return;
+        }
         String state = exactHeader(request, ROLLOUT_STATE_HEADER);
         if (state == null && !productAuthorizationV3Enabled) {
             filterChain.doFilter(request, response);
@@ -168,7 +213,6 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             return;
         }
 
-        String trustedRoute = exactHeader(request, ROUTE_CONTRACT_HEADER);
         String trustedContext = exactHeader(request, CURRENT_CONTEXT_HEADER);
         String trustedScope = exactHeader(request, CURRENT_SCOPE_HEADER);
         String activeAccessMode = exactHeader(request, ACTIVE_ACCESS_MODE_HEADER);
@@ -260,6 +304,60 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
         } finally {
             HcmPepContext.clear();
         }
+    }
+
+    private void handleHrm012OwnerReceipt(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain,
+            String trustedRoute) throws IOException, ServletException {
+        Hrm012OwnerReceiptAuthorityContext.clear();
+        String marker = exactLargeHeader(
+                request, Hrm012OwnerReceiptAuthorityContract.HEADER, 8192);
+        java.util.Enumeration<String> purposeValues = request.getHeaders(PURPOSE_HEADER);
+        boolean purposePresent = purposeValues != null && purposeValues.hasMoreElements();
+        String purpose = exactHeader(request, PURPOSE_HEADER);
+        boolean exact = hrm012Verifier != null
+                && "POST".equals(request.getMethod())
+                && Hrm012OwnerReceiptAuthorityContract.SERVICE_PATH.equals(
+                        request.getRequestURI())
+                && HRM012_ACTION_ROUTE.equals(trustedRoute)
+                && marker != null
+                && (!purposePresent || "HRIS_INTEGRATION".equals(purpose))
+                && request.getHeader(Hrm012OwnerReceiptAuthorityContract.CHALLENGE_HEADER) == null
+                && request.getHeader("X-DWP-Expected-Object-Version") == null
+                && request.getHeader(CURRENT_CONTEXT_HEADER) == null
+                && request.getHeader(CURRENT_SCOPE_HEADER) == null
+                && request.getHeader(EXPECTED_DECISION_REVISION_HEADER) == null;
+        if (!exact) {
+            writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Exact HRM-012 owner-receipt authority is unavailable.");
+            return;
+        }
+        try {
+            Hrm012OwnerReceiptAuthorityContext.set(hrm012Verifier.verify(request, marker));
+            request.setAttribute(Hrm012OwnerReceiptAuthorityContext.class.getName(),
+                    Hrm012OwnerReceiptAuthorityContext.require());
+            filterChain.doFilter(request, response);
+        } catch (BaseException exception) {
+            ErrorCode code = exception.getErrorCode() == ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE
+                    ? ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE : ErrorCode.FORBIDDEN;
+            writeError(response, code, "HRM-012 owner-receipt evidence is invalid.");
+        } finally {
+            Hrm012OwnerReceiptAuthorityContext.clear();
+        }
+    }
+
+    private String exactLargeHeader(HttpServletRequest request, String name, int maximumBytes) {
+        java.util.Enumeration<String> values = request.getHeaders(name);
+        if (values == null || !values.hasMoreElements()) return null;
+        String value = values.nextElement();
+        if (values.hasMoreElements() || value == null || value.isBlank()
+                || !value.equals(value.strip()) || value.indexOf(',') >= 0
+                || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0
+                || value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                        > maximumBytes) return null;
+        return value;
     }
 
     private boolean validCurrentDecision(String revision, OffsetDateTime validUntil) {

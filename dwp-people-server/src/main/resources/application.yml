@@ -191,6 +191,13 @@ dwp:
     service-token: ${DWP_PEOPLE_SERVICE_TOKEN:}
     home-runtime-service-token: ${DWP_PEOPLE_HOME_RUNTIME_SERVICE_TOKEN:}
     product-authorization-v3-enabled: ${DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED:false}
+    hrm012-owner-receipt:
+      current-key-id: ${DWP_PEOPLE_HRM012_OWNER_RECEIPT_CURRENT_KEY_ID:}
+      current-public-key-pem: ${DWP_PEOPLE_HRM012_OWNER_RECEIPT_CURRENT_PUBLIC_KEY_PEM:}
+    hrm012-receipt-first:
+      auth-url: ${DWP_PEOPLE_HRM012_RECEIPT_FIRST_AUTH_URL:${SERVICE_AUTH_URL:http://localhost:8001}}
+      token: ${DWP_PEOPLE_HRM012_RECEIPT_FIRST_TOKEN:${DWP_HRIS_ORIGIN_AUTHORITY_TOKEN:}}
+      timeout: ${DWP_PEOPLE_HRM012_RECEIPT_FIRST_TIMEOUT:PT2S}
     step-up:
       public-key-pem: ${DWP_PEOPLE_STEP_UP_PUBLIC_KEY_PEM:}
       issuer: ${DWP_PEOPLE_STEP_UP_ISSUER:}

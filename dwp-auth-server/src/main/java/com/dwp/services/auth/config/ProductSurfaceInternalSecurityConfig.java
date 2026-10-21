@@ -44,6 +44,8 @@ public class ProductSurfaceInternalSecurityConfig {
             "/internal/auth/v1/meeting-followup-authority/evaluate";
     public static final String HRIS_NAVIGATION_POLICY_DECISION_PATH =
             "/internal/auth/v1/hris-navigation-policy-decisions/evaluate";
+    public static final String HRM012_RECEIPT_FIRST_STEP_UP_VERIFY_PATH =
+            "/internal/auth/v1/hris/hrm012/receipt-first-step-up/verify";
 
     @Bean
     @Order(0)
@@ -60,7 +62,8 @@ public class ProductSurfaceInternalSecurityConfig {
                         PRODUCT_SURFACE_EVALUATE_PATH,
                         "/internal/auth/v1/governed-route-authority/evaluate",
                         MEETING_FOLLOWUP_PATH,
-                        HRIS_NAVIGATION_POLICY_DECISION_PATH)
+                        HRIS_NAVIGATION_POLICY_DECISION_PATH,
+                        HRM012_RECEIPT_FIRST_STEP_UP_VERIFY_PATH)
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -121,6 +124,8 @@ public class ProductSurfaceInternalSecurityConfig {
                     || PLATFORM_SERVICE_IDENTITY.equals(identity))
                     && !MEETING_FOLLOWUP_PATH.equals(request.getRequestURI())
                     && !HRIS_NAVIGATION_POLICY_DECISION_PATH.equals(request.getRequestURI())
+                    && !HRM012_RECEIPT_FIRST_STEP_UP_VERIFY_PATH.equals(
+                            request.getRequestURI())
                     && absentHeader(request, MEETING_FOLLOWUP_TOKEN_HEADER)
                     && absentHeader(request, HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER)
                     && matches(expectedToken, productSurfaceToken);
@@ -138,7 +143,9 @@ public class ProductSurfaceInternalSecurityConfig {
                     && matches(expectedMeetingFollowupToken, meetingFollowupToken);
             boolean people = PEOPLE_SERVICE_IDENTITY.equals(identity)
                     && "POST".equals(request.getMethod())
-                    && PRODUCT_SURFACE_EVALUATE_PATH.equals(request.getRequestURI())
+                    && (PRODUCT_SURFACE_EVALUATE_PATH.equals(request.getRequestURI())
+                        || HRM012_RECEIPT_FIRST_STEP_UP_VERIFY_PATH.equals(
+                                request.getRequestURI()))
                     && absentHeader(request, TOKEN_HEADER)
                     && absentHeader(request, MEETING_FOLLOWUP_TOKEN_HEADER)
                     && matches(expectedHrisOriginAuthorityToken, hrisOriginAuthorityToken);
