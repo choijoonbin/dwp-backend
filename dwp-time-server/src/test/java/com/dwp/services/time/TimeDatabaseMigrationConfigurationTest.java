@@ -2,9 +2,19 @@ package com.dwp.services.time;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.dwp.core.database.RuntimeRoutineExecutionGuard;
 import org.junit.jupiter.api.Test;
 
 class TimeDatabaseMigrationConfigurationTest {
+
+    @Test
+    void runtimeRoutineAllowlistContainsOnlyTheTim003AssignmentValidator() {
+        assertThat(TimeDatabaseMigrationConfiguration.runtimeRoutines())
+                .containsExactly(new RuntimeRoutineExecutionGuard.Routine(
+                        "public",
+                        "tim003_assignment_snapshots_structurally_valid",
+                        "jsonb,uuid"));
+    }
 
     @Test
     void publisherPolicyAdmitsOnlyTheFourExactOutboxRelaySurfaces() {

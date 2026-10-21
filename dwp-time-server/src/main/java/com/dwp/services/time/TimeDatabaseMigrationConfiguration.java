@@ -209,7 +209,7 @@ public class TimeDatabaseMigrationConfiguration {
                 configurationGuard.migrationUser());
         RuntimeRoutineExecutionGuard.verifyExact(
                 "Time", applicationDataSource,
-                List.of(SystemFlywayConfigurationGuard.SCHEMA), Set.of());
+                List.of(SystemFlywayConfigurationGuard.SCHEMA), runtimeRoutines());
         DomainEventLedgerRuntimeGuard.verify(
                 "Time", applicationDataSource,
                 DomainEventLedgerRuntimeGuard.Profile.ACTIVE);
@@ -217,6 +217,13 @@ public class TimeDatabaseMigrationConfiguration {
                 "Time", applicationDataSource,
                 List.of(SystemFlywayConfigurationGuard.SCHEMA),
                 configurationGuard.migrationUser());
+    }
+
+    static Set<RuntimeRoutineExecutionGuard.Routine> runtimeRoutines() {
+        return Set.of(new RuntimeRoutineExecutionGuard.Routine(
+                "public",
+                "tim003_assignment_snapshots_structurally_valid",
+                "jsonb,uuid"));
     }
 
     static TrustedPublisherPolicy publisherPolicy(

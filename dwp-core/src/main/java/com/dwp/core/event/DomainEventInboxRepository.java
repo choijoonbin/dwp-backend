@@ -18,12 +18,39 @@ public class DomainEventInboxRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
+    private final DomainEventInboxStrictValidationSupport strictValidation;
+    private final DomainEventInboxOffsetRecoverySupport offsetRecovery;
 
     public DomainEventInboxRepository(
             NamedParameterJdbcTemplate jdbc,
             ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.strictValidation = new DomainEventInboxStrictValidationSupport(jdbc, objectMapper);
+        this.offsetRecovery = new DomainEventInboxOffsetRecoverySupport(jdbc, objectMapper);
+    }
+
+    public DomainEventInboxStrictValidationSupport.RegistrationResult
+            registerForStrictValidation(
+                    String consumerName,
+                    DomainEventEnvelope event) {
+        return strictValidation.registerForStrictValidation(consumerName, event);
+    }
+
+    public DomainEventInboxStrictValidationSupport.InvalidFinalizationResult
+            finalizeRegisteredInvalid(
+                    String consumerName,
+                    UUID eventId,
+                    String expectedPayloadSha256,
+                    String reason) {
+        return strictValidation.finalizeRegisteredInvalid(
+                consumerName, eventId, expectedPayloadSha256, reason);
+    }
+
+    public DomainEventInboxOffsetRecoverySupport.OffsetRecoveryResult
+            recoverOffsetFromOwnerSnapshot(
+                    DomainEventInboxOffsetRecoverySupport.OffsetRecoveryRequest request) {
+        return offsetRecovery.recover(request);
     }
 
     public BeginResult begin(
@@ -31,10 +58,31 @@ public class DomainEventInboxRepository {
             DomainEventEnvelope event,
             String workerId,
             Duration lease) {
-        String payload = DomainEventJson.serialize(objectMapper, event);
-        String payloadHash = DomainEventJson.sha256(payload);
         Instant now = Instant.now();
-        int inserted = jdbc.update("""
+        DomainEventInboxStrictValidationSupport.PreparedEvent prepared;
+        int inserted;
+        InboxRow row;
+        if (DomainEventInboxStrictValidationSupport.TIM003_CONSUMER_NAME.equals(consumerName)) {
+            DomainEventInboxStrictValidationSupport.RegistrationResult registration =
+                    strictValidation.registerForStrictValidation(consumerName, event);
+            prepared = registration.incoming();
+            if (registration.state()
+                    == DomainEventInboxStrictValidationSupport.RegistrationState.PAYLOAD_CONFLICT) {
+                return new BeginResult(
+                        BeginState.PAYLOAD_CONFLICT, null,
+                        registration.stored().attemptCount());
+            }
+            inserted = registration.state()
+                    == DomainEventInboxStrictValidationSupport.RegistrationState.REGISTERED ? 1 : 0;
+            row = new InboxRow(
+                    registration.stored().status(),
+                    registration.stored().payloadSha256(),
+                    registration.stored().attemptCount(),
+                    registration.stored().availableAt(),
+                    registration.stored().lockedUntil());
+        } else {
+            prepared = strictValidation.prepare(event);
+            inserted = jdbc.update("""
                 INSERT INTO sys_domain_event_inbox (
                     consumer_name, event_id, event_source, event_type, schema_version,
                     tenant_id, aggregate_type, aggregate_id, aggregate_sequence,
@@ -47,11 +95,13 @@ public class DomainEventInboxRepository {
                     :payloadHash, 'RECEIVED', 0, CURRENT_TIMESTAMP,
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT (consumer_name, event_id) DO NOTHING
-                """, eventParameters(consumerName, event, payload, payloadHash));
-
-        InboxRow row = lockInbox(consumerName, event.id())
-                .orElseThrow(() -> new IllegalStateException(
-                        "Domain-event inbox insert could not be read back."));
+                """, eventParameters(
+                        consumerName, event, prepared.payload(), prepared.payloadSha256()));
+            row = lockInbox(consumerName, event.id())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Domain-event inbox insert could not be read back."));
+        }
+        String payloadHash = prepared.payloadSha256();
         if (!payloadHash.equals(row.payloadHash())) {
             markPermanentFailure(
                     consumerName, event.id(),
@@ -170,6 +220,14 @@ public class DomainEventInboxRepository {
         }
     }
 
+    /** TIM-003-only completion fenced by the still-active lease. */
+    public void completeTim003ActiveLease(
+            String consumerName,
+            DomainEventEnvelope event,
+            String lockToken) {
+        strictValidation.completeActiveLease(consumerName, event, lockToken);
+    }
+
     public FailureState fail(
             String consumerName,
             UUID eventId,
@@ -207,10 +265,29 @@ public class DomainEventInboxRepository {
         return state;
     }
 
+    /** TIM-003-only failure transition fenced by the still-active lease. */
+    public FailureState failTim003ActiveLease(
+            String consumerName,
+            UUID eventId,
+            String lockToken,
+            int attempt,
+            int maximumAttempts,
+            String error) {
+        return strictValidation.failActiveLease(
+                consumerName, eventId, lockToken,
+                attempt, maximumAttempts, error);
+    }
+
     public void quarantine(
             String consumerName,
             DomainEventEnvelope event,
             String reason) {
+        if (DomainEventInboxStrictValidationSupport.TIM003_CONSUMER_NAME
+                .equals(consumerName)) {
+            strictValidation.quarantinePreservingPayloadConflict(
+                    consumerName, event, reason);
+            return;
+        }
         String payload = DomainEventJson.serialize(objectMapper, event);
         String payloadHash = DomainEventJson.sha256(payload);
         jdbc.update("""
@@ -239,6 +316,11 @@ public class DomainEventInboxRepository {
             UUID eventId,
             String actor,
             String reason) {
+        Optional<Boolean> strictDecision = strictValidation.replayDecision(
+                consumerName, eventId, actor, reason);
+        if (strictDecision.isPresent()) {
+            return strictDecision.get();
+        }
         int changed = jdbc.update("""
                 UPDATE sys_domain_event_inbox
                    SET status = 'REPLAY_PENDING', attempt_count = 0,
