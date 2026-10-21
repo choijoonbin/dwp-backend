@@ -22,7 +22,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = Path("contracts/hris/canonical/hris-contract-codegen-manifest.v1.json")
 JAVA_OUTPUT_ROOT = Path("dwp-platform-contracts/src/main/java")
-EXPECTED_MANIFEST_SHA256 = "27b299247519b1c30227a675d98862f83a7557d29209be2ed95f84914f193af1"
+EXPECTED_MANIFEST_SHA256 = "074bb81779bcad8cc9ef76e9a9cc8ded003acab525b290f69ca20586090fdfc2"
 SHA256 = re.compile(r"[0-9a-f]{64}")
 FQN = re.compile(
     r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*\.[A-Z][A-Za-z0-9]*"
@@ -1053,6 +1053,38 @@ def local_invariant_validation_lines(
             f'{indent}    throw new IllegalArgumentException("validTo must be after validFrom");',
             f"{indent}}}",
         ]
+    if key == ("xcon-v1", "EmploymentAbsenceAssignment"):
+        return [
+            f'{indent}if (effectiveTo != null && !effectiveTo.isAfter(effectiveFrom)) throw new IllegalArgumentException("effectiveTo must be after effectiveFrom");',
+            f'{indent}if ((locationPublicId == null) != (timeZone == null)) throw new IllegalArgumentException("locationPublicId and timeZone must both be null or both be present");',
+            f'{indent}if (timeZone != null && !"UTC".equals(timeZone)',
+            f"{indent}        && (!ZoneRulesProvider.getAvailableZoneIds().contains(timeZone)",
+            f"{indent}        || ZoneId.of(timeZone).getRules().isFixedOffset())) {{",
+            f'{indent}    throw new IllegalArgumentException("timeZone must be UTC or a non-fixed canonical IANA zone identifier");',
+            f"{indent}}}",
+        ]
+    if key == ("xcon-v1", "XCON_027"):
+        return [
+            f'{indent}if (relationshipEffectiveTo != null && !relationshipEffectiveTo.isAfter(relationshipEffectiveFrom)) throw new IllegalArgumentException("relationshipEffectiveTo must be after relationshipEffectiveFrom");',
+            f'{indent}if (ownerRevision != relationshipRevision) throw new IllegalArgumentException("ownerRevision must equal relationshipRevision in schema v1");',
+            f'{indent}String expectedRelationshipStatus = "TERMINATED".equals(workerStatus) ? "TERMINATED"',
+            f'{indent}        : ("PENDING".equals(workerStatus) || effectiveOn.isBefore(relationshipEffectiveFrom)) ? "PENDING"',
+            f'{indent}        : relationshipEffectiveTo != null && !effectiveOn.isBefore(relationshipEffectiveTo) ? "INACTIVE" : "ACTIVE";',
+            f'{indent}if (!expectedRelationshipStatus.equals(relationshipStatus)) throw new IllegalArgumentException("relationshipStatus does not match the sealed current-date derivation");',
+            f'{indent}if (asOf.getNano() % 1_000 != 0 || validUntil.getNano() % 1_000 != 0) throw new IllegalArgumentException("asOf and validUntil must have microsecond precision");',
+            f'{indent}if (!validUntil.equals(asOf.plusSeconds(300))) throw new IllegalArgumentException("validUntil must equal asOf plus 300 seconds");',
+            f"{indent}String previousAssignmentPublicId = null;",
+            f"{indent}for (EmploymentAbsenceAssignment assignment : assignments) {{",
+            f'{indent}    if (!legalEntityPublicId.equals(assignment.legalEntityPublicId())) throw new IllegalArgumentException("assignment legalEntityPublicId must equal the enclosing legalEntityPublicId");',
+            f"{indent}    if (effectiveOn.isBefore(assignment.effectiveFrom())",
+            f"{indent}            || (assignment.effectiveTo() != null",
+            f'{indent}            && !effectiveOn.isBefore(assignment.effectiveTo()))) throw new IllegalArgumentException("assignment interval must contain effectiveOn");',
+            f"{indent}    String assignmentPublicId = assignment.assignmentPublicId().toString();",
+            f"{indent}    if (previousAssignmentPublicId != null",
+            f'{indent}            && previousAssignmentPublicId.compareTo(assignmentPublicId) >= 0) throw new IllegalArgumentException("assignments must be unique and ordered by lowercase assignmentPublicId");',
+            f"{indent}    previousAssignmentPublicId = assignmentPublicId;",
+            f"{indent}}}",
+        ]
     if key == ("platform-dependency-v1", "PDX_001"):
         return [
             f"{indent}if (effectiveTo != null && !effectiveTo.isAfter(effectiveFrom)) {{",
@@ -1281,6 +1313,9 @@ def collect_imports(contract: Contract, object_names: list[str]) -> list[str]:
         imports.add("java.util.ArrayList")
     if needs_currency:
         imports.add("java.util.Currency")
+    if contract.source.source_id == "xcon-v1" and contract.definition == "XCON_027":
+        imports.add("java.time.ZoneId")
+        imports.add("java.time.zone.ZoneRulesProvider")
     if needs_decimal_codec:
         imports.add("com.fasterxml.jackson.databind.annotation.JsonDeserialize")
         imports.add("com.fasterxml.jackson.databind.annotation.JsonSerialize")

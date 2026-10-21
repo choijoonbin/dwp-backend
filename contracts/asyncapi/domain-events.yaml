@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: DWP Domain Events
-  version: 1.2.0
+  version: 1.3.0
   description: Versioned CloudEvents-aligned contracts published from transactional outboxes.
 defaultContentType: application/json
 servers:
@@ -22,6 +22,8 @@ channels:
         $ref: '#/components/messages/clockEventRecorded'
       employeeChangeApplied:
         $ref: '#/components/messages/employeeChangeApplied'
+      employmentChanged:
+        $ref: '#/components/messages/employmentChanged'
       compensationBasisChanged:
         $ref: '#/components/messages/compensationBasisChanged'
       workerDependentEligibilityChanged:
@@ -60,6 +62,7 @@ operations:
       - $ref: '#/channels/domainEvents/messages/performancePopulationFrozen'
       - $ref: '#/channels/domainEvents/messages/clockEventRecorded'
       - $ref: '#/channels/domainEvents/messages/employeeChangeApplied'
+      - $ref: '#/channels/domainEvents/messages/employmentChanged'
       - $ref: '#/channels/domainEvents/messages/compensationBasisChanged'
       - $ref: '#/channels/domainEvents/messages/workerDependentEligibilityChanged'
       - $ref: '#/channels/domainEvents/messages/workerTaxIdentityChanged'
@@ -104,6 +107,11 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/EmployeeChangeAppliedEnvelope'
+    employmentChanged:
+      name: dwp.hris.people.employment-changed.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/EmploymentChangedEnvelope'
     compensationBasisChanged:
       name: CompensationBasisChanged.v1
       contentType: application/json
@@ -416,6 +424,64 @@ components:
               $ref: '#/components/schemas/EmployeeChangeAppliedData'
     EmployeeChangeAppliedData:
       $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_022'
+    EmploymentChangedEnvelope:
+      x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
+      x-dwp-event-id-derivation: UUID_NAME_FROM_BYTES_LOWERCASE_EMPLOYMENT_EVENT_PUBLIC_ID_COLON_EmploymentChanged.v1_UTF8
+      x-dwp-profile-metadata:
+        xcon: XCON-004
+        profile: EmploymentChanged.v1
+      x-dwp-subject-template: WORK_RELATIONSHIP/{relationshipPublicId}
+      x-dwp-aggregate-id-source: relationshipPublicId
+      x-dwp-aggregate-sequence-source: newAggregateVersion
+      x-dwp-envelope-data-equality:
+        aggregateId: relationshipPublicId
+        aggregateSequence: newAggregateVersion
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - source
+            - subject
+            - tenantId
+            - aggregateType
+            - aggregateId
+            - aggregateSequence
+            - correlationId
+            - causationId
+            - data
+          properties:
+            type:
+              const: dwp.hris.people.employment-changed.v1
+            schemaVersion:
+              const: 1
+            source:
+              const: urn:dwp:people:hris:employment
+            subject:
+              type: string
+              pattern: '^WORK_RELATIONSHIP/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            tenantId:
+              type: integer
+              minimum: 1
+            aggregateType:
+              const: WORK_RELATIONSHIP
+            aggregateId:
+              type: string
+              format: uuid
+            aggregateSequence:
+              type: integer
+              minimum: 1
+            correlationId:
+              type: string
+              format: uuid
+            causationId:
+              type: string
+              format: uuid
+            data:
+              $ref: '#/components/schemas/EmploymentChangedData'
+    EmploymentChangedData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_004'
     CompensationBasisChangedEnvelope:
       x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
       x-dwp-aggregate-id-source: compensationBasisPublicId

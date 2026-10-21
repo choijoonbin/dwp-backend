@@ -643,6 +643,50 @@
         "workerPublicId": {"$ref": "#/$defs/Uuid"}
       },
       "required": ["aggregateId", "aggregateVersion", "causationId", "contractPublicId", "contractType", "correlationId", "documentReference", "eventId", "occurredAt", "payloadDigest", "schemaVersion", "tenantId", "validFrom", "validTo", "workerPublicId"]
+    },
+    "EmploymentAbsenceAssignment": {
+      "title": "EmploymentAbsenceAssignment.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assignmentPublicId": {"$ref": "#/$defs/Uuid"},
+        "assignmentRevision": {"$ref": "#/$defs/NonNegativeRevision"},
+        "assignmentStatus": {"type": "string", "enum": ["PENDING", "ACTIVE", "SUSPENDED", "ENDED"]},
+        "legalEntityPublicId": {"$ref": "#/$defs/Uuid"},
+        "organizationPublicId": {"type": ["string", "null"], "format": "uuid"},
+        "locationPublicId": {"type": ["string", "null"], "format": "uuid"},
+        "timeZone": {"type": ["string", "null"], "minLength": 1, "maxLength": 80},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"}
+      },
+      "required": ["assignmentPublicId", "assignmentRevision", "assignmentStatus", "legalEntityPublicId", "organizationPublicId", "locationPublicId", "timeZone", "effectiveFrom", "effectiveTo"]
+    },
+    "XCON_027": {
+      "title": "EmploymentAbsenceSnapshot.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "relationshipPublicId": {"$ref": "#/$defs/Uuid"},
+        "relationshipRevision": {"$ref": "#/$defs/NonNegativeRevision"},
+        "workerPublicId": {"$ref": "#/$defs/Uuid"},
+        "workerStatus": {"type": "string", "enum": ["PENDING", "ACTIVE", "LEAVE", "TERMINATED"]},
+        "relationshipType": {"$ref": "#/$defs/Code"},
+        "relationshipStatus": {"type": "string", "enum": ["PENDING", "ACTIVE", "INACTIVE", "TERMINATED"]},
+        "legalEntityPublicId": {"$ref": "#/$defs/Uuid"},
+        "relationshipEffectiveFrom": {"$ref": "#/$defs/Date"},
+        "relationshipEffectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "effectiveOn": {"$ref": "#/$defs/Date"},
+        "assignments": {"type": "array", "minItems": 0, "maxItems": 1000, "items": {"$ref": "#/$defs/EmploymentAbsenceAssignment"}},
+        "ownerRevision": {"$ref": "#/$defs/NonNegativeRevision"},
+        "asOf": {"$ref": "#/$defs/Instant"},
+        "validUntil": {"$ref": "#/$defs/Instant"},
+        "ownerContractId": {"type": "string", "const": "SVC-PEP-HRM-007/TIME_ABSENCE_V1", "maxLength": 80},
+        "ownerService": {"type": "string", "const": "dwp-people-server", "maxLength": 80},
+        "purposeCode": {"type": "string", "const": "TIM_LEAVE_EMPLOYMENT_RECOVERY", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,79}$"},
+        "scopeDigest": {"$ref": "#/$defs/Digest"},
+        "contentSha256": {"$ref": "#/$defs/Digest"}
+      },
+      "required": ["relationshipPublicId", "relationshipRevision", "workerPublicId", "workerStatus", "relationshipType", "relationshipStatus", "legalEntityPublicId", "relationshipEffectiveFrom", "relationshipEffectiveTo", "effectiveOn", "assignments", "ownerRevision", "asOf", "validUntil", "ownerContractId", "ownerService", "purposeCode", "scopeDigest", "contentSha256"]
     }
   }
 }

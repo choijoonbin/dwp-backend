@@ -49,6 +49,7 @@ EXPECTED_XCON_TYPES = {
     "com.dwp.contracts.hris.xcon.v1.Xcon024WorkerTaxIdentityChangedV1",
     "com.dwp.contracts.hris.xcon.v1.Xcon025WorkerBankAccountTokenChangedV1",
     "com.dwp.contracts.hris.xcon.v1.Xcon026EmploymentContractIssuedV1",
+    "com.dwp.contracts.hris.xcon.v1.Xcon027EmploymentAbsenceSnapshotV1",
 }
 
 EXPECTED_PLATFORM_TYPES = {
@@ -96,6 +97,7 @@ EXPECTED_FIELDS = {
     "Xcon024WorkerTaxIdentityChangedV1": ("aggregateId", "aggregateVersion", "causationId", "correlationId", "effectiveFrom", "effectiveTo", "eventId", "newAggregateVersion", "occurredAt", "payloadDigest", "schemaVersion", "taxIdentityPublicId", "tenantId", "workerId"),
     "Xcon025WorkerBankAccountTokenChangedV1": ("aggregateId", "aggregateVersion", "causationId", "correlationId", "effectiveFrom", "effectiveTo", "eventId", "newAggregateVersion", "occurredAt", "payloadDigest", "paymentDestinationPublicId", "schemaVersion", "tenantId", "workerId"),
     "Xcon026EmploymentContractIssuedV1": ("aggregateId", "aggregateVersion", "causationId", "contractPublicId", "contractType", "correlationId", "documentReference", "eventId", "occurredAt", "payloadDigest", "schemaVersion", "tenantId", "validFrom", "validTo", "workerPublicId"),
+    "Xcon027EmploymentAbsenceSnapshotV1": ("relationshipPublicId", "relationshipRevision", "workerPublicId", "workerStatus", "relationshipType", "relationshipStatus", "legalEntityPublicId", "relationshipEffectiveFrom", "relationshipEffectiveTo", "effectiveOn", "assignments", "ownerRevision", "asOf", "validUntil", "ownerContractId", "ownerService", "purposeCode", "scopeDigest", "contentSha256"),
     "HrisConfigurationVersionV1": ("configurationId", "configurationType", "scopeType", "scopeId", "version", "state", "effectiveFrom", "effectiveTo", "payloadSchemaVersion", "payloadDigest", "approvalReceiptId"),
     "HrisConfigurationPublishedV1": ("configurationId", "configurationType", "scopeType", "scopeId", "version", "effectiveFrom", "effectiveTo", "payloadSchemaVersion", "payloadDigest", "approvalReceiptId", "publishedAt", "eventSequence"),
     "HrisConfigurationInvalidatedV1": ("configurationId", "configurationType", "scopeType", "scopeId", "invalidatedVersion", "replacementVersion", "reasonCode", "invalidatedAt", "eventSequence"),
@@ -204,10 +206,10 @@ class HrisContractGeneratorTest(unittest.TestCase):
         }
         self.assertEqual(EXPECTED_XCON_TYPES, xcon)
         self.assertEqual(EXPECTED_PLATFORM_TYPES, platform)
-        self.assertEqual(41, len(contracts))
+        self.assertEqual(42, len(contracts))
 
         outputs = GENERATOR.expected_outputs(ROOT)
-        self.assertEqual(43, len(outputs))
+        self.assertEqual(44, len(outputs))
         for contract in contracts:
             with self.subTest(java_type=contract.java_type):
                 expected_fields = EXPECTED_FIELDS[contract.class_name]
@@ -240,7 +242,7 @@ class HrisContractGeneratorTest(unittest.TestCase):
                 path.relative_to(root): path.read_bytes()
                 for path in root.glob("dwp-platform-contracts/src/main/java/**/*.java")
             }
-            self.assertEqual(43, len(first))
+            self.assertEqual(44, len(first))
             self.assertEqual([], GENERATOR.check_outputs(root))
             self.assertEqual(0, GENERATOR.write_outputs(root))
             second = {
@@ -248,6 +250,41 @@ class HrisContractGeneratorTest(unittest.TestCase):
                 for path in root.glob("dwp-platform-contracts/src/main/java/**/*.java")
             }
             self.assertEqual(first, second)
+
+    def test_tim003_xcon027_generates_the_sealed_owner_snapshot_guards(self) -> None:
+        _, contracts = GENERATOR.load_contracts(ROOT)
+        contract = next(item for item in contracts if item.definition == "XCON_027")
+        generated = GENERATOR.expected_outputs(ROOT)[
+            GENERATOR.JAVA_OUTPUT_ROOT
+            / Path(*contract.package_name.split("."))
+            / f"{contract.class_name}.java"
+        ]
+
+        self.assertEqual(
+            (
+                "assignmentPublicId", "assignmentRevision", "assignmentStatus",
+                "legalEntityPublicId", "organizationPublicId", "locationPublicId",
+                "timeZone", "effectiveFrom", "effectiveTo",
+            ),
+            tuple(contract.source.document["$defs"]
+                  ["EmploymentAbsenceAssignment"]["properties"]),
+        )
+        for guard in (
+            "ownerRevision must equal relationshipRevision in schema v1",
+            "relationshipStatus does not match the sealed current-date derivation",
+            "validUntil must equal asOf plus 300 seconds",
+            "assignments must be unique and ordered by lowercase assignmentPublicId",
+            "assignment interval must contain effectiveOn",
+            "locationPublicId and timeZone must both be null or both be present",
+            "timeZone must be UTC or a non-fixed canonical IANA zone identifier",
+        ):
+            with self.subTest(guard=guard):
+                self.assertIn(guard, generated)
+        self.assertIn("ZoneRulesProvider.getAvailableZoneIds()", generated)
+        self.assertIn("import java.time.ZoneId;", generated)
+        self.assertIn("ZoneId.of(timeZone).getRules().isFixedOffset()", generated)
+        self.assertIn('"SVC-PEP-HRM-007/TIME_ABSENCE_V1".equals(ownerContractId)', generated)
+        self.assertIn('"TIM_LEAVE_EMPLOYMENT_RECOVERY".equals(purposeCode)', generated)
 
     def test_every_registered_producer_and_consumer_has_one_shared_dependency(self) -> None:
         manifest = json.loads(
