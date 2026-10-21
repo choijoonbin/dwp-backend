@@ -6,8 +6,8 @@ or build-time dependency on the delivery blueprint.
 
 - `schemas/` contains the byte-for-byte canonical JSON Schema documents.
 - `hris-contract-codegen-manifest.v1.json` pins each schema file digest, records
-  the source binding-register digest for provenance, and maps all 21 XCON plus
-  11 platform dependency definitions to their exact Java imports. It also
+  the source binding-register digest for provenance, and maps all 27 XCON plus
+  15 platform dependency definitions to their exact Java imports. It also
   digests, owns, and classifies every schema `x-*` extension. Record-local
   rules are `GENERATED_CONSTRUCTOR`; lifecycle, transport, signature, and
   cross-record obligations are explicitly `DOMAIN_RUNTIME` rather than being

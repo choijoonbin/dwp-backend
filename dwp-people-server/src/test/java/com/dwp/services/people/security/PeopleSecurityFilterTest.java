@@ -2,12 +2,21 @@ package com.dwp.services.people.security;
 
 import com.dwp.services.people.integration.LocalSyntheticPeopleWorkforceBootstrapPaths;
 import com.dwp.services.people.hris.contracts.hrm011.Hrm011WorkloadRequestContext;
+import com.dwp.services.people.hris.contracts.tim003.TimeAbsenceOwnerContract;
+import com.dwp.services.people.hris.contracts.tim003.TimeAbsenceOwnerRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.UUID;
 
@@ -17,6 +26,13 @@ class PeopleSecurityFilterTest {
 
     private static final String PERSON =
             "00000000-0000-4000-8000-000000000017";
+    private static final UUID TIM003_RELATIONSHIP = UUID.fromString(
+            "30000000-0000-4000-8000-000000000003");
+    private static final UUID TIM003_CORRELATION = UUID.fromString(
+            "10000000-0000-4000-8000-000000000003");
+    private static final UUID TIM003_NONCE = UUID.fromString(
+            "20000000-0000-4000-8000-000000000003");
+    private static final LocalDate TIM003_EFFECTIVE_ON = LocalDate.parse("2026-10-21");
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
@@ -44,6 +60,53 @@ class PeopleSecurityFilterTest {
             assertThat(response.getStatus()).as(path).isEqualTo(502);
             assertThat(chain.getRequest()).isNull();
         }
+    }
+
+    @Test
+    void rawTim003HeadersAndArbitraryAttributesCannotBypassTheGenericFilter()
+            throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("", objectMapper);
+        MockHttpServletRequest request = tim003Request();
+        request.addHeader("Authorization", "Bearer attacker-token");
+        request.addHeader("X-DWP-Verified-Workload", "true");
+        request.setAttribute(
+                TimeAbsenceOwnerRequestContext.class.getName() + ".verified",
+                Boolean.TRUE);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(502);
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
+    void delegatesTim003OnlyForTheGenuineContextAndExactBoundRequest()
+            throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("", objectMapper);
+        TimeAbsenceOwnerContract.VerifiedRequest verified = tim003VerifiedRequest();
+        MockHttpServletRequest exact = tim003Request();
+        setTim003VerifiedContext(exact, verified);
+        MockFilterChain exactChain = new MockFilterChain();
+
+        filter.doFilter(exact, new MockHttpServletResponse(), exactChain);
+
+        assertThat(exactChain.getRequest()).isSameAs(exact);
+
+        MockHttpServletRequest queryMutation = tim003Request();
+        setTim003VerifiedContext(queryMutation, verified);
+        queryMutation.setParameter("minimumRelationshipRevision", "8");
+        queryMutation.setQueryString(
+                "minimumRelationshipRevision=8&effectiveOn=2026-10-21");
+        assertTim003DoesNotDelegate(filter, queryMutation);
+
+        MockHttpServletRequest correlationMutation = tim003Request();
+        setTim003VerifiedContext(correlationMutation, verified);
+        correlationMutation.removeHeader("X-Correlation-ID");
+        correlationMutation.addHeader(
+                "X-Correlation-ID", "10000000-0000-4000-8000-000000000004");
+        assertTim003DoesNotDelegate(filter, correlationMutation);
     }
 
     @Test
@@ -304,6 +367,79 @@ class PeopleSecurityFilterTest {
             request.addHeader(PeopleSecurityFilter.SERVICE_IDENTITY_HEADER, identity);
         }
         return request;
+    }
+
+    private MockHttpServletRequest tim003Request() {
+        String path = TimeAbsenceOwnerContract.PATH_PREFIX + TIM003_RELATIONSHIP;
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+        request.setParameter("minimumRelationshipRevision", "7");
+        request.setParameter("effectiveOn", TIM003_EFFECTIVE_ON.toString());
+        request.setQueryString(
+                "minimumRelationshipRevision=7&effectiveOn=" + TIM003_EFFECTIVE_ON);
+        request.addHeader("X-Correlation-ID", TIM003_CORRELATION.toString());
+        return request;
+    }
+
+    private TimeAbsenceOwnerContract.VerifiedRequest tim003VerifiedRequest()
+            throws Exception {
+        String path = TimeAbsenceOwnerContract.PATH_PREFIX + TIM003_RELATIONSHIP;
+        TimeAbsenceOwnerContract.Request request = new TimeAbsenceOwnerContract.Request(
+                TIM003_RELATIONSHIP, 7L, TIM003_EFFECTIVE_ON);
+        Instant issuedAt = Instant.parse("2026-10-20T15:00:00Z");
+        return new TimeAbsenceOwnerContract.VerifiedRequest(
+                "GET",
+                path,
+                tim003Fingerprint(path, request),
+                TimeAbsenceOwnerContract.BINDING_ID,
+                TIM003_CORRELATION,
+                TIM003_NONCE,
+                TIM003_CORRELATION,
+                issuedAt,
+                issuedAt.plusSeconds(30),
+                42L,
+                TimeAbsenceOwnerContract.CALLER_SPIFFE,
+                TimeAbsenceOwnerContract.AUDIENCE,
+                "tim003-key-1",
+                3L,
+                "Asia/Seoul",
+                TimeAbsenceOwnerContract.PURPOSE,
+                TimeAbsenceOwnerContract.PROJECTION,
+                4L,
+                5L,
+                request);
+    }
+
+    private String tim003Fingerprint(
+            String path,
+            TimeAbsenceOwnerContract.Request request) throws Exception {
+        String canonical = "GET\n" + path
+                + "\nminimumRelationshipRevision="
+                + request.minimumRelationshipRevision()
+                + "\neffectiveOn=" + request.effectiveOn();
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private void setTim003VerifiedContext(
+            HttpServletRequest request,
+            TimeAbsenceOwnerContract.VerifiedRequest verified) throws Exception {
+        Method set = TimeAbsenceOwnerRequestContext.class.getDeclaredMethod(
+                "set", HttpServletRequest.class,
+                TimeAbsenceOwnerContract.VerifiedRequest.class);
+        set.setAccessible(true);
+        set.invoke(null, request, verified);
+    }
+
+    private void assertTim003DoesNotDelegate(
+            PeopleSecurityFilter filter,
+            MockHttpServletRequest request) throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(502);
+        assertThat(chain.getRequest()).isNull();
     }
 
     private MockHttpServletRequest request(String method, String path) {

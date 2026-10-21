@@ -4,28 +4,90 @@ import com.dwp.contracts.hris.xcon.v1.Xcon003WorkerChangedV1;
 import com.dwp.contracts.hris.xcon.v1.Xcon004EmploymentChangedV1;
 import com.dwp.contracts.hris.xcon.v1.Xcon005AssignmentChangedV1;
 import com.dwp.contracts.hris.xcon.v1.Xcon016WorkplaceAssignmentSnapshotV1;
+import com.dwp.core.event.DomainEventContractRegistry;
+import com.dwp.core.event.DomainEventEnvelope;
+import com.dwp.core.event.DomainEventRecorder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /** Transaction-participating audit and semantic-outbox writer for ledger publication. */
 final class EmploymentEventPublicationEvidence {
 
+    static final String EMPLOYMENT_CHANGED_TYPE = "dwp.hris.people.employment-changed.v1";
+    static final String EMPLOYMENT_CHANGED_SOURCE = "urn:dwp:people:hris:employment";
+    private static final String WORK_RELATIONSHIP = "WORK_RELATIONSHIP";
+    private static final String LEGACY_EMPLOYMENT_CHANGED = "EmploymentChanged.v1";
+
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper mapper;
+    private final DomainEventRecorder recorder;
+    private final Clock clock;
+    private final boolean canonicalPublicationEnabled;
+    private final Set<Long> canonicalPublicationTenants;
 
     EmploymentEventPublicationEvidence(
             NamedParameterJdbcTemplate jdbc,
-            ObjectMapper mapper) {
+            ObjectMapper mapper,
+            DomainEventRecorder recorder,
+            DomainEventContractRegistry contracts) {
+        this(jdbc, mapper, recorder, contracts, Clock.systemUTC(), false, Set.of());
+    }
+
+    EmploymentEventPublicationEvidence(
+            NamedParameterJdbcTemplate jdbc,
+            ObjectMapper mapper,
+            DomainEventRecorder recorder,
+            DomainEventContractRegistry contracts,
+            boolean canonicalPublicationEnabled,
+            String canonicalPublicationTenants) {
+        this(jdbc, mapper, recorder, contracts, Clock.systemUTC(),
+                canonicalPublicationEnabled, parseTenants(canonicalPublicationTenants));
+    }
+
+    EmploymentEventPublicationEvidence(
+            NamedParameterJdbcTemplate jdbc,
+            ObjectMapper mapper,
+            DomainEventRecorder recorder,
+            DomainEventContractRegistry contracts,
+            Clock clock) {
+        this(jdbc, mapper, recorder, contracts, clock, false, Set.of());
+    }
+
+    EmploymentEventPublicationEvidence(
+            NamedParameterJdbcTemplate jdbc,
+            ObjectMapper mapper,
+            DomainEventRecorder recorder,
+            DomainEventContractRegistry contracts,
+            Clock clock,
+            boolean canonicalPublicationEnabled,
+            Set<Long> canonicalPublicationTenants) {
         this.jdbc = jdbc;
         this.mapper = mapper;
+        this.recorder = recorder;
+        this.clock = clock;
+        this.canonicalPublicationEnabled = canonicalPublicationEnabled;
+        this.canonicalPublicationTenants = Set.copyOf(canonicalPublicationTenants);
+        if (this.canonicalPublicationTenants.stream()
+                .anyMatch(value -> value == null || value < 1)) {
+            throw new IllegalArgumentException(
+                    "EmploymentChanged publication tenants must be positive identifiers.");
+        }
+        contracts.register(EMPLOYMENT_CHANGED_TYPE, 1, 1);
     }
 
     void appendApprovalRequest(
@@ -84,6 +146,11 @@ final class EmploymentEventPublicationEvidence {
             EmploymentEventRepository.RelationshipRow relationship,
             EmploymentEventRepository.AssignmentRow assignment,
             UUID correlationId) {
+        UUID originatingCorrelationId = event.originatingCorrelationId();
+        if (originatingCorrelationId == null) {
+            throw new IllegalStateException(
+                    "Employment publication is missing its originating correlation id.");
+        }
         Map<String, Object> audit = Map.of(
                 "eventPublicId", event.publicId().toString(),
                 "eventType", event.eventType(),
@@ -91,10 +158,11 @@ final class EmploymentEventPublicationEvidence {
                 "workerPublicId", worker.publicId().toString(),
                 "relationshipPublicId", relationship.publicId().toString(),
                 "assignmentPublicId", assignment.publicId().toString());
-        appendPublishAudit(tenantId, actor, event.publicId(), correlationId, json(audit));
+        appendPublishAudit(
+                tenantId, actor, event.publicId(), originatingCorrelationId, json(audit));
         appendSemanticEvents(
                 tenantId, event, command, snapshot, worker, relationship, assignment,
-                correlationId);
+                originatingCorrelationId);
     }
 
     private void appendPublishAudit(
@@ -126,14 +194,16 @@ final class EmploymentEventPublicationEvidence {
             EmploymentEventRepository.RelationshipRow relationship,
             EmploymentEventRepository.AssignmentRow assignment,
             UUID correlationId) {
+        Instant occurredAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
         String assignmentType = "CONCURRENT_EMPLOYMENT".equals(event.eventType())
                 ? "CONCURRENT_ASSIGNMENT" : event.eventType();
+        Xcon004EmploymentChangedV1 employmentChanged = new Xcon004EmploymentChangedV1(
+                event.eventType(), event.effectiveDate(), relationship.version(),
+                relationship.publicId());
         Map<String, Object> events = new LinkedHashMap<>();
         events.put("WorkerChanged.v1", new Xcon003WorkerChangedV1(
                 event.eventType(), event.effectiveDate(), worker.version(), worker.publicId()));
-        events.put("EmploymentChanged.v1", new Xcon004EmploymentChangedV1(
-                event.eventType(), event.effectiveDate(), relationship.version(),
-                relationship.publicId()));
+        events.put(LEGACY_EMPLOYMENT_CHANGED, employmentChanged);
         events.put("AssignmentChanged.v1", new Xcon005AssignmentChangedV1(
                 assignment.publicId(), List.of("JOB", "LEGAL_EMPLOYER", "ORGANIZATION",
                 "POSITION", "WORK_LOCATION"), command.assignment().validFrom(),
@@ -147,7 +217,28 @@ final class EmploymentEventPublicationEvidence {
                         snapshot.location().businessKey(), worker.publicId(),
                         snapshot.location().publicId()));
         events.forEach((type, body) -> appendSemanticEvent(
-                tenantId, event.publicId(), type, json(body), correlationId));
+                tenantId, event.publicId(), type, json(body), correlationId, occurredAt));
+        if (canonicalPublicationEnabled && canonicalPublicationTenants.contains(tenantId)) {
+            recorder.record(new DomainEventEnvelope(
+                    "1.0",
+                    semanticEventId(event.publicId(), LEGACY_EMPLOYMENT_CHANGED),
+                    EMPLOYMENT_CHANGED_SOURCE,
+                    EMPLOYMENT_CHANGED_TYPE,
+                    1,
+                    occurredAt,
+                    WORK_RELATIONSHIP + "/" + relationship.publicId(),
+                    tenantId,
+                    WORK_RELATIONSHIP,
+                    relationship.publicId().toString(),
+                    relationship.version(),
+                    correlationId.toString(),
+                    event.publicId().toString(),
+                    null,
+                    mapper.valueToTree(employmentChanged),
+                    Map.of(
+                            "xcon", "XCON-004",
+                            "profile", LEGACY_EMPLOYMENT_CHANGED)));
+        }
     }
 
     private void appendSemanticEvent(
@@ -155,20 +246,52 @@ final class EmploymentEventPublicationEvidence {
             UUID eventId,
             String eventType,
             String payload,
-            UUID correlationId) {
-        UUID outboxId = UUID.nameUUIDFromBytes(
-                (eventId + ":" + eventType).getBytes(StandardCharsets.UTF_8));
+            UUID correlationId,
+            Instant occurredAt) {
+        UUID outboxId = semanticEventId(eventId, eventType);
         int inserted = jdbc.update("""
                 INSERT INTO sys_people_outbox_events(
                     event_id,tenant_id,aggregate_type,aggregate_id,event_type,
                     payload,correlation_id,occurred_at)
                 VALUES(:outbox,:tenant,'EMPLOYMENT_EVENT',:aggregate,:eventType,
-                    CAST(:payload AS jsonb),:correlation,clock_timestamp())
+                    CAST(:payload AS jsonb),:correlation,:occurredAt)
                 """, params(tenantId).addValue("outbox", outboxId)
                 .addValue("aggregate", eventId.toString()).addValue("eventType", eventType)
-                .addValue("payload", payload).addValue("correlation", correlationId.toString()));
+                .addValue("payload", payload).addValue("correlation", correlationId.toString())
+                .addValue("occurredAt", Timestamp.from(occurredAt)));
         if (inserted != 1) throw new IllegalStateException(
                 "Employment semantic outbox insert failed.");
+    }
+
+    private UUID semanticEventId(UUID eventId, String eventType) {
+        return UUID.nameUUIDFromBytes(
+                (eventId + ":" + eventType).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static Set<Long> parseTenants(String source) {
+        if (source == null || source.isBlank()) return Set.of();
+        try {
+            String[] values = source.split(",", -1);
+            Set<Long> tenants = Arrays.stream(values)
+                    .map(String::trim)
+                    .filter(value -> !value.isEmpty())
+                    .map(Long::valueOf)
+                    .filter(value -> value > 0)
+                    .collect(Collectors.toUnmodifiableSet());
+            long configured = Arrays.stream(values)
+                    .map(String::trim)
+                    .filter(value -> !value.isEmpty())
+                    .count();
+            if (tenants.size() != configured) {
+                throw new IllegalArgumentException(
+                        "EmploymentChanged publication tenants must be unique positive identifiers.");
+            }
+            return tenants;
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException(
+                    "EmploymentChanged publication tenants must be positive identifiers.",
+                    exception);
+        }
     }
 
     private MapSqlParameterSource params(long tenantId) {

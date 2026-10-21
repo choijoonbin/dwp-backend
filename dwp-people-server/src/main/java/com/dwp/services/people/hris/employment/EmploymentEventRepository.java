@@ -1,8 +1,13 @@
 package com.dwp.services.people.hris.employment;
 
+import com.dwp.core.event.DomainEventContractRegistry;
+import com.dwp.core.event.DomainEventOutboxRepository;
+import com.dwp.core.event.DomainEventRecorder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -29,6 +34,7 @@ class EmploymentEventRepository {
                    event.lifecycle_state,event.impact_snapshot::text,
                    event.input_snapshot_hash,event.impact_snapshot_hash,
                    event.expected_owner_version,event.version,event.created_by,
+                   event.correlation_id AS originating_correlation_id,
                    event.approval_request_id,event.approval_decision_event_id,
                    event.approval_decision_revision,event.approval_payload_hash,
                    event.validated_at,event.submitted_at,event.approved_at,event.published_at,
@@ -55,7 +61,28 @@ class EmploymentEventRepository {
     EmploymentEventRepository(NamedParameterJdbcTemplate jdbc, ObjectMapper mapper) {
         this.jdbc = jdbc;
         this.mapper = mapper;
-        this.evidence = new EmploymentEventPublicationEvidence(jdbc, mapper);
+        DomainEventContractRegistry contracts = new DomainEventContractRegistry();
+        DomainEventRecorder recorder = new DomainEventRecorder(
+                new DomainEventOutboxRepository(jdbc, mapper), contracts, mapper);
+        this.evidence = new EmploymentEventPublicationEvidence(
+                jdbc, mapper, recorder, contracts);
+    }
+
+    @Autowired
+    EmploymentEventRepository(
+            NamedParameterJdbcTemplate jdbc,
+            ObjectMapper mapper,
+            DomainEventRecorder recorder,
+            DomainEventContractRegistry contracts,
+            @Value("${dwp.hris.tim003.employment-changed-publication.enabled:false}")
+            boolean canonicalPublicationEnabled,
+            @Value("${dwp.hris.tim003.employment-changed-publication.enrolled-tenants:}")
+            String canonicalPublicationTenants) {
+        this.jdbc = jdbc;
+        this.mapper = mapper;
+        this.evidence = new EmploymentEventPublicationEvidence(
+                jdbc, mapper, recorder, contracts, canonicalPublicationEnabled,
+                canonicalPublicationTenants);
     }
 
     void establishTenant(long tenantId) {
@@ -736,7 +763,8 @@ class EmploymentEventRepository {
                 instant(result.getTimestamp("approved_at")),
                 instant(result.getTimestamp("published_at")),
                 instant(result.getTimestamp("created_at")),
-                instant(result.getTimestamp("updated_at")));
+                instant(result.getTimestamp("updated_at")),
+                result.getObject("originating_correlation_id", UUID.class));
     }
 
     private ReceiptRow receiptRow(ResultSet result, int ignored) throws SQLException {
@@ -890,7 +918,49 @@ class EmploymentEventRepository {
             Instant approvedAt,
             Instant publishedAt,
             Instant createdAt,
-            Instant updatedAt) { }
+            Instant updatedAt,
+            UUID originatingCorrelationId) {
+
+        EventRow(
+                long internalId,
+                UUID publicId,
+                long tenantId,
+                long subjectPersonId,
+                Long targetWorkerId,
+                String eventType,
+                LocalDate effectiveDate,
+                Map<String, Object> context,
+                Map<String, Object> payload,
+                String lifecycleState,
+                Map<String, Object> impact,
+                String contentDigest,
+                String impactDigest,
+                long targetOwnerVersion,
+                long version,
+                long makerUserId,
+                UUID approvalRequestId,
+                UUID approvalDecisionEventId,
+                Long approvalDecisionRevision,
+                String approvalPayloadDigest,
+                UUID publishedWorkerPublicId,
+                UUID publishedRelationshipPublicId,
+                UUID publishedAssignmentPublicId,
+                Instant validatedAt,
+                Instant submittedAt,
+                Instant approvedAt,
+                Instant publishedAt,
+                Instant createdAt,
+                Instant updatedAt) {
+            this(internalId, publicId, tenantId, subjectPersonId, targetWorkerId,
+                    eventType, effectiveDate, context, payload, lifecycleState, impact,
+                    contentDigest, impactDigest, targetOwnerVersion, version, makerUserId,
+                    approvalRequestId, approvalDecisionEventId, approvalDecisionRevision,
+                    approvalPayloadDigest, publishedWorkerPublicId,
+                    publishedRelationshipPublicId, publishedAssignmentPublicId,
+                    validatedAt, submittedAt, approvedAt, publishedAt, createdAt, updatedAt,
+                    null);
+        }
+    }
 
     record ReceiptRow(
             UUID receiptId,

@@ -8,14 +8,14 @@
       "sourceId": "xcon-v1",
       "schemaPath": "contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json",
       "schemaId": "urn:dwp:hris:cross-module-canonical-schemas:v1",
-      "schemaSha256": "e1128a49da65d6f9498c38905dc9144611ae2dfa31bea9c0b6ab21806a6554a5",
+      "schemaSha256": "edbdbee8ff0cd996b7619239eb15db844a5a87f2d23de26a8b6ecdd4dea19cc5",
       "bindingRegisterProvenance": {
         "path": "coding-readiness/cross-module-schema-binding-register.csv",
         "sha256": "b78fbae31c9cd48c4eadc37ea689d4f6987642ee8562700205f3c14bad0c6334"
       },
       "definitionPrefix": "XCON_",
       "normalizedDigestMode": "materialized",
-      "expectedContractCount": 26,
+      "expectedContractCount": 27,
       "javaPackage": "com.dwp.contracts.hris.xcon.v1"
     },
     {
@@ -647,6 +647,14 @@
       "normalizedSchemaSha256": "cebca8e3bc2e638a2b4cacd0004384c3d080d879f55b8ef3e588bf1e8b495f88",
       "producer": "HRIS-HRM",
       "consumers": ["HRIS-HRM"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_027",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon027EmploymentAbsenceSnapshotV1",
+      "normalizedSchemaSha256": "5b7391739e6ae41ae46a772310fc7c79916eaf4d706bf4de58ba0083b0299a17",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-TIM"]
     },
     {
       "sourceId": "platform-dependency-v1",
