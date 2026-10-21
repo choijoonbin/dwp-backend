@@ -3,11 +3,14 @@ package com.dwp.services.auth.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.dwp.core.security.Hrm012OwnerReceiptAuthorityContract;
 import com.dwp.core.security.ProductSurfaceScopeKey;
 import com.dwp.services.auth.dto.AppGovernanceDtos;
 import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
+import com.dwp.services.auth.tenantcapabilityoverride.TenantCapabilityOverrideReader;
+import com.dwp.services.auth.tenantfeatureactivation.TenantFeatureActivationReader;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
@@ -35,6 +38,65 @@ class ProductAuthorizationHcmAuthorityAdapterTest {
     @Mock
     private ProductAuthorizationIdentityEvidenceService evidenceService;
     private ProductAuthorizationAuthorityAdapter adapter;
+
+    @Test
+    void hrm012RequiresTheExactActiveFeatureForPreflightChallengeAndElevatedAccess()
+            throws IOException {
+        useContract("product-surfaces-v1.bundle-v57.generated.json");
+        evidence(Set.of(
+                "APP.HCM:VIEW",
+                "ACTION.HRIS_INTEGRATION_EXECUTE:EXECUTE"),
+                List.of(role(
+                        "HRIS_DUTY_INTEGRATION_EXECUTOR",
+                        "APP.HCM",
+                        "RS_HRIS_CONNECTORS_LE_100")));
+        ProductSurfaceAuthorityDtos.EvaluateRequest ownerReceipt =
+                new ProductSurfaceAuthorityDtos.EvaluateRequest(
+                        10L, 20L, "hcm", "hcm.operations",
+                        ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                        Hrm012OwnerReceiptAuthorityContract.ROUTE,
+                        null, null, null, null, List.of(),
+                        "correlation-1", "a".repeat(64), null,
+                        Hrm012OwnerReceiptAuthorityContract.METHOD,
+                        Hrm012OwnerReceiptAuthorityContract.SERVICE_PATH);
+        TenantFeatureActivationReader retiredBinding = ignored ->
+                new TenantFeatureActivationReader.GateResult(
+                        TenantFeatureActivationReader.State.UNGATED,
+                        "UNGATED",
+                        Hrm012OwnerReceiptAuthorityContract.FEATURE,
+                        "tenant-feature-retired");
+        TenantFeatureActivationReader missingBinding = ignored ->
+                TenantFeatureActivationReader.GateResult.ungoverned(
+                        Hrm012OwnerReceiptAuthorityContract.ROUTE);
+
+        useFeatureGate(retiredBinding);
+        ProductSurfaceAuthorityDtos.AuthorityResult retiredPreflight =
+                adapter.evaluate(ownerReceipt);
+        ProductSurfaceAuthorityDtos.AuthorityResult retiredElevated = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
+                Hrm012OwnerReceiptAuthorityContract.ROUTE,
+                null, null, null, null, List.of());
+
+        useFeatureGate(missingBinding);
+        ProductSurfaceAuthorityDtos.AuthorityResult missingPreflight =
+                adapter.evaluate(ownerReceipt);
+        ProductSurfaceAuthorityDtos.AuthorityResult missingNormal = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                Hrm012OwnerReceiptAuthorityContract.ROUTE,
+                null, null, null, null, List.of());
+
+        assertThat(List.of(retiredPreflight, missingPreflight)).allSatisfy(result -> {
+            assertThat(result.decision())
+                    .isEqualTo(ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE);
+            assertThat(result.ownerReceiptAuthority()).isNull();
+        });
+        assertThat(missingNormal.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE);
+        assertThat(missingNormal.requestPolicyRef()).isNull();
+        assertThat(retiredElevated.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE);
+        assertThat(retiredElevated.routeGrantRef()).isNull();
+    }
 
     @Test
     void v45NavigationScopeSplitReturnsTenantSelfAndOperationsPopulation()
@@ -769,6 +831,16 @@ class ProductAuthorizationHcmAuthorityAdapterTest {
                         "product-surfaces", bundleId, contract.version(), "release", now)));
         adapter = new ProductAuthorizationAuthorityAdapter(
                 repository, evidenceService, CLOCK, "urn:dwp:acr:mfa");
+    }
+
+    private void useFeatureGate(TenantFeatureActivationReader featureGate) {
+        adapter = new ProductAuthorizationAuthorityAdapter(
+                repository,
+                evidenceService,
+                TenantCapabilityOverrideReader.none(),
+                featureGate,
+                CLOCK,
+                "urn:dwp:acr:mfa");
     }
 
     private void evidence(

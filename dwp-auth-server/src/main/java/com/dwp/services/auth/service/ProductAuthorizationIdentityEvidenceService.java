@@ -48,7 +48,9 @@ class ProductAuthorizationIdentityEvidenceService {
                                 .filter(duty -> ScopedAdminDutyEvidenceService
                                         .isExactHrisContractIssuerDuty(duty)
                                         || ScopedAdminDutyEvidenceService
-                                        .isExactHrisStatutoryOperatorDuty(duty))
+                                        .isExactHrisStatutoryOperatorDuty(duty)
+                                        || ScopedAdminDutyEvidenceService
+                                        .isExactHrisWorkforceIngestionExecutorDuty(duty))
                                 .map(duty -> new AppGovernanceDtos.ResourceRole(
                                         duty.dutyCode(), "APP", duty.productResourceKey(),
                                         duty.resourceSetId(), duty.resourceSetKey(),

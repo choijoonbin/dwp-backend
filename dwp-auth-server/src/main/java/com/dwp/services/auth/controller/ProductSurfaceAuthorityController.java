@@ -83,6 +83,11 @@ public class ProductSurfaceAuthorityController {
                 authenticatedServiceIdentity)) {
             throw denied();
         }
+        if (request.ownerReceiptRequest()
+                && !ProductSurfaceInternalSecurityConfig.GATEWAY_SERVICE_IDENTITY.equals(
+                        authenticatedServiceIdentity)) {
+            throw denied();
+        }
     }
 
     private void requireSealedPeopleOriginRequest(

@@ -1,5 +1,6 @@
 package com.dwp.services.people.security;
 
+import com.dwp.core.security.Hrm012OwnerReceiptAuthorityContract;
 import com.dwp.services.people.hr.HrController;
 import com.dwp.services.people.hr.HrService;
 import com.dwp.services.people.workforce.WorkforceCandidateController;
@@ -59,6 +60,105 @@ class HcmProductSurfacePepFilterTest {
         mvc = mvcWithOrganizationFeature(true, "3");
     }
 
+    @Test
+    void hrm012MissingMarkerFailsClosedBeforeDisabledAndNonEnforcingRolloutBypasses()
+            throws Exception {
+        AtomicInteger controllerCalls = new AtomicInteger();
+        MockMvc disabled = hrm012Mvc(false, controllerCalls);
+
+        disabled.perform(identity(post(Hrm012OwnerReceiptAuthorityContract.SERVICE_PATH))
+                        .header(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER,
+                                Hrm012OwnerReceiptAuthorityContract.ROUTE))
+                .andExpect(status().isServiceUnavailable());
+
+        MockMvc nonEnforcing = hrm012Mvc(true, controllerCalls);
+        nonEnforcing.perform(identity(post(Hrm012OwnerReceiptAuthorityContract.SERVICE_PATH))
+                        .header(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER,
+                                Hrm012OwnerReceiptAuthorityContract.ROUTE)
+                        .header(HcmProductSurfacePepFilter.ROLLOUT_STATE_HEADER, "000")
+                        .header(HcmProductSurfacePepFilter.ROLLOUT_REVISION_HEADER,
+                                ROLLOUT_REVISION)
+                        .header(HcmProductSurfacePepFilter.ROLLOUT_COHORT_HEADER, "baseline"))
+                .andExpect(status().isServiceUnavailable());
+
+        assertThat(controllerCalls).hasValue(0);
+    }
+
+    @Test
+    void hrm012PurposeAllowsAbsenceAndRejectsMalformedDuplicateOrWrongValues()
+            throws Exception {
+        AtomicInteger controllerCalls = new AtomicInteger();
+        Hrm012OwnerReceiptAuthorityEvidenceVerifier verifier =
+                mock(Hrm012OwnerReceiptAuthorityEvidenceVerifier.class);
+        when(verifier.verify(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("signed-marker")))
+                .thenReturn(mock(
+                        com.dwp.core.security.Hrm012OwnerReceiptAuthorityVerifier
+                                .Evidence.class));
+        MockMvc hrm012Mvc = hrm012Mvc(true, controllerCalls, verifier);
+
+        hrm012Mvc.perform(hrm012AuthorityRequest())
+                .andExpect(status().isOk());
+
+        for (String invalidPurpose : List.of(
+                "",
+                " HRIS_INTEGRATION",
+                "HRIS_INTEGRATION,HRIS_INTEGRATION",
+                "HRIS_INTEGRATION\n",
+                "EMPLOYEE_SELF_SERVICE")) {
+            hrm012Mvc.perform(hrm012AuthorityRequest()
+                            .header(HcmProductSurfacePepFilter.PURPOSE_HEADER,
+                                    invalidPurpose))
+                    .andExpect(status().isServiceUnavailable());
+        }
+        hrm012Mvc.perform(hrm012AuthorityRequest()
+                        .header(HcmProductSurfacePepFilter.PURPOSE_HEADER,
+                                "HRIS_INTEGRATION", "HRIS_INTEGRATION"))
+                .andExpect(status().isServiceUnavailable());
+
+        assertThat(controllerCalls).hasValue(1);
+        verify(verifier).verify(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("signed-marker"));
+    }
+
+    @Test
+    void nonHrmOwnerReceiptHeadersFailClosedBeforeGenericRolloutBypasses()
+            throws Exception {
+        MockMvc disabled = genericHcmMvc(false);
+        disabled.perform(identity(get("/v1/hr/home")))
+                .andExpect(status().isOk());
+        verify(service).home();
+
+        reset(service);
+        disabled.perform(identity(get("/v1/hr/home"))
+                        .header(Hrm012OwnerReceiptAuthorityContract.HEADER,
+                                "caller-marker"))
+                .andExpect(status().isForbidden());
+        verify(service, never()).home();
+
+        MockMvc nonEnforcing = genericHcmMvc(true);
+        nonEnforcing.perform(identity(get("/v1/hr/home"))
+                        .header(HcmProductSurfacePepFilter.ROLLOUT_STATE_HEADER, "000")
+                        .header(HcmProductSurfacePepFilter.ROLLOUT_REVISION_HEADER,
+                                ROLLOUT_REVISION)
+                        .header(HcmProductSurfacePepFilter.ROLLOUT_COHORT_HEADER, "baseline"))
+                .andExpect(status().isOk());
+        verify(service).home();
+
+        reset(service);
+        nonEnforcing.perform(identity(get("/v1/hr/home"))
+                        .header(HcmProductSurfacePepFilter.ROLLOUT_STATE_HEADER, "000")
+                        .header(HcmProductSurfacePepFilter.ROLLOUT_REVISION_HEADER,
+                                ROLLOUT_REVISION)
+                        .header(HcmProductSurfacePepFilter.ROLLOUT_COHORT_HEADER, "baseline")
+                        .header(Hrm012OwnerReceiptAuthorityContract.CHALLENGE_HEADER,
+                                "caller-challenge"))
+                .andExpect(status().isForbidden());
+        verify(service, never()).home();
+    }
+
     private MockMvc mvcWithOrganizationFeature(
             boolean organizationPositionsEnabled,
             String enrolledTenants) {
@@ -76,6 +176,60 @@ class HcmProductSurfacePepFilterTest {
                                 true, registry, validator, mapper,
                                 organizationPositionsEnabled, enrolledTenants))
                 .build();
+    }
+
+    private MockMvc hrm012Mvc(
+            boolean productAuthorizationV3Enabled,
+            AtomicInteger controllerCalls) {
+        return hrm012Mvc(
+                productAuthorizationV3Enabled,
+                controllerCalls,
+                mock(Hrm012OwnerReceiptAuthorityEvidenceVerifier.class));
+    }
+
+    private MockMvc hrm012Mvc(
+            boolean productAuthorizationV3Enabled,
+            AtomicInteger controllerCalls,
+            Hrm012OwnerReceiptAuthorityEvidenceVerifier verifier) {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        HcmV3PepRegistry registry = new HcmV3PepRegistry(mapper);
+        return MockMvcBuilders.standaloneSetup(new Hrm012ProbeController(controllerCalls))
+                .addFilters(
+                        new PeopleSecurityFilter("people-token", mapper),
+                        new HcmProductSurfacePepFilter(
+                                productAuthorizationV3Enabled,
+                                registry,
+                                validator,
+                                mapper,
+                                verifier,
+                                true,
+                                java.util.Set.of(3L)))
+                .build();
+    }
+
+    private MockMvc genericHcmMvc(boolean productAuthorizationV3Enabled) {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        HcmV3PepRegistry registry = new HcmV3PepRegistry(mapper);
+        return MockMvcBuilders.standaloneSetup(new HrController(service))
+                .addFilters(
+                        new PeopleSecurityFilter("people-token", mapper),
+                        new HcmProductSurfacePepFilter(
+                                productAuthorizationV3Enabled,
+                                registry,
+                                validator,
+                                mapper,
+                                mock(Hrm012OwnerReceiptAuthorityEvidenceVerifier.class),
+                                true,
+                                java.util.Set.of(3L)))
+                .build();
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+            hrm012AuthorityRequest() {
+        return identity(post(Hrm012OwnerReceiptAuthorityContract.SERVICE_PATH))
+                .header(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER,
+                        Hrm012OwnerReceiptAuthorityContract.ROUTE)
+                .header(Hrm012OwnerReceiptAuthorityContract.HEADER, "signed-marker");
     }
 
     @Test
@@ -580,6 +734,22 @@ class HcmProductSurfacePepFilterTest {
         @PostMapping("/v1/hris/certificates")
         public Map<String, Boolean> issue() {
             evidence.set(HcmPepContext.current());
+            return Map.of("ok", true);
+        }
+    }
+
+    @RestController
+    private static final class Hrm012ProbeController {
+
+        private final AtomicInteger controllerCalls;
+
+        private Hrm012ProbeController(AtomicInteger controllerCalls) {
+            this.controllerCalls = controllerCalls;
+        }
+
+        @PostMapping("/v1/hris/integrations/workforce-ingestions")
+        public Map<String, Boolean> ingest() {
+            controllerCalls.incrementAndGet();
             return Map.of("ok", true);
         }
     }

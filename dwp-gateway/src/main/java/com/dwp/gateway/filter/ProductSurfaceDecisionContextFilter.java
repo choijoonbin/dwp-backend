@@ -63,6 +63,11 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "X-DWP-Expected-Object-Version";
     private static final String IF_MATCH_HEADER = "If-Match";
     private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+    private static final String HRM012_ACTION_ROUTE =
+            "route.hcm.operations.workforce-ingestion.action";
+    private static final String HRM012_MARKER_HEADER =
+            "X-DWP-HRM012-Owner-Receipt-Authority";
+    private static final String STEP_UP_CHALLENGE_HEADER = "X-DWP-Step-Up-Challenge";
     private static final Pattern SYS006_IDEMPOTENCY_KEY = Pattern.compile(
             "[A-Za-z0-9][A-Za-z0-9._:-]{0,119}");
     private static final long SYS006_MAX_SAFE_OBJECT_REVISION = 9_007_199_254_740_991L;
@@ -121,6 +126,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.operations.pay-tax-social-insurance.page",
             "route.hcm.operations.pay-tax-social-insurance.data",
             "route.hcm.operations.country-pack-activate.action",
+            HRM012_ACTION_ROUTE,
             "route.hcm.operations.performance-forms-scales.page",
             "route.hcm.operations.performance-forms-scales.data",
             "route.hcm.configuration.settings-performance.page",
@@ -441,6 +447,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             PAY_GROUP_PUBLIC_ID_HEADER,
             VerifiedIdentityFilter.TIME_GROUP_PUBLIC_ID_HEADER,
             MASKED_FIELD_GROUPS_HEADER, OMITTED_FIELD_GROUPS_HEADER,
+            HRM012_MARKER_HEADER, STEP_UP_CHALLENGE_HEADER,
             "X-DWP-Current-Decision-Valid-Until");
 
     private final ProductSurfaceContextAggregationService aggregationService;
@@ -501,6 +508,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 .getOrEmpty(IF_MATCH_HEADER);
         List<String> idempotencyKeyValues = exchange.getRequest().getHeaders()
                 .getOrEmpty(IDEMPOTENCY_KEY_HEADER);
+        List<String> stepUpChallengeValues = exchange.getRequest().getHeaders()
+                .getOrEmpty(STEP_UP_CHALLENGE_HEADER);
+        List<String> ownerReceiptMarkerValues = exchange.getRequest().getHeaders()
+                .getOrEmpty(HRM012_MARKER_HEADER);
+        List<String> expectedObjectVersionValues = exchange.getRequest().getHeaders()
+                .getOrEmpty(EXPECTED_OBJECT_VERSION_HEADER);
         ServerHttpRequest sanitized = exchange.getRequest().mutate().headers(headers -> {
             INTERNAL_HEADERS.forEach(headers::remove);
             headers.remove(EXPECTED_REVISION_HEADER);
@@ -578,6 +591,37 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         sanitized = withoutScopeSelection(sanitized, scopeSelection);
         sanitizedExchange = sanitizedExchange.mutate().request(sanitized).build();
         GeneratedProductRouteCatalog.Route route = match.uniqueRoute();
+        if (!HRM012_ACTION_ROUTE.equals(route.routeContractKey())
+                && (!ownerReceiptMarkerValues.isEmpty()
+                    || !stepUpChallengeValues.isEmpty())) {
+            return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
+                    "INVALID_OWNER_RECEIPT_AUTHORITY_INPUT", null);
+        }
+        String hrm012IdempotencyKey = null;
+        String hrm012Challenge = null;
+        String hrm012Correlation = null;
+        if (HRM012_ACTION_ROUTE.equals(route.routeContractKey())) {
+            hrm012IdempotencyKey = exactOpaqueHeader(idempotencyKeyValues, 200, false);
+            hrm012Challenge = stepUpChallengeValues.isEmpty()
+                    ? null : exactOpaqueHeader(stepUpChallengeValues, 8192, false);
+            hrm012Correlation = exactOpaqueHeader(
+                    exchange.getRequest().getHeaders().getOrEmpty("X-Correlation-ID"),
+                    200, false);
+            boolean valid = route.stateChanging() && route.highRiskStepUp()
+                    && route.commandBoundStepUp() && !scopeSelection.present()
+                    && hrm012IdempotencyKey != null && hrm012Correlation != null
+                    && strongIfMatchVersion(ifMatchValues) != null
+                    && expectedValues.isEmpty() && expectedObjectVersionValues.isEmpty()
+                    && validOptionalCanonicalPurpose(callerPurposeValues, "HRIS_INTEGRATION")
+                    && exchange.getRequest().getHeaders()
+                            .getOrEmpty(org.springframework.http.HttpHeaders.AUTHORIZATION)
+                            .size() == 1
+                    && (stepUpChallengeValues.isEmpty() || hrm012Challenge != null);
+            if (!valid) {
+                return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
+                        "INVALID_HRM012_COMMAND_HEADERS", null);
+            }
+        }
         if (PAY003_CONFIGURATION_ROUTE_KEYS.contains(route.routeContractKey())
                 || PAY003_RESULT_ROUTE_KEYS.contains(route.routeContractKey())
                 || PAY003_ACTION_ROUTE_KEY.equals(route.routeContractKey())) {
@@ -705,6 +749,40 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         }
         ProductSurfaceContextDtos.RequestContext requestContext = requestContext(canonical,
                 tenantId, actorId, verifiedMode);
+        if (HRM012_ACTION_ROUTE.equals(route.routeContractKey())) {
+            if (verifiedMode != ProductSurfaceContextDtos.AccessMode.NORMAL) {
+                return error(canonicalExchange, HttpStatus.FORBIDDEN,
+                        "OWNER_RECEIPT_AUTH_REQUIRED", null);
+            }
+            String idempotencyDigest = sha256(hrm012IdempotencyKey);
+            String challenge = hrm012Challenge;
+            String correlation = hrm012Correlation;
+            return aggregationService.evaluateHrm012OwnerReceiptAuthority(
+                            requestContext, correlation, idempotencyDigest, challenge)
+                    .flatMap(marker -> {
+                        ServerHttpRequest ownerRequest = canonical.mutate().headers(headers -> {
+                            headers.remove(STEP_UP_CHALLENGE_HEADER);
+                            headers.remove(HRM012_MARKER_HEADER);
+                            headers.remove(EXPECTED_REVISION_HEADER);
+                            headers.remove(EXPECTED_OBJECT_VERSION_HEADER);
+                            headers.set(ROUTE_HEADER, HRM012_ACTION_ROUTE);
+                            headers.set(HRM012_MARKER_HEADER, marker);
+                            if (callerPurposeValues.isEmpty()) {
+                                headers.remove(PURPOSE_HEADER);
+                            } else {
+                                headers.set(PURPOSE_HEADER, callerPurposeValues.getFirst());
+                            }
+                        }).build();
+                        return chain.filter(canonicalExchange.mutate()
+                                .request(ownerRequest).build());
+                    })
+                    .onErrorResume(
+                            com.dwp.gateway.productsurface
+                                    .ProductSurfaceAuthorityUnavailableException.class,
+                            failure -> error(canonicalExchange,
+                                    HttpStatus.SERVICE_UNAVAILABLE,
+                                    "AUTHORITY_RESOLUTION_UNAVAILABLE", null));
+        }
         ProductSurfaceContextDtos.ProductEvaluationRequest request =
                 new ProductSurfaceContextDtos.ProductEvaluationRequest(
                         new ProductSurfaceContextDtos.Subject(
@@ -1167,6 +1245,26 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
 
     private boolean blank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String exactOpaqueHeader(
+            List<String> values, int maximumUtf8Bytes, boolean allowComma) {
+        if (values == null || values.size() != 1 || values.getFirst() == null) return null;
+        String value = values.getFirst();
+        if (value.isBlank() || !value.equals(value.strip())
+                || value.getBytes(StandardCharsets.UTF_8).length > maximumUtf8Bytes
+                || (!allowComma && value.indexOf(',') >= 0)
+                || value.chars().anyMatch(c -> c < 0x20 || c == 0x7f)) return null;
+        return value;
+    }
+
+    private String sha256(String value) {
+        try {
+            return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable.", exception);
+        }
     }
 
     @Override

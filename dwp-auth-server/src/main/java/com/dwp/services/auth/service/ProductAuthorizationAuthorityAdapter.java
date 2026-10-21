@@ -3,6 +3,7 @@ package com.dwp.services.auth.service;
 import com.dwp.services.auth.dto.AppGovernanceDtos;
 import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
+import com.dwp.core.security.Hrm012OwnerReceiptAuthorityContract;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
 import com.dwp.services.auth.tenantcapabilityoverride.TenantCapabilityOverrideReader;
 import com.dwp.services.auth.tenantfeatureactivation.TenantFeatureActivationReader;
@@ -53,6 +54,10 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
     private static final String HCM_EXPLORER_RECEIPT_ROUTE =
             "route.hcm.utility.explorer-command-receipt.data";
     private static final String HCM_SHELL_CAPABILITY = "hcm.app.shell.view";
+    private static final String HRM012_ACTION_ROUTE =
+            "route.hcm.operations.workforce-ingestion.action";
+    private static final String HRM012_SERVICE_PATH =
+            "/v1/hris/integrations/workforce-ingestions";
 
     private final ProductAuthorizationContractRepository repository;
     private final ProductAuthorizationIdentityEvidenceService evidenceService;
@@ -133,6 +138,9 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 .orElseThrow(() -> new IllegalStateException(
                         "Active product authorization pointer changed"));
         Registry registry = new Registry(contract);
+        ProductSurfaceAuthorityDtos.AuthorityResult ownerReceipt = ownerReceiptPreflight(
+                request, stored, pointerRevision, registry, identity);
+        if (ownerReceipt != null) return ownerReceipt;
         Evaluation evaluation = request.directRouteEvaluation()
                 ? evaluateRoute(request, registry, identity)
                 : evaluateEntry(request, registry, identity);
@@ -169,7 +177,16 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 request, stored.version(), materialized);
         String tenantControlRevision = decisionSupport.tenantControlRevision(
                 request.tenantId(), featureGate);
-        if (materialized && featureGate.state()
+        if (materialized && HRM012_ACTION_ROUTE.equals(request.routeContractKey())
+                && !exactHrm012FeatureGate(featureGate)) {
+            evaluation = featureActivationPending(featureGate)
+                    ? Evaluation.denied(
+                            ProductSurfaceAuthorityDtos.Decision.ACTIVATION_REQUIRED,
+                            featureGate.reasonCode())
+                    : Evaluation.denied(
+                            ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE,
+                            "AUTHORITY_RESOLUTION_UNAVAILABLE");
+        } else if (materialized && featureGate.state()
                 == TenantFeatureActivationReader.State.AUTHORITY_UNAVAILABLE) {
             evaluation = Evaluation.denied(
                     ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE,
@@ -182,6 +199,105 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         return decisionSupport.result(
                 request, identity.revision(), policyRevision, tenantControlRevision,
                 contextKey, revalidateAt, evaluation);
+    }
+
+    private ProductSurfaceAuthorityDtos.AuthorityResult ownerReceiptPreflight(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            ProductAuthorizationContractRepository.StoredBundle stored,
+            long pointerRevision,
+            Registry registry,
+            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity) {
+        if (!request.ownerReceiptRequest()) return null;
+        String policyRevision = "policy-" + stored.version() + '-' + pointerRevision + '-'
+                + stored.checksum();
+        if (!"hcm".equals(request.productKey())
+                || !"hcm.operations".equals(request.surfaceKey())
+                || request.activeAccessMode() != ProductSurfaceAuthorityDtos.AccessMode.NORMAL
+                || !HRM012_ACTION_ROUTE.equals(request.routeContractKey())
+                || !"POST".equals(request.commandMethod())
+                || !HRM012_SERVICE_PATH.equals(request.commandPath())
+                || request.contextKey() != null || request.contextScopeKey() != null
+                || request.supportSessionRef() != null || request.supportRevision() != null
+                || !request.supportScopes().isEmpty()
+                || request.correlationId() == null || request.correlationId().isBlank()
+                || !request.correlationId().equals(request.correlationId().strip())
+                || request.correlationId().indexOf(',') >= 0
+                || request.correlationId().indexOf('\r') >= 0
+                || request.correlationId().indexOf('\n') >= 0
+                || request.idempotencyKeySha256() == null
+                || !request.idempotencyKeySha256().matches("[a-f0-9]{64}")
+                || request.opaqueStepUpChallengeRef() != null
+                && (!request.opaqueStepUpChallengeRef().equals(
+                        request.opaqueStepUpChallengeRef().strip())
+                    || request.opaqueStepUpChallengeRef().isBlank()
+                    || request.opaqueStepUpChallengeRef().indexOf(',') >= 0
+                    || request.opaqueStepUpChallengeRef().indexOf('\r') >= 0
+                    || request.opaqueStepUpChallengeRef().indexOf('\n') >= 0)
+                || registry.routesByKey().get(HRM012_ACTION_ROUTE) == null) {
+            return ProductSurfaceAuthorityDtos.AuthorityResult.unavailable(request);
+        }
+        String acceptedApp = identity.permissions().contains("APP.HCM:VIEW")
+                ? "APP.HCM"
+                : identity.permissions().contains("APP.HRIS:VIEW") ? "APP.HRIS" : null;
+        if (acceptedApp == null) {
+            return ownerReceiptResult(request, identity.revision(), policyRevision,
+                    null, ProductSurfaceAuthorityDtos.Decision.APP_DENIED,
+                    "APP_ENTITLEMENT_REQUIRED", null);
+        }
+        TenantFeatureActivationReader.GateResult feature = decisionSupport.featureGate(
+                request, stored.version(), true);
+        String tenantControlRevision = decisionSupport.tenantControlRevision(
+                request.tenantId(), feature);
+        if (featureActivationPending(feature)) {
+            return ownerReceiptResult(request, identity.revision(), policyRevision,
+                    tenantControlRevision,
+                    ProductSurfaceAuthorityDtos.Decision.ACTIVATION_REQUIRED,
+                    feature.reasonCode(), null);
+        }
+        if (!exactHrm012FeatureGate(feature)) {
+            return ownerReceiptResult(request, identity.revision(), policyRevision,
+                    tenantControlRevision,
+                    ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
+        }
+        return ownerReceiptResult(request, identity.revision(), policyRevision,
+                tenantControlRevision,
+                ProductSurfaceAuthorityDtos.Decision.OWNER_RECEIPT_AUTH_REQUIRED,
+                Hrm012OwnerReceiptAuthorityContract.STATE, acceptedApp);
+    }
+
+    private boolean exactHrm012FeatureGate(
+            TenantFeatureActivationReader.GateResult feature) {
+        return feature != null
+                && feature.state() == TenantFeatureActivationReader.State.ACTIVE
+                && Hrm012OwnerReceiptAuthorityContract.FEATURE.equals(
+                        feature.featureKey());
+    }
+
+    private boolean featureActivationPending(
+            TenantFeatureActivationReader.GateResult feature) {
+        return feature != null
+                && (feature.state()
+                        == TenantFeatureActivationReader.State.FEATURE_NOT_ACTIVATED
+                || feature.state()
+                        == TenantFeatureActivationReader.State.TENANT_NOT_ENROLLED);
+    }
+
+    private ProductSurfaceAuthorityDtos.AuthorityResult ownerReceiptResult(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            String authRevision,
+            String policyRevision,
+            String tenantControlRevision,
+            ProductSurfaceAuthorityDtos.Decision decision,
+            String reason,
+            String appResourceKey) {
+        return new ProductSurfaceAuthorityDtos.AuthorityResult(
+                decision, reason, authRevision, policyRevision, tenantControlRevision,
+                null, request.productKey(), request.surfaceKey(), "work",
+                request.activeAccessMode(), appResourceKey == null ? null
+                        : ProductSurfaceAuthorityDtos.AccessSource.ENTITLEMENT,
+                appResourceKey, List.of(), List.of(), null, true, false,
+                null, null, null, null, decisionSupport.now().plusSeconds(30), null, null);
     }
 
     private Evaluation evaluateEntry(
@@ -342,6 +458,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         List<ProductAuthorizationContractDtos.AccessProfile> profiles = route.accessProfiles().stream()
                 .filter(value -> value.activeAccessModes()
                         .contains(request.activeAccessMode().name())
+                        || hrm012NormalChallengeCandidate(request, route, value)
                         || HcmAuditAuthorityPolicy.isNormalChallengeCandidate(
                                 request, route,
                                 registry.capabilitiesByKey().get(
@@ -406,6 +523,16 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     "SCOPE_CONTEXT_EXPIRED");
         }
         return Objects.requireNonNull(firstDenial).forRoute();
+    }
+
+    private boolean hrm012NormalChallengeCandidate(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            ProductAuthorizationContractDtos.AccessProfile profile) {
+        return request.activeAccessMode() == ProductSurfaceAuthorityDtos.AccessMode.NORMAL
+                && HRM012_ACTION_ROUTE.equals(route.routeContractKey())
+                && "workforce-ingestion-executor".equals(profile.profileKey())
+                && profile.activeAccessModes().equals(List.of("ELEVATED"));
     }
 
     private boolean requiresExactProfileSelection(

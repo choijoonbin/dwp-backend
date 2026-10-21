@@ -267,6 +267,39 @@ public class ProductSurfaceContextAggregationService {
                 .map(resolution -> productEvaluation(requestContext, request, resolution));
     }
 
+    /** Exact HRM-012 pre-controller decision: app and feature only, never command authority. */
+    public Mono<String> evaluateHrm012OwnerReceiptAuthority(
+            ProductSurfaceContextDtos.RequestContext requestContext,
+            String correlationId,
+            String idempotencyKeySha256,
+            String opaqueStepUpChallengeRef) {
+        return authorityClient.evaluateHrm012OwnerReceipt(
+                        requestContext, correlationId, idempotencyKeySha256,
+                        opaqueStepUpChallengeRef)
+                .switchIfEmpty(Mono.error(new ProductSurfaceAuthorityUnavailableException()))
+                .flatMap(result -> {
+                    boolean exact = result.decision()
+                            == ProductSurfaceContextDtos.Decision.OWNER_RECEIPT_AUTH_REQUIRED
+                            && result.accessMode() == ProductSurfaceContextDtos.AccessMode.NORMAL
+                            && "hcm".equals(result.productKey())
+                            && "hcm.operations".equals(result.surfaceKey())
+                            && result.accessSource()
+                            == ProductSurfaceContextDtos.AccessSource.ENTITLEMENT
+                            && "OWNER_RECEIPT_AUTH_REQUIRED".equals(result.reasonCode())
+                            && Set.of("APP.HCM", "APP.HRIS").contains(result.appResourceKey())
+                            && !blank(result.authRevision())
+                            && !blank(result.policyRevision())
+                            && !blank(result.tenantControlRevision())
+                            && result.effectiveGrants().isEmpty()
+                            && result.scopes().isEmpty()
+                            && result.contextKey() == null && result.routeGrantRef() == null
+                            && result.effectiveReadOnly()
+                            && canonicalMarker(result.ownerReceiptAuthority());
+                    return exact ? Mono.just(result.ownerReceiptAuthority())
+                            : Mono.error(new ProductSurfaceAuthorityUnavailableException());
+                });
+    }
+
     /** Internal-only direct evaluation including trusted context/scope for owner forwarding. */
     public Mono<TrustedProductEvaluation> evaluateProductTrusted(
             ProductSurfaceContextDtos.RequestContext requestContext,
@@ -555,6 +588,7 @@ public class ProductSurfaceContextAggregationService {
             ProductSurfaceContextDtos.ProductCandidate candidate,
             String routeContractKey) {
         if (authority == null || authority.decision() == null
+                || authority.ownerReceiptAuthority() != null
                 || authority.accessMode() != requestContext.activeAccessMode()
                 || !candidate.productKey().equals(authority.productKey())
                 || !candidate.surfaceKey().equals(authority.surfaceKey())) {
@@ -589,6 +623,13 @@ public class ProductSurfaceContextAggregationService {
                         authority.effectiveGrants(), authority.scopes())
                 && authority.revalidateAt() != null
                 && (blank(routeContractKey) || !blank(authority.routeGrantRef()));
+    }
+
+    private boolean canonicalMarker(String value) {
+        return !blank(value) && value.equals(value.strip()) && value.indexOf(',') < 0
+                && value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 8_192
+                && value.chars().noneMatch(c -> c < 0x20 || c == 0x7f)
+                && value.split("\\.", -1).length == 3;
     }
 
     private boolean validGoverned(

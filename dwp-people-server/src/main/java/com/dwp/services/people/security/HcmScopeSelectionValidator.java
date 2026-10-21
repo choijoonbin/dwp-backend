@@ -39,6 +39,8 @@ final class HcmScopeSelectionValidator {
                             "PerformanceReviewAssignmentAuthority:reviewer-object-assignment"),
                     java.util.Map.entry("predicate.hcm-workforce-visible-person.v1",
                             "WorkforcePeopleAndOrganizationChart:population-filter"),
+                    java.util.Map.entry("predicate.hcm-workforce-ingestion-scope.v1",
+                            "WorkforceIngestionService:post-receipt-population"),
                     java.util.Map.entry("predicate.people.object-version.v1",
                             "OwnerMutationServices:locked-object-version"),
                     java.util.Map.entry("predicate.self-person.v1",
@@ -73,6 +75,8 @@ final class HcmScopeSelectionValidator {
             "route.hcm.operations.certificates-documents.data");
     private static final String HRM009_ACTION_ROUTE =
             "route.hcm.operations.certificate-issue.action";
+    private static final String HRM012_ACTION_ROUTE =
+            "route.hcm.operations.workforce-ingestion.action";
 
     private final HcmPopulationScopeService populations;
 
@@ -166,6 +170,10 @@ final class HcmScopeSelectionValidator {
             validateHrm009Action(authority);
             return;
         }
+        if (HRM012_ACTION_ROUTE.equals(route)) {
+            validateHrm012ReceiptBoundary(authority);
+            return;
+        }
         if (java.util.Set.of(
                 "route.hcm.performance.assigned-review.data",
                 "route.hcm.performance.assigned-review-draft-update.action",
@@ -235,6 +243,25 @@ final class HcmScopeSelectionValidator {
             return;
         }
         throw new IllegalStateException("Unknown generated HCM route plane.");
+    }
+
+    private void validateHrm012ReceiptBoundary(HcmV3PepRegistry.RouteAuthority authority) {
+        if (!"ACTION".equals(authority.routeKind())
+                || !"workforce-ingestion-executor".equals(authority.profileKey())
+                || authority.readOnly() || !"POST".equals(authority.method())
+                || !"hcm.integration.workforce-ingestion.execute".equals(
+                        authority.capabilityContractKey())
+                || !java.util.Set.of(
+                        "predicate.hcm-workforce-ingestion-scope.v1",
+                        "predicate.people.object-version.v1")
+                        .equals(authority.predicatePolicyKeys())
+                || !java.util.Set.of("OBJECT", "TARGET_POPULATION")
+                        .equals(authority.targetBindingKinds())) {
+            throw new IllegalStateException(
+                    "HRM-012 post-receipt scope profile changed.");
+        }
+        // No population lookup occurs at the marker boundary. The module owner invokes the
+        // connector/legal-entity predicate only after receipt, Auth and metadata precedence.
     }
 
     private void validateOrganizationGraph(HcmV3PepRegistry.RouteAuthority authority) {

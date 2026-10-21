@@ -64,8 +64,12 @@ dwp:
     hris-origin-authority-token: ${DWP_HRIS_ORIGIN_AUTHORITY_TOKEN:}
     hris-recipient-authority-token: ${DWP_HRIS_RECIPIENT_AUTHORITY_TOKEN:}
     approval-recovery-token: ${DWP_APPROVAL_RECOVERY_TOKEN:}
+    hrm012-owner-receipt:
+      active-key-id: ${DWP_AUTH_HRM012_OWNER_RECEIPT_ACTIVE_KEY_ID:}
+      active-private-key-pem: ${DWP_AUTH_HRM012_OWNER_RECEIPT_ACTIVE_PRIVATE_KEY_PEM:}
     step-up:
       private-key-pem: ${DWP_AUTH_STEP_UP_PRIVATE_KEY_PEM:}
+      public-key-pem: ${DWP_AUTH_STEP_UP_PUBLIC_KEY_PEM:}
       issuer: ${DWP_AUTH_STEP_UP_ISSUER:}
       key-id: ${DWP_AUTH_STEP_UP_KEY_ID:}
       required-acr: ${DWP_AUTH_STEP_UP_REQUIRED_ACR:}

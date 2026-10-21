@@ -28,9 +28,12 @@ public class ProductSurfaceStepUpRouteResolver {
     private static final String BUNDLE_KEY = "product-surfaces";
     private static final java.util.Set<Long> STEP_UP_RUNTIME_BUNDLE_VERSIONS =
             java.util.Set.of(2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L,
-                    14L, 15L, 16L, 32L, 49L, 50L, 52L, 53L, 54L);
+                    14L, 15L, 16L, 32L, 49L, 50L, 52L, 53L, 54L, 55L, 56L, 57L);
     private static final java.util.Set<Long> SEALED_RUNTIME_BUNDLE_VERSIONS =
-            java.util.Set.of(9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 32L, 49L, 50L, 52L, 53L, 54L);
+            java.util.Set.of(9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 32L, 49L, 50L, 52L, 53L,
+                    54L, 55L, 56L, 57L);
+    private static final String HRM012_ACTION_ROUTE =
+            "route.hcm.operations.workforce-ingestion.action";
     private static final String HRM009_SHARED_ACTION_ROUTE =
             "route.hcm.operations.certificate-issue.action";
     private static final String HRM009_OPERATIONS_CAPABILITY =
@@ -258,7 +261,8 @@ public class ProductSurfaceStepUpRouteResolver {
         }
         List<ProductAuthorizationContractDtos.AccessProfile> profiles =
                 safe(route.accessProfiles()).stream()
-                        .filter(value -> safe(value.activeAccessModes()).contains("NORMAL"))
+                        .filter(value -> safe(value.activeAccessModes()).contains("NORMAL")
+                                || hrm012NormalCandidate(route, value))
                         .filter(value -> value.requiredAccess() != null)
                         .filter(value -> "CAPABILITY".equals(value.requiredAccess().type()))
                         .toList();
@@ -279,7 +283,8 @@ public class ProductSurfaceStepUpRouteResolver {
             String selectedCapabilityContractKey) {
         List<ProductAuthorizationContractDtos.AccessProfile> matches =
                 safe(route.accessProfiles()).stream()
-                        .filter(value -> safe(value.activeAccessModes()).contains("NORMAL"))
+                        .filter(value -> safe(value.activeAccessModes()).contains("NORMAL")
+                                || hrm012NormalCandidate(route, value))
                         .filter(value -> value.requiredAccess() != null)
                         .filter(value -> "CAPABILITY".equals(value.requiredAccess().type()))
                         .filter(value -> selectedCapabilityContractKey.equals(
@@ -289,6 +294,14 @@ public class ProductSurfaceStepUpRouteResolver {
                         .toList();
         if (matches.size() != 1) throw unavailable();
         return matches.getFirst();
+    }
+
+    private boolean hrm012NormalCandidate(
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            ProductAuthorizationContractDtos.AccessProfile profile) {
+        return HRM012_ACTION_ROUTE.equals(route.routeContractKey())
+                && "workforce-ingestion-executor".equals(profile.profileKey())
+                && safe(profile.activeAccessModes()).equals(List.of("ELEVATED"));
     }
 
     private void validateWire(ProductSurfaceStepUpDtos.IssueRequest request) {

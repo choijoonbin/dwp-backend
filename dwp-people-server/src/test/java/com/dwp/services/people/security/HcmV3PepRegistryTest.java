@@ -167,11 +167,11 @@ class HcmV3PepRegistryTest {
     }
 
     @Test
-    void loadsTheExactV53PeopleClosureAndRetainsTheV42Bindings() throws IOException {
-        assertThat(registry.bindingContracts()).hasSize(144);
+    void loadsTheExactV57PeopleClosureAndRetainsTheEarlierBindings() throws IOException {
+        assertThat(registry.bindingContracts()).hasSize(151);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(117);
+                .distinct()).hasSize(124);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -220,7 +220,7 @@ class HcmV3PepRegistryTest {
         assertThat(v42Bindings).hasSize(124);
         assertThat(runtimeBindings).containsAll(v42Bindings);
         assertThat(registry.highRiskBindingContracts())
-                .hasSize(16)
+                .hasSize(17)
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
                 .containsExactlyInAnyOrder(
                         "route.hcm.management.org-publish.action",
@@ -238,9 +238,10 @@ class HcmV3PepRegistryTest {
                         "route.hcm.operations.employee-change-request-apply.action",
                         "route.hcm.operations.assignment-event-publish.action",
                         "route.hcm.operations.certificate-issue.action",
-                        "route.hcm.operations.employment-contract-issue.action");
+                        "route.hcm.operations.employment-contract-issue.action",
+                        "route.hcm.operations.workforce-ingestion.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
-                .hasSize(18)
+                .hasSize(19)
                 .containsOnlyKeys(
                         "predicate.directory-visible-person.v1",
                         "predicate.hcm-configuration-scope.v1",
@@ -256,6 +257,7 @@ class HcmV3PepRegistryTest {
                         "predicate.hcm-performance-cycle-object.v1",
                         "predicate.hcm-performance-cycle-publish-sod.v1",
                         "predicate.hcm-performance-review-assignment.v1",
+                        "predicate.hcm-workforce-ingestion-scope.v1",
                         "predicate.hcm-workforce-visible-person.v1",
                         "predicate.people.object-version.v1",
                         "predicate.self-person.v1",

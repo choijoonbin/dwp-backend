@@ -373,6 +373,11 @@ public class ProductAuthorizationContractValidator {
                     value.requiredResponsibilityCode())
                     && "CONNECTOR_OR_LEGAL_ENTITY_SCOPE".equals(value.scopeResolver());
         }
+        if ("hcm.integration.workforce-ingestion.execute".equals(value.contractKey())) {
+            return "HRIS_DUTY_INTEGRATION_EXECUTOR".equals(
+                    value.requiredResponsibilityCode())
+                    && "CONNECTOR_OR_LEGAL_ENTITY_SCOPE".equals(value.scopeResolver());
+        }
         if ("hcm.operations.organization.view".equals(value.contractKey())) {
             return "HRIS_DUTY_ORGANIZATION_VIEWER".equals(
                     value.requiredResponsibilityCode())

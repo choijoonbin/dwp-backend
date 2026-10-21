@@ -14,7 +14,7 @@ class ProductAuthorizationReleaseLineageTest {
             new ProductAuthorizationContractValidator(mapper);
 
     @Test
-    void acceptsThePinnedV51ThroughSys006V56Successors() throws Exception {
+    void acceptsThePinnedV51ThroughHrm012V57Successors() throws Exception {
         try (var v51Input = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v51.generated.json")
                 .getInputStream();
@@ -32,6 +32,9 @@ class ProductAuthorizationReleaseLineageTest {
                      .getInputStream();
              var v56Input = new ClassPathResource(
                      "product-authorization/product-surfaces-v1.bundle-v56.generated.json")
+                     .getInputStream();
+             var v57Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v57.generated.json")
                      .getInputStream()) {
             var v51 = validator.validateDocument(v51Input);
             var v52 = validator.validateDocument(v52Input);
@@ -39,6 +42,7 @@ class ProductAuthorizationReleaseLineageTest {
             var v54 = validator.validateDocument(v54Input);
             var v55 = validator.validateDocument(v55Input);
             var v56 = validator.validateDocument(v56Input);
+            var v57 = validator.validateDocument(v57Input);
             assertThat(v51.checksum()).isEqualTo(
                     "3beda5c13a3af0e265ace4533a3afcee3691c2b7486465dcf46156e58ae5ed2c");
             assertThat(v51.capabilities()).hasSize(265);
@@ -63,6 +67,10 @@ class ProductAuthorizationReleaseLineageTest {
                     "4c1e82c4ac70f7bbc4aba7a41d77b8fd238da0478501cbdfed97ebd4b5dd0930");
             assertThat(v56.capabilities()).hasSize(270);
             assertThat(v56.routes()).hasSize(1120);
+            assertThat(v57.checksum()).isEqualTo(
+                    "f7d6e2ef92f563747ed062e496638ea83498a33414fc12586c794f517e626d6e");
+            assertThat(v57.capabilities()).hasSize(271);
+            assertThat(v57.routes()).hasSize(1123);
         }
     }
 
