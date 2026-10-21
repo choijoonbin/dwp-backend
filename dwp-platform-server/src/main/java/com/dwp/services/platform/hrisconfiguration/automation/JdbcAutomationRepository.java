@@ -2488,6 +2488,14 @@ final class JdbcAutomationRepository implements AutomationRepository,
                 && !trustedReceiptDigest.matches("^[a-f0-9]{64}$"))) {
             throw conflict("AUTOMATION_CHECKPOINT_DIGEST_INVALID");
         }
+        if (authority.authorityKind() == AutomationDomainPolicy.AuthorityKind.WORKER) {
+            String canonicalProcessedItemDigest = currentAttemptReceiptSet(
+                    run.run().tenantId(), run.run().runId(), run.run().publicId(),
+                    run.attemptNumber(), run.run().objectRevision()).digest();
+            if (!processedItemDigest.equals(canonicalProcessedItemDigest)) {
+                throw conflict("AUTOMATION_CHECKPOINT_PROCESSED_DIGEST_MISMATCH");
+            }
+        }
         ReceiptSet receiptSet = currentReceiptSet(
                 run.run().tenantId(), run.run().runId(), run.run().publicId(),
                 run.run().objectRevision() + 1);
@@ -3152,6 +3160,54 @@ final class JdbcAutomationRepository implements AutomationRepository,
                 rs.getString("result_digest"), rs.getString("error_code"),
                 rs.getString("compensation_receipt_digest")),
                 runRevision, tenantId, runId);
+        List<Map<String, Object>> items = receipts.stream().map(receipt -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("itemPublicId", receipt.itemPublicId());
+            item.put("itemSequence", Long.toString(receipt.itemSequence()));
+            item.put("receiptState", receipt.receiptState());
+            item.put("attemptNumber", receipt.attemptNumber());
+            item.put("resultDigest", receipt.resultDigest());
+            item.put("errorCode", receipt.errorCode());
+            item.put("compensationReceiptDigest",
+                    receipt.compensationReceiptDigest());
+            return item;
+        }).toList();
+        Map<String, Object> document = new LinkedHashMap<>();
+        document.put("runPublicId", runPublicId);
+        document.put("runRevision", Long.toString(runRevision));
+        document.put("items", items);
+        long terminal = receipts.stream().filter(receipt -> List.of(
+                "SUCCEEDED", "FAILED_RETRYABLE", "FAILED_FINAL", "CANCELLED",
+                "DEAD_LETTER").contains(receipt.receiptState())).count();
+        return new ReceiptSet(canonical.digest(document), receipts.size(), terminal);
+    }
+
+    private ReceiptSet currentAttemptReceiptSet(
+            long tenantId,
+            UUID runId,
+            UUID runPublicId,
+            int attemptNumber,
+            long runRevision) {
+        List<ReceiptDigestItem> receipts = jdbc.query("""
+                SELECT i.public_id, i.item_sequence, a.receipt_state,
+                       a.attempt_ordinal, a.result_digest, a.error_code,
+                       NULL::TEXT AS compensation_receipt_digest
+                  FROM sys_automation_run_items i
+                  JOIN sys_automation_item_attempts a
+                    ON a.tenant_id = i.tenant_id
+                   AND a.run_id = i.run_id
+                   AND a.run_item_id = i.run_item_id
+                 WHERE i.tenant_id = ? AND i.run_id = ?
+                   AND a.attempt_ordinal = ?
+                   AND a.run_revision_snapshot = ?
+                   AND a.completed_at IS NOT NULL
+                 ORDER BY i.item_sequence, i.public_id
+                """, (rs, row) -> new ReceiptDigestItem(
+                uuid(rs, "public_id"), rs.getLong("item_sequence"),
+                rs.getString("receipt_state"), rs.getInt("attempt_ordinal"),
+                rs.getString("result_digest"), rs.getString("error_code"),
+                rs.getString("compensation_receipt_digest")),
+                tenantId, runId, attemptNumber, runRevision);
         List<Map<String, Object>> items = receipts.stream().map(receipt -> {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("itemPublicId", receipt.itemPublicId());

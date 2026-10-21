@@ -761,8 +761,6 @@ CREATE TABLE sys_automation_item_attempts (
             OR (effect_resolution_mode = 'EVIDENCE_RECONCILE'
                 AND effect_authority_kind = 'RECONCILER'
                 AND effect_resolution_authority_fence IS NOT NULL
-                AND effect_resolution_authority_fence
-                    <> effect_dispatch_authority_fence
                 AND effect_resolution_control_fence IS NOT NULL
                 AND effect_trusted_evidence_digest IS NOT NULL)),
     CONSTRAINT ck_sys_automation_item_attempt_digests

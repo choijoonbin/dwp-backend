@@ -83,6 +83,14 @@ final class AutomationRuntimeService {
         OffsetDateTime now = now();
         ScheduleExecution schedule = execution.lockScheduleForFire(
                 authority.tenantId(), request.schedulePublicId(), now);
+        if (!schedule.inputTemplateRef().equals(request.inputReference())) {
+            throw new IllegalStateException(
+                    "AUTOMATION_SCHEDULE_INPUT_REFERENCE_MISMATCH");
+        }
+        if (!schedule.inputTemplateDigest().equals(request.inputDigest())) {
+            throw new IllegalStateException(
+                    "AUTOMATION_SCHEDULE_INPUT_DIGEST_MISMATCH");
+        }
         boolean missed = request.scheduledInstantUtc()
                 .isBefore(request.schedulerWindowStart());
         String fireKey = AutomationDomainPolicy.scheduleFireKey(
@@ -97,7 +105,7 @@ final class AutomationRuntimeService {
         target.put("scheduledInstantUtc", request.scheduledInstantUtc());
         target.put("definitionPublicId", schedule.definitionPublicId());
         target.put("pinnedVersionNumber", schedule.pinnedVersionNumber());
-        target.put("inputDigest", request.inputDigest());
+        target.put("inputDigest", schedule.inputTemplateDigest());
         String concurrencyDigest = AutomationDomainPolicy.renderConcurrencyKey(
                 schedule.concurrencyKeyTemplate(), schedule.tenantId(),
                 schedule.definitionPublicId(), request.scopeType(), request.scopeId());
@@ -133,8 +141,8 @@ final class AutomationRuntimeService {
         var accepted = control.beginCommand(seal, now);
         var fired = execution.fireSchedule(
                 schedule, seal, accepted.receiptId(), fireKey,
-                request.scheduledInstantUtc(), next, request.inputReference(),
-                request.inputDigest(), request.scopeType(), request.scopeId(),
+                request.scheduledInstantUtc(), next, schedule.inputTemplateRef(),
+                schedule.inputTemplateDigest(), request.scopeType(), request.scopeId(),
                 request.expectedItemCount(), concurrencyDigest,
                 authority.subjectPrincipalPublicId(), now);
         control.appendRunEventAndAudit(seal, fired.run(), "SCHEDULE_FIRED", now);
