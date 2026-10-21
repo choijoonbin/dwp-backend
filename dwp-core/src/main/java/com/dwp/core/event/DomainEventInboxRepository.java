@@ -4,8 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -117,7 +121,7 @@ public class DomainEventInboxRepository {
                         .addValue("attempt", attempt)
                         .addValue("workerId", workerId)
                         .addValue("lockToken", lockToken)
-                        .addValue("lockedUntil", now.plus(lease))
+                        .addValue("lockedUntil", offsetDateTime(now.plus(lease)))
                         .addValue("consumerName", consumerName)
                         .addValue("eventId", event.id()));
         if (changed != 1) {
@@ -280,9 +284,18 @@ public class DomainEventInboxRepository {
                         result.getString("status"),
                         result.getString("payload_sha256"),
                         result.getInt("attempt_count"),
-                        result.getObject("available_at", Instant.class),
-                        result.getObject("locked_until", Instant.class)))
+                        instant(result, "available_at"),
+                        instant(result, "locked_until")))
                 .stream().findFirst();
+    }
+
+    private static Instant instant(ResultSet result, String column) throws SQLException {
+        OffsetDateTime value = result.getObject(column, OffsetDateTime.class);
+        return value == null ? null : value.toInstant();
+    }
+
+    private static OffsetDateTime offsetDateTime(Instant value) {
+        return value == null ? null : OffsetDateTime.ofInstant(value, ZoneOffset.UTC);
     }
 
     private void markDuplicate(String consumerName, UUID eventId, long lastSequence) {
