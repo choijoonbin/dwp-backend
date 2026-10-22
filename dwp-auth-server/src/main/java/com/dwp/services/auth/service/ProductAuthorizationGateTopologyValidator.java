@@ -141,8 +141,10 @@ final class ProductAuthorizationGateTopologyValidator {
         return isExactGrandfatheredGenericStepUpRoute(route)
                 || isExactV49GenericStepUpWithoutFreshCommandRoute(route)
                 || isExactV56AutomationReadRoute(route)
-                || (PayrollV49ElevatedAuthorityPolicy.STATUTORY_READ_ROUTES.contains(
+                || ((PayrollV49ElevatedAuthorityPolicy.STATUTORY_READ_ROUTES.contains(
                         route.routeContractKey())
+                        || PayrollV49ElevatedAuthorityPolicy.RETIREMENT_READ_ROUTES.contains(
+                        route.routeContractKey()))
                         && PayrollV49ElevatedAuthorityPolicy.isExactRoute(
                                 route, capabilities));
     }

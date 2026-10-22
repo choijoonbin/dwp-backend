@@ -89,6 +89,40 @@ class PayrollV49ElevatedAuthorityPolicyTest {
     }
 
     @Test
+    void v58AdmitsTheTwoRetirementReadsOnlyWithThePay004CapabilitySeal()
+            throws Exception {
+        ProductAuthorizationContractDtos.BundleContract bundle = bundle(58);
+        Map<String, ProductAuthorizationContractDtos.GovernedRoute> routes = bundle.routes()
+                .stream().collect(Collectors.toMap(
+                        ProductAuthorizationContractDtos.GovernedRoute::routeContractKey,
+                        Function.identity()));
+        Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities =
+                bundle.capabilities().stream().collect(Collectors.toMap(
+                        ProductAuthorizationContractDtos.CapabilityContract::contractKey,
+                        Function.identity()));
+
+        for (String routeKey : PayrollV49ElevatedAuthorityPolicy.RETIREMENT_READ_ROUTES) {
+            ProductAuthorizationContractDtos.GovernedRoute route = routes.get(routeKey);
+            assertThat(PayrollV49ElevatedAuthorityPolicy.isExactRoute(route, capabilities))
+                    .as(routeKey).isTrue();
+            assertThat(PayrollV49ElevatedAuthorityPolicy.isNormalChallengeCandidate(
+                    request(ProductSurfaceAuthorityDtos.AccessMode.NORMAL, routeKey),
+                    route, capabilities)).as(routeKey).isTrue();
+            assertThat(PayrollV49ElevatedAuthorityPolicy.isExactCommandRoute(
+                    route, capabilities)).as(routeKey).isFalse();
+        }
+
+        ProductAuthorizationContractDtos.BundleContract statutory = bundle(54);
+        Map<String, ProductAuthorizationContractDtos.CapabilityContract> statutoryCapabilities =
+                statutory.capabilities().stream().collect(Collectors.toMap(
+                        ProductAuthorizationContractDtos.CapabilityContract::contractKey,
+                        Function.identity()));
+        assertThat(PayrollV49ElevatedAuthorityPolicy.isExactRoute(
+                routes.get("route.hcm.operations.pay-retirement.data"),
+                statutoryCapabilities)).isFalse();
+    }
+
+    @Test
     void rejectsModeProfileBindingAndCapabilityDrift() throws Exception {
         ProductAuthorizationContractDtos.BundleContract bundle = bundle(49);
         Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities =

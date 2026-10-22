@@ -630,6 +630,134 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void pay004ReadForwardsOnlyTrustedPurposeFieldPolicyAndTargetPopulation() {
+        String path = "/api/payroll/v1/workbench/pay-retirement";
+        GeneratedProductRouteCatalog.Match match = catalog.match("GET", path);
+        assertThat(match.status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(match.routes()).hasSize(2);
+        assertThat(match.uniqueRoute().routeContractKey())
+                .isEqualTo("route.hcm.operations.pay-retirement.data");
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(path)
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041")
+                .header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER,
+                        "PAYROLL_OPERATIONS")
+                .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER,
+                        "client.forged.fields")
+                .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                        "CLIENT_FORGED")
+                .header(ProductSurfaceDecisionContextFilter.EXPECTED_OBJECT_VERSION_HEADER,
+                        "999"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter(authority(allowedWave2("TARGET_POPULATION")))
+                .filter(exchange, filtered -> {
+                    forwarded.set(filtered.getRequest());
+                    return Mono.empty();
+                }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                .isEqualTo("route.hcm.operations.pay-retirement.data");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                .isEqualTo("PAYROLL_OPERATIONS");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER))
+                .isEqualTo("pay004.iaq-049.fields.v1");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                .isEqualTo("TARGET_POPULATION");
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceDecisionContextFilter.EXPECTED_OBJECT_VERSION_HEADER)).isFalse();
+    }
+
+    @Test
+    void pay004RejectsInvalidPurposeAndNearBindingsBeforeAuthority() {
+        String path = "/api/payroll/v1/workbench/pay-retirement";
+        for (List<String> purposes : List.of(
+                List.of("CLIENT_FORGED"),
+                List.of("PAYROLL_OPERATIONS", "PAYROLL_OPERATIONS"))) {
+            ProductSurfaceContextAggregationService authority = authority(
+                    allowedWave2("TARGET_POPULATION"));
+            MockServerHttpRequest.BaseBuilder<?> request = MockServerHttpRequest.get(path)
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7");
+            purposes.forEach(value -> request.header(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, value));
+            MockServerWebExchange denied = exchange(request);
+
+            filter(authority).filter(denied, ignored -> Mono.empty()).block();
+
+            assertThat(denied.getResponse().getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(body(denied)).contains("INVALID_PURPOSE");
+            verify(authority, never()).evaluateProductTrusted(any(), any());
+        }
+
+        List<MockServerHttpRequest.BaseBuilder<?>> nearBindings = List.of(
+                MockServerHttpRequest.post(path),
+                MockServerHttpRequest.get(path + "/export"));
+        for (MockServerHttpRequest.BaseBuilder<?> request : nearBindings) {
+            ProductSurfaceContextAggregationService authority = authority(
+                    allowedWave2("TARGET_POPULATION"));
+            MockServerWebExchange denied = exchange(request
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+
+            filter(authority).filter(denied, ignored -> Mono.empty()).block();
+
+            assertThat(denied.getResponse().getStatusCode())
+                    .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            assertThat(body(denied)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
+            verify(authority, never()).evaluateProductTrusted(any(), any());
+        }
+    }
+
+    @Test
+    void pay004GenericReadChallengesNormalAndForwardsElevatedAuthority() {
+        String path = "/api/payroll/v1/workbench/pay-retirement";
+        MockServerHttpRequest.BaseBuilder<?> request = MockServerHttpRequest.get(path)
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "10000000-0000-4000-8000-000000000041");
+        MockServerWebExchange challenged = exchange(request);
+        AtomicReference<Boolean> challengedForwarded = new AtomicReference<>(false);
+
+        filter(authority(stepUpWave2("TARGET_POPULATION"))).filter(challenged, ignored -> {
+            challengedForwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(challengedForwarded.get()).isFalse();
+        assertThat(challenged.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(body(challenged)).contains("STEP_UP_REQUIRED");
+
+        MockServerWebExchange elevated = exchange(request);
+        elevated.getAttributes().put(
+                VerifiedIdentityFilter.VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE, "ELEVATED");
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+        filter(authority(allowedWave2("TARGET_POPULATION"))).filter(elevated, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER))
+                .isEqualTo("ELEVATED");
+    }
+
+    @Test
     void pay003CountryPackActionForwardsCanonicalCasWithoutInventingOwnerHeaders() {
         String packId = "10000000-0000-4000-8000-000000000054";
         MockServerWebExchange exchange = exchange(MockServerHttpRequest.post(
@@ -1808,6 +1936,7 @@ class ProductSurfaceDecisionContextFilterTest {
                 new RouteCase("GET", "/api/time/v1/payroll-handoffs/handoff-1"),
                 new RouteCase("GET", "/api/payroll/v1/workbench/configuration/statutory"),
                 new RouteCase("GET", "/api/payroll/v1/workbench/pay-tax-social-insurance"),
+                new RouteCase("GET", "/api/payroll/v1/workbench/pay-retirement"),
                 new RouteCase("POST", "/api/payroll/v1/country-packs/"
                         + "10000000-0000-4000-8000-000000000054/activate", true));
         ProductSurfaceContextAggregationService authority = authority(activationRequired(
