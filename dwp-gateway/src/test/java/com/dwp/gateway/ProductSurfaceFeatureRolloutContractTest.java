@@ -1,5 +1,6 @@
 package com.dwp.gateway;
 
+import com.dwp.gateway.filter.ProductSurfaceDecisionContextFilter;
 import com.dwp.gateway.filter.ProductSurfaceRolloutHeaderFilter;
 import com.dwp.gateway.filter.ProviderServiceIdentityFilter;
 import com.dwp.gateway.filter.VerifiedIdentityFilter;
@@ -7,6 +8,7 @@ import com.dwp.gateway.productsurface.FeatureRolloutDecisionCache;
 import com.dwp.gateway.productsurface.FeatureRolloutApplicationReceiptClient;
 import com.dwp.gateway.productsurface.FeatureRolloutEvaluationClient;
 import com.dwp.gateway.productsurface.FeatureRolloutInvalidationConsumer;
+import com.dwp.gateway.productsurface.ProductSurfaceContextAggregationService;
 import com.dwp.gateway.productsurface.ProductSurfaceContextDtos;
 import com.dwp.gateway.productsurface.ProductSurfaceRolloutSafetyLatch;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,6 +39,47 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ProductSurfaceFeatureRolloutContractTest extends ProductSurfaceFeatureRolloutTestSupport {
+
+    @Test
+    void pay004DefaultOffAuthorityDeniesAtBothBypassRolloutsWithoutOwnerInvocation() {
+        for (String rollout : List.of("000", "100")) {
+            ProductSurfaceContextAggregationService authority = mock(
+                    ProductSurfaceContextAggregationService.class);
+            when(authority.evaluateProductTrusted(any(), any())).thenReturn(Mono.just(
+                    new ProductSurfaceContextAggregationService.TrustedProductEvaluation(
+                            new ProductSurfaceContextDtos.ProductEvaluationData(
+                                    ProductSurfaceContextDtos.Decision.ACTIVATION_REQUIRED,
+                                    "FEATURE_ACTIVATION_REQUIRED",
+                                    "psr-" + "a".repeat(64),
+                                    null, null, null, null, null, null, null, null, null),
+                            null,
+                            null,
+                            new ProductSurfaceContextDtos.SourceRevisions(
+                                    "auth-v58", "policy-v58", "relationship-v1",
+                                    "population-v1", "tenant-control-v267", null),
+                            false)));
+            ProductSurfaceDecisionContextFilter filter =
+                    new ProductSurfaceDecisionContextFilter(
+                            authority, productRouteCatalog(), new ObjectMapper());
+            MockServerWebExchange exchange = MockServerWebExchange.from(
+                    MockServerHttpRequest.get(
+                                    "/api/payroll/v1/workbench/pay-retirement")
+                            .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, rollout)
+                            .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                            .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+            AtomicInteger ownerInvocations = new AtomicInteger();
+
+            filter.filter(exchange, ignored -> {
+                ownerInvocations.incrementAndGet();
+                return Mono.empty();
+            }).block();
+
+            assertThat(exchange.getResponse().getStatusCode()).as(rollout)
+                    .isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(ownerInvocations).as(rollout).hasValue(0);
+            verify(authority, times(1)).evaluateProductTrusted(any(), any());
+        }
+    }
 
     @Test
     void acceptsOnlyTheFourApprovedRolloutCombinations() {

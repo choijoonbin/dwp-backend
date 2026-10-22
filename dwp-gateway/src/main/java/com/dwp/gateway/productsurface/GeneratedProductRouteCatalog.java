@@ -78,6 +78,16 @@ public final class GeneratedProductRouteCatalog {
                             "/api/payroll/v1/workbench/pay-tax-social-insurance", "payroll",
                             "/v1/workbench/pay-tax-social-insurance",
                             List.of("payroll-support-viewer"))),
+            Map.entry("route.hcm.operations.pay-retirement.page",
+                    new GenericSessionTopology("hcm.operations", "PAGE", "GET",
+                            "/api/payroll/v1/workbench/pay-retirement", "payroll",
+                            "/v1/workbench/pay-retirement",
+                            List.of("payroll-support-viewer"))),
+            Map.entry("route.hcm.operations.pay-retirement.data",
+                    new GenericSessionTopology("hcm.operations", "DATA", "GET",
+                            "/api/payroll/v1/workbench/pay-retirement", "payroll",
+                            "/v1/workbench/pay-retirement",
+                            List.of("payroll-support-viewer"))),
             Map.entry("route.hcm.operations.payroll-run.data",
                     new GenericSessionTopology("hcm.operations", "DATA", "GET",
                             "/api/payroll/v1/runs/{runId}", "payroll",
@@ -147,6 +157,9 @@ public final class GeneratedProductRouteCatalog {
     private static final Set<String> V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = Set.of(
             "route.hcm.configuration.automation-catalog.data",
             "route.hcm.configuration.automation-run-detail.data");
+    private static final Set<String> V58_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = Set.of(
+            "route.hcm.operations.pay-retirement.page",
+            "route.hcm.operations.pay-retirement.data");
 
     /**
      * PAGE routes introduced by the v47 canonical-entry migration intentionally share the exact
@@ -403,6 +416,10 @@ public final class GeneratedProductRouteCatalog {
                 expectedGenericSessionRoutes.removeAll(
                         V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS);
             }
+            if (bundleVersion < 58) {
+                expectedGenericSessionRoutes.removeAll(
+                        V58_GENERIC_SESSION_STEP_UP_ROUTE_KEYS);
+            }
             if (bundleVersion >= 49
                     && !genericSessionRoutes.equals(expectedGenericSessionRoutes)) {
                 throw new IllegalStateException(
@@ -522,6 +539,9 @@ public final class GeneratedProductRouteCatalog {
             return false;
         }
         if (bundleVersion < 56 && V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS.contains(key)) {
+            return false;
+        }
+        if (bundleVersion < 58 && V58_GENERIC_SESSION_STEP_UP_ROUTE_KEYS.contains(key)) {
             return false;
         }
         JsonNode subject = route.path("subject");

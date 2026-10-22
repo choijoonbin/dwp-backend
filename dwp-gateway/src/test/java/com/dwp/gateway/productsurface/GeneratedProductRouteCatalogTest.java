@@ -34,6 +34,57 @@ class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestS
     private static final Set<String> V54_GENERIC_SESSION_STEP_UP_ROUTES = Set.of(
             "route.hcm.operations.pay-tax-social-insurance.page",
             "route.hcm.operations.pay-tax-social-insurance.data");
+    private static final Set<String> V58_GENERIC_SESSION_STEP_UP_ROUTES = Set.of(
+            "route.hcm.operations.pay-retirement.page",
+            "route.hcm.operations.pay-retirement.data");
+
+    @Test
+    void v58IntroducesOnlyTheExactPay004EquivalentReadPairAndSealsBothTopologies()
+            throws Exception {
+        GeneratedProductRouteCatalog previous = catalog(57);
+        GeneratedProductRouteCatalog current = catalog(58);
+        String path = "/api/payroll/v1/workbench/pay-retirement";
+
+        assertThat(previous.routesForTesting().stream()
+                .map(GeneratedProductRouteCatalog.Route::routeContractKey))
+                .doesNotContainAnyElementsOf(V58_GENERIC_SESSION_STEP_UP_ROUTES);
+        GeneratedProductRouteCatalog.Match match = current.match("GET", path);
+        assertThat(match.status()).isEqualTo(
+                GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(match.routes()).hasSize(2)
+                .extracting(GeneratedProductRouteCatalog.Route::routeContractKey)
+                .containsExactlyInAnyOrderElementsOf(V58_GENERIC_SESSION_STEP_UP_ROUTES);
+        assertThat(match.routes()).allSatisfy(route -> {
+            assertThat(route.authorizationEquivalenceKey())
+                    .isEqualTo("wire-authority.hcm.operations.pay-retirement.v1");
+            assertThat(route.highRiskStepUp()).isTrue();
+            assertThat(route.commandBoundStepUp()).isFalse();
+            assertThat(route.genericSessionStepUp()).isTrue();
+            assertThat(route.stateChanging()).isFalse();
+        });
+        assertThat(match.uniqueRoute()).isNotNull()
+                .extracting(GeneratedProductRouteCatalog.Route::routeContractKey)
+                .isEqualTo("route.hcm.operations.pay-retirement.data");
+        assertThat(current.match("POST", path).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+
+        ObjectNode widened = bundle(58);
+        ((ObjectNode) route(widened, "route.hcm.operations.pay-retirement.data")
+                .withArray("gatewayApiBindings").get(0))
+                .put("path", path + "/{caseId}");
+        assertCatalogInvalid(widened, "generic session step-up topology");
+
+        ObjectNode missing = bundle(58);
+        ArrayNode routes = missing.withArray("routes");
+        for (int index = 0; index < routes.size(); index++) {
+            if ("route.hcm.operations.pay-retirement.page"
+                    .equals(routes.get(index).path("routeContractKey").asText())) {
+                routes.remove(index);
+                break;
+            }
+        }
+        assertCatalogInvalid(missing, "closed set is incomplete");
+    }
 
     @Test
     void v47ResolvesOnlyTheGeneratorValidatedFirstReadSources() {

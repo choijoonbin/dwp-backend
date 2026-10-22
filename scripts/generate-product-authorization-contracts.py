@@ -304,7 +304,12 @@ HCM_PEP_V57_OUTPUTS = {
     f"hcm-{service}-pep-v57.generated.json"
     for service in ("people", "time", "platform", "payroll")
 }
-BUNDLE_VERSIONS = tuple(range(1, 58))
+HCM_PEP_V58_OUTPUTS = {
+    service: ROOT / f"dwp-{service}-server/src/main/resources/product-authorization/"
+    f"hcm-{service}-pep-v58.generated.json"
+    for service in ("people", "time", "platform", "payroll")
+}
+BUNDLE_VERSIONS = tuple(range(1, 59))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -452,6 +457,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 82, "routes": 1120, "PAGE": 156, "DATA": 338, "ACTION": 626},
     57: {"capabilities": 271, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 83, "routes": 1123, "PAGE": 157, "DATA": 339, "ACTION": 627},
+    58: {"capabilities": 271, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 83, "routes": 1125, "PAGE": 158, "DATA": 340, "ACTION": 627},
 }
 
 V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
@@ -560,11 +567,16 @@ V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = frozenset({
     "route.hcm.configuration.automation-catalog.data",
     "route.hcm.configuration.automation-run-detail.data",
 })
+V58_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = frozenset({
+    "route.hcm.operations.pay-retirement.page",
+    "route.hcm.operations.pay-retirement.data",
+})
 GENERIC_SESSION_STEP_UP_ROUTE_KEYS = (
     GRANDFATHERED_GENERIC_SESSION_STEP_UP_ROUTE_KEYS
     | V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS
     | V54_GENERIC_SESSION_STEP_UP_ROUTE_KEYS
     | V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS
+    | V58_GENERIC_SESSION_STEP_UP_ROUTE_KEYS
 )
 
 REQUIRED_RESPONSIBILITY_BY_CAPABILITY = {
@@ -3037,6 +3049,8 @@ def _is_generic_session_step_up_exception(
         return False
     if key in V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS and bundle_version < 56:
         return False
+    if key in V58_GENERIC_SESSION_STEP_UP_ROUTE_KEYS and bundle_version < 58:
+        return False
     require(
         len(gateway_bindings) == len(service_bindings) == 1
         and route.get("stepUpCommandBindings") is None,
@@ -3047,7 +3061,51 @@ def _is_generic_session_step_up_exception(
             route, gateway_bindings, service_bindings
         )
     profile = route["accessProfiles"][0] if len(route["accessProfiles"]) == 1 else {}
-    if key in V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS:
+    if key in V58_GENERIC_SESSION_STEP_UP_ROUTE_KEYS:
+        binding = next(iter(gateway_bindings.values()))
+        owner_binding = next(iter(service_bindings.values()))
+        page = key.endswith(".page")
+        binding_key = f"{key}.binding.01"
+        projections = profile.get("responseProjectionBindings", [])
+        require(
+            route["routeKind"] == ("PAGE" if page else "DATA")
+            and route.get("sideEffectFree") is (None if page else True)
+            and route.get("navigationContextId") == "hcm.operations"
+            and route.get("subject") == {
+                "type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations",
+            }
+            and route.get("authorizationEquivalenceKey")
+                == "wire-authority.hcm.operations.pay-retirement.v1"
+            and route.get("uiRouteId")
+                == ("hcm.operations.pay-retirement" if page else None)
+            and route.get("uiRoutePattern")
+                == ("/hr/operations/payroll/retirement" if page else None)
+            and binding.get("bindingKey") == binding_key
+            and binding.get("method") == "GET"
+            and binding.get("path") == "/api/payroll/v1/workbench/pay-retirement"
+            and owner_binding.get("bindingKey") == binding_key
+            and owner_binding.get("method") == "GET"
+            and owner_binding.get("serviceKey") == "payroll"
+            and owner_binding.get("path") == "/v1/workbench/pay-retirement"
+            and profile.get("profileKey") == "payroll-support-viewer"
+            and profile.get("precedence") == 300
+            and profile.get("activeAccessModes") == ["NORMAL", "ELEVATED"]
+            and profile.get("requiredAccess") == {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "hcm.operations.payroll-support.view",
+            }
+            and profile.get("targetBindingKinds") == ["TARGET_POPULATION"]
+            and profile.get("predicatePolicyKeys")
+                == ["predicate.hcm-payroll-population-authority.v1"]
+            and profile.get("readOnly") is True
+            and projections == [{
+                "apiBindingKey": binding_key,
+                "projectionPolicyKey": "pay004.iaq-049.fields.v1",
+                "responseSchemaKey": "Pay004RetirementProjectionV1",
+            }],
+            f"{key}: invalid v58 retirement generic-session envelope",
+        )
+    elif key in V56_GENERIC_SESSION_STEP_UP_ROUTE_KEYS:
         binding = next(iter(gateway_bindings.values()))
         owner_binding = next(iter(service_bindings.values()))
         profiles = route.get("accessProfiles", [])
@@ -4385,6 +4443,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         *HCM_PEP_V55_OUTPUTS.values(),
         *HCM_PEP_V56_OUTPUTS.values(),
         *HCM_PEP_V57_OUTPUTS.values(),
+        *HCM_PEP_V58_OUTPUTS.values(),
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -5399,6 +5458,30 @@ def main() -> int:
                             "entitlementExpressions": 0, "predicatePolicies": 9},
             }.items()
         }
+        hcm_peps_v58 = {
+            service: build_approvals_pep(
+                snapshots[57], service, f"hcm-{service}-pep-v58", counts,
+                version=58, product_key="hcm",
+            )
+            for service, counts in {
+                "people": {"routes": 124, "bindings": 151,
+                           "routeKinds": {"ACTION": 51, "DATA": 29, "PAGE": 44},
+                           "capabilities": 59, "accessPolicies": 5,
+                           "entitlementExpressions": 3, "predicatePolicies": 19},
+                "time": {"routes": 29, "bindings": 29,
+                         "routeKinds": {"ACTION": 16, "DATA": 6, "PAGE": 7},
+                         "capabilities": 15, "accessPolicies": 0,
+                         "entitlementExpressions": 0, "predicatePolicies": 9},
+                "platform": {"routes": 69, "bindings": 70,
+                             "routeKinds": {"ACTION": 41, "DATA": 21, "PAGE": 7},
+                             "capabilities": 22, "accessPolicies": 4,
+                             "entitlementExpressions": 3, "predicatePolicies": 11},
+                "payroll": {"routes": 41, "bindings": 41,
+                            "routeKinds": {"ACTION": 22, "DATA": 14, "PAGE": 5},
+                            "capabilities": 17, "accessPolicies": 0,
+                            "entitlementExpressions": 0, "predicatePolicies": 9},
+            }.items()
+        }
     except ContractError as exc:
         print(f"authorization contract error: {exc}", file=sys.stderr)
         return 1
@@ -5759,6 +5842,10 @@ def main() -> int:
         write_or_check(HCM_PEP_V57_OUTPUTS[service], render(pep), args.check)
         for service, pep in hcm_peps_v57.items()
     )
+    outcomes.extend(
+        write_or_check(HCM_PEP_V58_OUTPUTS[service], render(pep), args.check)
+        for service, pep in hcm_peps_v58.items()
+    )
     if not all(outcomes):
         return 1
     try:
@@ -5899,6 +5986,8 @@ def main() -> int:
             verify_approvals_pep(HCM_PEP_V56_OUTPUTS[service], pep)
         for service, pep in hcm_peps_v57.items():
             verify_approvals_pep(HCM_PEP_V57_OUTPUTS[service], pep)
+        for service, pep in hcm_peps_v58.items():
+            verify_approvals_pep(HCM_PEP_V58_OUTPUTS[service], pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1

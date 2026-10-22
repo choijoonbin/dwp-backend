@@ -63286,6 +63286,25 @@
           "stepUpCommandBindings": [{"bindingKey": "route.hcm.operations.workforce-ingestion.action.binding.01", "targetType": "WORKFORCE_INGESTION_OBJECT", "targetIdBodyFields": ["objectRef"], "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "If-Match", "ownerServiceKey": "people", "audience": "dwp-people-server"}], "owner": "People + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 58,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.hcm.operations.pay-retirement.page", "authorizationEquivalenceKey": "wire-authority.hcm.operations.pay-retirement.v1", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "PAGE", "sideEffectFree": null, "uiRouteId": "hcm.operations.pay-retirement", "uiRoutePattern": "/hr/operations/payroll/retirement",
+          "accessProfiles": [{"profileKey": "payroll-support-viewer", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.payroll-support.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-payroll-population-authority.v1"], "projectionPolicyKey": "pay004.iaq-049.fields.v1", "responseSchemaKey": "Pay004RetirementProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.pay-retirement.page.binding.01", "method": "GET", "path": "/api/payroll/v1/workbench/pay-retirement", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.pay-retirement.page.binding.01", "method": "GET", "path": "/v1/workbench/pay-retirement", "pathParameterConstraints": {}, "serviceKey": "payroll"}], "owner": "Payroll + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.pay-retirement.data", "authorizationEquivalenceKey": "wire-authority.hcm.operations.pay-retirement.v1", "navigationContextId": "hcm.operations", "subject": {"type": "PRODUCT", "productKey": "hcm", "surfaceKey": "hcm.operations"}, "routeKind": "DATA", "sideEffectFree": true, "uiRouteId": null, "uiRoutePattern": null,
+          "accessProfiles": [{"profileKey": "payroll-support-viewer", "precedence": 300, "activeAccessModes": ["NORMAL", "ELEVATED"], "requiredAccess": {"type": "CAPABILITY", "capabilityContractKey": "hcm.operations.payroll-support.view"}, "targetBindingKinds": ["TARGET_POPULATION"], "predicatePolicyKeys": ["predicate.hcm-payroll-population-authority.v1"], "projectionPolicyKey": "pay004.iaq-049.fields.v1", "responseSchemaKey": "Pay004RetirementProjectionV1", "readOnly": true}],
+          "gatewayApiBindings": [{"bindingKey": "route.hcm.operations.pay-retirement.data.binding.01", "method": "GET", "path": "/api/payroll/v1/workbench/pay-retirement", "pathParameterConstraints": {}}], "servicePepBindings": [{"bindingKey": "route.hcm.operations.pay-retirement.data.binding.01", "method": "GET", "path": "/v1/workbench/pay-retirement", "pathParameterConstraints": {}, "serviceKey": "payroll"}], "owner": "Payroll + HCM + Security", "policyVersion": 1, "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {
