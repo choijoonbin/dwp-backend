@@ -22,7 +22,6 @@ final class EmploymentEventAuthority {
     static final String RECEIPT_CAPABILITY = "hcm.command-receipt.view";
 
     static final String RECEIPT_BINDING_ID = "PEP-HRM-014";
-    static final String EVENT_DETAIL_BINDING_ID = "PEP-HRM-015";
 
     static final String SELF_WORKBENCH_ROUTE =
             "route.hcm.personal.employment-documents.page";
