@@ -148,7 +148,16 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.configuration.automation-schedule-approve.action",
             "route.hcm.configuration.automation-schedule-activate.action",
             "route.hcm.configuration.automation-schedule-suspend.action",
-            "route.hcm.configuration.automation-run-cancel.action");
+            "route.hcm.configuration.automation-run-cancel.action",
+            "route.hcm.team.performance.page",
+            "route.hcm.team.performance.data",
+            "route.hcm.personal.performance-feedback.page",
+            "route.hcm.performance.feedback-request-options.data",
+            "route.hcm.performance.feedback-request-create.action",
+            "route.hcm.personal.feedback-assignments-mine.data",
+            "route.hcm.personal.feedback-assignment-detail.data",
+            "route.hcm.personal.feedback-response-submit.action",
+            "route.hcm.performance.feedback-release.data");
     private static final Set<String> HRM007_ENTRY_QUERY_ROUTE_KEYS = Set.of(
             "route.hcm.team.people-changes.page",
             "route.hcm.team.people-changes.data",
@@ -192,6 +201,16 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     private static final Set<String> PAY004_RESULT_ROUTE_KEYS = Set.of(
             "route.hcm.operations.pay-retirement.page",
             "route.hcm.operations.pay-retirement.data");
+    private static final Set<String> PER008_ROUTE_KEYS = Set.of(
+            "route.hcm.team.performance.page",
+            "route.hcm.team.performance.data",
+            "route.hcm.personal.performance-feedback.page",
+            "route.hcm.performance.feedback-request-options.data",
+            "route.hcm.performance.feedback-request-create.action",
+            "route.hcm.personal.feedback-assignments-mine.data",
+            "route.hcm.personal.feedback-assignment-detail.data",
+            "route.hcm.personal.feedback-response-submit.action",
+            "route.hcm.performance.feedback-release.data");
     private static final Set<String> TIM_WAVE2_ROUTE_KEYS = Set.of(
             "route.hcm.operations.time-interpretation.page",
             "route.hcm.operations.time-interpretation-run.action",
@@ -266,6 +285,19 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     private static final Map<String, String> PAY004_FIELD_POLICY_BY_ROUTE = Map.of(
             "route.hcm.operations.pay-retirement.page", "pay004.iaq-049.fields.v1",
             "route.hcm.operations.pay-retirement.data", "pay004.iaq-049.fields.v1");
+    private static final Map<String, String> PER008_FIELD_POLICY_BY_ROUTE = Map.ofEntries(
+            Map.entry("route.hcm.team.performance.page", "per008.iaq-038.fields.v2"),
+            Map.entry("route.hcm.team.performance.data", "per008.iaq-038.fields.v2"),
+            Map.entry("route.hcm.personal.performance-feedback.page",
+                    "per008.feedback-assigned-list.fields.v1"),
+            Map.entry("route.hcm.performance.feedback-request-options.data",
+                    "per008.feedback-request-options.fields.v1"),
+            Map.entry("route.hcm.personal.feedback-assignments-mine.data",
+                    "per008.feedback-assigned-list.fields.v1"),
+            Map.entry("route.hcm.personal.feedback-assignment-detail.data",
+                    "per008.feedback-assignment-detail.fields.v1"),
+            Map.entry("route.hcm.performance.feedback-release.data",
+                    "per008.feedback-release.fields.v1"));
     private static final Map<String, String> WAVE2_OWNER_PURPOSE_BY_ROUTE = Map.ofEntries(
             Map.entry("route.hcm.personal.employment-documents.page", "HR_LIFECYCLE"),
             Map.entry("route.hcm.operations.employment-assignments.page", "HR_LIFECYCLE"),
@@ -444,6 +476,22 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             Map.entry("route.hcm.operations.pay-tax-social-insurance.data", "PAYROLL_OPERATIONS"),
             Map.entry("route.hcm.operations.pay-retirement.page", "PAYROLL_OPERATIONS"),
             Map.entry("route.hcm.operations.pay-retirement.data", "PAYROLL_OPERATIONS"),
+            Map.entry("route.hcm.team.performance.page", "TEAM_MANAGEMENT"),
+            Map.entry("route.hcm.team.performance.data", "TEAM_MANAGEMENT"),
+            Map.entry("route.hcm.personal.performance-feedback.page",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.performance.feedback-request-options.data",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.performance.feedback-request-create.action",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.personal.feedback-assignments-mine.data",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.personal.feedback-assignment-detail.data",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.personal.feedback-response-submit.action",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.performance.feedback-release.data",
+                    "PERFORMANCE_FEEDBACK"),
             Map.entry(PAY003_ACTION_ROUTE_KEY, "STATUTORY_CONFIGURATION"));
     private static final List<String> INTERNAL_HEADERS = List.of(
             ROUTE_HEADER, CURRENT_REVISION_HEADER, CURRENT_REVALIDATE_AT_HEADER,
@@ -655,6 +703,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         }
         if (PAY004_RESULT_ROUTE_KEYS.contains(route.routeContractKey())
                 && !validOptionalCanonicalPurpose(callerPurposeValues, "PAYROLL_OPERATIONS")) {
+            return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
+                    "INVALID_PURPOSE", null);
+        }
+        if (PER008_ROUTE_KEYS.contains(route.routeContractKey())
+                && !validOptionalCanonicalPurpose(
+                        callerPurposeValues, ownerPurpose(route.routeContractKey()))) {
             return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
                     "INVALID_PURPOSE", null);
         }
@@ -982,8 +1036,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                                         route.routeContractKey())
                                         ? PAY003_FIELD_POLICY_BY_ROUTE.get(
                                                 route.routeContractKey())
-                                        : PAY004_FIELD_POLICY_BY_ROUTE.get(
-                                                route.routeContractKey());
+                                        : PAY004_FIELD_POLICY_BY_ROUTE.containsKey(
+                                                route.routeContractKey())
+                                                ? PAY004_FIELD_POLICY_BY_ROUTE.get(
+                                                        route.routeContractKey())
+                                                : PER008_FIELD_POLICY_BY_ROUTE.get(
+                                                        route.routeContractKey());
         String authorizationRevision = revisions == null
                 ? null : numericRevision("authorization", revisions.auth());
         if (purpose != null && (blank(subjectPrincipal)
@@ -1005,6 +1063,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 || PAY003_RESULT_ROUTE_KEYS.contains(route.routeContractKey())
                 || PAY003_ACTION_ROUTE_KEY.equals(route.routeContractKey())
                 || PAY004_RESULT_ROUTE_KEYS.contains(route.routeContractKey())
+                || PER008_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_TENANT_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey())
                 || Sys006GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey());

@@ -41,6 +41,70 @@ import static org.mockito.Mockito.when;
 class ProductSurfaceFeatureRolloutContractTest extends ProductSurfaceFeatureRolloutTestSupport {
 
     @Test
+    void per008DefaultOffAuthorityDeniesEveryWireBindingWithoutPeopleInvocation() {
+        record Binding(String method, String uri) { }
+        List<Binding> bindings = List.of(
+                new Binding("GET",
+                        "/api/people/v1/hris/performance/workbench/team-performance"),
+                new Binding("GET",
+                        "/api/people/v1/hris/performance/feedback-assignments/mine"),
+                new Binding("GET",
+                        "/api/people/v1/hris/performance/feedback-request-options"
+                                + "?cycleVersionId=cycle-1&subjectWorkerPublicId=worker-1"
+                                + "&subjectAssignmentPublicId=assignment-1"),
+                new Binding("POST",
+                        "/api/people/v1/hris/performance/feedback-requests"),
+                new Binding("GET",
+                        "/api/people/v1/hris/performance/feedback-assignments/assignment-1"),
+                new Binding("POST",
+                        "/api/people/v1/hris/performance/feedback-assignments/assignment-1/"
+                                + "responses"),
+                new Binding("GET",
+                        "/api/people/v1/hris/performance/feedback-requests/request-1/release"));
+        for (String rollout : List.of("000", "100")) {
+            for (Binding binding : bindings) {
+                ProductSurfaceContextAggregationService authority = mock(
+                        ProductSurfaceContextAggregationService.class);
+                when(authority.evaluateProductTrusted(any(), any())).thenReturn(Mono.just(
+                        new ProductSurfaceContextAggregationService.TrustedProductEvaluation(
+                                new ProductSurfaceContextDtos.ProductEvaluationData(
+                                        ProductSurfaceContextDtos.Decision.ACTIVATION_REQUIRED,
+                                        "FEATURE_ACTIVATION_REQUIRED",
+                                        "psr-" + "a".repeat(64),
+                                        null, null, null, null, null, null, null, null, null),
+                                null,
+                                null,
+                                new ProductSurfaceContextDtos.SourceRevisions(
+                                        "auth-v59", "policy-v59", "relationship-v1",
+                                        "population-v1", "tenant-control-v268", null),
+                                false)));
+                ProductSurfaceDecisionContextFilter filter =
+                        new ProductSurfaceDecisionContextFilter(
+                                authority, productRouteCatalog(), new ObjectMapper());
+                MockServerWebExchange exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.method(
+                                        org.springframework.http.HttpMethod.valueOf(binding.method()),
+                                        binding.uri())
+                                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, rollout)
+                                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+                AtomicInteger peopleInvocations = new AtomicInteger();
+
+                filter.filter(exchange, ignored -> {
+                    peopleInvocations.incrementAndGet();
+                    return Mono.empty();
+                }).block();
+
+                assertThat(exchange.getResponse().getStatusCode())
+                        .as(rollout + " " + binding.method() + " " + binding.uri())
+                        .isEqualTo(HttpStatus.FORBIDDEN);
+                assertThat(peopleInvocations).hasValue(0);
+                verify(authority, times(1)).evaluateProductTrusted(any(), any());
+            }
+        }
+    }
+
+    @Test
     void pay004DefaultOffAuthorityDeniesAtBothBypassRolloutsWithoutOwnerInvocation() {
         for (String rollout : List.of("000", "100")) {
             ProductSurfaceContextAggregationService authority = mock(

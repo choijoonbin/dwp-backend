@@ -16,6 +16,9 @@ final class ProductAuthorizationGateTopologyValidator {
 
     private static final Pattern STEP_UP_TARGET_TYPE =
             Pattern.compile("^[A-Z][A-Z0-9_]{0,79}$");
+    private static final Set<String> PER008_OWNER_PEP_RISK_POLICY_ROUTES = Set.of(
+            "route.hcm.performance.feedback-request-create.action",
+            "route.hcm.personal.feedback-response-submit.action");
 
     private ProductAuthorizationGateTopologyValidator() {
     }
@@ -31,6 +34,10 @@ final class ProductAuthorizationGateTopologyValidator {
                                 ::isActivatedCapability));
         List<ProductAuthorizationContractDtos.StepUpCommandBinding> stepUps =
                 nullSafe(route.stepUpCommandBindings());
+        if (PER008_OWNER_PEP_RISK_POLICY_ROUTES.contains(route.routeContractKey())) {
+            validatePer008OwnerPepRiskPolicyRoute(route, capabilities, stepUps);
+            return;
+        }
         boolean originalAuthorityReceipt =
                 ProductAuthorizationRecovery11ProjectionSchema
                         .isOriginalAuthorityReceiptRoute(route.routeContractKey())
@@ -132,6 +139,57 @@ final class ProductAuthorizationGateTopologyValidator {
                             .contains(binding.expectedObjectVersionSource())
                             && text(binding.expectedObjectVersionName()),
                     bindingKey + ": invalid expected object version binding.");
+        });
+    }
+
+    private static void validatePer008OwnerPepRiskPolicyRoute(
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities,
+            List<ProductAuthorizationContractDtos.StepUpCommandBinding> stepUps) {
+        String key = route.routeContractKey();
+        require("ACTION".equals(route.routeKind()) && route.sideEffectFree() == null,
+                key + ": PER-008 owner-PEP decision must remain an ACTION.");
+        require(stepUps.isEmpty(), key
+                + ": owner-PEP risk policy must not synthesize a central step-up binding.");
+        require(route.gatewayApiBindings() != null && route.gatewayApiBindings().size() == 1
+                        && route.servicePepBindings() != null
+                        && route.servicePepBindings().size() == 1,
+                key + ": PER-008 owner-PEP route must retain one exact wire binding.");
+        var gateway = route.gatewayApiBindings().getFirst();
+        var service = route.servicePepBindings().getFirst();
+        require("POST".equals(gateway.method()) && "POST".equals(service.method())
+                        && "people".equals(service.serviceKey())
+                        && (key + ".binding.01").equals(gateway.bindingKey())
+                        && gateway.bindingKey().equals(service.bindingKey()),
+                key + ": PER-008 owner-PEP wire binding drift.");
+        List<ProductAuthorizationContractDtos.AccessProfile> profiles =
+                nullSafe(route.accessProfiles());
+        Set<String> expectedCapabilities;
+        if (key.endsWith("feedback-request-create.action")) {
+            require(profiles.size() == 2,
+                    key + ": feedback request must retain manager and self profiles.");
+            expectedCapabilities = Set.of(
+                    "hcm.team.performance.review", "per.feedback.request.create");
+        } else {
+            require(profiles.size() == 1,
+                    key + ": feedback submission must retain one assigned-provider profile.");
+            expectedCapabilities = Set.of("per.feedback.assigned.submit");
+        }
+        Set<String> actualCapabilities = profiles.stream()
+                .peek(profile -> require(!profile.readOnly()
+                                && List.of("NORMAL", "ELEVATED")
+                                .equals(profile.activeAccessModes()),
+                        key + ": owner-PEP profile mode drift."))
+                .map(ProductAuthorizationContractDtos.AccessProfile::requiredAccess)
+                .map(ProductAuthorizationContractDtos.RequiredAccess::capabilityContractKey)
+                .collect(java.util.stream.Collectors.toSet());
+        require(expectedCapabilities.equals(actualCapabilities),
+                key + ": owner-PEP capability set drift.");
+        actualCapabilities.forEach(capabilityKey -> {
+            ProductAuthorizationContractDtos.CapabilityContract capability =
+                    capabilities.get(capabilityKey);
+            require(capability != null && capability.activationPolicy() == null,
+                    key + ": owner-PEP capability must not inherit central step-up activation.");
         });
     }
 

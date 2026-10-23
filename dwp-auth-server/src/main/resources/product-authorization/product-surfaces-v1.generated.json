@@ -5368,6 +5368,32 @@
       "surfaceKey": "hcm.personal"
     },
     {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.personal.performance.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "DATA.HR_TALENT:VIEW",
+      "resourceKey": "DATA.HR_TALENT",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.hcm.personal.feedback-assignment-detail.data",
+        "route.hcm.personal.feedback-assignments-mine.data",
+        "route.hcm.personal.performance-feedback.page"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.personal"
+    },
+    {
       "action": "UPDATE",
       "activationPolicy": null,
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
@@ -5685,7 +5711,9 @@
       "routeContractKeys": [
         "route.hcm.performance.assigned-review-draft-update.action",
         "route.hcm.performance.assigned-review-submit.action",
-        "route.hcm.performance.assigned-review.data"
+        "route.hcm.performance.assigned-review.data",
+        "route.hcm.performance.feedback-request-create.action",
+        "route.hcm.performance.feedback-request-options.data"
       ],
       "scopeResolver": "ASSIGNED_REVIEW_POPULATION",
       "sodPolicyId": "NO_REVIEW_OUTSIDE_ASSIGNMENT",
@@ -5738,6 +5766,31 @@
         "route.hcm.team.time.page"
       ],
       "scopeResolver": "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.team"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.team.workbench.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "DATA.HRIS_TEAM_WORKBENCH:VIEW",
+      "resourceKey": "DATA.HRIS_TEAM_WORKBENCH",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.team.performance.data",
+        "route.hcm.team.performance.page"
+      ],
+      "scopeResolver": "TEAM_TARGET_POPULATION",
       "sodPolicyId": null,
       "sunsetAt": null,
       "surfaceKey": "hcm.team"
@@ -7075,6 +7128,79 @@
       "surfaceKey": "notifications.work"
     },
     {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "per.feedback.aggregate.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "DATA.HRIS_PERFORMANCE_FEEDBACK:VIEW",
+      "resourceKey": "DATA.HRIS_PERFORMANCE_FEEDBACK",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.performance.feedback-release.data"
+      ],
+      "scopeResolver": "FEEDBACK_RELEASE_POPULATION",
+      "sodPolicyId": "NO_FEEDBACK_RELEASE_OUTSIDE_POLICY",
+      "sunsetAt": null,
+      "surfaceKey": "hcm.personal"
+    },
+    {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "per.feedback.assigned.submit",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.HRIS_PERFORMANCE_FEEDBACK:UPDATE",
+      "resourceKey": "ACTION.HRIS_PERFORMANCE_FEEDBACK",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.personal.feedback-response-submit.action"
+      ],
+      "scopeResolver": "FEEDBACK_ASSIGNMENT",
+      "sodPolicyId": "NO_FEEDBACK_OUTSIDE_ASSIGNMENT",
+      "sunsetAt": null,
+      "surfaceKey": "hcm.personal"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "per.feedback.request.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.HRIS_PERFORMANCE_FEEDBACK:CREATE",
+      "resourceKey": "ACTION.HRIS_PERFORMANCE_FEEDBACK",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.hcm.performance.feedback-request-create.action",
+        "route.hcm.performance.feedback-request-options.data"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.personal"
+    },
+    {
       "action": "UPDATE",
       "activationPolicy": null,
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
@@ -8202,7 +8328,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "556f2cc1554f0aaab6f88e50c34d64ca5cdd95af9b2d55072f6e6745f4652cc2",
+  "checksum": "56582749cebf382c5c2669d83a30fb4c81fcb532db2878b15e6a83ced6898094",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -9994,6 +10120,75 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "PerformanceFeedbackAssignmentAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "People + HCM + Security",
+      "ownerServiceKey": "people",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-performance-feedback-assignment.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-performance-feedback-assignment.v1",
+      "routeContractKeys": [
+        "route.hcm.personal.feedback-assignment-detail.data",
+        "route.hcm.personal.feedback-assignments-mine.data",
+        "route.hcm.personal.feedback-response-submit.action",
+        "route.hcm.personal.performance-feedback.page"
+      ],
+      "targetBindingKinds": [
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "PerformanceFeedbackReleaseAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "People + HCM + Security",
+      "ownerServiceKey": "people",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-performance-feedback-release.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-performance-feedback-release.v1",
+      "routeContractKeys": [
+        "route.hcm.performance.feedback-release.data"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "PerformanceFeedbackRequestAuthorityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "People + HCM + Security",
+      "ownerServiceKey": "people",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.hcm-performance-feedback-request.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.hcm-performance-feedback-request.v1",
+      "routeContractKeys": [
+        "route.hcm.performance.feedback-request-create.action",
+        "route.hcm.performance.feedback-request-options.data"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "HcmPerformanceReviewAssignmentEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "People + HCM + Security",
@@ -10779,10 +10974,14 @@
       "predicatePolicyKey": "predicate.self-person.v1",
       "routeContractKeys": [
         "route.hcm.operations.certificate-issue.action",
+        "route.hcm.performance.feedback-request-create.action",
+        "route.hcm.performance.feedback-request-options.data",
         "route.hcm.personal.absence-create.action",
         "route.hcm.personal.absence-withdraw.action",
+        "route.hcm.personal.feedback-assignments-mine.data",
         "route.hcm.personal.me.page",
         "route.hcm.personal.people360-self.data",
+        "route.hcm.personal.performance-feedback.page",
         "route.hcm.personal.requests.data",
         "route.hcm.personal.requests.page",
         "route.hcm.personal.talent-goal-update.action",
@@ -10831,6 +11030,8 @@
       "policyVersion": 1,
       "predicatePolicyKey": "predicate.team-target-population.v1",
       "routeContractKeys": [
+        "route.hcm.performance.feedback-request-create.action",
+        "route.hcm.performance.feedback-request-options.data",
         "route.hcm.team.absence-decision.action",
         "route.hcm.team.absence.page",
         "route.hcm.team.delegation.page",
@@ -10839,6 +11040,8 @@
         "route.hcm.team.people-changes.data",
         "route.hcm.team.people-changes.page",
         "route.hcm.team.people360-detail.data",
+        "route.hcm.team.performance.data",
+        "route.hcm.team.performance.page",
         "route.hcm.team.time-decision.action",
         "route.hcm.team.time.page"
       ],
@@ -53541,6 +53744,312 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-performance-feedback-release.v1"
+          ],
+          "profileKey": "self-feedback-release-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "per.feedback.aggregate.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.performance.feedback-release.data.binding.01",
+              "projectionPolicyKey": "per008.feedback-release.fields.v1",
+              "responseSchemaKey": "Per008FeedbackReleaseV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.hcm-performance-feedback-release.v1"
+          ],
+          "profileKey": "manager-feedback-release-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "per.feedback.aggregate.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.performance.feedback-release.data.binding.01",
+              "projectionPolicyKey": "per008.feedback-release.fields.v1",
+              "responseSchemaKey": "Per008FeedbackReleaseV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 100,
+          "predicatePolicyKeys": [
+            "predicate.hcm-performance-feedback-release.v1"
+          ],
+          "profileKey": "operator-feedback-release-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "per.feedback.aggregate.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.performance.feedback-release.data.binding.01",
+              "projectionPolicyKey": "per008.feedback-release.fields.v1",
+              "responseSchemaKey": "Per008FeedbackReleaseV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.performance.feedback-release.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/feedback-requests/{feedbackRequestId}/release",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.performance.feedback-release.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.performance.feedback-release.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/feedback-requests/{feedbackRequestId}/release",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.team-target-population.v1",
+            "predicate.hcm-performance-feedback-request.v1"
+          ],
+          "profileKey": "manager-feedback-requester",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.team.performance.review",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.self-person.v1",
+            "predicate.hcm-performance-feedback-request.v1"
+          ],
+          "profileKey": "self-feedback-requester",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "per.feedback.request.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.performance.feedback-request-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/people/v1/hris/performance/feedback-requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.performance.feedback-request-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.performance.feedback-request-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/hris/performance/feedback-requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.team-target-population.v1",
+            "predicate.hcm-performance-feedback-request.v1"
+          ],
+          "profileKey": "manager-feedback-requester",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.team.performance.review",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.performance.feedback-request-options.data.binding.01",
+              "projectionPolicyKey": "per008.feedback-request-options.fields.v1",
+              "responseSchemaKey": "Per008FeedbackRequestOptionsV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [
+            "predicate.self-person.v1",
+            "predicate.hcm-performance-feedback-request.v1"
+          ],
+          "profileKey": "self-feedback-requester",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "per.feedback.request.create",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.performance.feedback-request-options.data.binding.01",
+              "projectionPolicyKey": "per008.feedback-request-options.fields.v1",
+              "responseSchemaKey": "Per008FeedbackRequestOptionsV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.performance.feedback-request-options.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/feedback-request-options",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "cycleVersionId": {
+              "kind": "REQUIRED"
+            },
+            "subjectAssignmentPublicId": {
+              "kind": "REQUIRED"
+            },
+            "subjectWorkerPublicId": {
+              "kind": "REQUIRED"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.operations",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.performance.feedback-request-options.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.performance.feedback-request-options.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/feedback-request-options",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "cycleVersionId": {
+              "kind": "REQUIRED"
+            },
+            "subjectAssignmentPublicId": {
+              "kind": "REQUIRED"
+            },
+            "subjectWorkerPublicId": {
+              "kind": "REQUIRED"
+            }
+          },
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.operations",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.self-person.v1"
           ],
           "profileKey": "full-work",
@@ -54062,6 +54571,187 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.hcm-performance-feedback-assignment.v1"
+          ],
+          "profileKey": "assigned-feedback-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.personal.performance.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.personal.feedback-assignment-detail.data.binding.01",
+              "projectionPolicyKey": "per008.feedback-assignment-detail.fields.v1",
+              "responseSchemaKey": "Per008AssignedFeedbackDetailV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.personal.feedback-assignment-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/feedback-assignments/{feedbackAssignmentId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.personal",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.personal.feedback-assignment-detail.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.personal.feedback-assignment-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/feedback-assignments/{feedbackAssignmentId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.personal",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.self-person.v1",
+            "predicate.hcm-performance-feedback-assignment.v1"
+          ],
+          "profileKey": "self-performance-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.personal.performance.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.personal.feedback-assignments-mine.data.binding.01",
+              "projectionPolicyKey": "per008.feedback-assigned-list.fields.v1",
+              "responseSchemaKey": "Per008AssignedFeedbackListV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.personal.performance-feedback-inbox.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.personal.feedback-assignments-mine.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/feedback-assignments/mine",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.personal",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.personal.feedback-assignments-mine.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.personal.feedback-assignments-mine.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/feedback-assignments/mine",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.personal",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.hcm-performance-feedback-assignment.v1"
+          ],
+          "profileKey": "assigned-feedback-provider",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "per.feedback.assigned.submit",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.personal.feedback-response-submit.action.binding.01",
+          "method": "POST",
+          "path": "/api/people/v1/hris/performance/feedback-assignments/{feedbackAssignmentId}/responses",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.personal",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.personal.feedback-response-submit.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.personal.feedback-response-submit.action.binding.01",
+          "method": "POST",
+          "path": "/v1/hris/performance/feedback-assignments/{feedbackAssignmentId}/responses",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.personal",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.platform.self-preference.v1"
           ],
           "profileKey": "full-work",
@@ -54536,6 +55226,70 @@
       },
       "uiRouteId": null,
       "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.self-person.v1",
+            "predicate.hcm-performance-feedback-assignment.v1"
+          ],
+          "profileKey": "self-performance-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.personal.performance.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.personal.performance-feedback.page.binding.01",
+              "projectionPolicyKey": "per008.feedback-assigned-list.fields.v1",
+              "responseSchemaKey": "Per008AssignedFeedbackListV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.personal.performance-feedback-inbox.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.personal.performance-feedback.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/feedback-assignments/mine",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.personal",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.personal.performance-feedback.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.personal.performance-feedback.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/feedback-assignments/mine",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.personal",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.personal.performance-feedback",
+      "uiRoutePattern": "/hr/me/performance/feedback"
     },
     {
       "accessProfiles": [
@@ -56156,6 +56910,130 @@
       },
       "uiRouteId": null,
       "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.team-target-population.v1"
+          ],
+          "profileKey": "team-performance-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.team.workbench.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.team.performance.data.binding.01",
+              "projectionPolicyKey": "per008.iaq-038.fields.v2",
+              "responseSchemaKey": "Per008TeamPerformanceProjectionV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.team.performance.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.team.performance.data.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/workbench/team-performance",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.team",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.team.performance.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.team.performance.data.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/workbench/team-performance",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.team",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.team-target-population.v1"
+          ],
+          "profileKey": "team-performance-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "hcm.team.workbench.view",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.hcm.team.performance.page.binding.01",
+              "projectionPolicyKey": "per008.iaq-038.fields.v2",
+              "responseSchemaKey": "Per008TeamPerformanceProjectionV2"
+            }
+          ],
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.hcm.team.performance.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.hcm.team.performance.page.binding.01",
+          "method": "GET",
+          "path": "/api/people/v1/hris/performance/workbench/team-performance",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "hcm.team",
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.hcm.team.performance.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.hcm.team.performance.page.binding.01",
+          "method": "GET",
+          "path": "/v1/hris/performance/workbench/team-performance",
+          "pathParameterConstraints": {},
+          "serviceKey": "people"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "hcm",
+        "surfaceKey": "hcm.team",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "hcm.team.performance",
+      "uiRoutePattern": "/hr/team/performance"
     },
     {
       "accessProfiles": [
@@ -79808,5 +80686,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 58
+  "version": 59
 }

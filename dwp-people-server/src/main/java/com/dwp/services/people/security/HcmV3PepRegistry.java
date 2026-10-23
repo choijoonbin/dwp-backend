@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Runtime-only, closed People PEP projection generated from the shared HRIS v57 registry.
+ * Runtime-only, closed People PEP projection generated from the shared HRIS v59 registry.
  * Provider-support profiles are parsed to detect contract drift, but they are not a service
  * readiness signal: {@link HcmProductSurfacePepFilter} denies them until the trusted request
  * carries the contractual legal-entity population boundary as well as the support session.
@@ -34,11 +34,11 @@ import java.util.stream.Collectors;
 public final class HcmV3PepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-people-pep-v57.generated.json";
-    static final String REGISTRY_V57_CHECKSUM =
-            "f7d6e2ef92f563747ed062e496638ea83498a33414fc12586c794f517e626d6e";
-    static final String PROJECTION_V57_CHECKSUM =
-            "1fb7e38d5cfae1a49a71967e9ead995e92dc7d200ee2083b796b72f9c6a89577";
+            "product-authorization/hcm-people-pep-v59.generated.json";
+    static final String REGISTRY_V59_CHECKSUM =
+            "56582749cebf382c5c2669d83a30fb4c81fcb532db2878b15e6a83ced6898094";
+    static final String PROJECTION_V59_CHECKSUM =
+            "5ea079d6eed9a554b8f9c9eeb5eb713665836180b589f22e74c9daa182da9110";
     static final String ORGANIZATION_RESPONSIBILITY_BOUNDARY =
             "ORGANIZATION_TARGET_POPULATION";
     private static final String HRM011_CONTRACT_ISSUE_CAPABILITY =
@@ -68,6 +68,21 @@ public final class HcmV3PepRegistry {
             "route.hcm.operations.employment-contract-issue.action";
     private static final Set<String> HRM011_POPULATION_KINDS = Set.of(
             "LEGAL_ENTITY", "NAMED_POPULATION", "ORG_TREE", "ORG_UNIT");
+    private static final Set<String> PER008_TEAM_ROUTES = Set.of(
+            "route.hcm.team.performance.page",
+            "route.hcm.team.performance.data");
+    private static final Set<String> PER008_ASSIGNED_COLLECTION_ROUTES = Set.of(
+            "route.hcm.personal.performance-feedback.page",
+            "route.hcm.personal.feedback-assignments-mine.data");
+    private static final Set<String> PER008_REQUEST_ROUTES = Set.of(
+            "route.hcm.performance.feedback-request-options.data",
+            "route.hcm.performance.feedback-request-create.action");
+    private static final String PER008_ASSIGNED_DETAIL_ROUTE =
+            "route.hcm.personal.feedback-assignment-detail.data";
+    private static final String PER008_ASSIGNED_SUBMIT_ROUTE =
+            "route.hcm.personal.feedback-response-submit.action";
+    private static final String PER008_RELEASE_ROUTE =
+            "route.hcm.performance.feedback-release.data";
     private static final Map<String, String> TRUSTED_PURPOSE_BY_ROUTE = Map.ofEntries(
             Map.entry("route.hcm.personal.requests.page", "EMPLOYEE_SELF_SERVICE"),
             Map.entry("route.hcm.personal.requests.data", "EMPLOYEE_SELF_SERVICE"),
@@ -90,7 +105,16 @@ public final class HcmV3PepRegistry {
             Map.entry("route.hcm.operations.people-appointments.page", "HR_LIFECYCLE"),
             Map.entry("route.hcm.operations.people-appointments.data", "HR_LIFECYCLE"),
             Map.entry("route.hcm.configuration.people-employment.page", "HRIS_CONFIGURATION"),
-            Map.entry("route.hcm.configuration.people-employment.data", "HRIS_CONFIGURATION"));
+            Map.entry("route.hcm.configuration.people-employment.data", "HRIS_CONFIGURATION"),
+            Map.entry("route.hcm.team.performance.page", "TEAM_MANAGEMENT"),
+            Map.entry("route.hcm.team.performance.data", "TEAM_MANAGEMENT"),
+            Map.entry("route.hcm.personal.performance-feedback.page", "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.performance.feedback-request-options.data", "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.performance.feedback-request-create.action", "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.personal.feedback-assignments-mine.data", "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.personal.feedback-assignment-detail.data", "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.personal.feedback-response-submit.action", "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.performance.feedback-release.data", "PERFORMANCE_FEEDBACK"));
 
     private final ObjectMapper objectMapper;
     private final Map<String, JsonNode> capabilities;
@@ -161,6 +185,39 @@ public final class HcmV3PepRegistry {
             Binding binding,
             Profile profile,
             RequestEvidence evidence) {
+        if (PER008_TEAM_ROUTES.contains(binding.routeContractKey())) {
+            return "team-performance-reader".equals(profile.profileKey())
+                    && "TARGET_POPULATION".equals(evidence.trustedPopulationKind());
+        }
+        if (PER008_ASSIGNED_COLLECTION_ROUTES.contains(binding.routeContractKey())) {
+            return "self-performance-reader".equals(profile.profileKey())
+                    && "SELF".equals(evidence.trustedPopulationKind());
+        }
+        if (PER008_REQUEST_ROUTES.contains(binding.routeContractKey())) {
+            return ("manager-feedback-requester".equals(profile.profileKey())
+                    && "TARGET_POPULATION".equals(evidence.trustedPopulationKind()))
+                    || ("self-feedback-requester".equals(profile.profileKey())
+                    && "SELF".equals(evidence.trustedPopulationKind()));
+        }
+        if (PER008_ASSIGNED_DETAIL_ROUTE.equals(binding.routeContractKey())) {
+            return "assigned-feedback-reader".equals(profile.profileKey())
+                    && "TARGET_POPULATION".equals(evidence.trustedPopulationKind());
+        }
+        if (PER008_ASSIGNED_SUBMIT_ROUTE.equals(binding.routeContractKey())) {
+            return "assigned-feedback-provider".equals(profile.profileKey())
+                    && "TARGET_POPULATION".equals(evidence.trustedPopulationKind());
+        }
+        if (PER008_RELEASE_ROUTE.equals(binding.routeContractKey())) {
+            return switch (profile.profileKey()) {
+                case "self-feedback-release-reader" ->
+                        "SELF".equals(evidence.trustedPopulationKind());
+                case "manager-feedback-release-reader" ->
+                        "TARGET_POPULATION".equals(evidence.trustedPopulationKind());
+                case "operator-feedback-release-reader" ->
+                        "NAMED_POPULATION".equals(evidence.trustedPopulationKind());
+                default -> false;
+            };
+        }
         if (HRM009_PERSONAL_QUERY_ROUTES.contains(binding.routeContractKey())) {
             return "self-request-reader".equals(profile.profileKey())
                     && "SELF".equals(evidence.trustedPopulationKind());
@@ -498,7 +555,7 @@ public final class HcmV3PepRegistry {
                             ? route.path("stepUpCommandBindings").size() : 0),
                     routeKey + ": invalid step-up binding closure");
         }
-        require(result.size() == 151, "HCM People PEP binding count changed");
+        require(result.size() == 160, "HCM People PEP binding count changed");
         return List.copyOf(result);
     }
 
@@ -535,29 +592,29 @@ public final class HcmV3PepRegistry {
 
     private void validateEnvelope(ObjectNode projection) {
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-people-pep-v57".equals(projection.path("projectionKey").asText())
+                        && "hcm-people-pep-v59".equals(projection.path("projectionKey").asText())
                         && "people".equals(projection.path("ownerServiceKey").asText()),
                 "Unexpected HCM People PEP envelope");
         JsonNode registry = projection.path("registryRef");
         require("product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 57
-                        && REGISTRY_V57_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 59
+                        && REGISTRY_V59_CHECKSUM.equals(registry.path("sha256").asText()),
                 "HCM People registry reference mismatch");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 1123
-                        && projection.path("projectedRouteContractCount").asInt() == 124
-                        && projection.path("bindingPairCount").asInt() == 151,
+        require(projection.path("sourceRegistryRouteCount").asInt() == 1134
+                        && projection.path("projectedRouteContractCount").asInt() == 133
+                        && projection.path("bindingPairCount").asInt() == 160,
                 "HCM People release counts changed");
         ObjectNode payload = projection.deepCopy();
         JsonNode checksum = payload.remove("projectionChecksum");
         require(checksum != null
-                        && PROJECTION_V57_CHECKSUM.equals(checksum.asText())
-                        && PROJECTION_V57_CHECKSUM.equals(sha256(payload)),
+                        && PROJECTION_V59_CHECKSUM.equals(checksum.asText())
+                        && PROJECTION_V59_CHECKSUM.equals(sha256(payload)),
                 "HCM People projection checksum mismatch");
     }
 
     private void validateClosure(ObjectNode projection) {
-        require(capabilities.size() == 59 && policies.size() == 5
-                        && expressions.size() == 3 && predicates.size() == 19,
+        require(capabilities.size() == 64 && policies.size() == 5
+                        && expressions.size() == 3 && predicates.size() == 22,
                 "HCM People descriptor closure count changed");
         Set<String> routes = new LinkedHashSet<>();
         for (JsonNode route : requiredArray(projection, "routes")) {
@@ -587,6 +644,13 @@ public final class HcmV3PepRegistry {
                 }
             }
         }
+        JsonNode releasePredicate = descriptor(
+                predicates, "predicate.hcm-performance-feedback-release.v1", "predicate");
+        require(Set.of("SELF", "OBJECT", "TARGET_POPULATION").equals(
+                        textValues(releasePredicate.path("targetBindingKinds")))
+                        && Set.of(PER008_RELEASE_ROUTE).equals(
+                        textValues(releasePredicate.path("routeContractKeys"))),
+                "PER-008 feedback release predicate closure changed");
     }
 
     private ObjectNode readProjection() {

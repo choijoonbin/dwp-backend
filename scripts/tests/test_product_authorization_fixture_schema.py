@@ -32,6 +32,11 @@ class ProductAuthorizationFixtureSchemaTest(unittest.TestCase):
             for release in index["versions"]
         ]
 
+        self.assertEqual(59, index["latestVersion"])
+        self.assertEqual(
+            "56582749cebf382c5c2669d83a30fb4c81fcb532db2878b15e6a83ced6898094",
+            index["latestChecksum"],
+        )
         self.assertEqual(lineage["latestAliasVersion"]["const"], index["latestVersion"])
         self.assertEqual(versions["items"], {"$ref": "#/$defs/registryReference"})
         self.assertTrue(versions["uniqueItems"])
