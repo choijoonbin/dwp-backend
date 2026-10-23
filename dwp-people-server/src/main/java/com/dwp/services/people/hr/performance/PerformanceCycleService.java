@@ -88,6 +88,7 @@ public class PerformanceCycleService {
         PerformanceCycleAuthorization.requireRead(actor);
         UUID subjectId = PerformanceCycleAuthorization.requireSubject(actor);
         requireAuthority(actor, subjectId, "VIEW", LIST_ACTION, null);
+        queries.bindTenant(actor.tenantId());
         List<PerformanceCycleDtos.CycleSummary> summaries = queries.cycles(actor.tenantId())
                 .stream().map(cycle -> new PerformanceCycleDtos.CycleSummary(
                         cycle.cycleId(), cycle.cycleKey(), cycle.displayName(),
@@ -109,6 +110,7 @@ public class PerformanceCycleService {
         PerformanceCycleAuthorization.requireRead(actor);
         UUID subjectId = PerformanceCycleAuthorization.requireSubject(actor);
         requireAuthority(actor, subjectId, "VIEW", READ_ACTION, cycleId);
+        queries.bindTenant(actor.tenantId());
         return withActions(requireCycle(actor.tenantId(), cycleId), actor);
     }
 
@@ -122,6 +124,7 @@ public class PerformanceCycleService {
         UUID subjectId = PerformanceCycleAuthorization.requireSubject(actor);
         PerformanceCycleAuthorityPort.AuthorityEvidence authority = requireAuthority(
                 actor, subjectId, "CREATE", CREATE_ACTION, null);
+        queries.bindTenant(actor.tenantId());
         String key = idempotencyKey(idempotencyKey);
         List<PerformanceCycleDtos.StageInput> stages = canonicalizer.validatedStages(
                 request.effectiveFrom(), request.effectiveTo(), request.stages());
@@ -167,6 +170,7 @@ public class PerformanceCycleService {
         UUID subjectId = PerformanceCycleAuthorization.requireSubject(actor);
         PerformanceCycleAuthorityPort.AuthorityEvidence authority = requireAuthority(
                 actor, subjectId, "UPDATE", UPDATE_ACTION, cycleId);
+        queries.bindTenant(actor.tenantId());
         String key = idempotencyKey(idempotencyKey);
         List<PerformanceCycleDtos.StageInput> stages = canonicalizer.validatedStages(
                 request.effectiveFrom(), request.effectiveTo(), request.stages());
@@ -215,6 +219,7 @@ public class PerformanceCycleService {
         UUID subjectId = PerformanceCycleAuthorization.requireSubject(actor);
         PerformanceCycleAuthorityPort.AuthorityEvidence authority = requireAuthority(
                 actor, subjectId, "UPDATE", VALIDATE_ACTION, cycleId);
+        queries.bindTenant(actor.tenantId());
         String key = idempotencyKey(idempotencyKey);
         String requestHash = commandHash(actor, VALIDATE_ACTION, cycleId, request);
         Optional<PerformanceCycleDtos.CycleCommandResult> replay = replayCycle(
@@ -258,6 +263,7 @@ public class PerformanceCycleService {
         UUID subjectId = PerformanceCycleAuthorization.requireSubject(actor);
         PerformanceCycleAuthorityPort.AuthorityEvidence authority = requireAuthority(
                 actor, subjectId, "UPDATE", PREVIEW_ACTION, cycleId);
+        queries.bindTenant(actor.tenantId());
         String key = idempotencyKey(idempotencyKey);
         String requestHash = commandHash(actor, PREVIEW_ACTION, cycleId, request);
         Optional<PerformanceCycleDtos.PreviewCommandResult> replay = replayPreview(
@@ -307,6 +313,7 @@ public class PerformanceCycleService {
         UUID subjectId = PerformanceCycleAuthorization.requireSubject(actor);
         PerformanceCycleAuthorityPort.AuthorityEvidence authority = requireAuthority(
                 actor, subjectId, "APPROVE", PUBLISH_ACTION, cycleId);
+        queries.bindTenant(actor.tenantId());
         String key = idempotencyKey(idempotencyKey);
         String requestHash = commandHash(actor, PUBLISH_ACTION, cycleId, request);
         Optional<PerformanceCycleDtos.CycleCommandResult> replay = replayCycle(
@@ -379,6 +386,7 @@ public class PerformanceCycleService {
         PerformanceCycleAuthorization.requireRead(actor);
         UUID subjectId = PerformanceCycleAuthorization.requireSubject(actor);
         requireAuthority(actor, subjectId, "VIEW", RECEIPT_READ_ACTION, receiptId);
+        queries.bindTenant(actor.tenantId());
         PerformanceCycleQueryRepository.ReceiptRecord receipt = queries
                 .receiptById(actor.tenantId(), receiptId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));

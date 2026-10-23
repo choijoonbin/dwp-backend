@@ -44,6 +44,19 @@ class PerformanceCycleQueryRepository {
         this.objectMapper = objectMapper;
     }
 
+    void bindTenant(long tenantId) {
+        if (tenantId < 1) {
+            throw new IllegalArgumentException("tenantId must be positive");
+        }
+        String applied = jdbc.queryForObject(
+                "SELECT set_config('dwp.tenant_id', CAST(:tenantId AS VARCHAR), TRUE)",
+                new MapSqlParameterSource("tenantId", tenantId), String.class);
+        if (!Long.toString(tenantId).equals(applied)) {
+            throw new IllegalStateException(
+                    "Performance Cycle tenant database scope was not established.");
+        }
+    }
+
     List<PerformanceCycleDtos.CycleDetail> cycles(long tenantId) {
         List<CycleRow> rows = jdbc.query(CYCLE_SELECT + """
                  WHERE c.tenant_id = :tenantId

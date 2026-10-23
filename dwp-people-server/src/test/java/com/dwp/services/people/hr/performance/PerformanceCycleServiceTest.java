@@ -89,7 +89,9 @@ class PerformanceCycleServiceTest {
         PerformanceCycleDtos.CycleDetail result = service.cycle(CYCLE_ID);
 
         assertThat(result.cycleId()).isEqualTo(CYCLE_ID);
-        verify(queries).cycle(TENANT, CYCLE_ID);
+        var ordered = inOrder(queries);
+        ordered.verify(queries).bindTenant(TENANT);
+        ordered.verify(queries).cycle(TENANT, CYCLE_ID);
         verify(queries, never()).cycle(92L, CYCLE_ID);
     }
 

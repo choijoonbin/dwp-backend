@@ -31,12 +31,34 @@ class CompensationPlanningEventHandoffRepository {
         this.mapper = objectMapper.copy().findAndRegisterModules();
     }
 
+    List<Long> activeTenantIds() {
+        return jdbc.query("""
+                SELECT tenant_id
+                  FROM public.sys_service_tenants
+                 WHERE lifecycle_state = 'ACTIVE'
+                 ORDER BY tenant_id
+                """, new MapSqlParameterSource(),
+                (result, ignored) -> result.getLong("tenant_id"));
+    }
+
     @Transactional
     List<ClaimedEvent> claim(
+            long tenantId,
             String workerId,
             int batchSize,
             Duration visibilityLease,
             Set<String> supportedAggregateTypes) {
+        requirePositiveTenant(tenantId);
+        List<Long> eligible = jdbc.query("""
+                SELECT tenant_id
+                  FROM public.sys_service_tenants
+                 WHERE tenant_id = :tenantId
+                   AND lifecycle_state = 'ACTIVE'
+                 FOR SHARE
+                """, new MapSqlParameterSource("tenantId", tenantId),
+                (result, ignored) -> result.getLong("tenant_id"));
+        if (eligible.isEmpty()) return List.of();
+        bindTenant(tenantId);
         int visibilitySeconds = Math.toIntExact(Math.min(
                 Integer.MAX_VALUE,
                 Math.max(1L, visibilityLease.toSeconds())));
@@ -44,7 +66,8 @@ class CompensationPlanningEventHandoffRepository {
                 WITH candidates AS (
                     SELECT candidate.internal_id
                       FROM hris_performance.prf_outbox_events candidate
-                     WHERE candidate.delivery_state = 'PENDING'
+                     WHERE candidate.tenant_id = :tenantId
+                       AND candidate.delivery_state = 'PENDING'
                        AND candidate.available_at <= CURRENT_TIMESTAMP
                        AND candidate.aggregate_type IN (:aggregateTypes)
                        AND NOT EXISTS (
@@ -65,13 +88,15 @@ class CompensationPlanningEventHandoffRepository {
                        available_at = CURRENT_TIMESTAMP
                            + make_interval(secs => :visibilitySeconds)
                   FROM candidates
-                 WHERE outbox.internal_id = candidates.internal_id
+                 WHERE outbox.tenant_id = :tenantId
+                   AND outbox.internal_id = candidates.internal_id
                 RETURNING outbox.event_id, outbox.tenant_id,
                           outbox.command_receipt_id, outbox.aggregate_type,
                           outbox.aggregate_id, outbox.aggregate_version,
                           outbox.event_type, outbox.payload,
                           outbox.delivery_attempts, outbox.created_at
                 """, new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
                         .addValue("visibilitySeconds", visibilitySeconds)
                         .addValue("aggregateTypes", supportedAggregateTypes)
                         .addValue("batchSize", batchSize),
@@ -89,21 +114,26 @@ class CompensationPlanningEventHandoffRepository {
                         workerId));
     }
 
+    @Transactional
     boolean markDelivered(ClaimedEvent event) {
+        bindTenant(event.tenantId());
         return jdbc.update("""
                 UPDATE hris_performance.prf_outbox_events
                    SET delivery_state = 'DELIVERED',
                        available_at = CURRENT_TIMESTAMP
-                 WHERE event_id = :eventId
+                 WHERE tenant_id = :tenantId
+                   AND event_id = :eventId
                    AND delivery_state = 'PENDING'
                    AND delivery_attempts = :deliveryAttempt
                 """, claimParameters(event)) == 1;
     }
 
+    @Transactional
     FailureDisposition markFailed(
             ClaimedEvent event,
             int maximumAttempts,
             boolean retryable) {
+        bindTenant(event.tenantId());
         int delaySeconds = Math.min(
                 300,
                 Math.max(2, 1 << Math.min(8, event.deliveryAttempt())));
@@ -120,7 +150,8 @@ class CompensationPlanningEventHandoffRepository {
                            ELSE CURRENT_TIMESTAMP
                                + make_interval(secs => :delaySeconds)
                        END
-                 WHERE event_id = :eventId
+                 WHERE tenant_id = :tenantId
+                   AND event_id = :eventId
                    AND delivery_state = 'PENDING'
                    AND delivery_attempts = :deliveryAttempt
                 RETURNING delivery_state
@@ -135,11 +166,13 @@ class CompensationPlanningEventHandoffRepository {
                 : FailureDisposition.RETRY_PENDING;
     }
 
+    @Transactional
     Optional<ReleasedEvent> releaseQuarantined(
             long tenantId,
             UUID eventId,
             Set<String> supportedCycleEventNames,
             Set<String> supportedProposalEventNames) {
+        bindTenant(tenantId);
         List<ReleasedEvent> released = jdbc.query("""
                 WITH quarantined AS (
                     SELECT internal_id, delivery_attempts
@@ -161,7 +194,8 @@ class CompensationPlanningEventHandoffRepository {
                        delivery_attempts = 0,
                        available_at = CURRENT_TIMESTAMP
                   FROM quarantined
-                 WHERE outbox.internal_id = quarantined.internal_id
+                 WHERE outbox.tenant_id = :tenantId
+                   AND outbox.internal_id = quarantined.internal_id
                 RETURNING outbox.event_id, outbox.tenant_id,
                           outbox.aggregate_type, outbox.aggregate_id,
                           outbox.aggregate_version, outbox.event_type,
@@ -204,8 +238,26 @@ class CompensationPlanningEventHandoffRepository {
 
     private MapSqlParameterSource claimParameters(ClaimedEvent event) {
         return new MapSqlParameterSource()
+                .addValue("tenantId", event.tenantId())
                 .addValue("eventId", event.eventId())
                 .addValue("deliveryAttempt", event.deliveryAttempt());
+    }
+
+    private void bindTenant(long tenantId) {
+        requirePositiveTenant(tenantId);
+        String applied = jdbc.queryForObject(
+                "SELECT set_config('dwp.tenant_id', CAST(:tenantId AS VARCHAR), TRUE)",
+                new MapSqlParameterSource("tenantId", tenantId), String.class);
+        if (!Long.toString(tenantId).equals(applied)) {
+            throw new IllegalStateException(
+                    "Performance event handoff tenant database scope was not established.");
+        }
+    }
+
+    private static void requirePositiveTenant(long tenantId) {
+        if (tenantId < 1) {
+            throw new IllegalArgumentException("tenantId must be positive");
+        }
     }
 
     private JsonNode readPayload(String payload) {

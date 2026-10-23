@@ -29,6 +29,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -94,12 +96,24 @@ class CompensationPlanningEventHandoffWorkerPostgresTest {
                 .load()
                 .migrate();
         try (Connection connection = dataSource.getConnection()) {
+            ClassPathResource tenantRegistry = new ClassPathResource(
+                    "db/migration/V3__add_provider_tenant_registry.sql");
             ClassPathResource resource = new ClassPathResource(
                     "db/migration/R__create_domain_event_delivery_ledger.sql");
             try (java.sql.Statement statement = connection.createStatement()) {
+                statement.execute(
+                        "DROP TABLE IF EXISTS public.sys_service_tenants CASCADE");
+                statement.execute(tenantRegistry.getContentAsString(StandardCharsets.UTF_8));
                 statement.execute(resource.getContentAsString(StandardCharsets.UTF_8));
             }
         }
+        jdbc.update("""
+                INSERT INTO public.sys_service_tenants (
+                    provider_tenant_id, tenant_id, tenant_key, display_name,
+                    lifecycle_state, data_region, isolation_model, created_by, updated_by)
+                VALUES (?, ?, 'handoff-tenant', 'Handoff Tenant', 'ACTIVE',
+                        'local', 'POOL', 1, 1)
+                """, UUID.fromString("31000000-0000-4000-8000-000000000010"), TENANT);
         jdbc.execute("TRUNCATE TABLE sys_domain_event_outbox");
 
         mapper = new ObjectMapper().findAndRegisterModules();
@@ -174,22 +188,18 @@ class CompensationPlanningEventHandoffWorkerPostgresTest {
     @Test
     void expiredClaimIsReclaimedAndItsStaleCompletionIsFenced() {
         List<CompensationPlanningEventHandoffRepository.ClaimedEvent> first =
-                repository.claim(
-                        "worker-a", 1, Duration.ofSeconds(30),
-                        Set.of("COMPENSATION_CYCLE"));
+                claim("worker-a", 1, Set.of("COMPENSATION_CYCLE"));
         assertThat(first).singleElement().satisfies(
                 event -> assertThat(event.deliveryAttempt()).isOne());
 
         expireVisibilityLease();
         List<CompensationPlanningEventHandoffRepository.ClaimedEvent> second =
-                repository.claim(
-                        "worker-b", 1, Duration.ofSeconds(30),
-                        Set.of("COMPENSATION_CYCLE"));
+                claim("worker-b", 1, Set.of("COMPENSATION_CYCLE"));
 
         assertThat(second).singleElement().satisfies(
                 event -> assertThat(event.deliveryAttempt()).isEqualTo(2));
-        assertThat(repository.markDelivered(first.getFirst())).isFalse();
-        assertThat(repository.markDelivered(second.getFirst())).isTrue();
+        assertThat(markDelivered(first.getFirst())).isFalse();
+        assertThat(markDelivered(second.getFirst())).isTrue();
         assertThat(jdbc.queryForMap("""
                 SELECT delivery_state, delivery_attempts
                   FROM hris_performance.prf_outbox_events
@@ -205,16 +215,16 @@ class CompensationPlanningEventHandoffWorkerPostgresTest {
         Set<String> supported = Set.of("COMPENSATION_CYCLE");
 
         List<CompensationPlanningEventHandoffRepository.ClaimedEvent> first =
-                repository.claim("worker-a", 10, Duration.ofSeconds(30), supported);
+                claim("worker-a", 10, supported);
 
         assertThat(first).singleElement().satisfies(event -> {
             assertThat(event.eventId()).isEqualTo(EVENT);
             assertThat(event.aggregateVersion()).isEqualTo(8L);
         });
-        assertThat(repository.markDelivered(first.getFirst())).isTrue();
+        assertThat(markDelivered(first.getFirst())).isTrue();
 
         List<CompensationPlanningEventHandoffRepository.ClaimedEvent> second =
-                repository.claim("worker-a", 10, Duration.ofSeconds(30), supported);
+                claim("worker-a", 10, supported);
         assertThat(second).singleElement().satisfies(event -> {
             assertThat(event.eventId()).isEqualTo(SUCCESSOR_EVENT);
             assertThat(event.aggregateVersion()).isEqualTo(9L);
@@ -313,7 +323,7 @@ class CompensationPlanningEventHandoffWorkerPostgresTest {
                        aggregate_type = 'PERFORMANCE_CYCLE'
                  WHERE event_id = ?
                 """, EVENT);
-        assertThat(repository.releaseQuarantined(
+        assertThat(releaseQuarantined(
                 TENANT, EVENT,
                 CompensationPlanningEventHandoffWorker.supportedCycleEventNames(),
                 CompensationPlanningEventHandoffWorker.supportedProposalEventNames()))
@@ -325,7 +335,7 @@ class CompensationPlanningEventHandoffWorkerPostgresTest {
                        event_type = 'CompensationProposalDrafted.v2'
                  WHERE event_id = ?
                 """, EVENT);
-        assertThat(repository.releaseQuarantined(
+        assertThat(releaseQuarantined(
                 TENANT, EVENT,
                 CompensationPlanningEventHandoffWorker.supportedCycleEventNames(),
                 CompensationPlanningEventHandoffWorker.supportedProposalEventNames()))
@@ -846,6 +856,43 @@ class CompensationPlanningEventHandoffWorkerPostgresTest {
                    SET available_at = CURRENT_TIMESTAMP - INTERVAL '1 second'
                  WHERE event_id = ?
                 """, EVENT);
+    }
+
+    private List<CompensationPlanningEventHandoffRepository.ClaimedEvent> claim(
+            String workerId,
+            int batchSize,
+            Set<String> supportedAggregateTypes) {
+        return Objects.requireNonNull(transaction().execute(ignored -> repository.claim(
+                TENANT,
+                workerId,
+                batchSize,
+                Duration.ofSeconds(30),
+                supportedAggregateTypes)));
+    }
+
+    private boolean markDelivered(
+            CompensationPlanningEventHandoffRepository.ClaimedEvent event) {
+        return Boolean.TRUE.equals(transaction().execute(
+                ignored -> repository.markDelivered(event)));
+    }
+
+    private Optional<CompensationPlanningEventHandoffRepository.ReleasedEvent>
+            releaseQuarantined(
+                    long tenantId,
+                    UUID eventId,
+                    Set<String> supportedCycleEventNames,
+                    Set<String> supportedProposalEventNames) {
+        return Objects.requireNonNull(transaction().execute(
+                ignored -> repository.releaseQuarantined(
+                        tenantId,
+                        eventId,
+                        supportedCycleEventNames,
+                        supportedProposalEventNames)));
+    }
+
+    private org.springframework.transaction.support.TransactionTemplate transaction() {
+        return new org.springframework.transaction.support.TransactionTemplate(
+                transactionManager);
     }
 
     private JsonNode read(String value) {
