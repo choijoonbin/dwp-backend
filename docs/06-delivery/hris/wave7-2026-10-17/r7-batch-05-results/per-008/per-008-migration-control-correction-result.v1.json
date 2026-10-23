@@ -1,0 +1,289 @@
+{
+  "schema": "dwp.hris.wave7.per008-migration-control-correction-result.v1",
+  "evidenceId": "HRIS-WAVE7-R7-BATCH-05-PER008-MIGRATION-CONTROL-CORRECTION-RESULT-20261023-R1",
+  "recordedAt": "2026-10-23T15:40:25+09:00",
+  "recordedBy": "HRIS-PER008-MIGRATION-CONTROL-CORRECTION",
+  "sliceId": "PER-008",
+  "module": "PER",
+  "authority": {
+    "v1": {
+      "authorityPath": "dwp-frontend/docs/06-delivery/hris/wave7-2026-10-17/r7-batch-05-central-admission-r1/per-008-migration-control-correction-authority.v1.json",
+      "authoritySha256": "4b9a43eac9be9991413e884e4120a27b0441192e4e52165f24e1a4aef3e3108e",
+      "authorityBytes": 7993,
+      "authorityCarrierCommit": "b3b6911e99e98614bd6b86755a58d1f12dbb4edc",
+      "tokenPath": "dwp-frontend/docs/06-delivery/hris/wave7-2026-10-17/r7-batch-05-module-start-r1/tokens/per-008-migration-control-correction.start-token.v1.json",
+      "tokenSha256": "498ab47468f369fc0117b22907691cf30fc90140251194b9cbbf3cf5ee310bdf",
+      "tokenBytes": 4296,
+      "tokenCarrierCommit": "bd1138de2e2e443874a1234ff3df43ef34e6116b"
+    },
+    "v2": {
+      "authorityPath": "dwp-frontend/docs/06-delivery/hris/wave7-2026-10-17/r7-batch-05-central-admission-r1/per-008-migration-control-correction-authority-successor.v2.json",
+      "authoritySha256": "e3e546b497e8e696cad2238dd374bb28fdcf39af5cb1cbdc0c7fcfbf20968d00",
+      "authorityBytes": 5729,
+      "tokenPath": "dwp-frontend/docs/06-delivery/hris/wave7-2026-10-17/r7-batch-05-module-start-r1/tokens/per-008-migration-control-correction.start-token-successor.v2.json",
+      "tokenSha256": "720c48c081a68a06f8c8958d233d3384355f4aaf7317d1dc4b5662f4f449bd57",
+      "tokenBytes": 3769,
+      "carrierCommit": "3e48ae27488b6e4816f8ea1b511ab9edfe3adafd"
+    },
+    "v3": {
+      "authorityPath": "dwp-frontend/docs/06-delivery/hris/wave7-2026-10-17/r7-batch-05-central-admission-r1/per-008-migration-control-correction-authority-successor.v3.json",
+      "authoritySha256": "98cd1cd54c83a84e40c9a96134a86fe58902af66e03efb52ba6fe0024bb9d939",
+      "authorityBytes": 3038,
+      "tokenPath": "dwp-frontend/docs/06-delivery/hris/wave7-2026-10-17/r7-batch-05-module-start-r1/tokens/per-008-migration-control-correction.start-token-successor.v3.json",
+      "tokenSha256": "94d33a78c150dc34779b15814dd9c688eab7bd6eb8fab7b6c99ba5328234c893",
+      "tokenBytes": 1476,
+      "carrierCommit": "3542f0719096dd91ba8e4b2f584b5df6ecd89de4"
+    }
+  },
+  "repository": {
+    "name": "dwp-backend",
+    "branch": "codex/hris-wave7-r7-batch05-per-008-migration-control-correction-backend-20261023-r1",
+    "initialHead": "4f051e00e63525cb688fc69159a5197939e73696",
+    "initialTree": "a091c6a2a2dc687a60704feec60a4d44975c0247",
+    "dwpDevBase": "01468a404033c2a7247475f481f37c2ac40b3e3e",
+    "implementationHead": "27a86fa70f03b3b3e2e31de53a7f57db83ce4695",
+    "implementationTree": "41a62b072ed195e6c6b8ae32ea46ec5e343a5d1c",
+    "implementationOriginExactBeforeEvidenceCommit": true,
+    "exactDescendantOfRejectedCandidate": true,
+    "directDwpDevMergePerformed": false,
+    "implementationCommitStats": {
+      "files": 19,
+      "insertions": 742,
+      "deletions": 2
+    }
+  },
+  "implementation": {
+    "staging": [
+      "People Performance V20 is detected without changing migration sources and a pending stream is first advanced only through the predecessor of V20.",
+      "Bootstrap identity, strict LOGIN service-role attributes and empty role memberships are verified before the configured runtime principal receives direct CRUD on the four V1 seam tables.",
+      "The same common-DML candidate shape used by V20 must resolve exactly once and must equal environment.runtimePrincipal(); zero, multiple or different candidates fail closed.",
+      "Exact V20 is then applied and the normal caller continues through any future pending migrations.",
+      "Services, schemas or streams outside the exact People Performance boundary and classpaths without V20 remain no-op."
+    ],
+    "finalization": [
+      "DomainPrivilegeControl.normalize runs first in both People fresh and adoption-or-upgrade flows.",
+      "When V20 is applied, requests and assignments are restored to SELECT, INSERT, UPDATE only; responses and release snapshots are restored to SELECT, INSERT only.",
+      "The four PER-008 identity sequences are restored to USAGE, SELECT only.",
+      "Direct table, sequence and column ACLs are verified from PostgreSQL catalogs, PUBLIC has zero table or sequence privilege, and all eight V1/V20 tables retain ENABLE and FORCE RLS before receipt creation."
+    ],
+    "testFixture": {
+      "role": "dwp_performance_test_runtime",
+      "properties": "deterministic strict NOLOGIN role with zero memberships",
+      "grantTiming": "after hris_performance schema creation and before the first direct Flyway migration",
+      "grantMechanism": "owner-scoped ALTER DEFAULT PRIVILEGES grants direct CRUD on subsequently created V1 tables",
+      "consumerCount": 14
+    },
+    "historicalUpgradeContracts": [
+      "Per004MigrationContractTest V18-to-V19 method targets exact V19.",
+      "PerformanceReviewMigrationContractTest V17-to-V18 method targets exact V18."
+    ],
+    "migrationSourcesV1ThroughV20Changed": false,
+    "sealedPer008V20MigrationPostgresTestChanged": false,
+    "keySourceSha256": [
+      {
+        "path": "dwp-migration-control/src/main/java/com/dwp/migration/control/MigrationControlMain.java",
+        "sha256": "35da70bc35f314104ef7e71adc4aa31cb1927bfeabf2febd166602e351675a05"
+      },
+      {
+        "path": "dwp-migration-control/src/main/java/com/dwp/migration/control/PeoplePerformanceV20BoundaryControl.java",
+        "sha256": "7ac4e77ba8ba78db9c3517127ddd1de1a6d168f8a2570397518f5b030c359eb9"
+      },
+      {
+        "path": "dwp-migration-control/src/test/java/com/dwp/migration/control/PeopleMigrationControlPostgresTest.java",
+        "sha256": "6b77e929c58f661313b5824d88163bda5b694412d64803a6395ccc4c11ebf082"
+      },
+      {
+        "path": "dwp-people-server/src/test/java/com/dwp/services/people/hris/performance/support/PerformanceMigrationRuntimeRoleFixture.java",
+        "sha256": "6bd82418b05afab1dfa50b4b3bad2c11abd13757849a393de96cd17679685f03"
+      }
+    ]
+  },
+  "verification": {
+    "policy": "Each authorized affected target was run once. After a failure, only the smallest failed selector was rerun after its correction. The already passing 56 tests from the grouped current-head run were retained and were not repeated. No repository-wide suite was run.",
+    "executionAccounting": [
+      {
+        "sequence": 1,
+        "target": "MigrationControlMainTest",
+        "command": "./gradlew :dwp-migration-control:test --tests 'com.dwp.migration.control.MigrationControlMainTest' --no-daemon",
+        "tests": 17,
+        "passed": 17,
+        "build": "SUCCESSFUL",
+        "durationSeconds": 9
+      },
+      {
+        "sequence": 2,
+        "target": "PeopleMigrationControlPostgresTest initial bounded diagnostic",
+        "command": "./gradlew :dwp-migration-control:test --tests 'com.dwp.migration.control.PeopleMigrationControlPostgresTest' --no-daemon",
+        "tests": 2,
+        "passed": 0,
+        "failed": 2,
+        "failure": "The verifier used information_schema.column_privileges, which expands table grants per column and therefore could not prove explicit column ACL absence.",
+        "correction": "Use pg_attribute.attacl with aclexplode for direct column ACL inspection.",
+        "rerunAsClass": false
+      },
+      {
+        "sequence": 3,
+        "target": "People fresh exact selector",
+        "command": "./gradlew :dwp-migration-control:test --tests 'com.dwp.migration.control.PeopleMigrationControlPostgresTest.peopleFreshRunSealsBothStreamsAndMetadataReader' --no-daemon",
+        "tests": 1,
+        "passed": 1,
+        "build": "SUCCESSFUL",
+        "durationSeconds": 17
+      },
+      {
+        "sequence": 4,
+        "target": "People adoption pending-V20 exact selector",
+        "command": "./gradlew :dwp-migration-control:test --tests 'com.dwp.migration.control.PeopleMigrationControlPostgresTest.adoptionPendingV20AttestsConfiguredRuntimeAndReconcilesFinalAcl' --no-daemon",
+        "tests": 1,
+        "passed": 1,
+        "build": "SUCCESSFUL",
+        "durationSeconds": 6
+      },
+      {
+        "sequence": 5,
+        "target": "sealed Per008V20MigrationPostgresTest first attempt",
+        "command": "./gradlew :dwp-people-server:test --tests 'com.dwp.services.people.hris.performance.per008.Per008V20MigrationPostgresTest' --no-daemon",
+        "testsExecuted": 0,
+        "build": "FAILED_AT_COMPILE_TEST_JAVA",
+        "failure": "PopulationFreezePostgresTest fixture wiring referenced a nonexistent adminDataSource variable.",
+        "correction": "Pass its existing testDataSource to the shared fixture.",
+        "rerunAsSameSmallestSelector": true
+      },
+      {
+        "sequence": 6,
+        "target": "sealed Per008V20MigrationPostgresTest",
+        "command": "./gradlew :dwp-people-server:test --tests 'com.dwp.services.people.hris.performance.per008.Per008V20MigrationPostgresTest' --no-daemon",
+        "tests": 3,
+        "passed": 3,
+        "build": "SUCCESSFUL",
+        "durationSeconds": 18
+      },
+      {
+        "sequence": 7,
+        "target": "Performance shared RLS exact selector",
+        "command": "./gradlew :dwp-people-server:test --tests 'com.dwp.services.people.hr.performance.compensationplanning.PerformanceSharedRlsReadinessPostgresTest.forceRlsReadinessCoversCatalogRefetchDispatcherLifecycleAndToctou' --no-daemon",
+        "tests": 1,
+        "passed": 1,
+        "build": "SUCCESSFUL",
+        "durationSeconds": 13
+      },
+      {
+        "sequence": 8,
+        "target": "14 current-head Performance PostgreSQL fixture consumers",
+        "command": "./gradlew :dwp-people-server:test --no-daemon with the exact 14 class selectors authorized by v2",
+        "classes": 14,
+        "tests": 58,
+        "passed": 56,
+        "failed": 2,
+        "failure": "Two historical one-step upgrade tests used latest/null and therefore also executed later V19/V20 migrations.",
+        "alreadyPassingTestsRepeated": false,
+        "durationSeconds": 51
+      },
+      {
+        "sequence": 9,
+        "target": "v3 exact two historical upgrade selectors",
+        "command": "./gradlew :dwp-people-server:test --no-daemon --tests 'com.dwp.services.people.hris.performance.per004.Per004MigrationContractTest.v18UpgradePreservesCompensationAndEnforcesPerDateMappingsAndImmutability' --tests 'com.dwp.services.people.hris.performance.review.PerformanceReviewMigrationContractTest.upgradesV17ToV18WithoutChangingV17ChecksumOrCompensationData'",
+        "tests": 2,
+        "passed": 2,
+        "failures": 0,
+        "errors": 0,
+        "build": "SUCCESSFUL",
+        "durationSeconds": 18
+      }
+    ],
+    "latestLocalXml": [
+      {
+        "path": "dwp-migration-control/build/test-results/test/TEST-com.dwp.migration.control.PeopleMigrationControlPostgresTest.xml",
+        "sha256": "d800d20b28ae1d65bc5a0c9399e8a369b4f2bf506768c28016e7682e702d025d",
+        "bytes": 7531,
+        "tests": 1,
+        "failures": 0,
+        "repositoryArtifact": false,
+        "note": "Latest XML is the adoption selector; the earlier fresh selector result was overwritten by the authorized later run."
+      },
+      {
+        "path": "dwp-people-server/build/test-results/test/TEST-com.dwp.services.people.hris.performance.per004.Per004MigrationContractTest.xml",
+        "sha256": "22b8a3b60e2c7080f4f4c3f404980e41cec3ec4e51cf29417c975c0c2e8ef962",
+        "bytes": 6845,
+        "tests": 1,
+        "failures": 0,
+        "repositoryArtifact": false
+      },
+      {
+        "path": "dwp-people-server/build/test-results/test/TEST-com.dwp.services.people.hris.performance.review.PerformanceReviewMigrationContractTest.xml",
+        "sha256": "922450fb0b71c89bc68163831ee4a61452590bf9da88adfc6253249390cef429",
+        "bytes": 6700,
+        "tests": 1,
+        "failures": 0,
+        "repositoryArtifact": false
+      }
+    ],
+    "staticChecks": {
+      "gitDiffCheck": "PASS",
+      "exactWritableBoundary": "PASS",
+      "outsideWritableBoundaryChanges": 0,
+      "repositoryWideSuiteRun": false
+    },
+    "independentReview": {
+      "reviewer": "/root/per008_frontend_design_review follow-up backend review",
+      "scope": "27a86fa7 versus 4f051e00 plus v1/v2/v3 authority, V20 source and affected tests",
+      "method": "READ_ONLY_STATIC_AND_EXISTING_TARGET_EVIDENCE_REVIEW",
+      "p0": 0,
+      "p1": 0,
+      "p2": 0,
+      "decision": "SOURCE_GO",
+      "broadTestsRerunByReviewer": false
+    },
+    "accountingConclusion": {
+      "allAuthorizedTargetAreasAccounted": true,
+      "failedTargetsClosedBySmallestSelectorRuns": true,
+      "passing56GroupedTestsRetainedWithoutRepetition": true,
+      "finalSuccessfulTestExecutionsAcrossRecordedPassingRuns": 81,
+      "uniquePassingTests": 80,
+      "intentionalSelectorOverlap": "The required shared-RLS method was also part of the separately authorized 14-class current-head fixture-consumer run.",
+      "finalSourceReviewP0P1P2Zero": true,
+      "finalResult": "PASS"
+    }
+  },
+  "changedPathBoundary": {
+    "v1ProductionAndMigrationControlTests": [
+      "dwp-migration-control/src/main/java/com/dwp/migration/control/MigrationControlMain.java",
+      "dwp-migration-control/src/main/java/com/dwp/migration/control/PeoplePerformanceV20BoundaryControl.java",
+      "dwp-migration-control/src/test/java/com/dwp/migration/control/MigrationControlMainTest.java",
+      "dwp-migration-control/src/test/java/com/dwp/migration/control/PeopleMigrationControlPostgresTest.java"
+    ],
+    "v2SharedFixtureAndConsumers": [
+      "dwp-people-server/src/test/java/com/dwp/services/people/hris/performance/support/PerformanceMigrationRuntimeRoleFixture.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hr/performance/PerformanceCyclePostgresTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hr/performance/compensationplanning/ApprovedCompensationPlanSnapshotPublicationPostgresTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hr/performance/compensationplanning/CompensationPlanningBudgetInvariantPostgresTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hr/performance/compensationplanning/CompensationPlanningEventHandoffWorkerPostgresTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hr/performance/compensationplanning/CompensationPlanningMigrationContractTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hr/performance/compensationplanning/PerformanceSharedRlsReadinessPostgresTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hr/performance/populationfreeze/PopulationFreezePostgresTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hr/performance/typedartifact/PerTypedArtifactRepositoryPostgresTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hris/performance/per004/Per004MigrationContractTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hris/performance/per004/Per004OwnerPostgresTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hris/performance/review/PerformanceReviewMigrationContractTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hris/performance/review/PerformanceReviewPostgresTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hris/performance/workforce/PerformanceMigrationCleanUpgradeTest.java",
+      "dwp-people-server/src/test/java/com/dwp/services/people/hris/performance/workforce/PerformanceWorkerRecoveryTest.java"
+    ],
+    "v3Edits": [
+      "Per004MigrationContractTest exact named selector null target to V19 only",
+      "PerformanceReviewMigrationContractTest exact named selector null target to V18 only"
+    ],
+    "evidenceCreateOnly": [
+      "docs/06-delivery/hris/wave7-2026-10-17/r7-batch-05-results/per-008/per-008-migration-control-correction-result.v1.json"
+    ],
+    "outsideBoundaryChanges": 0
+  },
+  "nonClaims": [
+    "No direct dwp-dev merge or central admission is performed.",
+    "No route or menu mounting, feature activation, tenant enrollment or runtime activation is performed.",
+    "No V1 through V20 migration source is changed.",
+    "No repository-wide test suite is run.",
+    "The rejected 4f051e00 candidate is not admitted separately; only this exact corrected descendant is eligible for a later central decision."
+  ],
+  "decision": "CORRECTION_IMPLEMENTATION_COMMITTED_PUSHED_SOURCE_GO_CENTRAL_ADMISSION_REQUIRED"
+}

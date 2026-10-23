@@ -58,6 +58,8 @@ class PopulationFreezePostgresTest {
         plainJdbc = new JdbcTemplate(testDataSource);
         plainJdbc.execute("DROP SCHEMA IF EXISTS hris_performance CASCADE");
         plainJdbc.execute("CREATE SCHEMA hris_performance");
+        com.dwp.services.people.hris.performance.support
+                .PerformanceMigrationRuntimeRoleFixture.prepare(testDataSource);
         Flyway.configure(getClass().getClassLoader())
                 .dataSource(testDataSource)
                 .locations("classpath:db/performance-migration")

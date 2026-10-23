@@ -121,7 +121,7 @@ class PerformanceReviewMigrationContractTest {
                  WHERE version = '17' AND success
                 """, Integer.class);
 
-        assertThat(flyway(dataSource, null).migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(flyway(dataSource, "18").migrate().migrationsExecuted).isEqualTo(1);
 
         assertThat(jdbc.queryForObject("""
                 SELECT checksum
@@ -199,6 +199,8 @@ class PerformanceReviewMigrationContractTest {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         jdbc.execute("DROP SCHEMA IF EXISTS hris_performance CASCADE");
         jdbc.execute("CREATE SCHEMA hris_performance");
+        com.dwp.services.people.hris.performance.support
+                .PerformanceMigrationRuntimeRoleFixture.prepare(dataSource);
     }
 
     private static Flyway flyway(DataSource dataSource, String target) {

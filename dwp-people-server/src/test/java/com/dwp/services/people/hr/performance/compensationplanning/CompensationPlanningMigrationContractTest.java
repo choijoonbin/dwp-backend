@@ -76,6 +76,8 @@ class CompensationPlanningMigrationContractTest {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         jdbc.execute("DROP SCHEMA IF EXISTS hris_performance CASCADE");
         jdbc.execute("CREATE SCHEMA hris_performance");
+        com.dwp.services.people.hris.performance.support
+                .PerformanceMigrationRuntimeRoleFixture.prepare(dataSource);
 
         flyway(dataSource, "16").migrate();
         assertThat(jdbc.queryForList("""

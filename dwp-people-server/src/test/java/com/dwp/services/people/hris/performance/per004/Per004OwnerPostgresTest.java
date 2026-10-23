@@ -61,6 +61,8 @@ class Per004OwnerPostgresTest {
         jdbc = new JdbcTemplate(source);
         jdbc.execute("DROP SCHEMA IF EXISTS hris_performance CASCADE");
         jdbc.execute("CREATE SCHEMA hris_performance");
+        com.dwp.services.people.hris.performance.support
+                .PerformanceMigrationRuntimeRoleFixture.prepare(source);
         Flyway.configure(getClass().getClassLoader()).dataSource(source)
                 .locations("classpath:db/performance-migration")
                 .defaultSchema("hris_performance").schemas("hris_performance")

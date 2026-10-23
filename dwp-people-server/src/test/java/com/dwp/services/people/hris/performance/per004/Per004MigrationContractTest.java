@@ -63,7 +63,7 @@ class Per004MigrationContractTest {
                 """, Integer.class);
         UUID compensation = insertArtifact(source, "COMPENSATION_GUIDELINES",
                 "COMPENSATION_CYCLE", true);
-        assertThat(flyway(source, null).migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(flyway(source, "19").migrate().migrationsExecuted).isEqualTo(1);
         assertThat(jdbc.queryForObject("""
                 SELECT checksum FROM hris_performance.flyway_performance_schema_history
                  WHERE version = '18' AND success
@@ -222,6 +222,8 @@ class Per004MigrationContractTest {
         JdbcTemplate jdbc = new JdbcTemplate(source);
         jdbc.execute("DROP SCHEMA IF EXISTS hris_performance CASCADE");
         jdbc.execute("CREATE SCHEMA hris_performance");
+        com.dwp.services.people.hris.performance.support
+                .PerformanceMigrationRuntimeRoleFixture.prepare(source);
     }
     private static Flyway flyway(DataSource source, String target) {
         var configuration = Flyway.configure(Per004MigrationContractTest.class.getClassLoader())

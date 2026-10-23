@@ -305,6 +305,32 @@ class MigrationControlMainTest {
     }
 
     @Test
+    void per008BoundaryControlMatchesOnlyTheExactPeoplePerformanceStream() {
+        ControlEnvironment people = peopleEnvironment(
+                ControlEnvironment.Mode.PEOPLE_FRESH,
+                Map.of(), "", Map.of(), "");
+        StreamPlan primary = people.plan().streams().get(0);
+        StreamPlan performance = people.plan().streams().get(1);
+
+        assertEquals(false,
+                PeoplePerformanceV20BoundaryControl.appliesTo(people, primary));
+        assertEquals(true,
+                PeoplePerformanceV20BoundaryControl.appliesTo(people, performance));
+        assertEquals("20", PeoplePerformanceV20BoundaryControl.VERSION);
+        assertEquals(false, PeoplePerformanceV20BoundaryControl.appliesTo(
+                environment(Map.of(), ""), performance));
+        assertEquals(false, PeoplePerformanceV20BoundaryControl.appliesTo(
+                people,
+                new StreamPlan(
+                        "people-performance",
+                        "public",
+                        "flyway_performance_schema_history",
+                        "classpath:db/performance-migration",
+                        false,
+                        false)));
+    }
+
+    @Test
     void timeControlDeclaresOnlyRuntimeRowLockColumnUpdates() {
         assertEquals(
                 Set.of(
