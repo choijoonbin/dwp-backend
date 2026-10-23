@@ -20,7 +20,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -125,28 +127,35 @@ class CompensationPlanningEventHandoffWorker {
     int handoffOnce() {
         if (!enabled) return 0;
         int delivered = 0;
-        for (CompensationPlanningEventHandoffRepository.ClaimedEvent event
-                : repository.claim(
-                        workerId, batchSize, visibilityLease,
-                        AGGREGATE_TYPES)) {
-            try {
-                Boolean completed = transaction.execute(status -> {
-                    recorder.record(envelope(event));
-                    afterRecordHook.accept(event);
-                    if (!repository.markDelivered(event)) {
-                        throw new StaleHandoffClaimException(event.eventId());
-                    }
-                    return Boolean.TRUE;
-                });
-                if (Boolean.TRUE.equals(completed)) delivered++;
-            } catch (InvalidPerformanceEventException exception) {
-                persistFailure(event, false, exception);
-            } catch (StaleHandoffClaimException exception) {
-                log.info(
-                        "Ignored stale compensation event handoff outcome for {} attempt {}",
-                        event.eventId(), event.deliveryAttempt());
-            } catch (RuntimeException exception) {
-                persistFailure(event, true, exception);
+        int remaining = batchSize;
+        for (long tenantId : repository.activeTenantIds()) {
+            if (remaining == 0) break;
+            int tenantBatchSize = remaining;
+            List<CompensationPlanningEventHandoffRepository.ClaimedEvent> claimed =
+                    Objects.requireNonNull(transaction.execute(ignored -> repository.claim(
+                            tenantId, workerId, tenantBatchSize, visibilityLease,
+                            AGGREGATE_TYPES)));
+            remaining -= claimed.size();
+            for (CompensationPlanningEventHandoffRepository.ClaimedEvent event : claimed) {
+                try {
+                    Boolean completed = transaction.execute(status -> {
+                        recorder.record(envelope(event));
+                        afterRecordHook.accept(event);
+                        if (!repository.markDelivered(event)) {
+                            throw new StaleHandoffClaimException(event.eventId());
+                        }
+                        return Boolean.TRUE;
+                    });
+                    if (Boolean.TRUE.equals(completed)) delivered++;
+                } catch (InvalidPerformanceEventException exception) {
+                    persistFailure(event, false, exception);
+                } catch (StaleHandoffClaimException exception) {
+                    log.info(
+                            "Ignored stale compensation event handoff outcome for {} attempt {}",
+                            event.eventId(), event.deliveryAttempt());
+                } catch (RuntimeException exception) {
+                    persistFailure(event, true, exception);
+                }
             }
         }
         return delivered;

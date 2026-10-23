@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -22,11 +24,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers(disabledWithoutDocker = true)
 class PerformanceCyclePostgresTest {
 
+    private static final String RUNTIME_ROLE = "prf_cycle_rls_runtime";
+    private static final String RUNTIME_PASSWORD = "prf-cycle-runtime-password";
+    private static final String MIGRATION_ROLE = "prf_cycle_rls_migration";
+    private static final List<String> PROTECTED_TABLES = List.of(
+            "prf_cycles",
+            "prf_cycle_versions",
+            "prf_command_receipts",
+            "prf_outbox_events");
+
     @Container
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
             System.getenv().getOrDefault("DWP_TEST_POSTGRES_IMAGE", "postgres:16-alpine"));
 
     private final long tenantId = 501L;
+    private DataSource adminDataSource;
     private NamedParameterJdbcTemplate jdbc;
     private JdbcTemplate plainJdbc;
     private PerformanceCycleQueryRepository queries;
@@ -34,12 +46,12 @@ class PerformanceCyclePostgresTest {
 
     @BeforeEach
     void migrateIsolatedPerformanceSchema() {
-        DataSource dataSource = dataSource();
-        plainJdbc = new JdbcTemplate(dataSource);
+        adminDataSource = dataSource();
+        plainJdbc = new JdbcTemplate(adminDataSource);
         plainJdbc.execute("DROP SCHEMA IF EXISTS hris_performance CASCADE");
         plainJdbc.execute("CREATE SCHEMA hris_performance");
         Flyway.configure(getClass().getClassLoader())
-                .dataSource(dataSource)
+                .dataSource(adminDataSource)
                 .locations("classpath:db/performance-migration")
                 .defaultSchema("hris_performance")
                 .schemas("hris_performance")
@@ -47,10 +59,108 @@ class PerformanceCyclePostgresTest {
                 .validateOnMigrate(true)
                 .load()
                 .migrate();
-        jdbc = new NamedParameterJdbcTemplate(dataSource);
+        jdbc = new NamedParameterJdbcTemplate(adminDataSource);
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         queries = new PerformanceCycleQueryRepository(jdbc, objectMapper);
         commands = new PerformanceCycleCommandRepository(jdbc, objectMapper);
+    }
+
+    @Test
+    void futureForceRlsProtectsCycleAccessAndKeepsOwnerTriggersFunctional() {
+        installFutureRlsFixture();
+        assertFutureRlsCatalogBoundary();
+
+        DataSource runtimeDataSource = dataSource(RUNTIME_ROLE, RUNTIME_PASSWORD);
+        JdbcTemplate runtimeJdbc = new JdbcTemplate(runtimeDataSource);
+        NamedParameterJdbcTemplate runtimeNamed =
+                new NamedParameterJdbcTemplate(runtimeDataSource);
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        PerformanceCycleQueryRepository runtimeQueries =
+                new PerformanceCycleQueryRepository(runtimeNamed, objectMapper);
+        PerformanceCycleCommandRepository runtimeCommands =
+                new PerformanceCycleCommandRepository(runtimeNamed, objectMapper);
+        TransactionTemplate runtimeTransaction = new TransactionTemplate(
+                new DataSourceTransactionManager(runtimeDataSource));
+
+        UUID cycleId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        UUID previewId = UUID.randomUUID();
+        PerformanceCycleDtos.CreateCycleRequest create = createRequest();
+        PerformanceCycleDtos.PreviewMember member = new PerformanceCycleDtos.PreviewMember(
+                UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", UUID.randomUUID(),
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "INCLUDED");
+        PerformanceParticipantPreviewService.PreparedPreview prepared =
+                new PerformanceParticipantPreviewService.PreparedPreview(
+                        UUID.randomUUID(), 73L, create.populationRuleVersionId(),
+                        "d".repeat(64), List.of(member));
+
+        runtimeTransaction.executeWithoutResult(status -> {
+            runtimeQueries.bindTenant(tenantId);
+            runtimeCommands.create(
+                    tenantId, 10L, cycleId, versionId, create,
+                    create.stages(), "a".repeat(64));
+            assertThat(runtimeQueries.cycle(tenantId, cycleId)).isPresent();
+            assertThat(runtimeCommands.createPreview(
+                    tenantId, 10L, previewId, versionId, 1L,
+                    prepared, Instant.now().plusSeconds(3_600)))
+                    .isEqualTo(previewId);
+        });
+
+        assertThat(plainJdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM hris_performance.prf_review_operation_history
+                 WHERE tenant_id = ? AND cycle_id = ?
+                """, Integer.class, tenantId, cycleId)).isGreaterThan(0);
+        assertThat(runtimeJdbc.queryForObject("""
+                SELECT COUNT(*) FROM hris_performance.prf_cycles
+                """, Integer.class)).isZero();
+
+        Integer sameTenantVisible = runtimeTransaction.execute(status -> {
+            runtimeQueries.bindTenant(tenantId);
+            return runtimeJdbc.queryForObject(
+                    "SELECT COUNT(*) FROM hris_performance.prf_cycles",
+                    Integer.class);
+        });
+        assertThat(sameTenantVisible).isOne();
+
+        Integer wrongTenantVisible = runtimeTransaction.execute(status -> {
+            runtimeQueries.bindTenant(tenantId + 1);
+            return runtimeJdbc.queryForObject(
+                    "SELECT COUNT(*) FROM hris_performance.prf_cycles",
+                    Integer.class);
+        });
+        assertThat(wrongTenantVisible).isZero();
+
+        Integer crossTenantUpdates = runtimeTransaction.execute(status -> {
+            runtimeQueries.bindTenant(tenantId + 1);
+            return runtimeJdbc.update("""
+                    UPDATE hris_performance.prf_cycles
+                       SET display_name = 'cross-tenant-write'
+                     WHERE tenant_id = ? AND cycle_id = ?
+                    """, tenantId, cycleId);
+        });
+        assertThat(crossTenantUpdates).isZero();
+
+        TransactionTemplate ownerTransaction = new TransactionTemplate(
+                new DataSourceTransactionManager(adminDataSource));
+        Integer ownerWithoutContext = ownerTransaction.execute(status -> {
+            plainJdbc.execute("SET LOCAL ROLE " + MIGRATION_ROLE);
+            return plainJdbc.queryForObject(
+                    "SELECT COUNT(*) FROM hris_performance.prf_cycles",
+                    Integer.class);
+        });
+        assertThat(ownerWithoutContext).isZero();
+        Integer ownerWithContext = ownerTransaction.execute(status -> {
+            plainJdbc.execute("SET LOCAL ROLE " + MIGRATION_ROLE);
+            String applied = plainJdbc.queryForObject(
+                    "SELECT set_config('dwp.tenant_id', ?, TRUE)",
+                    String.class, Long.toString(tenantId));
+            assertThat(applied).isEqualTo(Long.toString(tenantId));
+            return plainJdbc.queryForObject(
+                    "SELECT COUNT(*) FROM hris_performance.prf_cycles",
+                    Integer.class);
+        });
+        assertThat(ownerWithContext).isOne();
     }
 
     @Test
@@ -301,11 +411,112 @@ class PerformanceCyclePostgresTest {
                 true, Map.of("mode", "SELF"));
     }
 
+    private void installFutureRlsFixture() {
+        plainJdbc.execute("CREATE ROLE " + MIGRATION_ROLE
+                + " NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS");
+        plainJdbc.execute("CREATE ROLE " + RUNTIME_ROLE + " LOGIN PASSWORD '"
+                + RUNTIME_PASSWORD
+                + "' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS");
+        plainJdbc.execute("GRANT USAGE, CREATE ON SCHEMA hris_performance TO "
+                + MIGRATION_ROLE);
+        plainJdbc.execute("GRANT USAGE ON SCHEMA hris_performance TO " + RUNTIME_ROLE);
+        plainJdbc.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "
+                + "hris_performance TO " + MIGRATION_ROLE + ", " + RUNTIME_ROLE);
+        plainJdbc.execute("GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA "
+                + "hris_performance TO " + MIGRATION_ROLE + ", " + RUNTIME_ROLE);
+
+        for (String table : PROTECTED_TABLES) {
+            String qualified = "hris_performance." + table;
+            plainJdbc.execute("ALTER TABLE " + qualified + " OWNER TO " + MIGRATION_ROLE);
+            plainJdbc.execute("ALTER TABLE " + qualified + " ENABLE ROW LEVEL SECURITY");
+            plainJdbc.execute("ALTER TABLE " + qualified + " FORCE ROW LEVEL SECURITY");
+            plainJdbc.execute("CREATE POLICY future_tenant_isolation ON " + qualified + " "
+                    + "USING (tenant_id = NULLIF(current_setting('dwp.tenant_id', TRUE), '')::BIGINT) "
+                    + "WITH CHECK (tenant_id = NULLIF(current_setting('dwp.tenant_id', TRUE), '')::BIGINT)");
+        }
+
+        plainJdbc.execute("ALTER FUNCTION hris_performance."
+                + "prf_serialize_population_preview() OWNER TO " + MIGRATION_ROLE);
+        plainJdbc.execute("ALTER FUNCTION hris_performance."
+                + "prf_capture_review_operation_trigger() OWNER TO " + MIGRATION_ROLE);
+        plainJdbc.execute("GRANT EXECUTE ON FUNCTION hris_performance."
+                + "prf_capture_review_operation(BIGINT, UUID) TO " + MIGRATION_ROLE);
+        plainJdbc.execute("REVOKE ALL ON FUNCTION hris_performance."
+                + "prf_serialize_population_preview() FROM PUBLIC, " + RUNTIME_ROLE);
+        plainJdbc.execute("REVOKE ALL ON FUNCTION hris_performance."
+                + "prf_capture_review_operation_trigger() FROM PUBLIC, " + RUNTIME_ROLE);
+    }
+
+    private void assertFutureRlsCatalogBoundary() {
+        assertThat(plainJdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pg_catalog.pg_class relation
+                  JOIN pg_catalog.pg_namespace namespace
+                    ON namespace.oid = relation.relnamespace
+                  JOIN pg_catalog.pg_roles owner_role
+                    ON owner_role.oid = relation.relowner
+                 WHERE namespace.nspname = 'hris_performance'
+                   AND relation.relname IN (
+                       'prf_cycles', 'prf_cycle_versions',
+                       'prf_command_receipts', 'prf_outbox_events')
+                   AND relation.relrowsecurity
+                   AND relation.relforcerowsecurity
+                   AND owner_role.rolname = ?
+                """, Integer.class, MIGRATION_ROLE)).isEqualTo(4);
+        assertThat(plainJdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pg_catalog.pg_policies
+                 WHERE schemaname = 'hris_performance'
+                   AND tablename IN (
+                       'prf_cycles', 'prf_cycle_versions',
+                       'prf_command_receipts', 'prf_outbox_events')
+                   AND policyname = 'future_tenant_isolation'
+                   AND qual = with_check
+                   AND qual LIKE '%current_setting%'
+                """, Integer.class)).isEqualTo(4);
+        assertThat(plainJdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pg_catalog.pg_roles
+                 WHERE rolname IN (?, ?)
+                   AND NOT rolsuper
+                   AND NOT rolbypassrls
+                """, Integer.class, RUNTIME_ROLE, MIGRATION_ROLE)).isEqualTo(2);
+        assertThat(plainJdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pg_catalog.pg_proc routine
+                  JOIN pg_catalog.pg_namespace namespace
+                    ON namespace.oid = routine.pronamespace
+                  JOIN pg_catalog.pg_roles owner_role
+                    ON owner_role.oid = routine.proowner
+                 WHERE namespace.nspname = 'hris_performance'
+                   AND routine.proname IN (
+                       'prf_serialize_population_preview',
+                       'prf_capture_review_operation_trigger')
+                   AND routine.prosecdef
+                   AND owner_role.rolname = ?
+                """, Integer.class, MIGRATION_ROLE)).isEqualTo(2);
+        assertThat(plainJdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pg_catalog.pg_proc routine
+                  JOIN pg_catalog.pg_namespace namespace
+                    ON namespace.oid = routine.pronamespace
+                 WHERE namespace.nspname = 'hris_performance'
+                   AND routine.proname IN (
+                       'prf_serialize_population_preview',
+                       'prf_capture_review_operation_trigger')
+                   AND pg_catalog.has_function_privilege(?, routine.oid, 'EXECUTE')
+                """, Integer.class, RUNTIME_ROLE)).isZero();
+    }
+
     private DataSource dataSource() {
+        return dataSource(POSTGRES.getUsername(), POSTGRES.getPassword());
+    }
+
+    private DataSource dataSource(String username, String password) {
         PGSimpleDataSource dataSource = new PGSimpleDataSource();
         dataSource.setURL(POSTGRES.getJdbcUrl());
-        dataSource.setUser(POSTGRES.getUsername());
-        dataSource.setPassword(POSTGRES.getPassword());
+        dataSource.setUser(username);
+        dataSource.setPassword(password);
         return dataSource;
     }
 }
