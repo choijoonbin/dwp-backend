@@ -251,6 +251,7 @@ public final class MigrationControlMain {
         applyTemporaryMigrations(environment, primary);
 
         for (StreamPlan stream : environment.plan().streams()) {
+            PeoplePerformanceV20BoundaryControl.stagePendingV20(environment, stream);
             Flyway flyway = FlywayControl.load(
                     environment,
                     stream,
@@ -261,6 +262,8 @@ public final class MigrationControlMain {
             transactional(bootstrap, () -> {
                 DatabaseControl.revokeTemporary(bootstrap, environment);
                 DomainPrivilegeControl.normalize(bootstrap, environment);
+                PeoplePerformanceV20BoundaryControl.restoreAndVerifyFinalBoundary(
+                        bootstrap, environment);
             });
             DatabaseControl.requireTemporaryDenied(bootstrap, environment);
         }
@@ -321,6 +324,7 @@ public final class MigrationControlMain {
         preparePrimaryMigrations(
                 environment, environment.plan().streams().getFirst());
         for (StreamPlan stream : environment.plan().streams()) {
+            PeoplePerformanceV20BoundaryControl.stagePendingV20(environment, stream);
             Flyway flyway = FlywayControl.load(
                     environment,
                     stream,
@@ -338,6 +342,8 @@ public final class MigrationControlMain {
                             bootstrap, environment);
                 }
                 DomainPrivilegeControl.normalize(bootstrap, environment);
+                PeoplePerformanceV20BoundaryControl.restoreAndVerifyFinalBoundary(
+                        bootstrap, environment);
                 if ("notification".equals(environment.plan().service())) {
                     NotificationAuthorityControl.requireFinalRuntimeRoleState(
                             bootstrap, environment);

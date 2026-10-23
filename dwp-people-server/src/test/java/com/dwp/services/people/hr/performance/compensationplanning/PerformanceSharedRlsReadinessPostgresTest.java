@@ -109,6 +109,8 @@ class PerformanceSharedRlsReadinessPostgresTest {
         adminJdbc = new JdbcTemplate(adminDataSource);
         adminJdbc.execute("DROP SCHEMA IF EXISTS hris_performance CASCADE");
         adminJdbc.execute("CREATE SCHEMA hris_performance");
+        com.dwp.services.people.hris.performance.support
+                .PerformanceMigrationRuntimeRoleFixture.prepare(adminDataSource);
         Flyway.configure(getClass().getClassLoader())
                 .dataSource(adminDataSource)
                 .locations("classpath:db/performance-migration")

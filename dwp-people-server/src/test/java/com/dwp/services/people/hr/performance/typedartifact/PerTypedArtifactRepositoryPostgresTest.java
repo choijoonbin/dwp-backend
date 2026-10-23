@@ -4,6 +4,7 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -32,6 +33,10 @@ class PerTypedArtifactRepositoryPostgresTest {
         dataSource.setUrl(POSTGRES.getJdbcUrl());
         dataSource.setUser(POSTGRES.getUsername());
         dataSource.setPassword(POSTGRES.getPassword());
+        new JdbcTemplate(dataSource).execute(
+                "CREATE SCHEMA IF NOT EXISTS hris_performance");
+        com.dwp.services.people.hris.performance.support
+                .PerformanceMigrationRuntimeRoleFixture.prepare(dataSource);
         Flyway.configure(PerTypedArtifactRepositoryPostgresTest.class.getClassLoader())
                 .dataSource((DataSource) dataSource)
                 .locations("classpath:db/performance-migration")

@@ -28,6 +28,8 @@ class PerformanceMigrationCleanUpgradeTest {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         jdbc.execute("DROP SCHEMA IF EXISTS " + SCHEMA + " CASCADE");
         jdbc.execute("CREATE SCHEMA " + SCHEMA);
+        com.dwp.services.people.hris.performance.support
+                .PerformanceMigrationRuntimeRoleFixture.prepare(dataSource);
 
         Flyway.configure(getClass().getClassLoader())
                 .dataSource(dataSource)

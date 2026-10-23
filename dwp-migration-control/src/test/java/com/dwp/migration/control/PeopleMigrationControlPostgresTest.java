@@ -146,6 +146,7 @@ class PeopleMigrationControlPostgresTest {
 
             try (Connection admin = connection(
                     postgres.getJdbcUrl(), ADMIN, ADMIN_PASSWORD)) {
+                assertPer008FinalBoundary(admin);
                 assertEquals(0L, DatabaseControl.scalarLong(admin, """
                         SELECT CASE WHEN pg_catalog.has_function_privilege(
                             'dwp_people_runtime',
@@ -184,6 +185,207 @@ class PeopleMigrationControlPostgresTest {
                             receipt.toJson(),
                             receipt.receiptSha256()));
         }
+    }
+
+    @Test
+    void adoptionPendingV20AttestsConfiguredRuntimeAndReconcilesFinalAcl()
+            throws Exception {
+        try (PostgreSQLContainer<?> postgres =
+                new PostgreSQLContainer<>("postgres:18.4-alpine")
+                        .withDatabaseName(DATABASE)
+                        .withUsername(ADMIN)
+                        .withPassword(ADMIN_PASSWORD)) {
+            postgres.start();
+            provision(postgres);
+            Path throughV19 = stage(
+                    "people-performance-v19",
+                    "dwp-people-server/src/main/resources/db/performance-migration",
+                    false);
+            Files.delete(throughV19.resolve("V20__per_base_tfr_per_008.sql"));
+            Path throughV20 = stage(
+                    "people-performance-v20",
+                    "dwp-people-server/src/main/resources/db/performance-migration",
+                    false);
+
+            StreamPlan v19Stream = performanceStream(throughV19);
+            ControlEnvironment v19Environment = performanceEnvironment(
+                    postgres, v19Stream, ControlEnvironment.Mode.ADOPT_OR_UPGRADE);
+            assertEquals(
+                    false,
+                    PeoplePerformanceV20BoundaryControl.stagePendingV20(
+                            v19Environment, v19Stream));
+            FlywayControl.migrateAndValidate(FlywayControl.load(
+                    v19Environment, v19Stream, null));
+
+            StreamPlan v20Stream = performanceStream(throughV20);
+            ControlEnvironment v20Environment = performanceEnvironment(
+                    postgres, v20Stream, ControlEnvironment.Mode.ADOPT_OR_UPGRADE);
+            try (Connection admin = connection(
+                    postgres.getJdbcUrl(), ADMIN, ADMIN_PASSWORD)) {
+                DatabaseControl.execute(admin, """
+                        CREATE ROLE per008_unexpected_runtime
+                        NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+                        NOREPLICATION NOBYPASSRLS
+                        """);
+                DatabaseControl.execute(admin, """
+                        GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+                            hris_performance.prf_cycles,
+                            hris_performance.prf_cycle_versions,
+                            hris_performance.prf_command_receipts,
+                            hris_performance.prf_outbox_events
+                        TO per008_unexpected_runtime
+                        """);
+            }
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> PeoplePerformanceV20BoundaryControl.stagePendingV20(
+                            v20Environment, v20Stream));
+            try (Connection admin = connection(
+                    postgres.getJdbcUrl(), ADMIN, ADMIN_PASSWORD)) {
+                assertEquals(
+                        false,
+                        DatabaseControl.versionApplied(admin, v20Stream, "20"));
+                DatabaseControl.execute(admin, "DROP OWNED BY per008_unexpected_runtime");
+                DatabaseControl.execute(admin, "DROP ROLE per008_unexpected_runtime");
+            }
+
+            assertEquals(
+                    true,
+                    PeoplePerformanceV20BoundaryControl.stagePendingV20(
+                            v20Environment, v20Stream));
+            try (Connection admin = connection(
+                    postgres.getJdbcUrl(), ADMIN, ADMIN_PASSWORD)) {
+                DatabaseControl.execute(admin, """
+                        GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+                            hris_performance.prf_feedback_requests,
+                            hris_performance.prf_feedback_assignments,
+                            hris_performance.prf_feedback_responses,
+                            hris_performance.prf_feedback_release_snapshots
+                        TO dwp_people_runtime
+                        """);
+                DatabaseControl.execute(admin, """
+                        GRANT USAGE, SELECT, UPDATE ON SEQUENCE
+                            hris_performance.prf_feedback_requests_request_internal_id_seq,
+                            hris_performance.prf_feedback_assignments_assignment_internal_id_seq,
+                            hris_performance.prf_feedback_responses_response_internal_id_seq,
+                            hris_performance.prf_feedback_release_snapshots_snapshot_internal_id_seq
+                        TO dwp_people_runtime
+                        """);
+                admin.setAutoCommit(false);
+                try {
+                    PeoplePerformanceV20BoundaryControl.restoreAndVerifyFinalBoundary(
+                            admin, v20Environment);
+                    admin.commit();
+                } catch (Exception failure) {
+                    admin.rollback();
+                    throw failure;
+                }
+                assertPer008FinalBoundary(admin);
+            }
+        }
+    }
+
+    private static StreamPlan performanceStream(Path location) {
+        return new StreamPlan(
+                "people-performance",
+                "hris_performance",
+                "flyway_performance_schema_history",
+                "filesystem:" + location.toAbsolutePath(),
+                false,
+                false);
+    }
+
+    private static ControlEnvironment performanceEnvironment(
+            PostgreSQLContainer<?> postgres,
+            StreamPlan stream,
+            ControlEnvironment.Mode mode) {
+        ControlPlan plan = new ControlPlan(
+                "people",
+                List.of(stream),
+                null,
+                List.of(),
+                List.of(),
+                List.of());
+        return new ControlEnvironment(
+                mode,
+                plan,
+                postgres.getJdbcUrl(),
+                DATABASE,
+                ADMIN,
+                ADMIN_PASSWORD,
+                MIGRATION,
+                MIGRATION_PASSWORD,
+                RUNTIME,
+                RUNTIME_PASSWORD,
+                CONTROL_REFERENCE,
+                Map.of(),
+                "",
+                Map.of(),
+                "");
+    }
+
+    private static void assertPer008FinalBoundary(Connection connection)
+            throws SQLException {
+        for (String table : List.of(
+                "prf_feedback_requests", "prf_feedback_assignments")) {
+            for (String privilege : List.of("SELECT", "INSERT", "UPDATE")) {
+                assertEquals(1L, hasTablePrivilege(
+                        connection, RUNTIME, table, privilege));
+            }
+            for (String privilege : List.of(
+                    "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")) {
+                assertEquals(0L, hasTablePrivilege(
+                        connection, RUNTIME, table, privilege));
+            }
+        }
+        for (String table : List.of(
+                "prf_feedback_responses", "prf_feedback_release_snapshots")) {
+            for (String privilege : List.of("SELECT", "INSERT")) {
+                assertEquals(1L, hasTablePrivilege(
+                        connection, RUNTIME, table, privilege));
+            }
+            for (String privilege : List.of(
+                    "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")) {
+                assertEquals(0L, hasTablePrivilege(
+                        connection, RUNTIME, table, privilege));
+            }
+        }
+        for (String sequence : List.of(
+                "prf_feedback_requests_request_internal_id_seq",
+                "prf_feedback_assignments_assignment_internal_id_seq",
+                "prf_feedback_responses_response_internal_id_seq",
+                "prf_feedback_release_snapshots_snapshot_internal_id_seq")) {
+            for (String privilege : List.of("USAGE", "SELECT")) {
+                assertEquals(1L, hasSequencePrivilege(
+                        connection, RUNTIME, sequence, privilege));
+            }
+            assertEquals(0L, DatabaseControl.scalarLong(connection, "SELECT CASE WHEN "
+                    + "has_sequence_privilege('" + RUNTIME + "', 'hris_performance."
+                    + sequence + "', 'UPDATE') THEN 1 ELSE 0 END"));
+        }
+        assertEquals(0L, DatabaseControl.scalarLong(connection, """
+                SELECT COUNT(*)
+                  FROM information_schema.table_privileges
+                 WHERE table_schema = 'hris_performance'
+                   AND table_name IN (
+                       'prf_feedback_requests', 'prf_feedback_assignments',
+                       'prf_feedback_responses', 'prf_feedback_release_snapshots')
+                   AND grantee = 'PUBLIC'
+                """));
+        assertEquals(8L, DatabaseControl.scalarLong(connection, """
+                SELECT COUNT(*)
+                  FROM pg_catalog.pg_class relation
+                  JOIN pg_catalog.pg_namespace namespace
+                    ON namespace.oid = relation.relnamespace
+                 WHERE namespace.nspname = 'hris_performance'
+                   AND relation.relname IN (
+                       'prf_cycles', 'prf_cycle_versions',
+                       'prf_command_receipts', 'prf_outbox_events',
+                       'prf_feedback_requests', 'prf_feedback_assignments',
+                       'prf_feedback_responses', 'prf_feedback_release_snapshots')
+                   AND relation.relrowsecurity
+                   AND relation.relforcerowsecurity
+                """));
     }
 
     private Path stage(String name, String sourceDirectory, boolean coreLedger)
@@ -262,6 +464,22 @@ class PeopleMigrationControlPostgresTest {
             statement.execute(
                     "CREATE EXTENSION pgcrypto WITH SCHEMA public VERSION '1.3'");
         }
+    }
+
+    private static long hasTablePrivilege(
+            Connection connection, String role, String table, String privilege)
+            throws SQLException {
+        return DatabaseControl.scalarLong(connection, "SELECT CASE WHEN "
+                + "has_table_privilege('" + role + "', 'hris_performance."
+                + table + "', '" + privilege + "') THEN 1 ELSE 0 END");
+    }
+
+    private static long hasSequencePrivilege(
+            Connection connection, String role, String sequence, String privilege)
+            throws SQLException {
+        return DatabaseControl.scalarLong(connection, "SELECT CASE WHEN "
+                + "has_sequence_privilege('" + role + "', 'hris_performance."
+                + sequence + "', '" + privilege + "') THEN 1 ELSE 0 END");
     }
 
     private static DataSource dataSource(

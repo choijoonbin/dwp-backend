@@ -54,6 +54,8 @@ class CompensationPlanningBudgetInvariantPostgresTest {
                 new ObjectMapper().findAndRegisterModules());
         jdbc.execute("DROP SCHEMA IF EXISTS hris_performance CASCADE");
         jdbc.execute("CREATE SCHEMA hris_performance");
+        com.dwp.services.people.hris.performance.support
+                .PerformanceMigrationRuntimeRoleFixture.prepare(dataSource);
         Flyway.configure(getClass().getClassLoader())
                 .dataSource(dataSource)
                 .locations("classpath:db/performance-migration")
