@@ -630,6 +630,103 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void per008EquivalentReadsForwardOnlyTrustedFixedPurposeProjectionAndPopulation() {
+        record ReadCase(
+                String path,
+                String routeKey,
+                String purpose,
+                String fieldPolicy,
+                String scopeKind,
+                boolean sendCanonicalPurpose) { }
+        for (ReadCase read : List.of(
+                new ReadCase(
+                        "/api/people/v1/hris/performance/workbench/team-performance",
+                        "route.hcm.team.performance.data", "TEAM_MANAGEMENT",
+                        "per008.iaq-038.fields.v2", "TARGET_POPULATION", true),
+                new ReadCase(
+                        "/api/people/v1/hris/performance/feedback-assignments/mine",
+                        "route.hcm.personal.feedback-assignments-mine.data",
+                        "PERFORMANCE_FEEDBACK",
+                        "per008.feedback-assigned-list.fields.v1", "SELF", false))) {
+            GeneratedProductRouteCatalog.Match match = catalog.match("GET", read.path());
+            assertThat(match.status()).as(read.path())
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(match.routes()).as(read.path()).hasSize(2);
+            assertThat(match.uniqueRoute().routeContractKey()).isEqualTo(read.routeKey());
+            MockServerHttpRequest.BaseBuilder<?> request = MockServerHttpRequest.get(read.path())
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                    .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                            "10000000-0000-4000-8000-000000000041")
+                    .header(ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER,
+                            "client.forged.fields")
+                    .header(ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER,
+                            "CLIENT_FORGED");
+            if (read.sendCanonicalPurpose()) {
+                request.header(ProductSurfaceDecisionContextFilter.PURPOSE_HEADER,
+                        read.purpose());
+            }
+            MockServerWebExchange exchange = exchange(request);
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter(authority(allowedWave2(read.scopeKind()))).filter(exchange, filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).as(read.path()).isNotNull();
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                    .isEqualTo(read.routeKey());
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.PURPOSE_HEADER))
+                    .isEqualTo(read.purpose());
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.FIELD_POLICY_KEY_HEADER))
+                    .isEqualTo(read.fieldPolicy());
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    ProductSurfaceDecisionContextFilter.POPULATION_KIND_HEADER))
+                    .isEqualTo(read.scopeKind());
+        }
+    }
+
+    @Test
+    void per008RejectsConflictingOrDuplicatePurposesBeforeAuthority() {
+        record PurposeCase(String path, String canonical) { }
+        for (PurposeCase route : List.of(
+                new PurposeCase(
+                        "/api/people/v1/hris/performance/workbench/team-performance",
+                        "TEAM_MANAGEMENT"),
+                new PurposeCase(
+                        "/api/people/v1/hris/performance/feedback-assignments/mine",
+                        "PERFORMANCE_FEEDBACK"))) {
+            for (List<String> purposes : List.of(
+                    List.of("CLIENT_FORGED"),
+                    List.of(route.canonical(), route.canonical()))) {
+                ProductSurfaceContextAggregationService authority = authority(
+                        allowedWave2("TARGET_POPULATION"));
+                MockServerHttpRequest.BaseBuilder<?> request =
+                        MockServerHttpRequest.get(route.path())
+                                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "000")
+                                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                                .header(VerifiedIdentityFilter.TENANT_HEADER, "7");
+                purposes.forEach(value -> request.header(
+                        ProductSurfaceDecisionContextFilter.PURPOSE_HEADER, value));
+                MockServerWebExchange denied = exchange(request);
+
+                filter(authority).filter(denied, ignored -> Mono.empty()).block();
+
+                assertThat(denied.getResponse().getStatusCode())
+                        .isEqualTo(HttpStatus.BAD_REQUEST);
+                assertThat(body(denied)).contains("INVALID_PURPOSE");
+                verify(authority, never()).evaluateProductTrusted(any(), any());
+            }
+        }
+    }
+
+    @Test
     void pay004ReadForwardsOnlyTrustedPurposeFieldPolicyAndTargetPopulation() {
         String path = "/api/payroll/v1/workbench/pay-retirement";
         GeneratedProductRouteCatalog.Match match = catalog.match("GET", path);

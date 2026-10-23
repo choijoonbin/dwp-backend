@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -68,6 +69,23 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
     private static final String HRM009_OPERATIONS_PROFILE = "certificate-operations-issuer";
     private static final String HRM012_ACTION_ROUTE =
             Hrm012OwnerReceiptAuthorityContract.ROUTE;
+    private static final Map<String, String> PER008_FIXED_PURPOSES = Map.ofEntries(
+            Map.entry("route.hcm.team.performance.page", "TEAM_MANAGEMENT"),
+            Map.entry("route.hcm.team.performance.data", "TEAM_MANAGEMENT"),
+            Map.entry("route.hcm.personal.performance-feedback.page",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.performance.feedback-request-options.data",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.performance.feedback-request-create.action",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.personal.feedback-assignments-mine.data",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.personal.feedback-assignment-detail.data",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.personal.feedback-response-submit.action",
+                    "PERFORMANCE_FEEDBACK"),
+            Map.entry("route.hcm.performance.feedback-release.data",
+                    "PERFORMANCE_FEEDBACK"));
 
     private final boolean productAuthorizationV3Enabled;
     private final HcmV3PepRegistry registry;
@@ -230,12 +248,22 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             return;
         }
         Set<String> permissions = parse(request.getHeader(PeopleSecurityHeaders.PERMISSIONS));
+        boolean purposeHeaderPresent =
+                request.getHeaders(PURPOSE_HEADER).hasMoreElements();
         String inboundPurpose = exactHeader(request, PURPOSE_HEADER);
         if (HRM009_ACTION_ROUTE.equals(trustedRoute) && inboundPurpose != null) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "Caller-supplied HRM-009 purpose evidence is not accepted.");
             return;
         }
+        String fixedPurpose = PER008_FIXED_PURPOSES.get(trustedRoute);
+        if (fixedPurpose != null && purposeHeaderPresent
+                && (inboundPurpose == null || !fixedPurpose.equals(inboundPurpose))) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Caller-supplied HCM purpose conflicts with the fixed route purpose.");
+            return;
+        }
+        String resolvedPurpose = fixedPurpose == null ? inboundPurpose : fixedPurpose;
         HcmV3PepRegistry.Decision decision = registry.authorize(
                 new HcmV3PepRegistry.RequestEvidence(
                         request.getMethod(), request.getRequestURI(), permissions,
@@ -243,7 +271,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
                         activeAccessMode,
                         parse(request.getHeader(PeopleSecurityHeaders.SUPPORT_SCOPES)),
                         trustedRoute, request.getQueryString(),
-                        inboundPurpose,
+                        resolvedPurpose,
                         exactHeader(request, POPULATION_KIND_HEADER)));
         if (!decision.allowed()) {
             writeError(response, ErrorCode.FORBIDDEN,
@@ -268,7 +296,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             }
         }
 
-        String trustedPurpose = trustedPurpose(decision.authority(), inboundPurpose);
+        String trustedPurpose = trustedPurpose(decision.authority(), resolvedPurpose);
         if (HRM009_ACTION_ROUTE.equals(trustedRoute) && trustedPurpose == null) {
             writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                     "Trusted HRM-009 profile purpose is unavailable.");

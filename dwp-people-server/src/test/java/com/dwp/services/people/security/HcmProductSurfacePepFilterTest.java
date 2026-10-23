@@ -49,6 +49,9 @@ class HcmProductSurfacePepFilterTest {
     private final AtomicInteger organizationGraphControllerCalls = new AtomicInteger();
     private final AtomicReference<HcmPepContext.Evidence> hrm009Evidence =
             new AtomicReference<>();
+    private final AtomicReference<HcmPepContext.Evidence> per008Evidence =
+            new AtomicReference<>();
+    private final AtomicInteger per008ControllerCalls = new AtomicInteger();
     private MockMvc mvc;
 
     @BeforeEach
@@ -57,6 +60,8 @@ class HcmProductSurfacePepFilterTest {
                 organizationGraphRepository, organizationGraphOutbox);
         organizationGraphControllerCalls.set(0);
         hrm009Evidence.set(null);
+        per008Evidence.set(null);
+        per008ControllerCalls.set(0);
         mvc = mvcWithOrganizationFeature(true, "3");
     }
 
@@ -169,7 +174,8 @@ class HcmProductSurfacePepFilterTest {
                         new OrganizationGraphProbeController(
                                 organizationGraphControllerCalls, organizationGraphService,
                                 organizationGraphRepository, organizationGraphOutbox),
-                        new Hrm009ProbeController(hrm009Evidence))
+                        new Hrm009ProbeController(hrm009Evidence),
+                        new Per008ProbeController(per008Evidence, per008ControllerCalls))
                 .addFilters(
                         new PeopleSecurityFilter("people-token", mapper),
                         new HcmProductSurfacePepFilter(
@@ -322,6 +328,80 @@ class HcmProductSurfacePepFilterTest {
                                 "EMPLOYEE_SELF_SERVICE"))
                 .andExpect(status().isForbidden());
         assertThat(hrm009Evidence.get()).isNull();
+    }
+
+    @Test
+    void per008DerivesFixedPurposeAndPreservesTheExactFieldPolicy() throws Exception {
+        mvc.perform(per008Exact(
+                        get("/v1/hris/performance/workbench/team-performance"),
+                        "route.hcm.team.performance.data",
+                        "APP.HCM:VIEW,DATA.HRIS_TEAM_WORKBENCH:VIEW",
+                        "TARGET_POPULATION"))
+                .andExpect(status().isOk());
+        assertThat(per008Evidence.get().purpose()).isEqualTo("TEAM_MANAGEMENT");
+
+        per008Evidence.set(null);
+        mvc.perform(per008Exact(
+                        get("/v1/hris/performance/workbench/team-performance"),
+                        "route.hcm.team.performance.page",
+                        "APP.HCM:VIEW,DATA.HRIS_TEAM_WORKBENCH:VIEW",
+                        "TARGET_POPULATION")
+                        .header(HcmProductSurfacePepFilter.PURPOSE_HEADER,
+                                "TEAM_MANAGEMENT"))
+                .andExpect(status().isOk());
+        assertThat(per008Evidence.get().purpose()).isEqualTo("TEAM_MANAGEMENT");
+
+        per008Evidence.set(null);
+        mvc.perform(per008Exact(
+                        post("/v1/hris/performance/feedback-assignments/"
+                                + "00000000-0000-0000-0000-000000000008/responses"),
+                        "route.hcm.personal.feedback-response-submit.action",
+                        "APP.HCM:VIEW,ACTION.HRIS_PERFORMANCE_FEEDBACK:UPDATE",
+                        "TARGET_POPULATION")
+                        .header(HcmProductSurfacePepFilter.EXPECTED_DECISION_REVISION_HEADER,
+                                DECISION_REVISION)
+                        .header(HcmProductSurfacePepFilter.FIELD_POLICY_KEY_HEADER,
+                                "PERFORMANCE_FEEDBACK_ASSIGNED"))
+                .andExpect(status().isOk());
+        assertThat(per008Evidence.get().purpose()).isEqualTo("PERFORMANCE_FEEDBACK");
+        assertThat(per008Evidence.get().fieldPolicyKey())
+                .isEqualTo("PERFORMANCE_FEEDBACK_ASSIGNED");
+        assertThat(per008Evidence.get().authority().profileKey())
+                .isEqualTo("assigned-feedback-provider");
+        assertThat(per008Evidence.get().authority().capabilityContractKey())
+                .isEqualTo("per.feedback.assigned.submit");
+        assertThat(per008ControllerCalls).hasValue(3);
+    }
+
+    @Test
+    void per008RejectsConflictingMalformedOrDuplicatePurposeBeforeController()
+            throws Exception {
+        List<String> invalid = List.of(
+                "PERFORMANCE_FEEDBACK",
+                " TEAM_MANAGEMENT",
+                "TEAM_MANAGEMENT,TEAM_MANAGEMENT",
+                "team_management");
+        for (String purpose : invalid) {
+            mvc.perform(per008Exact(
+                            get("/v1/hris/performance/workbench/team-performance"),
+                            "route.hcm.team.performance.data",
+                            "APP.HCM:VIEW,DATA.HRIS_TEAM_WORKBENCH:VIEW",
+                            "TARGET_POPULATION")
+                            .header(HcmProductSurfacePepFilter.PURPOSE_HEADER, purpose))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(per008Exact(
+                        get("/v1/hris/performance/workbench/team-performance"),
+                        "route.hcm.team.performance.data",
+                        "APP.HCM:VIEW,DATA.HRIS_TEAM_WORKBENCH:VIEW",
+                        "TARGET_POPULATION")
+                        .header(HcmProductSurfacePepFilter.PURPOSE_HEADER,
+                                "TEAM_MANAGEMENT", "TEAM_MANAGEMENT"))
+                .andExpect(status().isForbidden());
+
+        assertThat(per008ControllerCalls).hasValue(0);
+        assertThat(per008Evidence.get()).isNull();
+        verify(validator, never()).validate(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -654,6 +734,17 @@ class HcmProductSurfacePepFilterTest {
                         "TARGET_POPULATION");
     }
 
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+            per008Exact(
+                    org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+                            request,
+                    String route,
+                    String permissions,
+                    String populationKind) {
+        return exact(request, route, permissions, null)
+                .header(HcmProductSurfacePepFilter.POPULATION_KIND_HEADER, populationKind);
+    }
+
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder identity(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) {
         return identity(request, "APP.HCM:VIEW");
@@ -735,6 +826,46 @@ class HcmProductSurfacePepFilterTest {
         public Map<String, Boolean> issue() {
             evidence.set(HcmPepContext.current());
             return Map.of("ok", true);
+        }
+    }
+
+    @RestController
+    private static final class Per008ProbeController {
+
+        private final AtomicReference<HcmPepContext.Evidence> evidence;
+        private final AtomicInteger controllerCalls;
+
+        private Per008ProbeController(
+                AtomicReference<HcmPepContext.Evidence> evidence,
+                AtomicInteger controllerCalls) {
+            this.evidence = evidence;
+            this.controllerCalls = controllerCalls;
+        }
+
+        @GetMapping({
+                "/v1/hris/performance/workbench/team-performance",
+                "/v1/hris/performance/feedback-assignments/mine",
+                "/v1/hris/performance/feedback-assignments/{feedbackAssignmentId}",
+                "/v1/hris/performance/feedback-request-options",
+                "/v1/hris/performance/feedback-requests/{feedbackRequestId}/release"
+        })
+        public Map<String, Boolean> read() {
+            capture();
+            return Map.of("ok", true);
+        }
+
+        @PostMapping({
+                "/v1/hris/performance/feedback-requests",
+                "/v1/hris/performance/feedback-assignments/{feedbackAssignmentId}/responses"
+        })
+        public Map<String, Boolean> command() {
+            capture();
+            return Map.of("ok", true);
+        }
+
+        private void capture() {
+            controllerCalls.incrementAndGet();
+            evidence.set(HcmPepContext.current());
         }
     }
 

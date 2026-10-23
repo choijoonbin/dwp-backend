@@ -37,6 +37,129 @@ class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestS
     private static final Set<String> V58_GENERIC_SESSION_STEP_UP_ROUTES = Set.of(
             "route.hcm.operations.pay-retirement.page",
             "route.hcm.operations.pay-retirement.data");
+    private static final Set<String> V59_PERFORMANCE_FEEDBACK_ROUTES = Set.of(
+            "route.hcm.team.performance.page",
+            "route.hcm.team.performance.data",
+            "route.hcm.personal.performance-feedback.page",
+            "route.hcm.performance.feedback-request-options.data",
+            "route.hcm.performance.feedback-request-create.action",
+            "route.hcm.personal.feedback-assignments-mine.data",
+            "route.hcm.personal.feedback-assignment-detail.data",
+            "route.hcm.personal.feedback-response-submit.action",
+            "route.hcm.performance.feedback-release.data");
+
+    @Test
+    void v59IntroducesOnlyTheExactPer008TopologiesAndPreservesEquivalentReads()
+            throws Exception {
+        GeneratedProductRouteCatalog previous = catalog(58);
+        GeneratedProductRouteCatalog current = catalog(59);
+
+        assertThat(previous.routesForTesting().stream()
+                .map(GeneratedProductRouteCatalog.Route::routeContractKey))
+                .doesNotContainAnyElementsOf(V59_PERFORMANCE_FEEDBACK_ROUTES);
+        assertThat(current.routesForTesting().stream()
+                .filter(route -> V59_PERFORMANCE_FEEDBACK_ROUTES.contains(
+                        route.routeContractKey())))
+                .hasSize(9);
+
+        record EquivalentRead(String path, String page, String data, String equivalence) { }
+        for (EquivalentRead read : List.of(
+                new EquivalentRead(
+                        "/api/people/v1/hris/performance/workbench/team-performance",
+                        "route.hcm.team.performance.page",
+                        "route.hcm.team.performance.data",
+                        "wire-authority.hcm.team.performance.v1"),
+                new EquivalentRead(
+                        "/api/people/v1/hris/performance/feedback-assignments/mine",
+                        "route.hcm.personal.performance-feedback.page",
+                        "route.hcm.personal.feedback-assignments-mine.data",
+                        "wire-authority.hcm.personal.performance-feedback-inbox.v1"))) {
+            GeneratedProductRouteCatalog.Match match = current.match("GET", read.path());
+            assertThat(match.status()).as(read.path())
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(match.routes()).hasSize(2)
+                    .allSatisfy(route -> assertThat(route.authorizationEquivalenceKey())
+                            .isEqualTo(read.equivalence()))
+                    .extracting(GeneratedProductRouteCatalog.Route::routeContractKey)
+                    .containsExactlyInAnyOrder(read.page(), read.data());
+            assertThat(match.uniqueRoute()).isNotNull().satisfies(route -> {
+                assertThat(route.routeContractKey()).isEqualTo(read.data());
+                assertThat(route.routeKind()).isEqualTo("DATA");
+            });
+        }
+
+        assertRoute(current, "GET",
+                "/api/people/v1/hris/performance/feedback-request-options",
+                "route.hcm.performance.feedback-request-options.data", false,
+                "cycleVersionId=cycle-1&subjectWorkerPublicId=worker-1"
+                        + "&subjectAssignmentPublicId=assignment-1");
+        assertRoute(current, "POST",
+                "/api/people/v1/hris/performance/feedback-requests",
+                "route.hcm.performance.feedback-request-create.action", true, null);
+        assertRoute(current, "GET",
+                "/api/people/v1/hris/performance/feedback-assignments/assignment-1",
+                "route.hcm.personal.feedback-assignment-detail.data", false, null);
+        assertRoute(current, "POST",
+                "/api/people/v1/hris/performance/feedback-assignments/assignment-1/responses",
+                "route.hcm.personal.feedback-response-submit.action", true, null);
+        assertRoute(current, "GET",
+                "/api/people/v1/hris/performance/feedback-requests/request-1/release",
+                "route.hcm.performance.feedback-release.data", false, null);
+        assertThat(current.match("GET",
+                "/api/people/v1/hris/performance/feedback-request-options").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(current.match("PUT",
+                "/api/people/v1/hris/performance/feedback-requests").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(current.match("GET",
+                "/api/people/v1/hris/performance/feedback-assignments/assignment-1/extra")
+                .status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+
+        ObjectNode introducedEarly = bundle(58);
+        introducedEarly.withArray("routes").add(route(bundle(59),
+                "route.hcm.team.performance.page").deepCopy());
+        assertCatalogInvalid(introducedEarly, "introduced early");
+
+        ObjectNode widened = bundle(59);
+        ((ObjectNode) route(widened,
+                "route.hcm.personal.feedback-assignment-detail.data")
+                .withArray("gatewayApiBindings").get(0))
+                .put("path", "/api/people/v1/hris/performance/feedback-assignments/"
+                        + "{feedbackAssignmentId}/{extra}");
+        assertCatalogInvalid(widened, "v59 performance-feedback topology");
+
+        ObjectNode missing = bundle(59);
+        ArrayNode routes = missing.withArray("routes");
+        for (int index = 0; index < routes.size(); index++) {
+            if ("route.hcm.performance.feedback-release.data"
+                    .equals(routes.get(index).path("routeContractKey").asText())) {
+                routes.remove(index);
+                break;
+            }
+        }
+        assertCatalogInvalid(missing, "v59 performance-feedback topology closed set");
+
+        ObjectNode duplicated = bundle(59);
+        duplicated.withArray("routes").add(route(duplicated,
+                "route.hcm.performance.feedback-release.data").deepCopy());
+        assertCatalogInvalid(duplicated, "performance-feedback route is duplicated");
+    }
+
+    private void assertRoute(
+            GeneratedProductRouteCatalog catalog,
+            String method,
+            String path,
+            String routeKey,
+            boolean stateChanging,
+            String query) {
+        GeneratedProductRouteCatalog.Match match = catalog.match(method, path, query);
+        assertThat(match.status()).as(method + " " + path)
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(match.uniqueRoute()).isNotNull().satisfies(route -> {
+            assertThat(route.routeContractKey()).isEqualTo(routeKey);
+            assertThat(route.stateChanging()).isEqualTo(stateChanging);
+        });
+    }
 
     @Test
     void v58IntroducesOnlyTheExactPay004EquivalentReadPairAndSealsBothTopologies()

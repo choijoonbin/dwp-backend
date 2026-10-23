@@ -14,7 +14,7 @@ class ProductAuthorizationReleaseLineageTest {
             new ProductAuthorizationContractValidator(mapper);
 
     @Test
-    void acceptsThePinnedV51ThroughPay004V58Successors() throws Exception {
+    void acceptsThePinnedV51ThroughPer008V59Successors() throws Exception {
         try (var v51Input = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v51.generated.json")
                 .getInputStream();
@@ -38,6 +38,9 @@ class ProductAuthorizationReleaseLineageTest {
                      .getInputStream();
              var v58Input = new ClassPathResource(
                      "product-authorization/product-surfaces-v1.bundle-v58.generated.json")
+                     .getInputStream();
+             var v59Input = new ClassPathResource(
+                     "product-authorization/product-surfaces-v1.bundle-v59.generated.json")
                      .getInputStream()) {
             var v51 = validator.validateDocument(v51Input);
             var v52 = validator.validateDocument(v52Input);
@@ -47,6 +50,7 @@ class ProductAuthorizationReleaseLineageTest {
             var v56 = validator.validateDocument(v56Input);
             var v57 = validator.validateDocument(v57Input);
             var v58 = validator.validateDocument(v58Input);
+            var v59 = validator.validateDocument(v59Input);
             assertThat(v51.checksum()).isEqualTo(
                     "3beda5c13a3af0e265ace4533a3afcee3691c2b7486465dcf46156e58ae5ed2c");
             assertThat(v51.capabilities()).hasSize(265);
@@ -79,6 +83,11 @@ class ProductAuthorizationReleaseLineageTest {
                     "556f2cc1554f0aaab6f88e50c34d64ca5cdd95af9b2d55072f6e6745f4652cc2");
             assertThat(v58.capabilities()).hasSize(271);
             assertThat(v58.routes()).hasSize(1125);
+            assertThat(v59.checksum()).isEqualTo(
+                    "56582749cebf382c5c2669d83a30fb4c81fcb532db2878b15e6a83ced6898094");
+            assertThat(v59.capabilities()).hasSize(276);
+            assertThat(v59.predicatePolicies()).hasSize(86);
+            assertThat(v59.routes()).hasSize(1134);
         }
     }
 

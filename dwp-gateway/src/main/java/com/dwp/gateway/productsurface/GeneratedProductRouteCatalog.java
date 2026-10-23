@@ -162,6 +162,83 @@ public final class GeneratedProductRouteCatalog {
             "route.hcm.operations.pay-retirement.data");
 
     /**
+     * PER-008 is the first feedback transport contract to publish PAGE/DATA pairs on the same
+     * wire binding. Keep its complete v59 network topology in code so an older bundle, a partial
+     * v59, a duplicate route, or a widened/near-match binding fails before request matching.
+     */
+    private static final Map<String, V59PerformanceFeedbackTopology>
+            V59_PERFORMANCE_FEEDBACK_TOPOLOGIES = Map.ofEntries(
+            Map.entry("route.hcm.team.performance.page",
+                    new V59PerformanceFeedbackTopology(
+                            "hcm.team", "PAGE", "GET",
+                            "/api/people/v1/hris/performance/workbench/team-performance",
+                            "/v1/hris/performance/workbench/team-performance",
+                            List.of("team-performance-reader"), Set.of(),
+                            "wire-authority.hcm.team.performance.v1")),
+            Map.entry("route.hcm.team.performance.data",
+                    new V59PerformanceFeedbackTopology(
+                            "hcm.team", "DATA", "GET",
+                            "/api/people/v1/hris/performance/workbench/team-performance",
+                            "/v1/hris/performance/workbench/team-performance",
+                            List.of("team-performance-reader"), Set.of(),
+                            "wire-authority.hcm.team.performance.v1")),
+            Map.entry("route.hcm.personal.performance-feedback.page",
+                    new V59PerformanceFeedbackTopology(
+                            "hcm.personal", "PAGE", "GET",
+                            "/api/people/v1/hris/performance/feedback-assignments/mine",
+                            "/v1/hris/performance/feedback-assignments/mine",
+                            List.of("self-performance-reader"), Set.of(),
+                            "wire-authority.hcm.personal.performance-feedback-inbox.v1")),
+            Map.entry("route.hcm.performance.feedback-request-options.data",
+                    new V59PerformanceFeedbackTopology(
+                            "hcm.operations", "DATA", "GET",
+                            "/api/people/v1/hris/performance/feedback-request-options",
+                            "/v1/hris/performance/feedback-request-options",
+                            List.of("manager-feedback-requester", "self-feedback-requester"),
+                            Set.of("cycleVersionId", "subjectWorkerPublicId",
+                                    "subjectAssignmentPublicId"), null)),
+            Map.entry("route.hcm.performance.feedback-request-create.action",
+                    new V59PerformanceFeedbackTopology(
+                            "hcm.operations", "ACTION", "POST",
+                            "/api/people/v1/hris/performance/feedback-requests",
+                            "/v1/hris/performance/feedback-requests",
+                            List.of("manager-feedback-requester", "self-feedback-requester"),
+                            Set.of(), null)),
+            Map.entry("route.hcm.personal.feedback-assignments-mine.data",
+                    new V59PerformanceFeedbackTopology(
+                            "hcm.personal", "DATA", "GET",
+                            "/api/people/v1/hris/performance/feedback-assignments/mine",
+                            "/v1/hris/performance/feedback-assignments/mine",
+                            List.of("self-performance-reader"), Set.of(),
+                            "wire-authority.hcm.personal.performance-feedback-inbox.v1")),
+            Map.entry("route.hcm.personal.feedback-assignment-detail.data",
+                    new V59PerformanceFeedbackTopology(
+                            "hcm.personal", "DATA", "GET",
+                            "/api/people/v1/hris/performance/feedback-assignments/"
+                                    + "{feedbackAssignmentId}",
+                            "/v1/hris/performance/feedback-assignments/"
+                                    + "{feedbackAssignmentId}",
+                            List.of("assigned-feedback-reader"), Set.of(), null)),
+            Map.entry("route.hcm.personal.feedback-response-submit.action",
+                    new V59PerformanceFeedbackTopology(
+                            "hcm.personal", "ACTION", "POST",
+                            "/api/people/v1/hris/performance/feedback-assignments/"
+                                    + "{feedbackAssignmentId}/responses",
+                            "/v1/hris/performance/feedback-assignments/"
+                                    + "{feedbackAssignmentId}/responses",
+                            List.of("assigned-feedback-provider"), Set.of(), null)),
+            Map.entry("route.hcm.performance.feedback-release.data",
+                    new V59PerformanceFeedbackTopology(
+                            "hcm.operations", "DATA", "GET",
+                            "/api/people/v1/hris/performance/feedback-requests/"
+                                    + "{feedbackRequestId}/release",
+                            "/v1/hris/performance/feedback-requests/"
+                                    + "{feedbackRequestId}/release",
+                            List.of("self-feedback-release-reader",
+                                    "manager-feedback-release-reader",
+                                    "operator-feedback-release-reader"), Set.of(), null)));
+
+    /**
      * PAGE routes introduced by the v47 canonical-entry migration intentionally share the exact
      * first-read wire contract of their pre-existing DATA/PAGE source. The contract generator
      * validates each pair's complete authority semantics, but deliberately leaves the historical
@@ -356,7 +433,25 @@ public final class GeneratedProductRouteCatalog {
             List<Route> result = new ArrayList<>();
             Map<String, Set<String>> namespaces = new HashMap<>();
             Set<String> genericSessionRoutes = new HashSet<>();
+            Set<String> performanceFeedbackRoutes = new HashSet<>();
             for (JsonNode route : bundle.path("routes")) {
+                String routeKey = route.path("routeContractKey").asText();
+                V59PerformanceFeedbackTopology performanceFeedbackTopology =
+                        V59_PERFORMANCE_FEEDBACK_TOPOLOGIES.get(routeKey);
+                if (performanceFeedbackTopology != null) {
+                    if (bundleVersion < 59) {
+                        throw new IllegalStateException(
+                                "A PRODUCT v59 performance-feedback route was introduced early: "
+                                        + routeKey);
+                    }
+                    validateV59PerformanceFeedbackTopology(
+                            route, performanceFeedbackTopology);
+                    if (!performanceFeedbackRoutes.add(routeKey)) {
+                        throw new IllegalStateException(
+                                "A PRODUCT v59 performance-feedback route is duplicated: "
+                                        + routeKey);
+                    }
+                }
                 JsonNode subject = route.path("subject");
                 if (!"ACTIVE".equals(route.path("lifecycleState").asText())
                         || !"PRODUCT".equals(subject.path("type").asText())) continue;
@@ -378,7 +473,6 @@ public final class GeneratedProductRouteCatalog {
                         && !route.path("stepUpCommandBindings").isEmpty();
                 boolean genericSessionStepUp = genericSessionStepUp(
                         route, bundleVersion, highRiskStepUp, commandBoundStepUp);
-                String routeKey = route.path("routeContractKey").asText();
                 if (highRiskStepUp && !commandBoundStepUp && !genericSessionStepUp
                         && !OTHER_EXACT_NO_COMMAND_STEP_UP_ROUTE_KEYS.contains(routeKey)) {
                     throw new IllegalStateException(
@@ -425,6 +519,12 @@ public final class GeneratedProductRouteCatalog {
                 throw new IllegalStateException(
                         "The PRODUCT generic session step-up closed set is incomplete.");
             }
+            if (bundleVersion >= 59
+                    && !performanceFeedbackRoutes.equals(
+                            V59_PERFORMANCE_FEEDBACK_TOPOLOGIES.keySet())) {
+                throw new IllegalStateException(
+                        "The PRODUCT v59 performance-feedback topology closed set is incomplete.");
+            }
             Map<String, Set<String>> immutableNamespaces = namespaces.entrySet().stream()
                     .collect(java.util.stream.Collectors.toUnmodifiableMap(
                             Map.Entry::getKey, entry -> Set.copyOf(entry.getValue())));
@@ -434,6 +534,84 @@ public final class GeneratedProductRouteCatalog {
             throw new IllegalStateException(
                     "Generated PRODUCT route registry cannot be read.", exception);
         }
+    }
+
+    private void validateV59PerformanceFeedbackTopology(
+            JsonNode route,
+            V59PerformanceFeedbackTopology topology) {
+        String routeKey = route.path("routeContractKey").asText();
+        String bindingKey = routeKey + ".binding.01";
+        JsonNode subject = route.path("subject");
+        JsonNode gateways = route.path("gatewayApiBindings");
+        JsonNode services = route.path("servicePepBindings");
+        JsonNode profiles = route.path("accessProfiles");
+        boolean exact = "ACTIVE".equals(route.path("lifecycleState").asText())
+                && route.path("policyVersion").asLong() == 1
+                && !route.has("stepUpCommandBindings")
+                && "PRODUCT".equals(subject.path("type").asText())
+                && "hcm".equals(subject.path("productKey").asText())
+                && topology.surfaceKey().equals(subject.path("surfaceKey").asText())
+                && topology.surfaceKey().equals(route.path("navigationContextId").asText())
+                && topology.routeKind().equals(route.path("routeKind").asText())
+                && java.util.Objects.equals(
+                        topology.authorizationEquivalenceKey(),
+                        textOrNull(route, "authorizationEquivalenceKey"))
+                && ("DATA".equals(topology.routeKind())
+                        ? route.path("sideEffectFree").asBoolean(false)
+                        : route.path("sideEffectFree").isNull())
+                && gateways.isArray() && gateways.size() == 1
+                && services.isArray() && services.size() == 1
+                && profiles.isArray() && profiles.size() == topology.profileKeys().size();
+        if (exact) {
+            JsonNode gateway = gateways.get(0);
+            JsonNode service = services.get(0);
+            exact = bindingKey.equals(gateway.path("bindingKey").asText())
+                    && topology.method().equals(gateway.path("method").asText())
+                    && topology.publicPath().equals(gateway.path("path").asText())
+                    && gateway.path("pathParameterConstraints").isObject()
+                    && gateway.path("pathParameterConstraints").isEmpty()
+                    && exactRequiredQueryParameters(
+                            gateway.path("queryParameterConstraints"),
+                            topology.requiredQueryParameters())
+                    && bindingKey.equals(service.path("bindingKey").asText())
+                    && "people".equals(service.path("serviceKey").asText())
+                    && topology.method().equals(service.path("method").asText())
+                    && topology.servicePath().equals(service.path("path").asText())
+                    && service.path("pathParameterConstraints").isObject()
+                    && service.path("pathParameterConstraints").isEmpty()
+                    && exactRequiredQueryParameters(
+                            service.path("queryParameterConstraints"),
+                            topology.requiredQueryParameters());
+        }
+        if (exact) {
+            for (int index = 0; index < profiles.size(); index++) {
+                if (!topology.profileKeys().get(index)
+                        .equals(profiles.get(index).path("profileKey").asText())) {
+                    exact = false;
+                    break;
+                }
+            }
+        }
+        if (!exact) {
+            throw new IllegalStateException(
+                    "A PRODUCT v59 performance-feedback topology is invalid: " + routeKey);
+        }
+    }
+
+    private boolean exactRequiredQueryParameters(JsonNode constraints, Set<String> required) {
+        if (required.isEmpty()) {
+            return constraints.isMissingNode() || constraints.isNull()
+                    || constraints.isObject() && constraints.isEmpty();
+        }
+        if (!constraints.isObject() || constraints.size() != required.size()) return false;
+        for (String parameter : required) {
+            JsonNode constraint = constraints.path(parameter);
+            if (!constraint.isObject() || constraint.size() != 1
+                    || !"REQUIRED".equals(constraint.path("kind").asText())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private Map<String, Boolean> highRiskCapabilities(JsonNode bundle) {
@@ -830,6 +1008,17 @@ public final class GeneratedProductRouteCatalog {
             String serviceKey,
             String servicePath,
             List<String> profileKeys) {
+    }
+
+    private record V59PerformanceFeedbackTopology(
+            String surfaceKey,
+            String routeKind,
+            String method,
+            String publicPath,
+            String servicePath,
+            List<String> profileKeys,
+            Set<String> requiredQueryParameters,
+            String authorizationEquivalenceKey) {
     }
 
     private record LegacyExemptBinding(String method, Pattern pathPattern) {

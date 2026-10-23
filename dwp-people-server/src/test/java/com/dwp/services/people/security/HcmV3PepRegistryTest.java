@@ -167,11 +167,158 @@ class HcmV3PepRegistryTest {
     }
 
     @Test
-    void loadsTheExactV57PeopleClosureAndRetainsTheEarlierBindings() throws IOException {
-        assertThat(registry.bindingContracts()).hasSize(151);
+    void per008KeepsReadCreateSubmitAndReleaseAuthoritiesNonTransitive() {
+        String assignmentId = "00000000-0000-0000-0000-000000000008";
+        String requestId = "00000000-0000-0000-0000-000000000009";
+        String exactOptionsQuery = "cycleVersionId=00000000-0000-0000-0000-000000000010"
+                + "&subjectWorkerPublicId=00000000-0000-0000-0000-000000000011"
+                + "&subjectAssignmentPublicId=00000000-0000-0000-0000-000000000012";
+
+        HcmV3PepRegistry.Decision teamPage = registry.authorize(per008Evidence(
+                "GET", "/v1/hris/performance/workbench/team-performance",
+                "route.hcm.team.performance.page", null,
+                "DATA.HRIS_TEAM_WORKBENCH:VIEW", "TEAM_MANAGEMENT",
+                "TARGET_POPULATION"));
+        assertThat(teamPage.allowed()).isTrue();
+        assertThat(teamPage.authority().routeKind()).isEqualTo("PAGE");
+        assertThat(teamPage.authority().profileKey()).isEqualTo("team-performance-reader");
+        assertThat(teamPage.authority().projectionPolicyKey())
+                .isEqualTo("per008.iaq-038.fields.v2");
+
+        HcmV3PepRegistry.Decision teamData = registry.authorize(per008Evidence(
+                "GET", "/v1/hris/performance/workbench/team-performance",
+                "route.hcm.team.performance.data", null,
+                "DATA.HRIS_TEAM_WORKBENCH:VIEW", "TEAM_MANAGEMENT",
+                "TARGET_POPULATION"));
+        assertThat(teamData.allowed()).isTrue();
+        assertThat(teamData.authority().routeKind()).isEqualTo("DATA");
+
+        for (String route : List.of(
+                "route.hcm.personal.performance-feedback.page",
+                "route.hcm.personal.feedback-assignments-mine.data")) {
+            HcmV3PepRegistry.Decision inbox = registry.authorize(per008Evidence(
+                    "GET", "/v1/hris/performance/feedback-assignments/mine",
+                    route, null, "DATA.HR_TALENT:VIEW",
+                    "PERFORMANCE_FEEDBACK", "SELF"));
+            assertThat(inbox.allowed()).as(route).isTrue();
+            assertThat(inbox.authority().profileKey()).isEqualTo("self-performance-reader");
+            assertThat(inbox.authority().responseSchemaKey())
+                    .isEqualTo("Per008AssignedFeedbackListV1");
+        }
+
+        HcmV3PepRegistry.Decision managerOptions = registry.authorize(per008Evidence(
+                "GET", "/v1/hris/performance/feedback-request-options",
+                "route.hcm.performance.feedback-request-options.data", exactOptionsQuery,
+                "DATA.HRIS_PERFORMANCE_REVIEW:UPDATE", "PERFORMANCE_FEEDBACK",
+                "TARGET_POPULATION"));
+        assertThat(managerOptions.allowed()).isTrue();
+        assertThat(managerOptions.authority().profileKey())
+                .isEqualTo("manager-feedback-requester");
+
+        HcmV3PepRegistry.Decision selfOptions = registry.authorize(per008Evidence(
+                "GET", "/v1/hris/performance/feedback-request-options",
+                "route.hcm.performance.feedback-request-options.data", exactOptionsQuery,
+                "ACTION.HRIS_PERFORMANCE_FEEDBACK:CREATE", "PERFORMANCE_FEEDBACK",
+                "SELF"));
+        assertThat(selfOptions.allowed()).isTrue();
+        assertThat(selfOptions.authority().profileKey()).isEqualTo("self-feedback-requester");
+
+        HcmV3PepRegistry.Decision create = registry.authorize(per008Evidence(
+                "POST", "/v1/hris/performance/feedback-requests",
+                "route.hcm.performance.feedback-request-create.action", null,
+                "ACTION.HRIS_PERFORMANCE_FEEDBACK:CREATE", "PERFORMANCE_FEEDBACK",
+                "SELF"));
+        assertThat(create.allowed()).isTrue();
+        assertThat(create.authority().capabilityContractKey())
+                .isEqualTo("per.feedback.request.create");
+
+        HcmV3PepRegistry.Decision detail = registry.authorize(per008Evidence(
+                "GET", "/v1/hris/performance/feedback-assignments/" + assignmentId,
+                "route.hcm.personal.feedback-assignment-detail.data", null,
+                "DATA.HR_TALENT:VIEW", "PERFORMANCE_FEEDBACK", "TARGET_POPULATION"));
+        assertThat(detail.allowed()).isTrue();
+        assertThat(detail.authority().profileKey()).isEqualTo("assigned-feedback-reader");
+        assertThat(detail.authority().stepUpBinding()).isNull();
+
+        HcmV3PepRegistry.Decision submit = registry.authorize(per008Evidence(
+                "POST", "/v1/hris/performance/feedback-assignments/" + assignmentId
+                        + "/responses",
+                "route.hcm.personal.feedback-response-submit.action", null,
+                "ACTION.HRIS_PERFORMANCE_FEEDBACK:UPDATE", "PERFORMANCE_FEEDBACK",
+                "TARGET_POPULATION"));
+        assertThat(submit.allowed()).isTrue();
+        assertThat(submit.authority().profileKey()).isEqualTo("assigned-feedback-provider");
+        assertThat(submit.authority().capabilityContractKey())
+                .isEqualTo("per.feedback.assigned.submit");
+        assertThat(submit.authority().stepUpBinding()).isNull();
+
+        for (ReleaseProfile release : List.of(
+                new ReleaseProfile("SELF", "self-feedback-release-reader"),
+                new ReleaseProfile("TARGET_POPULATION", "manager-feedback-release-reader"),
+                new ReleaseProfile("NAMED_POPULATION", "operator-feedback-release-reader"))) {
+            HcmV3PepRegistry.Decision decision = registry.authorize(per008Evidence(
+                    "GET", "/v1/hris/performance/feedback-requests/" + requestId + "/release",
+                    "route.hcm.performance.feedback-release.data", null,
+                    "DATA.HRIS_PERFORMANCE_FEEDBACK:VIEW", "PERFORMANCE_FEEDBACK",
+                    release.population()));
+            assertThat(decision.allowed()).as(release.profile()).isTrue();
+            assertThat(decision.authority().profileKey()).isEqualTo(release.profile());
+            assertThat(decision.authority().responseSchemaKey())
+                    .isEqualTo("Per008FeedbackReleaseV1");
+        }
+
+        assertThat(registry.authorize(per008Evidence(
+                "POST", "/v1/hris/performance/feedback-assignments/" + assignmentId
+                        + "/responses",
+                "route.hcm.personal.feedback-response-submit.action", null,
+                "ACTION.HRIS_PERFORMANCE_FEEDBACK:CREATE", "PERFORMANCE_FEEDBACK",
+                "TARGET_POPULATION")).denialCode())
+                .isEqualTo("EXACT_ROUTE_AUTHORITY_REQUIRED");
+        assertThat(registry.authorize(per008Evidence(
+                "GET", "/v1/hris/performance/feedback-request-options",
+                "route.hcm.performance.feedback-request-options.data", null,
+                "ACTION.HRIS_PERFORMANCE_FEEDBACK:CREATE", "PERFORMANCE_FEEDBACK",
+                "SELF")).denialCode()).isEqualTo("UNKNOWN_METHOD_PATH_BINDING");
+        assertThat(registry.authorize(per008Evidence(
+                "GET", "/v1/hris/performance/workbench/team-performance",
+                "route.hcm.team.performance.data", null,
+                "DATA.HRIS_TEAM_WORKBENCH:VIEW", "PERFORMANCE_FEEDBACK",
+                "TARGET_POPULATION")).denialCode()).isEqualTo("TRUSTED_PURPOSE_REQUIRED");
+        assertThat(registry.authorize(per008Evidence(
+                "GET", "/v1/hris/performance/feedback-requests/" + requestId + "/release/extra",
+                "route.hcm.performance.feedback-release.data", null,
+                "DATA.HRIS_PERFORMANCE_FEEDBACK:VIEW", "PERFORMANCE_FEEDBACK",
+                "SELF")).denialCode()).isEqualTo("UNKNOWN_METHOD_PATH_BINDING");
+    }
+
+    @Test
+    void v59ReleasePredicateAddsOnlyTheSealedSelfBinding() throws IOException {
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(
+                "product-authorization/hcm-people-pep-v59.generated.json")) {
+            assertThat(input).isNotNull();
+            JsonNode root = new ObjectMapper().readTree(input);
+            JsonNode predicate = null;
+            for (JsonNode candidate : root.path("predicatePolicies")) {
+                if ("predicate.hcm-performance-feedback-release.v1".equals(
+                        candidate.path("predicatePolicyKey").asText())) {
+                    predicate = candidate;
+                    break;
+                }
+            }
+            assertThat(predicate).isNotNull();
+            List<String> targets = new java.util.ArrayList<>();
+            predicate.path("targetBindingKinds").forEach(value -> targets.add(value.asText()));
+            assertThat(targets)
+                    .containsExactly("SELF", "OBJECT", "TARGET_POPULATION");
+        }
+    }
+
+    @Test
+    void loadsTheExactV59PeopleClosureAndRetainsTheEarlierBindings() throws IOException {
+        assertThat(registry.bindingContracts()).hasSize(160);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(124);
+                .distinct()).hasSize(133);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -241,7 +388,7 @@ class HcmV3PepRegistryTest {
                         "route.hcm.operations.employment-contract-issue.action",
                         "route.hcm.operations.workforce-ingestion.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
-                .hasSize(19)
+                .hasSize(22)
                 .containsOnlyKeys(
                         "predicate.directory-visible-person.v1",
                         "predicate.hcm-configuration-scope.v1",
@@ -257,6 +404,9 @@ class HcmV3PepRegistryTest {
                         "predicate.hcm-performance-cycle-object.v1",
                         "predicate.hcm-performance-cycle-publish-sod.v1",
                         "predicate.hcm-performance-review-assignment.v1",
+                        "predicate.hcm-performance-feedback-request.v1",
+                        "predicate.hcm-performance-feedback-assignment.v1",
+                        "predicate.hcm-performance-feedback-release.v1",
                         "predicate.hcm-workforce-ingestion-scope.v1",
                         "predicate.hcm-workforce-visible-person.v1",
                         "predicate.people.object-version.v1",
@@ -669,6 +819,19 @@ class HcmV3PepRegistryTest {
         });
     }
 
+    private HcmV3PepRegistry.RequestEvidence per008Evidence(
+            String method,
+            String path,
+            String route,
+            String query,
+            String permission,
+            String purpose,
+            String population) {
+        return new HcmV3PepRegistry.RequestEvidence(
+                method, path, Set.of("APP.HCM:VIEW", permission), null,
+                "NORMAL", Set.of(), route, query, purpose, population);
+    }
+
     private HcmV3PepRegistry.RequestEvidence organizationEvidence(
             String route,
             String path,
@@ -720,5 +883,8 @@ class HcmV3PepRegistryTest {
             String query,
             String projection,
             String schema) {
+    }
+
+    private record ReleaseProfile(String population, String profile) {
     }
 }

@@ -37,6 +37,12 @@ final class HcmScopeSelectionValidator {
                             "PerformanceCycleService:publisher-maker-sod"),
                     java.util.Map.entry("predicate.hcm-performance-review-assignment.v1",
                             "PerformanceReviewAssignmentAuthority:reviewer-object-assignment"),
+                    java.util.Map.entry("predicate.hcm-performance-feedback-request.v1",
+                            "PerformanceFeedbackRequestAuthority:cycle-worker-assignment"),
+                    java.util.Map.entry("predicate.hcm-performance-feedback-assignment.v1",
+                            "PerformanceFeedbackAssignmentAuthority:provider-assignment"),
+                    java.util.Map.entry("predicate.hcm-performance-feedback-release.v1",
+                            "PerformanceFeedbackReleaseAuthority:released-subject-population"),
                     java.util.Map.entry("predicate.hcm-workforce-visible-person.v1",
                             "WorkforcePeopleAndOrganizationChart:population-filter"),
                     java.util.Map.entry("predicate.hcm-workforce-ingestion-scope.v1",
@@ -77,6 +83,22 @@ final class HcmScopeSelectionValidator {
             "route.hcm.operations.certificate-issue.action";
     private static final String HRM012_ACTION_ROUTE =
             "route.hcm.operations.workforce-ingestion.action";
+    private static final java.util.Set<String> PER008_TEAM_ROUTES = java.util.Set.of(
+            "route.hcm.team.performance.page",
+            "route.hcm.team.performance.data");
+    private static final java.util.Set<String> PER008_ASSIGNED_COLLECTION_ROUTES =
+            java.util.Set.of(
+                    "route.hcm.personal.performance-feedback.page",
+                    "route.hcm.personal.feedback-assignments-mine.data");
+    private static final java.util.Set<String> PER008_REQUEST_ROUTES = java.util.Set.of(
+            "route.hcm.performance.feedback-request-options.data",
+            "route.hcm.performance.feedback-request-create.action");
+    private static final String PER008_ASSIGNED_DETAIL_ROUTE =
+            "route.hcm.personal.feedback-assignment-detail.data";
+    private static final String PER008_ASSIGNED_SUBMIT_ROUTE =
+            "route.hcm.personal.feedback-response-submit.action";
+    private static final String PER008_RELEASE_ROUTE =
+            "route.hcm.performance.feedback-release.data";
 
     private final HcmPopulationScopeService populations;
 
@@ -174,6 +196,27 @@ final class HcmScopeSelectionValidator {
             validateHrm012ReceiptBoundary(authority);
             return;
         }
+        if (PER008_TEAM_ROUTES.contains(route)) {
+            validatePer008Team(authority);
+            return;
+        }
+        if (PER008_ASSIGNED_COLLECTION_ROUTES.contains(route)) {
+            validatePer008AssignedCollection(authority);
+            return;
+        }
+        if (PER008_REQUEST_ROUTES.contains(route)) {
+            validatePer008Request(authority);
+            return;
+        }
+        if (PER008_ASSIGNED_DETAIL_ROUTE.equals(route)
+                || PER008_ASSIGNED_SUBMIT_ROUTE.equals(route)) {
+            validatePer008AssignedObject(authority);
+            return;
+        }
+        if (PER008_RELEASE_ROUTE.equals(route)) {
+            validatePer008Release(authority);
+            return;
+        }
         if (java.util.Set.of(
                 "route.hcm.performance.assigned-review.data",
                 "route.hcm.performance.assigned-review-draft-update.action",
@@ -262,6 +305,161 @@ final class HcmScopeSelectionValidator {
         }
         // No population lookup occurs at the marker boundary. The module owner invokes the
         // connector/legal-entity predicate only after receipt, Auth and metadata precedence.
+    }
+
+    private void validatePer008Team(HcmV3PepRegistry.RouteAuthority authority) {
+        String expectedKind = authority.routeContractKey().endsWith(".page") ? "PAGE" : "DATA";
+        if (!expectedKind.equals(authority.routeKind())
+                || !"team-performance-reader".equals(authority.profileKey())
+                || !authority.readOnly() || !"GET".equals(authority.method())
+                || !"hcm.team.workbench.view".equals(authority.capabilityContractKey())
+                || !java.util.Set.of("predicate.team-target-population.v1")
+                .equals(authority.predicatePolicyKeys())
+                || !java.util.Set.of("TARGET_POPULATION")
+                .equals(authority.targetBindingKinds())) {
+            throw new IllegalStateException("PER-008 team workbench scope profile changed.");
+        }
+        HcmPopulationScopeService.ResolvedPopulation population = populations.requireTeam();
+        populations.requireTrustedScope(
+                population, "hcm.team", "TARGET_POPULATION", "TEAM/ORG_UNIT",
+                "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION");
+    }
+
+    private void validatePer008AssignedCollection(
+            HcmV3PepRegistry.RouteAuthority authority) {
+        String expectedKind = authority.routeContractKey().endsWith(".page") ? "PAGE" : "DATA";
+        if (!expectedKind.equals(authority.routeKind())
+                || !"self-performance-reader".equals(authority.profileKey())
+                || !authority.readOnly() || !"GET".equals(authority.method())
+                || !"hcm.personal.performance.view".equals(
+                authority.capabilityContractKey())
+                || !java.util.Set.of(
+                        "predicate.self-person.v1",
+                        "predicate.hcm-performance-feedback-assignment.v1")
+                .equals(authority.predicatePolicyKeys())
+                || !java.util.Set.of("SELF", "TARGET_POPULATION")
+                .equals(authority.targetBindingKinds())) {
+            throw new IllegalStateException("PER-008 assigned collection scope profile changed.");
+        }
+        populations.requireSelfScope("hcm.personal");
+    }
+
+    private void validatePer008Request(HcmV3PepRegistry.RouteAuthority authority) {
+        boolean action = authority.routeContractKey().endsWith(".action");
+        if (!(action ? "ACTION" : "DATA").equals(authority.routeKind())
+                || authority.readOnly() == action
+                || !(action ? "POST" : "GET").equals(authority.method())) {
+            throw new IllegalStateException("PER-008 request operation changed.");
+        }
+        if ("manager-feedback-requester".equals(authority.profileKey())
+                && "hcm.team.performance.review".equals(
+                authority.capabilityContractKey())
+                && java.util.Set.of(
+                        "predicate.team-target-population.v1",
+                        "predicate.hcm-performance-feedback-request.v1")
+                .equals(authority.predicatePolicyKeys())
+                && java.util.Set.of("OBJECT", "TARGET_POPULATION")
+                .equals(authority.targetBindingKinds())) {
+            HcmPopulationScopeService.ResolvedPopulation population = populations.requireTeam();
+            populations.requireTrustedScope(
+                    population, "hcm.team", "TARGET_POPULATION", "TEAM/ORG_UNIT",
+                    "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION");
+            return;
+        }
+        if ("self-feedback-requester".equals(authority.profileKey())
+                && "per.feedback.request.create".equals(
+                authority.capabilityContractKey())
+                && java.util.Set.of(
+                        "predicate.self-person.v1",
+                        "predicate.hcm-performance-feedback-request.v1")
+                .equals(authority.predicatePolicyKeys())
+                && java.util.Set.of("SELF", "OBJECT")
+                .equals(authority.targetBindingKinds())) {
+            populations.requireSelfScope("hcm.personal");
+            return;
+        }
+        throw new IllegalStateException("PER-008 request scope profile changed.");
+    }
+
+    private void validatePer008AssignedObject(
+            HcmV3PepRegistry.RouteAuthority authority) {
+        boolean submit = PER008_ASSIGNED_SUBMIT_ROUTE.equals(authority.routeContractKey());
+        String expectedPublicPath = submit
+                ? "/api/people/v1/hris/performance/feedback-assignments/"
+                + "{feedbackAssignmentId}/responses"
+                : "/api/people/v1/hris/performance/feedback-assignments/"
+                + "{feedbackAssignmentId}";
+        if (!(submit ? "ACTION" : "DATA").equals(authority.routeKind())
+                || authority.readOnly() == submit
+                || !(submit ? "POST" : "GET").equals(authority.method())
+                || !(submit ? "assigned-feedback-provider" : "assigned-feedback-reader")
+                .equals(authority.profileKey())
+                || !(submit ? "per.feedback.assigned.submit"
+                : "hcm.personal.performance.view").equals(
+                authority.capabilityContractKey())
+                || !java.util.Set.of("predicate.hcm-performance-feedback-assignment.v1")
+                .equals(authority.predicatePolicyKeys())
+                || !java.util.Set.of("OBJECT", "TARGET_POPULATION")
+                .equals(authority.targetBindingKinds())
+                || !(authority.routeContractKey() + ".binding.01")
+                .equals(authority.bindingKey())
+                || !expectedPublicPath.equals(authority.publicPath())
+                || authority.stepUpBinding() != null) {
+            throw new IllegalStateException("PER-008 assigned object scope profile changed.");
+        }
+        // The module owner performs the final tenant/request/provider assignment and OPEN-window
+        // proof. This central guard never interprets the URL assignment as provider authority.
+    }
+
+    private void validatePer008Release(HcmV3PepRegistry.RouteAuthority authority) {
+        if (!"DATA".equals(authority.routeKind()) || !authority.readOnly()
+                || !"GET".equals(authority.method())
+                || !"per.feedback.aggregate.view".equals(
+                authority.capabilityContractKey())
+                || !java.util.Set.of("predicate.hcm-performance-feedback-release.v1")
+                .equals(authority.predicatePolicyKeys())
+                || authority.stepUpBinding() != null) {
+            throw new IllegalStateException("PER-008 release scope profile changed.");
+        }
+        switch (authority.profileKey()) {
+            case "self-feedback-release-reader" -> {
+                // RouteAuthority carries the selected profile target kinds. The generated
+                // predicate descriptor separately closes the union over SELF, OBJECT and
+                // TARGET_POPULATION in HcmV3PepRegistry.validateClosure().
+                if (!java.util.Set.of("SELF", "OBJECT")
+                        .equals(authority.targetBindingKinds())) {
+                    throw new IllegalStateException(
+                            "PER-008 self release target binding changed.");
+                }
+                populations.requireSelfScope("hcm.personal");
+            }
+            case "manager-feedback-release-reader" -> {
+                requirePer008ReleasePopulationTarget(authority);
+                HcmPopulationScopeService.ResolvedPopulation population = populations.requireTeam();
+                populations.requireTrustedScope(
+                        population, "hcm.team", "TARGET_POPULATION", "TEAM/ORG_UNIT",
+                        "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION");
+            }
+            case "operator-feedback-release-reader" -> {
+                requirePer008ReleasePopulationTarget(authority);
+                HcmPopulationScopeService.ResolvedPopulation population =
+                        populations.requireOperations("READ");
+                populations.requireTrustedScope(
+                        population, "hcm.operations", "TARGET_POPULATION",
+                        "NAMED_POPULATION");
+            }
+            default -> throw new IllegalStateException(
+                    "PER-008 release population profile changed.");
+        }
+    }
+
+    private void requirePer008ReleasePopulationTarget(
+            HcmV3PepRegistry.RouteAuthority authority) {
+        if (!java.util.Set.of("OBJECT", "TARGET_POPULATION")
+                .equals(authority.targetBindingKinds())) {
+            throw new IllegalStateException(
+                    "PER-008 population release target binding changed.");
+        }
     }
 
     private void validateOrganizationGraph(HcmV3PepRegistry.RouteAuthority authority) {
