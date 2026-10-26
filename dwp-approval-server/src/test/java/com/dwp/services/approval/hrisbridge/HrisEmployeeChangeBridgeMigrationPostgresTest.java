@@ -58,6 +58,7 @@ class HrisEmployeeChangeBridgeMigrationPostgresTest {
         migrated = Flyway.configure()
                 .dataSource(source)
                 .locations("classpath:db/migration")
+                .target(MigrationVersion.fromVersion("58"))
                 .cleanDisabled(false)
                 .load();
         migrated.migrate();
