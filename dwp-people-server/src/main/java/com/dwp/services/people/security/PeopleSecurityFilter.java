@@ -6,6 +6,8 @@ import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.people.hr.performance.compensationplanning.ApprovedCompensationSnapshotRequestContext;
 import com.dwp.services.people.hris.contracts.hrm011.Hrm011WorkloadRequestContext;
 import com.dwp.services.people.hris.contracts.tim003.TimeAbsenceOwnerRequestContext;
+import com.dwp.services.people.hris.separation.hrm013.Hrm013CallbackIngressFilter;
+import com.dwp.services.people.hris.separation.hrm013.Hrm013CallbackRequestContext;
 import com.dwp.services.people.integration.LocalSyntheticPeopleWorkforceBootstrapPaths;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -83,6 +85,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 || ApprovedCompensationSnapshotRequestContext.isVerifiedRequest(request)
                 || Hrm011WorkloadRequestContext.isVerifiedRequest(request)
                 || TimeAbsenceOwnerRequestContext.isVerifiedRequest(request)
+                || Hrm013CallbackRequestContext.isVerifiedRequest(request)
                 || isAuthorizedSyntheticBootstrap(request, path)
                 || isHomeProviderPost(request, path)
                 || employeeChangeEnabled
@@ -111,6 +114,11 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
+        if (Hrm013CallbackIngressFilter.isCallbackPath(request.getRequestURI())) {
+            writeError(response, ErrorCode.UNAUTHORIZED,
+                    "Verified HRM-013 workload authority is required.");
+            return;
+        }
         if (HrisEmployeeChangeSecurityBridge.claimsApprovalCallbackFamily(
                 request.getRequestURI())) {
             writeError(response, ErrorCode.UNAUTHORIZED,

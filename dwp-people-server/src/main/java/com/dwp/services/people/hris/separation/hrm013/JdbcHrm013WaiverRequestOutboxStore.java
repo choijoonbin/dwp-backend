@@ -1,7 +1,9 @@
 package com.dwp.services.people.hris.separation.hrm013;
 
+import com.dwp.platform.contracts.hris.separation.v1.Hrm013SeparationBridgeV1;
 import java.security.MessageDigest;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -117,6 +119,8 @@ public final class JdbcHrm013WaiverRequestOutboxStore
     public Optional<WaiverDeliveryClaim> claimNext(WaiverDeliveryClaimRequest request) {
         Optional<WaiverDeliveryClaim> result = required.execute(status -> {
             Hrm013TenantScope.setLocal(jdbc, request.tenantId());
+            recoverExpiredFinalClaimInTransaction(
+                    request.tenantId(), databaseNow());
             var parameters = new MapSqlParameterSource()
                     .addValue("tenant", request.tenantId())
                     .addValue("leaseToken", request.leaseToken())
@@ -177,6 +181,57 @@ public final class JdbcHrm013WaiverRequestOutboxStore
     public WaiverDeliveryDisposition accept(WaiverDeliveryAcceptance acceptance) {
         WaiverDeliveryDisposition result = required.execute(status -> {
             Hrm013TenantScope.setLocal(jdbc, acceptance.tenantId());
+            List<AcceptanceState> rows = jdbc.query("""
+                    SELECT approval_request_id,request_revision,command_digest,
+                           correlation_id,dispatch_state,lease_token,
+                           exact_response_body,response_body_sha256,accepted_at
+                      FROM ppl_separation_waiver_request_outbox
+                     WHERE tenant_id=:tenant
+                       AND approval_request_id=:approvalRequest
+                     FOR UPDATE
+                    """, new MapSqlParameterSource()
+                    .addValue("tenant", acceptance.tenantId())
+                    .addValue("approvalRequest", acceptance.approvalRequestId()),
+                    (row, ignored) -> new AcceptanceState(
+                            row.getObject("approval_request_id", UUID.class),
+                            row.getLong("request_revision"),
+                            row.getString("command_digest"),
+                            row.getObject("correlation_id", UUID.class),
+                            row.getString("dispatch_state"),
+                            row.getObject("lease_token", UUID.class),
+                            row.getBytes("exact_response_body"),
+                            row.getString("response_body_sha256"),
+                            row.getTimestamp("accepted_at") == null ? null
+                                    : row.getTimestamp("accepted_at").toInstant()));
+            if (rows.size() != 1) {
+                throw new IllegalStateException("HRM-013 waiver acceptance row missing");
+            }
+            AcceptanceState current = rows.getFirst();
+            var receipt = Hrm013SeparationBridgeV1.decodeWaiverReceipt(
+                    acceptance.exactResponseBody());
+            if (!receipt.approvalRequestId().equals(current.approvalRequestId())
+                    || receipt.requestRevision() != current.requestRevision()
+                    || !receipt.requestDigest().equals(current.commandDigest())
+                    || !receipt.correlationId().equals(current.correlationId())
+                    || !receipt.acceptedAt().equals(acceptance.acceptedAt())) {
+                throw new IllegalStateException(
+                        "HRM-013 waiver acceptance receipt binding differs");
+            }
+            if ("ACCEPTED".equals(current.dispatchState())) {
+                if (!MessageDigest.isEqual(current.exactResponseBody(),
+                        acceptance.exactResponseBody())
+                        || !acceptance.responseBodySha256().equals(
+                        current.responseBodySha256())
+                        || !acceptance.acceptedAt().equals(current.acceptedAt())) {
+                    throw new IllegalStateException(
+                            "conflicting HRM-013 waiver acceptance replay");
+                }
+                return WaiverDeliveryDisposition.ACCEPTED;
+            }
+            if (!"CLAIMED".equals(current.dispatchState())
+                    || !acceptance.leaseToken().equals(current.leaseToken())) {
+                throw new IllegalStateException("HRM-013 waiver acceptance lease was lost");
+            }
             int updated = jdbc.update("""
                     UPDATE ppl_separation_waiver_request_outbox
                        SET dispatch_state='ACCEPTED',lease_token=NULL,
@@ -204,6 +259,20 @@ public final class JdbcHrm013WaiverRequestOutboxStore
             throw new IllegalStateException("HRM-013 waiver acceptance returned no result");
         }
         return result;
+    }
+
+    private record AcceptanceState(
+            UUID approvalRequestId, long requestRevision, String commandDigest,
+            UUID correlationId, String dispatchState, UUID leaseToken,
+            byte[] exactResponseBody, String responseBodySha256,
+            Instant acceptedAt) {
+        private AcceptanceState {
+            exactResponseBody = exactResponseBody == null
+                    ? null : exactResponseBody.clone();
+        }
+        @Override public byte[] exactResponseBody() {
+            return exactResponseBody == null ? null : exactResponseBody.clone();
+        }
     }
 
     @Override
@@ -254,6 +323,10 @@ public final class JdbcHrm013WaiverRequestOutboxStore
             if (updated != 1) {
                 throw new IllegalStateException("HRM-013 waiver failure CAS was lost");
             }
+            if (disposition != WaiverDeliveryDisposition.RETRY) {
+                auditTerminal(failure.tenantId(), failure.approvalRequestId(),
+                        disposition, failure.failureCode(), databaseNow());
+            }
             return disposition;
         });
         if (result == null) {
@@ -293,6 +366,8 @@ public final class JdbcHrm013WaiverRequestOutboxStore
                 throw new IllegalStateException(
                         "HRM-013 expired final waiver claim recovery was lost");
             }
+            auditTerminal(recovery.tenantId(), recovery.approvalRequestId(),
+                    disposition, recovery.failureCode(), recovery.observedAt());
             return disposition;
         });
         if (result == null) {
@@ -300,6 +375,70 @@ public final class JdbcHrm013WaiverRequestOutboxStore
                     "HRM-013 final waiver claim recovery returned no result");
         }
         return result;
+    }
+
+    private void recoverExpiredFinalClaimInTransaction(long tenantId, Instant observedAt) {
+        List<UUID> expired = jdbc.queryForList("""
+                SELECT approval_request_id
+                  FROM ppl_separation_waiver_request_outbox
+                 WHERE tenant_id=:tenant AND dispatch_state='CLAIMED'
+                   AND attempt_count=10 AND lease_until <= :observed
+                   AND lease_until <= pg_catalog.clock_timestamp()
+                 ORDER BY lease_until,separation_waiver_request_id
+                 FOR UPDATE SKIP LOCKED LIMIT 1
+                """, new MapSqlParameterSource().addValue("tenant", tenantId)
+                .addValue("observed", Timestamp.from(observedAt)), UUID.class);
+        if (expired.isEmpty()) return;
+        UUID approvalRequest = expired.getFirst();
+        int updated = jdbc.update("""
+                UPDATE ppl_separation_waiver_request_outbox
+                   SET dispatch_state='RESULT_UNKNOWN',lease_token=NULL,
+                       lease_owner=NULL,lease_until=NULL,
+                       last_failure_code='FINAL_CLAIM_EXPIRED'
+                 WHERE tenant_id=:tenant AND approval_request_id=:approvalRequest
+                   AND dispatch_state='CLAIMED' AND attempt_count=10
+                   AND lease_until <= :observed
+                """, new MapSqlParameterSource().addValue("tenant", tenantId)
+                .addValue("approvalRequest", approvalRequest)
+                .addValue("observed", Timestamp.from(observedAt)));
+        if (updated == 1) {
+            auditTerminal(tenantId, approvalRequest,
+                    WaiverDeliveryDisposition.RESULT_UNKNOWN,
+                    "FINAL_CLAIM_EXPIRED", observedAt);
+        }
+    }
+
+    private void auditTerminal(
+            long tenantId, UUID approvalRequest,
+            WaiverDeliveryDisposition disposition, String failureCode,
+            Instant occurredAt) {
+        jdbc.update("""
+                INSERT INTO sys_people_audit_events(
+                    audit_event_id,tenant_id,actor_type,actor_id,action,target_type,
+                    target_id,outcome,correlation_id,after_snapshot,occurred_at)
+                SELECT :audit,:tenant,'SERVICE','dwp-people-server',
+                       'HRM013_WAIVER_DELIVERY_TERMINATED','SEPARATION_WAIVER_REQUEST',
+                       approval_request_id::text,'FAILED',correlation_id,
+                       jsonb_build_object('disposition',:disposition,
+                                          'failureCode',:failureCode),:occurred
+                  FROM ppl_separation_waiver_request_outbox
+                 WHERE tenant_id=:tenant AND approval_request_id=:approvalRequest
+                """, new MapSqlParameterSource().addValue("audit", UUID.randomUUID())
+                .addValue("tenant", tenantId)
+                .addValue("approvalRequest", approvalRequest)
+                .addValue("disposition", disposition.name())
+                .addValue("failureCode", failureCode)
+                .addValue("occurred", Timestamp.from(occurredAt)));
+    }
+
+    private Instant databaseNow() {
+        Timestamp value = jdbc.queryForObject(
+                "SELECT pg_catalog.transaction_timestamp()",
+                new MapSqlParameterSource(), Timestamp.class);
+        if (value == null) {
+            throw new IllegalStateException("HRM-013 database clock is unavailable");
+        }
+        return value.toInstant();
     }
 
     private static MapSqlParameterSource parameters(WaiverRequestFence value) {

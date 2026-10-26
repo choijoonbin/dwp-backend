@@ -6,6 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HexFormat;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -31,6 +32,25 @@ public final class Hrm013PersistenceModels {
             if (jti.equals(requestNonce)) {
                 throw new IllegalArgumentException("jti and requestNonce must differ");
             }
+        }
+    }
+
+    /** Digest-only reservation used after strict proof validation. */
+    public record ReplayDigestReservation(
+            long tenantId, String bindingId, String callerWorkloadId,
+            String proofIdSha256, String requestNonceSha256, Instant expiresAt) {
+        public ReplayDigestReservation {
+            positive(tenantId, "tenantId");
+            bindingId = required(bindingId, "bindingId");
+            callerWorkloadId = required(callerWorkloadId, "callerWorkloadId");
+            proofIdSha256 = digest(proofIdSha256, "proofIdSha256");
+            requestNonceSha256 = digest(requestNonceSha256, "requestNonceSha256");
+            if (MessageDigest.isEqual(
+                    proofIdSha256.getBytes(StandardCharsets.US_ASCII),
+                    requestNonceSha256.getBytes(StandardCharsets.US_ASCII))) {
+                throw new IllegalArgumentException("proof token digests must differ");
+            }
+            Objects.requireNonNull(expiresAt, "expiresAt");
         }
     }
 
@@ -406,6 +426,127 @@ public final class Hrm013PersistenceModels {
         ACCEPTED,
         DEAD,
         RESULT_UNKNOWN
+    }
+
+    /** Immutable integrity projection over one HRM-013 generic outbox row. */
+    public record TaskDispatchFence(
+            UUID dispatchEventId, long tenantId, UUID casePublicId, UUID taskPublicId,
+            String bindingId, String ownerWorkloadId, String purpose, String taskType,
+            String eventType, long taskVersion, long expectedOwnerRevision,
+            byte[] exactRequestBody, String requestBodySha256, String payloadSha256,
+            UUID correlationId, long dispatchTenantGrantRevision,
+            long dispatchAuthorizationRevision, long callbackTenantGrantRevision,
+            long callbackAuthorizationRevision, Instant occurredAt) {
+        public TaskDispatchFence {
+            Objects.requireNonNull(dispatchEventId, "dispatchEventId");
+            positive(tenantId, "tenantId");
+            Objects.requireNonNull(casePublicId, "casePublicId");
+            Objects.requireNonNull(taskPublicId, "taskPublicId");
+            bindingId = required(bindingId, "bindingId");
+            ownerWorkloadId = required(ownerWorkloadId, "ownerWorkloadId");
+            purpose = required(purpose, "purpose");
+            taskType = required(taskType, "taskType");
+            eventType = required(eventType, "eventType");
+            positive(taskVersion, "taskVersion");
+            positive(expectedOwnerRevision, "expectedOwnerRevision");
+            exactRequestBody = bytes(exactRequestBody, 32768, "exactRequestBody");
+            requestBodySha256 = digest(requestBodySha256, "requestBodySha256");
+            payloadSha256 = digest(payloadSha256, "payloadSha256");
+            if (!MessageDigest.isEqual(
+                    sha256(exactRequestBody).getBytes(StandardCharsets.US_ASCII),
+                    requestBodySha256.getBytes(StandardCharsets.US_ASCII))) {
+                throw new IllegalArgumentException("exactRequestBody digest mismatch");
+            }
+            Objects.requireNonNull(correlationId, "correlationId");
+            positive(dispatchTenantGrantRevision, "dispatchTenantGrantRevision");
+            positive(dispatchAuthorizationRevision, "dispatchAuthorizationRevision");
+            positive(callbackTenantGrantRevision, "callbackTenantGrantRevision");
+            positive(callbackAuthorizationRevision, "callbackAuthorizationRevision");
+            Objects.requireNonNull(occurredAt, "occurredAt");
+        }
+
+        @Override public byte[] exactRequestBody() { return exactRequestBody.clone(); }
+    }
+
+    public record TaskDispatchClaim(
+            TaskDispatchFence fence, int attemptCount,
+            Instant claimedAt, Instant claimUntil) {
+        public TaskDispatchClaim {
+            Objects.requireNonNull(fence, "fence");
+            if (attemptCount < 1 || attemptCount > 10) {
+                throw new IllegalArgumentException("attemptCount must be between 1 and 10");
+            }
+            Objects.requireNonNull(claimedAt, "claimedAt");
+            Objects.requireNonNull(claimUntil, "claimUntil");
+            if (!claimedAt.isBefore(claimUntil)) {
+                throw new IllegalArgumentException("claim window");
+            }
+        }
+    }
+
+    public record TaskDispatchAcceptance(
+            long tenantId, UUID dispatchEventId, int expectedAttemptCount,
+            Instant expectedClaimUntil, byte[] exactReceiptBody,
+            String responseBodySha256, String receiptSha256, Instant acceptedAt) {
+        public TaskDispatchAcceptance {
+            positive(tenantId, "tenantId");
+            Objects.requireNonNull(dispatchEventId, "dispatchEventId");
+            if (expectedAttemptCount < 1 || expectedAttemptCount > 10) {
+                throw new IllegalArgumentException("expectedAttemptCount");
+            }
+            Objects.requireNonNull(expectedClaimUntil, "expectedClaimUntil");
+            exactReceiptBody = bytes(exactReceiptBody, 16384, "exactReceiptBody");
+            responseBodySha256 = digest(responseBodySha256, "responseBodySha256");
+            receiptSha256 = digest(receiptSha256, "receiptSha256");
+            if (!MessageDigest.isEqual(
+                    sha256(exactReceiptBody).getBytes(StandardCharsets.US_ASCII),
+                    responseBodySha256.getBytes(StandardCharsets.US_ASCII))) {
+                throw new IllegalArgumentException("exactReceiptBody digest mismatch");
+            }
+            Objects.requireNonNull(acceptedAt, "acceptedAt");
+        }
+
+        @Override public byte[] exactReceiptBody() { return exactReceiptBody.clone(); }
+    }
+
+    public record TaskDispatchFailure(
+            long tenantId, UUID dispatchEventId, int expectedAttemptCount,
+            Instant expectedClaimUntil, boolean retryable,
+            boolean resultUnknown, Instant retryAt, String failureCode) {
+        public TaskDispatchFailure {
+            positive(tenantId, "tenantId");
+            Objects.requireNonNull(dispatchEventId, "dispatchEventId");
+            if (expectedAttemptCount < 1 || expectedAttemptCount > 10) {
+                throw new IllegalArgumentException("expectedAttemptCount");
+            }
+            Objects.requireNonNull(expectedClaimUntil, "expectedClaimUntil");
+            if (retryable != (retryAt != null)) {
+                throw new IllegalArgumentException(
+                        "retryAt must be present exactly for retryable failures");
+            }
+            failureCode = required(failureCode, "failureCode");
+        }
+    }
+
+    public enum TaskDispatchDisposition { RETRY, ACCEPTED, DEAD, RESULT_UNKNOWN }
+
+    /** Safe audit payload: identifiers and digests only, never request bodies or PII. */
+    public record AuditEvidence(
+            long tenantId, String eventType, UUID eventId, UUID correlationId,
+            String outcome, Map<String, String> digests, Instant occurredAt) {
+        public AuditEvidence {
+            positive(tenantId, "tenantId");
+            eventType = required(eventType, "eventType");
+            Objects.requireNonNull(eventId, "eventId");
+            Objects.requireNonNull(correlationId, "correlationId");
+            outcome = required(outcome, "outcome");
+            digests = Map.copyOf(Objects.requireNonNull(digests, "digests"));
+            digests.forEach((key, value) -> {
+                required(key, "digest key");
+                digest(value, key);
+            });
+            Objects.requireNonNull(occurredAt, "occurredAt");
+        }
     }
 
     public static String sha256(byte[] bytes) {
