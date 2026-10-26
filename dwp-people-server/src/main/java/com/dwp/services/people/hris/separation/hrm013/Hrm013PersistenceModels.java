@@ -286,6 +286,128 @@ public final class Hrm013PersistenceModels {
         }
     }
 
+    public record WaiverDeliveryClaimRequest(
+            long tenantId,
+            UUID leaseToken,
+            String leaseOwner,
+            Instant leaseUntil) {
+        public WaiverDeliveryClaimRequest {
+            positive(tenantId, "tenantId");
+            Objects.requireNonNull(leaseToken, "leaseToken");
+            leaseOwner = required(leaseOwner, "leaseOwner");
+            Objects.requireNonNull(leaseUntil, "leaseUntil");
+        }
+    }
+
+    public record WaiverDeliveryClaim(
+            WaiverRequestFence fence,
+            UUID leaseToken,
+            String leaseOwner,
+            int attemptCount,
+            Instant leaseUntil) {
+        public WaiverDeliveryClaim {
+            Objects.requireNonNull(fence, "fence");
+            Objects.requireNonNull(leaseToken, "leaseToken");
+            leaseOwner = required(leaseOwner, "leaseOwner");
+            if (attemptCount < 1 || attemptCount > 10) {
+                throw new IllegalArgumentException("attemptCount must be between 1 and 10");
+            }
+            Objects.requireNonNull(leaseUntil, "leaseUntil");
+        }
+    }
+
+    public record WaiverDeliveryAcceptance(
+            long tenantId,
+            UUID approvalRequestId,
+            UUID leaseToken,
+            byte[] exactResponseBody,
+            String responseBodySha256,
+            Instant acceptedAt) {
+        public WaiverDeliveryAcceptance {
+            positive(tenantId, "tenantId");
+            Objects.requireNonNull(approvalRequestId, "approvalRequestId");
+            Objects.requireNonNull(leaseToken, "leaseToken");
+            exactResponseBody = bytes(exactResponseBody, 16384, "exactResponseBody");
+            responseBodySha256 = digest(responseBodySha256, "responseBodySha256");
+            if (!MessageDigest.isEqual(
+                    sha256(exactResponseBody).getBytes(StandardCharsets.US_ASCII),
+                    responseBodySha256.getBytes(StandardCharsets.US_ASCII))) {
+                throw new IllegalArgumentException("exactResponseBody digest mismatch");
+            }
+            Objects.requireNonNull(acceptedAt, "acceptedAt");
+        }
+
+        @Override
+        public byte[] exactResponseBody() {
+            return exactResponseBody.clone();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return this == other
+                    || other instanceof WaiverDeliveryAcceptance that
+                    && tenantId == that.tenantId
+                    && approvalRequestId.equals(that.approvalRequestId)
+                    && leaseToken.equals(that.leaseToken)
+                    && MessageDigest.isEqual(exactResponseBody, that.exactResponseBody)
+                    && responseBodySha256.equals(that.responseBodySha256)
+                    && acceptedAt.equals(that.acceptedAt);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(
+                    tenantId, approvalRequestId, leaseToken,
+                    responseBodySha256, acceptedAt);
+            return 31 * result + Arrays.hashCode(exactResponseBody);
+        }
+    }
+
+    public record WaiverDeliveryFailure(
+            long tenantId,
+            UUID approvalRequestId,
+            UUID leaseToken,
+            boolean retryable,
+            boolean remoteCommitAmbiguous,
+            Instant retryAt,
+            String failureCode) {
+        public WaiverDeliveryFailure {
+            positive(tenantId, "tenantId");
+            Objects.requireNonNull(approvalRequestId, "approvalRequestId");
+            Objects.requireNonNull(leaseToken, "leaseToken");
+            if (retryable && retryAt == null) {
+                throw new IllegalArgumentException("retryAt is required for a retryable failure");
+            }
+            if (!retryable && retryAt != null) {
+                throw new IllegalArgumentException("retryAt is forbidden for a terminal failure");
+            }
+            failureCode = required(failureCode, "failureCode");
+        }
+    }
+
+    public record WaiverFinalClaimRecovery(
+            long tenantId,
+            UUID approvalRequestId,
+            UUID leaseToken,
+            Instant observedAt,
+            boolean remoteCommitAmbiguous,
+            String failureCode) {
+        public WaiverFinalClaimRecovery {
+            positive(tenantId, "tenantId");
+            Objects.requireNonNull(approvalRequestId, "approvalRequestId");
+            Objects.requireNonNull(leaseToken, "leaseToken");
+            Objects.requireNonNull(observedAt, "observedAt");
+            failureCode = required(failureCode, "failureCode");
+        }
+    }
+
+    public enum WaiverDeliveryDisposition {
+        RETRY,
+        ACCEPTED,
+        DEAD,
+        RESULT_UNKNOWN
+    }
+
     public static String sha256(byte[] bytes) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));

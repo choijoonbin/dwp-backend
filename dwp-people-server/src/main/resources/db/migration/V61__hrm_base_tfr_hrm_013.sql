@@ -256,6 +256,7 @@ CREATE TABLE ppl_separation_waiver_request_outbox (
         (dispatch_state = 'ACCEPTED'
          AND exact_response_body IS NOT NULL
          AND octet_length(exact_response_body) BETWEEN 1 AND 16384
+         AND response_body_sha256 IS NOT NULL
          AND response_body_sha256 ~ '^[0-9a-f]{64}$'
          AND encode(pg_catalog.sha256(exact_response_body), 'hex')
              = response_body_sha256
@@ -487,14 +488,17 @@ CREATE TABLE ppl_separation_callbacks (
         (callback_type = 'APPROVAL_DECISION'
          AND waiver_decision = 'APPROVED'
          AND step_up_evidence_id IS NOT NULL
+         AND step_up_evidence_audience IS NOT NULL
          AND step_up_evidence_audience = 'dwp-people-server'
+         AND step_up_evidence_purpose IS NOT NULL
          AND step_up_evidence_purpose
              = 'HRIS_SEPARATION_TASK_WAIVER_DECISION'
          AND step_up_evidence_nonce_sha256 IS NOT NULL
          AND step_up_evidence_sha256 IS NOT NULL
          AND step_up_verified_at IS NOT NULL
          AND step_up_consumed_at IS NOT NULL
-         AND step_up_consumed_at >= step_up_verified_at)
+         AND step_up_consumed_at >= step_up_verified_at
+         AND step_up_consumed_at <= occurred_at)
         OR ((callback_type <> 'APPROVAL_DECISION'
              OR waiver_decision = 'REJECTED')
             AND step_up_evidence_id IS NULL
@@ -749,10 +753,15 @@ BEGIN
         RAISE EXCEPTION 'illegal separation task lifecycle transition'
             USING ERRCODE = '23514';
     END IF;
-    IF OLD.owner_revision IS NOT NULL
-       AND NEW.owner_revision IS DISTINCT FROM OLD.owner_revision
-       AND NEW.owner_revision <> OLD.owner_revision + 1 THEN
-        RAISE EXCEPTION 'separation task owner revision must advance exactly once'
+    IF OLD.owner_revision IS NULL THEN
+        IF NEW.owner_revision IS NOT NULL AND NEW.owner_revision <> 1 THEN
+            RAISE EXCEPTION 'separation task owner revision must begin at one'
+                USING ERRCODE = '23514';
+        END IF;
+    ELSIF NEW.owner_revision IS NULL
+          OR (NEW.owner_revision IS DISTINCT FROM OLD.owner_revision
+              AND NEW.owner_revision <> OLD.owner_revision + 1) THEN
+        RAISE EXCEPTION 'separation task owner revision must remain or advance exactly once'
             USING ERRCODE = '23514';
     END IF;
     NEW.updated_at := pg_catalog.clock_timestamp();
@@ -834,15 +843,24 @@ BEGIN
     IF NOT (
         (OLD.dispatch_state IN ('PENDING','RETRY')
          AND NEW.dispatch_state='CLAIMED'
+         AND OLD.attempt_count < 10
          AND NEW.attempt_count=OLD.attempt_count+1)
         OR (OLD.dispatch_state='CLAIMED'
-            AND NEW.dispatch_state IN (
-                'ACCEPTED','RETRY','DEAD','RESULT_UNKNOWN')
+            AND NEW.dispatch_state IN ('ACCEPTED','DEAD','RESULT_UNKNOWN')
+            AND NEW.attempt_count=OLD.attempt_count)
+        OR (OLD.dispatch_state='CLAIMED'
+            AND OLD.attempt_count < 10
+            AND NEW.dispatch_state='RETRY'
             AND NEW.attempt_count=OLD.attempt_count)
         OR (OLD.dispatch_state='CLAIMED'
             AND OLD.lease_until <= pg_catalog.clock_timestamp()
+            AND OLD.attempt_count < 10
             AND NEW.dispatch_state='CLAIMED'
             AND NEW.attempt_count=OLD.attempt_count+1)
+        OR (OLD.dispatch_state='RETRY'
+            AND OLD.attempt_count=10
+            AND NEW.dispatch_state IN ('DEAD','RESULT_UNKNOWN')
+            AND NEW.attempt_count=OLD.attempt_count)
     ) THEN
         RAISE EXCEPTION 'illegal waiver request delivery transition'
             USING ERRCODE = '23514';
@@ -867,6 +885,10 @@ DECLARE
     prior ppl_separation_callback_authorities%ROWTYPE;
 BEGIN
     IF NEW.authority_revision = 1 THEN
+        IF NEW.decision <> 'ADMIT' THEN
+            RAISE EXCEPTION 'callback authority revision one must admit'
+                USING ERRCODE = '23514';
+        END IF;
         RETURN NEW;
     END IF;
     SELECT * INTO prior
@@ -877,6 +899,12 @@ BEGIN
     IF NOT FOUND
        OR prior.authority_revision + 1 <> NEW.authority_revision
        OR prior.decision <> 'ADMIT'
+       OR (NEW.decision = 'ADMIT'
+           AND NEW.expected_next_owner_revision
+               <> prior.expected_next_owner_revision + 1)
+       OR (NEW.decision = 'REVOKE'
+           AND NEW.expected_next_owner_revision
+               <> prior.expected_next_owner_revision)
        OR prior.created_at > NEW.created_at
        OR ROW(prior.binding_id,prior.caller_workload_id,prior.case_public_id,
               prior.task_public_id,prior.purpose_code,prior.approval_request_id)

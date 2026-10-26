@@ -26,6 +26,11 @@ import static com.dwp.services.people.hris.separation.hrm013.Hrm013PersistenceMo
 import static com.dwp.services.people.hris.separation.hrm013.Hrm013PersistenceModels.CallbackIdentity;
 import static com.dwp.services.people.hris.separation.hrm013.Hrm013PersistenceModels.CallbackReceiptRecord;
 import static com.dwp.services.people.hris.separation.hrm013.Hrm013PersistenceModels.ReplayReservation;
+import static com.dwp.services.people.hris.separation.hrm013.Hrm013PersistenceModels.WaiverDeliveryAcceptance;
+import static com.dwp.services.people.hris.separation.hrm013.Hrm013PersistenceModels.WaiverDeliveryClaimRequest;
+import static com.dwp.services.people.hris.separation.hrm013.Hrm013PersistenceModels.WaiverDeliveryDisposition;
+import static com.dwp.services.people.hris.separation.hrm013.Hrm013PersistenceModels.WaiverDeliveryFailure;
+import static com.dwp.services.people.hris.separation.hrm013.Hrm013PersistenceModels.WaiverFinalClaimRecovery;
 import static com.dwp.services.people.hris.separation.hrm013.Hrm013PersistenceModels.WaiverRequestFence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -167,6 +172,96 @@ class Hrm013PrerequisiteStoresPostgresTest {
     }
 
     @Test
+    void waiverDeliveryCasClaimsAcceptsAndTerminatesAtTheBoundedAttempt() {
+        Graph graph = insertGraph("delivery-cas");
+        var store = new JdbcHrm013WaiverRequestOutboxStore(named, manager);
+
+        WaiverRequestFence exhausted = waiverFence(graph, 1);
+        transactions.executeWithoutResult(status -> store.insert(exhausted));
+        for (int attempt = 1; attempt <= 10; attempt++) {
+            UUID leaseToken = UUID.randomUUID();
+            var claim = store.claimNext(new WaiverDeliveryClaimRequest(
+                    TENANT, leaseToken, "delivery-worker",
+                    Instant.now().plusSeconds(30))).orElseThrow();
+            assertThat(claim.attemptCount()).isEqualTo(attempt);
+            assertThat(claim.leaseToken()).isEqualTo(leaseToken);
+            WaiverDeliveryDisposition disposition = store.retryOrTerminal(
+                    new WaiverDeliveryFailure(
+                            TENANT, exhausted.approvalRequestId(), leaseToken,
+                            true, false, Instant.now().minusSeconds(1),
+                            "TRANSIENT_UPSTREAM"));
+            assertThat(disposition).isEqualTo(attempt < 10
+                    ? WaiverDeliveryDisposition.RETRY
+                    : WaiverDeliveryDisposition.DEAD);
+        }
+        assertThat(jdbc.queryForMap("""
+                SELECT dispatch_state,attempt_count,lease_token
+                  FROM ppl_separation_waiver_request_outbox
+                 WHERE tenant_id=? AND approval_request_id=?
+                """, TENANT, exhausted.approvalRequestId()))
+                .containsEntry("dispatch_state", "DEAD")
+                .containsEntry("attempt_count", 10)
+                .containsEntry("lease_token", null);
+
+        WaiverRequestFence accepted = waiverFence(graph, 2);
+        transactions.executeWithoutResult(status -> store.insert(accepted));
+        UUID acceptedLease = UUID.randomUUID();
+        store.claimNext(new WaiverDeliveryClaimRequest(
+                TENANT, acceptedLease, "delivery-worker",
+                Instant.now().plusSeconds(30))).orElseThrow();
+        byte[] response = "{\"status\":\"ACCEPTED\"}"
+                .getBytes(StandardCharsets.UTF_8);
+        assertThat(store.accept(new WaiverDeliveryAcceptance(
+                TENANT, accepted.approvalRequestId(), acceptedLease,
+                response, Hrm013PersistenceModels.sha256(response), Instant.now())))
+                .isEqualTo(WaiverDeliveryDisposition.ACCEPTED);
+        assertThat(jdbc.queryForMap("""
+                SELECT dispatch_state,response_body_sha256,lease_token
+                  FROM ppl_separation_waiver_request_outbox
+                 WHERE tenant_id=? AND approval_request_id=?
+                """, TENANT, accepted.approvalRequestId()))
+                .containsEntry("dispatch_state", "ACCEPTED")
+                .containsEntry(
+                        "response_body_sha256", Hrm013PersistenceModels.sha256(response))
+                .containsEntry("lease_token", null);
+
+        WaiverRequestFence ambiguous = waiverFence(graph, 3);
+        transactions.executeWithoutResult(status -> store.insert(ambiguous));
+        for (int attempt = 1; attempt <= 9; attempt++) {
+            UUID leaseToken = UUID.randomUUID();
+            var claim = store.claimNext(new WaiverDeliveryClaimRequest(
+                    TENANT, leaseToken, "delivery-worker",
+                    Instant.now().plusSeconds(30))).orElseThrow();
+            assertThat(claim.attemptCount()).isEqualTo(attempt);
+            assertThat(store.retryOrTerminal(new WaiverDeliveryFailure(
+                    TENANT, ambiguous.approvalRequestId(), leaseToken,
+                    true, true, Instant.now().minusSeconds(1),
+                    "AMBIGUOUS_RETRY"))).isEqualTo(WaiverDeliveryDisposition.RETRY);
+        }
+        UUID finalLease = UUID.randomUUID();
+        assertThat(jdbc.update("""
+                UPDATE ppl_separation_waiver_request_outbox
+                   SET dispatch_state='CLAIMED',attempt_count=10,lease_token=?,
+                       lease_owner='crashed-final-worker',
+                       lease_until=now()-INTERVAL '1 second'
+                 WHERE tenant_id=? AND approval_request_id=?
+                   AND dispatch_state='RETRY' AND attempt_count=9
+                """, finalLease, TENANT, ambiguous.approvalRequestId())).isOne();
+        assertThat(store.resolveExpiredFinalClaim(new WaiverFinalClaimRecovery(
+                TENANT, ambiguous.approvalRequestId(), finalLease, Instant.now(),
+                true, "FINAL_REMOTE_COMMIT_AMBIGUOUS")))
+                .isEqualTo(WaiverDeliveryDisposition.RESULT_UNKNOWN);
+        assertThat(jdbc.queryForMap("""
+                SELECT dispatch_state,attempt_count,lease_token
+                  FROM ppl_separation_waiver_request_outbox
+                 WHERE tenant_id=? AND approval_request_id=?
+                """, TENANT, ambiguous.approvalRequestId()))
+                .containsEntry("dispatch_state", "RESULT_UNKNOWN")
+                .containsEntry("attempt_count", 10)
+                .containsEntry("lease_token", null);
+    }
+
+    @Test
     void callbackStorePersistsAllThreeBindingsAndReturnsByteIdenticalReplay() {
         Graph graph = insertGraph("callback");
         var outbox = new JdbcHrm013WaiverRequestOutboxStore(named, manager);
@@ -282,6 +377,19 @@ class Hrm013PrerequisiteStoresPostgresTest {
                 value.receiptPublicId(), value.exactResponseBody(),
                 value.responseBodySha256(), value.outcome(), value.occurredAt(),
                 value.receivedAt());
+    }
+
+    private WaiverRequestFence waiverFence(Graph graph, long requestRevision) {
+        byte[] body = ("{\"requestRevision\":" + requestRevision + "}")
+                .getBytes(StandardCharsets.UTF_8);
+        Instant now = Instant.now();
+        return new WaiverRequestFence(
+                UUID.randomUUID(), TENANT, graph.caseId(), graph.taskId(),
+                UUID.randomUUID(), graph.casePublicId(), graph.taskPublicId(),
+                requestRevision, UUID.randomUUID(), UUID.randomUUID(),
+                "POLICY_EXCEPTION", 1, 0, body,
+                Hrm013PersistenceModels.sha256(body), SHA_A, SHA_B,
+                UUID.randomUUID(), now.minusSeconds(1), now);
     }
 
     private Graph insertGraph(String key) {

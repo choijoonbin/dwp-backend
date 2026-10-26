@@ -277,12 +277,161 @@ class Hrm013V61MigrationPostgresTest {
                 .isInstanceOf(DataAccessException.class);
 
         WaiverSeed waiver = insertWaiverRequest(owner, graph, "nullable-evidence");
+        Instant occurredAt = Instant.now();
         assertThatThrownBy(() -> insertApprovalCallbackWithNullableEvidence(
-                owner, graph, waiver, null, 1L))
+                owner, graph, waiver, null, 1L, null, null, null, occurredAt))
                 .isInstanceOf(DataAccessException.class);
         assertThatThrownBy(() -> insertApprovalCallbackWithNullableEvidence(
-                owner, graph, waiver, "APPROVED", null))
+                owner, graph, waiver, "APPROVED", null, "dwp-people-server",
+                "HRIS_SEPARATION_TASK_WAIVER_DECISION",
+                occurredAt.minusSeconds(1), occurredAt))
                 .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> insertApprovalCallbackWithNullableEvidence(
+                owner, graph, waiver, "APPROVED", 1L, null,
+                "HRIS_SEPARATION_TASK_WAIVER_DECISION",
+                occurredAt.minusSeconds(1), occurredAt))
+                .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> insertApprovalCallbackWithNullableEvidence(
+                owner, graph, waiver, "APPROVED", 1L, "dwp-people-server", null,
+                occurredAt.minusSeconds(1), occurredAt))
+                .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> insertApprovalCallbackWithNullableEvidence(
+                owner, graph, waiver, "APPROVED", 1L, "dwp-people-server",
+                "HRIS_SEPARATION_TASK_WAIVER_DECISION",
+                occurredAt.plusSeconds(1), occurredAt))
+                .isInstanceOf(DataAccessException.class);
+
+        UUID leaseToken = UUID.randomUUID();
+        owner.update("""
+                UPDATE ppl_separation_waiver_request_outbox
+                   SET dispatch_state='CLAIMED',attempt_count=1,lease_token=?,
+                       lease_owner='nullable-test',lease_until=now()+INTERVAL '1 minute'
+                 WHERE tenant_id=? AND approval_request_id=?
+                """, leaseToken, TENANT_ONE, waiver.approvalRequestId());
+        byte[] safeResponse = "{\"status\":\"ACCEPTED\"}"
+                .getBytes(StandardCharsets.UTF_8);
+        assertThatThrownBy(() -> owner.update("""
+                UPDATE ppl_separation_waiver_request_outbox
+                   SET dispatch_state='ACCEPTED',lease_token=NULL,lease_owner=NULL,
+                       lease_until=NULL,exact_response_body=?,
+                       response_body_sha256=NULL,accepted_at=now()
+                 WHERE tenant_id=? AND approval_request_id=? AND lease_token=?
+                """, safeResponse, TENANT_ONE, waiver.approvalRequestId(), leaseToken))
+                .isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
+    void activeTaskOwnerRevisionCannotResetOrSkipAndMayRemainUnchanged() {
+        owner = new JdbcTemplate(migratedSource());
+        Graph graph = insertGraph(owner, TENANT_ONE, "owner-revision");
+
+        assertThatThrownBy(() -> owner.update("""
+                UPDATE ppl_separation_tasks
+                   SET owner_revision=NULL,version=version+1
+                 WHERE tenant_id=? AND separation_task_id=?
+                """, TENANT_ONE, graph.taskId()))
+                .isInstanceOf(DataAccessException.class)
+                .rootCause().hasMessageContaining("owner revision must remain");
+        assertThat(owner.update("""
+                UPDATE ppl_separation_tasks
+                   SET lifecycle_state='IN_PROGRESS',version=version+1
+                 WHERE tenant_id=? AND separation_task_id=?
+                """, TENANT_ONE, graph.taskId())).isOne();
+        assertThatThrownBy(() -> owner.update("""
+                UPDATE ppl_separation_tasks
+                   SET owner_revision=3,version=version+1
+                 WHERE tenant_id=? AND separation_task_id=?
+                """, TENANT_ONE, graph.taskId()))
+                .isInstanceOf(DataAccessException.class)
+                .rootCause().hasMessageContaining("owner revision must remain");
+        assertThat(owner.update("""
+                UPDATE ppl_separation_tasks
+                   SET owner_revision=2,version=version+1
+                 WHERE tenant_id=? AND separation_task_id=?
+                """, TENANT_ONE, graph.taskId())).isOne();
+
+        long unowned = owner.queryForObject("""
+                INSERT INTO ppl_separation_tasks(
+                    public_id,tenant_id,separation_case_id,task_type,
+                    owner_workload_id,mandatory,irreversible,
+                    created_at,created_by,updated_at,updated_by)
+                VALUES(?,?,?,'PAYROLL_FINALIZATION','dwp-payroll-server',TRUE,FALSE,
+                    now(),1,now(),1) RETURNING separation_task_id
+                """, Long.class, UUID.randomUUID(), TENANT_ONE, graph.caseId());
+        assertThatThrownBy(() -> owner.update("""
+                UPDATE ppl_separation_tasks
+                   SET owner_revision=2,version=version+1
+                 WHERE tenant_id=? AND separation_task_id=?
+                """, TENANT_ONE, unowned))
+                .isInstanceOf(DataAccessException.class)
+                .rootCause().hasMessageContaining("owner revision must begin at one");
+        assertThat(owner.update("""
+                UPDATE ppl_separation_tasks
+                   SET owner_revision=1,version=version+1
+                 WHERE tenant_id=? AND separation_task_id=?
+                """, TENANT_ONE, unowned)).isOne();
+    }
+
+    @Test
+    void authorityChainRequiresInitialAdmitAndExactOwnerProgression() {
+        owner = new JdbcTemplate(migratedSource());
+        Graph graph = insertGraph(owner, TENANT_ONE, "authority-chain");
+
+        assertThatThrownBy(() -> insertTaskAuthorityDecision(
+                owner, graph, UUID.randomUUID(), 1, 1, null, "REVOKE"))
+                .isInstanceOf(DataAccessException.class)
+                .rootCause().hasMessageContaining("revision one must admit");
+        UUID first = UUID.randomUUID();
+        insertTaskAuthorityDecision(owner, graph, first, 1, 1, null, "ADMIT");
+        assertThatThrownBy(() -> insertTaskAuthorityDecision(
+                owner, graph, UUID.randomUUID(), 2, 3, first, "ADMIT"))
+                .isInstanceOf(DataAccessException.class)
+                .rootCause().hasMessageContaining("immediate same-tenant stream head");
+        assertThatThrownBy(() -> insertTaskAuthorityDecision(
+                owner, graph, UUID.randomUUID(), 2, 2, first, "REVOKE"))
+                .isInstanceOf(DataAccessException.class)
+                .rootCause().hasMessageContaining("immediate same-tenant stream head");
+        assertThat(insertTaskAuthorityDecision(
+                owner, graph, UUID.randomUUID(), 2, 1, first, "REVOKE")).isOne();
+    }
+
+    @Test
+    void tenthClaimCannotRetryAndMustReachOneBoundedTerminalState() throws Exception {
+        owner = new JdbcTemplate(migratedSource());
+        Graph graph = insertGraph(owner, TENANT_ONE, "attempt-limit");
+        WaiverSeed dead = insertWaiverRequest(owner, graph, "attempt-limit-dead", 1);
+        WaiverSeed unknown = insertWaiverRequest(
+                owner, graph, "attempt-limit-unknown", 2);
+        UUID deadLease = advanceToFinalClaim(owner, dead.approvalRequestId());
+        UUID unknownLease = advanceToFinalClaim(owner, unknown.approvalRequestId());
+
+        assertThatThrownBy(() -> owner.update("""
+                UPDATE ppl_separation_waiver_request_outbox
+                   SET dispatch_state='RETRY',lease_token=NULL,lease_owner=NULL,
+                       lease_until=NULL,available_at=now(),last_failure_code='TRANSIENT'
+                 WHERE tenant_id=? AND approval_request_id=? AND lease_token=?
+                """, TENANT_ONE, dead.approvalRequestId(), deadLease))
+                .isInstanceOf(DataAccessException.class)
+                .rootCause().hasMessageContaining("illegal waiver request delivery transition");
+        assertThat(owner.update("""
+                UPDATE ppl_separation_waiver_request_outbox
+                   SET dispatch_state='DEAD',lease_token=NULL,lease_owner=NULL,
+                       lease_until=NULL,last_failure_code='ATTEMPTS_EXHAUSTED'
+                 WHERE tenant_id=? AND approval_request_id=? AND lease_token=?
+                """, TENANT_ONE, dead.approvalRequestId(), deadLease)).isOne();
+        assertThat(owner.update("""
+                UPDATE ppl_separation_waiver_request_outbox
+                   SET dispatch_state='RESULT_UNKNOWN',lease_token=NULL,
+                       lease_owner=NULL,lease_until=NULL,
+                       last_failure_code='REMOTE_COMMIT_AMBIGUOUS'
+                 WHERE tenant_id=? AND approval_request_id=? AND lease_token=?
+                """, TENANT_ONE, unknown.approvalRequestId(), unknownLease)).isOne();
+        assertThat(owner.queryForList("""
+                SELECT dispatch_state,attempt_count
+                  FROM ppl_separation_waiver_request_outbox
+                 WHERE tenant_id=? ORDER BY dispatch_state
+                """, TENANT_ONE))
+                .allSatisfy(row -> assertThat(row.get("attempt_count")).isEqualTo(10));
     }
 
     @Test
@@ -343,6 +492,12 @@ class Hrm013V61MigrationPostgresTest {
 
     private WaiverSeed insertWaiverRequest(
             JdbcTemplate jdbc, Graph graph, String key) throws Exception {
+        return insertWaiverRequest(jdbc, graph, key, 1);
+    }
+
+    private WaiverSeed insertWaiverRequest(
+            JdbcTemplate jdbc, Graph graph, String key, long requestRevision)
+            throws Exception {
         byte[] request = ("{\"approvalRequestId\":\"" + key + "\"}")
                 .getBytes(StandardCharsets.UTF_8);
         WaiverSeed seed = new WaiverSeed(
@@ -357,12 +512,12 @@ class Hrm013V61MigrationPostgresTest {
                     task_version,exact_request_body,request_body_sha256,
                     approval_request_payload_sha256,command_digest,correlation_id,
                     available_at,created_at,updated_at)
-                VALUES(?,?,?,?,?,?,?,1,?,?,'POLICY_EXCEPTION',1,0,?,?,?,?,?,
+                VALUES(?,?,?,?,?,?,?,?,?,?,'POLICY_EXCEPTION',1,0,?,?,?,?,?,
                     now(),now(),now())
                 """, UUID.randomUUID(), graph.tenantId(), graph.caseId(), graph.taskId(),
                 seed.approvalRequestId(), graph.casePublicId(), graph.taskPublicId(),
-                seed.makerPublicId(), seed.requesterPublicId(), request, sha256(request),
-                seed.payloadSha256(), SHA_C, seed.correlationId());
+                requestRevision, seed.makerPublicId(), seed.requesterPublicId(), request,
+                sha256(request), seed.payloadSha256(), SHA_C, seed.correlationId());
         return seed;
     }
 
@@ -371,9 +526,12 @@ class Hrm013V61MigrationPostgresTest {
             Graph graph,
             WaiverSeed waiver,
             String waiverDecision,
-            Long decisionRevision) throws Exception {
+            Long decisionRevision,
+            String stepUpAudience,
+            String stepUpPurpose,
+            Instant stepUpConsumedAt,
+            Instant occurredAt) throws Exception {
         boolean approved = "APPROVED".equals(waiverDecision);
-        Instant now = Instant.now();
         byte[] response = "{\"binding\":\"HRM-010\"}"
                 .getBytes(StandardCharsets.UTF_8);
         var parameters = new MapSqlParameterSource()
@@ -393,18 +551,18 @@ class Hrm013V61MigrationPostgresTest {
                 .addValue("caseMaker", waiver.makerPublicId())
                 .addValue("requester", waiver.requesterPublicId())
                 .addValue("stepUpId", approved ? UUID.randomUUID() : null)
-                .addValue("stepUpAudience", approved ? "dwp-people-server" : null)
-                .addValue("stepUpPurpose", approved
-                        ? "HRIS_SEPARATION_TASK_WAIVER_DECISION" : null)
+                .addValue("stepUpAudience", stepUpAudience)
+                .addValue("stepUpPurpose", stepUpPurpose)
                 .addValue("stepUpNonceDigest", approved ? SHA_A : null)
                 .addValue("stepUpDigest", approved ? SHA_B : null)
                 .addValue("stepUpVerified", approved
-                        ? java.sql.Timestamp.from(now.minusSeconds(2)) : null)
+                        ? java.sql.Timestamp.from(stepUpConsumedAt.minusSeconds(1)) : null)
                 .addValue("stepUpConsumed", approved
-                        ? java.sql.Timestamp.from(now.minusSeconds(1)) : null)
+                        ? java.sql.Timestamp.from(stepUpConsumedAt) : null)
                 .addValue("receiptPublicId", UUID.randomUUID())
                 .addValue("response", response)
-                .addValue("responseDigest", sha256(response));
+                .addValue("responseDigest", sha256(response))
+                .addValue("occurredAt", java.sql.Timestamp.from(occurredAt));
         return new NamedParameterJdbcTemplate(jdbc.getDataSource()).update("""
                 INSERT INTO ppl_separation_callbacks(
                     tenant_id,separation_case_id,separation_task_id,callback_type,
@@ -428,7 +586,7 @@ class Hrm013V61MigrationPostgresTest {
                     :caseMaker,:requester,'POLICY_EXCEPTION',:stepUpId,
                     :stepUpAudience,:stepUpPurpose,:stepUpNonceDigest,:stepUpDigest,
                     :stepUpVerified,:stepUpConsumed,:receiptPublicId,:response,
-                    :responseDigest,'ACCEPTED',now(),now())
+                    :responseDigest,'ACCEPTED',:occurredAt,now())
                 """, parameters);
     }
 
@@ -473,7 +631,34 @@ class Hrm013V61MigrationPostgresTest {
             long authorityRevision,
             long expectedOwnerRevision,
             UUID supersedesPublicId) {
-        return jdbc.update("""
+        return insertTaskAuthorityDecision(
+                jdbc, graph, publicId, authorityRevision,
+                expectedOwnerRevision, supersedesPublicId, "ADMIT");
+    }
+
+    private int insertTaskAuthorityDecision(
+            JdbcTemplate jdbc,
+            Graph graph,
+            UUID publicId,
+            long authorityRevision,
+            long expectedOwnerRevision,
+            UUID supersedesPublicId,
+            String decision) {
+        var parameters = new MapSqlParameterSource()
+                .addValue("publicId", publicId)
+                .addValue("tenant", graph.tenantId())
+                .addValue("casePublicId", graph.casePublicId())
+                .addValue("taskPublicId", graph.taskPublicId())
+                .addValue("caseId", graph.caseId())
+                .addValue("taskId", graph.taskId())
+                .addValue("ownerRevision", expectedOwnerRevision)
+                .addValue("correlation", UUID.randomUUID())
+                .addValue("originDigest", SHA_B)
+                .addValue("authorityRevision", authorityRevision)
+                .addValue("decision", decision)
+                .addValue("supersedes", supersedesPublicId)
+                .addValue("authorityDigest", SHA_C);
+        return new NamedParameterJdbcTemplate(jdbc.getDataSource()).update("""
                 INSERT INTO ppl_separation_callback_authorities(
                     public_id,tenant_id,case_public_id,task_public_id,
                     separation_case_id,separation_task_id,callback_type,
@@ -481,15 +666,39 @@ class Hrm013V61MigrationPostgresTest {
                     tenant_grant_revision,authorization_revision,
                     expected_next_owner_revision,correlation_id,
                     originating_payload_sha256,authority_revision,decision,
-                    supersedes_authority_public_id,authority_digest,created_at)
-                VALUES(?,?,?,?,?,?,'TASK_RECEIPT','dwp-time-server',
+                    supersedes_authority_public_id,authority_digest,created_at,closed_at)
+                VALUES(:publicId,:tenant,:casePublicId,:taskPublicId,:caseId,:taskId,
+                    'TASK_RECEIPT','dwp-time-server',
                     'SVC-PEP-HRM-008','dwp-people-server',
                     'HRIS_SEPARATION_TIME_TASK_RECEIPT','TIME_FINALIZATION',4,6,
-                    ?,?,?,?,'ADMIT',?,?,now())
-                """, publicId, graph.tenantId(), graph.casePublicId(),
-                graph.taskPublicId(), graph.caseId(), graph.taskId(),
-                expectedOwnerRevision, UUID.randomUUID(), SHA_B, authorityRevision,
-                supersedesPublicId, SHA_C);
+                    :ownerRevision,:correlation,:originDigest,:authorityRevision,
+                    :decision,:supersedes,:authorityDigest,now(),
+                    CASE WHEN :decision='REVOKE' THEN now() ELSE NULL END)
+                """, parameters);
+    }
+
+    private UUID advanceToFinalClaim(JdbcTemplate jdbc, UUID approvalRequestId) {
+        UUID leaseToken = UUID.randomUUID();
+        assertThat(jdbc.update("""
+                UPDATE ppl_separation_waiver_request_outbox
+                   SET dispatch_state='CLAIMED',attempt_count=1,lease_token=?,
+                       lease_owner='attempt-limit-test',
+                       lease_until=now()-INTERVAL '1 second'
+                 WHERE tenant_id=? AND approval_request_id=?
+                """, leaseToken, TENANT_ONE, approvalRequestId)).isOne();
+        for (int attempt = 2; attempt <= 10; attempt++) {
+            UUID replacement = UUID.randomUUID();
+            assertThat(jdbc.update("""
+                    UPDATE ppl_separation_waiver_request_outbox
+                       SET dispatch_state='CLAIMED',attempt_count=?,lease_token=?,
+                           lease_owner='attempt-limit-test',
+                           lease_until=now()-INTERVAL '1 second'
+                     WHERE tenant_id=? AND approval_request_id=? AND lease_token=?
+                    """, attempt, replacement, TENANT_ONE, approvalRequestId,
+                    leaseToken)).isOne();
+            leaseToken = replacement;
+        }
+        return leaseToken;
     }
 
     private DataSource migratedSource() {
