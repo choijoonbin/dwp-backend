@@ -37,9 +37,11 @@ final class ApprovalPepProjectionLoader {
             "product-authorization/approval-pilot-pep-v31.generated.json";
     static final String V32_RESOURCE =
             "product-authorization/approval-pilot-pep-v32.generated.json";
+    static final String V62_RESOURCE =
+            "product-authorization/approval-pilot-pep-v62.generated.json";
 
     private static final Set<Integer> SUPPORTED = Set.of(
-            2, 7, 8, 9, 10, 11, 12, 13, 14, 15, 19, 31, 32);
+            2, 7, 8, 9, 10, 11, 12, 13, 14, 15, 19, 31, 32, 62);
 
     private ApprovalPepProjectionLoader() { }
 
@@ -76,6 +78,8 @@ final class ApprovalPepProjectionLoader {
                     V19_RESOURCE, false, false, true);
             case 32 -> validatePrior(objectMapper, clock, projection, 31,
                     V31_RESOURCE, false, false, true);
+            case 62 -> validatePrior(objectMapper, clock, projection, 32,
+                    V32_RESOURCE, false, false, true);
             default -> { }
         }
         return projection;
@@ -118,6 +122,7 @@ final class ApprovalPepProjectionLoader {
             case 19 -> V19_RESOURCE;
             case 31 -> V31_RESOURCE;
             case 32 -> V32_RESOURCE;
+            case 62 -> V62_RESOURCE;
             default -> throw new IllegalStateException("Unsupported Approval PEP version");
         };
     }

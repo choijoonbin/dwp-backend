@@ -56,7 +56,8 @@ class ApprovalRelease31PepContractTest {
         assertThat(current.path("projectionChecksum").asText()).isEqualTo(
                 "db4ae3868edc04a540d134311f593621b9ce740d68d8e705d5beafb4e96bff2c");
 
-        ApprovalPilotPepRegistry active = new ApprovalPilotPepRegistry(json);
+        ApprovalPilotPepRegistry active = new ApprovalPilotPepRegistry(
+                json, Clock.systemUTC(), 31);
         ApprovalPilotPepRegistry prior = new ApprovalPilotPepRegistry(
                 json, Clock.systemUTC(), 19);
         assertThat(active.bindingContracts()).hasSize(285)

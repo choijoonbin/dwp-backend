@@ -44,6 +44,8 @@ final class ApprovalPepProjectionLineage {
             "be4e1b6db3d3f0b5100182a3c80066a39c64479f9ba88d908fee661efd3335b8";
     static final String RELEASE32_CHECKSUM =
             "b620ea86a8310cf23796e3e380b74c39764bdca28f41033496d21887a89da9cc";
+    static final String RELEASE62_CHECKSUM =
+            "cb370fd02a896452a64187fca8afb8bb3e3d281e490fba02e76f7a3c0d7f9770";
     static final String BASELINE_PROJECTION_CHECKSUM =
             "b6b3d9fa5b4d296d333d05b03c001252a93b229d112322ee49425d26f7f6f83f";
     static final String WORK_PROJECTION_CHECKSUM =
@@ -72,7 +74,9 @@ final class ApprovalPepProjectionLineage {
             Map.entry(31, new Release(RELEASE31_CHECKSUM,
                     "db4ae3868edc04a540d134311f593621b9ce740d68d8e705d5beafb4e96bff2c", 911, 216, 285)),
             Map.entry(32, new Release(RELEASE32_CHECKSUM,
-                    "2c3f771da173ca48ac2f32752bcce79f840911417a041194118b4882a6cb041b", 912, 216, 285)));
+                    "2c3f771da173ca48ac2f32752bcce79f840911417a041194118b4882a6cb041b", 912, 216, 285)),
+            Map.entry(62, new Release(RELEASE62_CHECKSUM,
+                    "05056c4ed23c20d1ba93017466b35557320dd5ca02f4750b318498e6038b841b", 1158, 217, 286)));
 
     private ApprovalPepProjectionLineage() { }
 

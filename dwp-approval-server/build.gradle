@@ -33,3 +33,35 @@ dependencies {
     testImplementation 'org.testcontainers:postgresql'
     testImplementation 'org.postgresql:postgresql'
 }
+
+evaluationDependsOn(':dwp-auth-server')
+
+sourceSets {
+    crossServiceTest {
+        java {
+            srcDir 'src/crossServiceTest/java'
+            include 'com/dwp/services/approval/workflowauthority/WorkflowRuntimeActualAuthHttpTest.java'
+        }
+        resources.srcDirs = []
+        compileClasspath = sourceSets.main.output + configurations.testCompileClasspath
+        runtimeClasspath = output + compileClasspath + configurations.testRuntimeClasspath
+    }
+}
+
+configurations {
+    crossServiceTestImplementation.extendsFrom testImplementation
+    crossServiceTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
+tasks.register('crossServiceTest', Test) {
+    group = 'verification'
+    description = 'Runs the bounded Approval-to-Auth HTTP verification gate.'
+    dependsOn tasks.named('crossServiceTestClasses')
+    dependsOn project(':dwp-auth-server').tasks.named('testClasses')
+    testClassesDirs = sourceSets.crossServiceTest.output.classesDirs
+    classpath = sourceSets.crossServiceTest.runtimeClasspath \
+            + project(':dwp-auth-server').sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    systemProperty 'dwp.workflow.cross-service-gate',
+            System.getProperty('dwp.workflow.cross-service-gate', 'true')
+}

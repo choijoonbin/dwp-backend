@@ -22,7 +22,7 @@ class ApprovalExtensionV9PepRegistryTest {
     void currentConstructorRetainsAllImmutableBaselinesAndExactNewOwnerBindings() {
         var v8 = new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 8);
         var v9 = new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 9);
-        var current = new ApprovalPilotPepRegistry(mapper);
+        var current = new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 32);
         assertThat(v9.bindingContracts()).hasSize(99).containsAll(v8.bindingContracts());
         assertThat(v9.bindingContracts()).filteredOn(binding -> !v8.bindingContracts().contains(binding)).hasSize(27);
         assertThat(current.bindingContracts()).hasSize(285).containsAll(v9.bindingContracts());

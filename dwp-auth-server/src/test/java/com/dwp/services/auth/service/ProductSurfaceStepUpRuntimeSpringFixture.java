@@ -2,6 +2,8 @@ package com.dwp.services.auth.service;
 
 import com.dwp.services.auth.config.ProductAuthorizationSeedLoader;
 import com.dwp.services.auth.repository.*;
+import com.dwp.services.auth.tenantfeatureactivation.TenantFeatureActivationReader;
+import com.dwp.services.auth.tenantfeatureactivation.TenantFeatureActivationRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManagerFactory;
 import org.springframework.context.annotation.Bean;
@@ -31,6 +33,9 @@ import static org.mockito.Mockito.mock;
 class ProductSurfaceStepUpRuntimeSpringFixture {
     @Bean ObjectMapper mapper() { return new ObjectMapper().findAndRegisterModules(); }
     @Bean JdbcTemplate jdbc(DataSource source) { return new JdbcTemplate(source); }
+    @Bean TenantFeatureActivationReader tenantFeatureActivations(JdbcTemplate jdbc) {
+        return new TenantFeatureActivationRepository(jdbc);
+    }
     @Bean LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource source) {
         var factory = new LocalContainerEntityManagerFactoryBean(); factory.setDataSource(source);
         factory.setPackagesToScan("com.dwp.services.auth.entity"); factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());

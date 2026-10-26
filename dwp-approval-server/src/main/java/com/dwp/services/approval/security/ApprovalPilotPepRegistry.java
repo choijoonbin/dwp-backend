@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 
 import static com.dwp.services.approval.security.ApprovalPepProjectionJson.*;
 
-/** Exact release32 PEP, with every prior Approval projection validated at startup. */
+/** Exact release62 PEP, with every prior Approval projection validated at startup. */
 @Component
 public final class ApprovalPilotPepRegistry {
 
@@ -45,6 +45,7 @@ public final class ApprovalPilotPepRegistry {
     static final String V19_RESOURCE = ApprovalPepProjectionLoader.V19_RESOURCE;
     static final String V31_RESOURCE = ApprovalPepProjectionLoader.V31_RESOURCE;
     static final String V32_RESOURCE = ApprovalPepProjectionLoader.V32_RESOURCE;
+    static final String V62_RESOURCE = ApprovalPepProjectionLoader.V62_RESOURCE;
 
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -61,7 +62,7 @@ public final class ApprovalPilotPepRegistry {
     }
 
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock) {
-        this(objectMapper, clock, 32);
+        this(objectMapper, clock, 62);
     }
 
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock, boolean baselineOnly) {
@@ -380,6 +381,7 @@ public final class ApprovalPilotPepRegistry {
             case 9 -> 32;
             case 10, 11 -> 37;
             case 12, 13, 14, 15, 19, 31, 32 -> 39;
+            case 62 -> 40;
             default -> throw new IllegalStateException("Unsupported Approval PEP version");
         };
         int expectedPredicates = switch (version) {
@@ -388,7 +390,7 @@ public final class ApprovalPilotPepRegistry {
             case 8 -> 10;
             case 9 -> 13;
             case 10 -> 16;
-            case 11, 12, 13, 14, 15, 19, 31, 32 -> 18;
+            case 11, 12, 13, 14, 15, 19, 31, 32, 62 -> 18;
             default -> throw new IllegalStateException("Unsupported Approval PEP version");
         };
         require(capabilities.size() == expectedCapabilities && policies.size() == 1

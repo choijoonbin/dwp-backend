@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.InputStream;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.Test;
 
@@ -94,6 +95,41 @@ class ApprovalRelease62PepContractTest {
                     assertThat(binding.path("audience").asText())
                             .isEqualTo("dwp-approval-server");
                 });
+    }
+
+    @Test
+    void release62IsTheInstalledRegistryAndAuthorizesOnlyItsExactDedicatedRoute() {
+        ApprovalPilotPepRegistry registry = new ApprovalPilotPepRegistry(json);
+        String taskId = "00000000-0000-0000-0000-000000000013";
+        String path = "/v1/hris/separation-waiver-tasks/" + taskId + "/approve";
+        Set<String> permission = Set.of("ACTION.APPROVAL_TASK:APPROVE");
+
+        assertThat(registry.registryRef().version()).isEqualTo(62);
+        assertThat(registry.registryRef().sha256())
+                .isEqualTo("cb370fd02a896452a64187fca8afb8bb3e3d281e490fba02e76f7a3c0d7f9770");
+        assertThat(registry.bindingContracts()).hasSize(286);
+
+        ApprovalPilotPepRegistry.Decision allowed = registry.authorize(
+                new ApprovalPilotPepRegistry.RequestEvidence(
+                        "POST", path, permission, "", Set.of(), ROUTE,
+                        ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL));
+        assertThat(allowed.allowed()).isTrue();
+        assertThat(allowed.authorities()).singleElement().satisfies(authority -> {
+            assertThat(authority.capabilityContractKey()).isEqualTo(CAPABILITY);
+            assertThat(authority.highRisk()).isTrue();
+            assertThat(authority.activationPolicy()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+            assertThat(authority.predicatePolicyKeys()).containsExactlyInAnyOrder(
+                    "predicate.approval-task-decision.v1",
+                    "predicate.approval.object-version.v1");
+        });
+
+        assertThat(registry.authorize(new ApprovalPilotPepRegistry.RequestEvidence(
+                "POST", path, permission, "", Set.of(),
+                "route.approvals.work.task-decision.action",
+                ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL)).allowed()).isFalse();
+        assertThat(registry.authorize(new ApprovalPilotPepRegistry.RequestEvidence(
+                "GET", path, permission, "", Set.of(), ROUTE,
+                ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL)).allowed()).isFalse();
     }
 
     private ObjectNode resource(String path) throws Exception {

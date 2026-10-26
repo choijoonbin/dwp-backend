@@ -28,7 +28,8 @@ class ApprovalRelease32PepContractTest {
         stripReleaseEnvelope(previous);
         stripReleaseEnvelope(current);
         assertThat(current).isEqualTo(previous);
-        assertThat(new ApprovalPilotPepRegistry(json).bindingContracts())
+        assertThat(new ApprovalPilotPepRegistry(
+                json, java.time.Clock.systemUTC(), 32).bindingContracts())
                 .containsExactlyElementsOf(new ApprovalPilotPepRegistry(
                         json, java.time.Clock.systemUTC(), 31).bindingContracts());
     }
