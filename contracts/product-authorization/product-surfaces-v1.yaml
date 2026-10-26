@@ -64863,6 +64863,103 @@
           "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 62,
+      "capabilities": [
+        {
+          "contractKey": "approvals.work.hris-separation-waiver-task.approve",
+          "productKey": "approvals",
+          "surfaceKey": "approvals.work",
+          "owner": "Approvals + Security",
+          "resolvedCapabilityCode": "ACTION.APPROVAL_TASK:APPROVE",
+          "resourceKey": "ACTION.APPROVAL_TASK",
+          "action": "APPROVE",
+          "authorityMode": "PERMISSION",
+          "scopeResolver": "DECIDABLE_TASK_SELF_APPROVAL_SOD",
+          "riskTier": "HIGH",
+          "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "requiresProductEntitlement": true,
+          "mappingVersion": 1,
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE",
+          "legacySource": null,
+          "sodPolicyId": null,
+          "sunsetAt": null
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.approvals.work.hris-separation-waiver-task-approve.action",
+          "navigationContextId": "approvals.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "approvals",
+            "surfaceKey": "approvals.work"
+          },
+          "routeKind": "ACTION",
+          "sideEffectFree": null,
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "approvals.work.hris-separation-waiver-task.approve"
+              },
+              "targetBindingKinds": [
+                "OBJECT"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.approval-task-decision.v1",
+                "predicate.approval.object-version.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.approvals.work.hris-separation-waiver-task-approve.action.binding.01",
+              "method": "POST",
+              "path": "/api/approvals/v1/hris/separation-waiver-tasks/{taskId}/approve",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.approvals.work.hris-separation-waiver-task-approve.action.binding.01",
+              "method": "POST",
+              "path": "/v1/hris/separation-waiver-tasks/{taskId}/approve",
+              "pathParameterConstraints": {},
+              "serviceKey": "approval"
+            }
+          ],
+          "stepUpCommandBindings": [
+            {
+              "bindingKey": "route.approvals.work.hris-separation-waiver-task-approve.action.binding.01",
+              "targetType": "HRIS_SEPARATION_WAIVER_TASK",
+              "targetIdPathParameter": "taskId",
+              "expectedObjectVersionSource": "COMMAND_HEADER",
+              "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+              "ownerServiceKey": "approval",
+              "audience": "dwp-approval-server"
+            }
+          ],
+          "owner": "Approvals + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {

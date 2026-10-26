@@ -46,6 +46,51 @@ class ProductSurfaceDecisionContextFilterTest {
             new ClassPathResource("product-authorization/product-surfaces-v1.generated.json"));
 
     @Test
+    void hrm013DedicatedApprovalRouteIsHighCommandBoundAndForwardsOnlyTrustedDecisionContext() {
+        String path = "/api/approvals/v1/hris/separation-waiver-tasks/task-62/approve";
+        GeneratedProductRouteCatalog.Route route = catalog.match("POST", path).uniqueRoute();
+        assertThat(route).isNotNull();
+        assertThat(route.routeContractKey())
+                .isEqualTo("route.approvals.work.hris-separation-waiver-task-approve.action");
+        assertThat(route.productKey()).isEqualTo("approvals");
+        assertThat(route.surfaceKey()).isEqualTo("approvals.work");
+        assertThat(route.routeKind()).isEqualTo("ACTION");
+        assertThat(route.stateChanging()).isTrue();
+        assertThat(route.highRiskStepUp()).isTrue();
+        assertThat(route.commandBoundStepUp()).isTrue();
+        assertThat(route.genericSessionStepUp()).isFalse();
+
+        ProductSurfaceContextAggregationService authority = authority(allowed());
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.post(path)
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER, REVISION)
+                .header(ProductSurfaceDecisionContextFilter.EXPECTED_OBJECT_VERSION_HEADER, "9")
+                .header(ProductSurfaceDecisionContextFilter.ROUTE_HEADER, "client-forged"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                .isEqualTo("route.approvals.work.hris-separation-waiver-task-approve.action");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER))
+                .isEqualTo(REVISION);
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.SCOPE_HEADER)).isEqualTo("scope-approval");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.EXPECTED_OBJECT_VERSION_HEADER)).isEqualTo("9");
+    }
+
+    @Test
     void latestCatalogRegistersExactDwaionV5ReadBindingsAsSideEffectFree() {
         Map<String, String> expected = Map.of(
                 "/api/agent/v1/runs", "route.dwaion.work.runs.data",

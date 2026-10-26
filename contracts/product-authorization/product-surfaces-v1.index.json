@@ -1,11 +1,11 @@
 {
   "bundleKey": "product-surfaces",
-  "indexChecksum": "383db99274809a32bebb7ce65b0762cb10525204ef457c1a8c7602edc58b9d19",
+  "indexChecksum": "6335d20480114daca37f2a73fb6c31eaf0092ded9cd347717a89508e47d15c81",
   "indexChecksumAlgorithm": "SHA-256",
-  "latestArtifact": "product-surfaces-v1.bundle-v61.json",
-  "latestAuthSeedArtifact": "product-surfaces-v1.bundle-v61.generated.json",
-  "latestChecksum": "f7cf92a97f2fabf86f257010064a3183acf58f86cc2c9d7692a1555cab55aa24",
-  "latestVersion": 61,
+  "latestArtifact": "product-surfaces-v1.bundle-v62.json",
+  "latestAuthSeedArtifact": "product-surfaces-v1.bundle-v62.generated.json",
+  "latestChecksum": "cb370fd02a896452a64187fca8afb8bb3e3d281e490fba02e76f7a3c0d7f9770",
+  "latestVersion": 62,
   "schemaVersion": 1,
   "versions": [
     {
@@ -861,6 +861,20 @@
         "routes": 1157
       },
       "version": 61
+    },
+    {
+      "artifact": "product-surfaces-v1.bundle-v62.json",
+      "authSeedArtifact": "product-surfaces-v1.bundle-v62.generated.json",
+      "bundleStatus": "DRAFT",
+      "checksum": "cb370fd02a896452a64187fca8afb8bb3e3d281e490fba02e76f7a3c0d7f9770",
+      "counts": {
+        "accessPolicies": 24,
+        "capabilities": 280,
+        "entitlementExpressions": 17,
+        "predicatePolicies": 87,
+        "routes": 1158
+      },
+      "version": 62
     }
   ]
 }

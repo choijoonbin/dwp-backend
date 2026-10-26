@@ -49,6 +49,36 @@ class GeneratedProductRouteCatalogTest extends GeneratedProductRouteCatalogTestS
             "route.hcm.performance.feedback-release.data");
 
     @Test
+    void v62IntroducesOnlyTheDedicatedHrm013ApprovalCommandBinding() throws Exception {
+        GeneratedProductRouteCatalog previous = catalog(61);
+        GeneratedProductRouteCatalog current = catalog(62);
+        String path = "/api/approvals/v1/hris/separation-waiver-tasks/task-62/approve";
+        String routeKey =
+                "route.approvals.work.hris-separation-waiver-task-approve.action";
+
+        assertThat(previous.routesForTesting().stream()
+                .map(GeneratedProductRouteCatalog.Route::routeContractKey))
+                .doesNotContain(routeKey);
+        GeneratedProductRouteCatalog.Match match = current.match("POST", path);
+        assertThat(match.status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(match.routes()).hasSize(1);
+        assertThat(match.uniqueRoute()).isNotNull().satisfies(route -> {
+            assertThat(route.routeContractKey()).isEqualTo(routeKey);
+            assertThat(route.productKey()).isEqualTo("approvals");
+            assertThat(route.surfaceKey()).isEqualTo("approvals.work");
+            assertThat(route.routeKind()).isEqualTo("ACTION");
+            assertThat(route.stateChanging()).isTrue();
+            assertThat(route.highRiskStepUp()).isTrue();
+            assertThat(route.commandBoundStepUp()).isTrue();
+            assertThat(route.genericSessionStepUp()).isFalse();
+        });
+        assertThat(current.match("GET", path).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(current.match("POST", path + "/extra").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+    }
+
+    @Test
     void v59IntroducesOnlyTheExactPer008TopologiesAndPreservesEquivalentReads()
             throws Exception {
         GeneratedProductRouteCatalog previous = catalog(58);

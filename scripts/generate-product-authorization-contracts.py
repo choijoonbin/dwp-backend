@@ -86,6 +86,9 @@ APPROVAL_RELEASE31_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
 APPROVAL_RELEASE32_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
     "approval-pilot-pep-v32.generated.json"
 )
+APPROVAL_RELEASE62_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v62.generated.json"
+)
 PLATFORM_APPROVALS_PEP_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
@@ -324,7 +327,12 @@ HCM_PEP_V61_OUTPUTS = {
     f"hcm-{service}-pep-v61.generated.json"
     for service in ("people", "time", "platform", "payroll")
 }
-BUNDLE_VERSIONS = tuple(range(1, 62))
+HCM_PEP_V62_OUTPUTS = {
+    service: ROOT / f"dwp-{service}-server/src/main/resources/product-authorization/"
+    f"hcm-{service}-pep-v62.generated.json"
+    for service in ("people", "time", "platform", "payroll")
+}
+BUNDLE_VERSIONS = tuple(range(1, 63))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -480,6 +488,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 86, "routes": 1154, "PAGE": 161, "DATA": 348, "ACTION": 645},
     61: {"capabilities": 279, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 87, "routes": 1157, "PAGE": 162, "DATA": 349, "ACTION": 646},
+    62: {"capabilities": 280, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 87, "routes": 1158, "PAGE": 162, "DATA": 349, "ACTION": 647},
 }
 
 V47_CANONICAL_PAGE_FIRST_READ_SOURCES = {
@@ -4461,6 +4471,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         APPROVAL_RELEASE19_PEP_OUTPUT,
         APPROVAL_RELEASE31_PEP_OUTPUT,
         APPROVAL_RELEASE32_PEP_OUTPUT,
+        APPROVAL_RELEASE62_PEP_OUTPUT,
         PLATFORM_APPROVALS_PEP_OUTPUT,
         LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT,
         LEGACY_PLATFORM_WORKPLACE_PEP_V16_OUTPUT,
@@ -4531,6 +4542,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         *HCM_PEP_V59_OUTPUTS.values(),
         *HCM_PEP_V60_OUTPUTS.values(),
         *HCM_PEP_V61_OUTPUTS.values(),
+        *HCM_PEP_V62_OUTPUTS.values(),
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -4691,6 +4703,15 @@ def main() -> int:
                 "capabilities": 39, "accessPolicies": 1,
                 "entitlementExpressions": 1, "predicatePolicies": 18,
             }, version=32,
+        )
+        approval_release62_pep = build_approvals_pep(
+            snapshots[61], "approval", "approval-pilot-pep-v62",
+            {
+                "routes": 217, "bindings": 286,
+                "routeKinds": {"ACTION": 113, "DATA": 84, "PAGE": 20},
+                "capabilities": 40, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 18,
+            }, version=62,
         )
         platform_approvals_pep = build_approvals_pep(
             snapshots[1],
@@ -5641,6 +5662,30 @@ def main() -> int:
                             "entitlementExpressions": 0, "predicatePolicies": 9},
             }.items()
         }
+        hcm_peps_v62 = {
+            service: build_approvals_pep(
+                snapshots[61], service, f"hcm-{service}-pep-v62", counts,
+                version=62, product_key="hcm",
+            )
+            for service, counts in {
+                "people": {"routes": 136, "bindings": 163,
+                           "routeKinds": {"ACTION": 54, "DATA": 35, "PAGE": 47},
+                           "capabilities": 65, "accessPolicies": 5,
+                           "entitlementExpressions": 3, "predicatePolicies": 23},
+                "time": {"routes": 29, "bindings": 29,
+                         "routeKinds": {"ACTION": 16, "DATA": 6, "PAGE": 7},
+                         "capabilities": 15, "accessPolicies": 0,
+                         "entitlementExpressions": 0, "predicatePolicies": 9},
+                "platform": {"routes": 89, "bindings": 90,
+                             "routeKinds": {"ACTION": 57, "DATA": 24, "PAGE": 8},
+                             "capabilities": 24, "accessPolicies": 4,
+                             "entitlementExpressions": 3, "predicatePolicies": 11},
+                "payroll": {"routes": 41, "bindings": 41,
+                            "routeKinds": {"ACTION": 22, "DATA": 14, "PAGE": 5},
+                            "capabilities": 17, "accessPolicies": 0,
+                            "entitlementExpressions": 0, "predicatePolicies": 9},
+            }.items()
+        }
     except ContractError as exc:
         print(f"authorization contract error: {exc}", file=sys.stderr)
         return 1
@@ -5707,6 +5752,7 @@ def main() -> int:
             write_or_check(APPROVAL_RELEASE19_PEP_OUTPUT, render(approval_release19_pep), args.check),
             write_or_check(APPROVAL_RELEASE31_PEP_OUTPUT, render(approval_release31_pep), args.check),
             write_or_check(APPROVAL_RELEASE32_PEP_OUTPUT, render(approval_release32_pep), args.check),
+            write_or_check(APPROVAL_RELEASE62_PEP_OUTPUT, render(approval_release62_pep), args.check),
             write_or_check(
                 PLATFORM_APPROVALS_PEP_OUTPUT,
                 render(platform_approvals_pep),
@@ -6017,6 +6063,10 @@ def main() -> int:
         write_or_check(HCM_PEP_V61_OUTPUTS[service], render(pep), args.check)
         for service, pep in hcm_peps_v61.items()
     )
+    outcomes.extend(
+        write_or_check(HCM_PEP_V62_OUTPUTS[service], render(pep), args.check)
+        for service, pep in hcm_peps_v62.items()
+    )
     if not all(outcomes):
         return 1
     try:
@@ -6048,6 +6098,7 @@ def main() -> int:
         verify_approvals_pep(APPROVAL_RELEASE19_PEP_OUTPUT, approval_release19_pep)
         verify_approvals_pep(APPROVAL_RELEASE31_PEP_OUTPUT, approval_release31_pep)
         verify_approvals_pep(APPROVAL_RELEASE32_PEP_OUTPUT, approval_release32_pep)
+        verify_approvals_pep(APPROVAL_RELEASE62_PEP_OUTPUT, approval_release62_pep)
         verify_approvals_pep(PLATFORM_APPROVALS_PEP_OUTPUT, platform_approvals_pep)
         verify_approvals_pep(
             LEGACY_PLATFORM_WORKPLACE_PEP_V21_OUTPUT,
@@ -6165,6 +6216,8 @@ def main() -> int:
             verify_approvals_pep(HCM_PEP_V60_OUTPUTS[service], pep)
         for service, pep in hcm_peps_v61.items():
             verify_approvals_pep(HCM_PEP_V61_OUTPUTS[service], pep)
+        for service, pep in hcm_peps_v62.items():
+            verify_approvals_pep(HCM_PEP_V62_OUTPUTS[service], pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1

@@ -1597,6 +1597,30 @@
       "surfaceKey": "approvals.work"
     },
     {
+      "action": "APPROVE",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.work.hris-separation-waiver-task.approve",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.APPROVAL_TASK:APPROVE",
+      "resourceKey": "ACTION.APPROVAL_TASK",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.approvals.work.hris-separation-waiver-task-approve.action"
+      ],
+      "scopeResolver": "DECIDABLE_TASK_SELF_APPROVAL_SOD",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.work"
+    },
+    {
       "action": "VIEW",
       "activationPolicy": null,
       "authorityMode": "PERMISSION",
@@ -8423,7 +8447,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "f7cf92a97f2fabf86f257010064a3183acf58f86cc2c9d7692a1555cab55aa24",
+  "checksum": "cb370fd02a896452a64187fca8afb8bb3e3d281e490fba02e76f7a3c0d7f9770",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -8724,6 +8748,7 @@
       "policyVersion": 1,
       "predicatePolicyKey": "predicate.approval-task-decision.v1",
       "routeContractKeys": [
+        "route.approvals.work.hris-separation-waiver-task-approve.action",
         "route.approvals.work.task-decision.action"
       ],
       "targetBindingKinds": [
@@ -8890,6 +8915,7 @@
         "route.approvals.work.external-signature-handover.action",
         "route.approvals.work.external-signature-refresh.action",
         "route.approvals.work.external-signature-request-create.action",
+        "route.approvals.work.hris-separation-waiver-task-approve.action",
         "route.approvals.work.request-attachment-reserve.action",
         "route.approvals.work.request-attachment-selection.action",
         "route.approvals.work.request-comment.action",
@@ -25429,6 +25455,72 @@
       },
       "uiRouteId": "approvals.work.home",
       "uiRoutePattern": "/approvals/home"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval-task-decision.v1",
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.hris-separation-waiver-task.approve",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.hris-separation-waiver-task-approve.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/hris/separation-waiver-tasks/{taskId}/approve",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.hris-separation-waiver-task-approve.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.hris-separation-waiver-task-approve.action.binding.01",
+          "method": "POST",
+          "path": "/v1/hris/separation-waiver-tasks/{taskId}/approve",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-approval-server",
+          "bindingKey": "route.approvals.work.hris-separation-waiver-task-approve.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "approval",
+          "targetIdPathParameter": "taskId",
+          "targetType": "HRIS_SEPARATION_WAIVER_TASK"
+        }
+      ],
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
     },
     {
       "accessProfiles": [
@@ -82244,5 +82336,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 61
+  "version": 62
 }

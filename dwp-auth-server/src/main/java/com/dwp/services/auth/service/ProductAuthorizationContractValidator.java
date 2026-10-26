@@ -353,6 +353,27 @@ public class ProductAuthorizationContractValidator {
         require(text(value.scopeResolver()), value.contractKey() + ": scope resolver is required.");
         require(Set.of("LOW", "MEDIUM", "HIGH", "CRITICAL").contains(value.riskTier()),
                 value.contractKey() + ": invalid risk tier.");
+        if ("approvals.work.hris-separation-waiver-task.approve".equals(value.contractKey())) {
+            require(bundleVersion >= 62
+                            && "approvals".equals(value.productKey())
+                            && "approvals.work".equals(value.surfaceKey())
+                            && "ACTION.APPROVAL_TASK:APPROVE".equals(value.resolvedCapabilityCode())
+                            && "ACTION.APPROVAL_TASK".equals(value.resourceKey())
+                            && "APPROVE".equals(value.action())
+                            && "PERMISSION".equals(value.authorityMode())
+                            && "NOT_REQUIRED".equals(value.responsibilityRequirement())
+                            && value.requiredResponsibilityCode() == null
+                            && "DECIDABLE_TASK_SELF_APPROVAL_SOD".equals(value.scopeResolver())
+                            && "HIGH".equals(value.riskTier())
+                            && "STEPUP-MGMT-HIGH-V1".equals(value.activationPolicy())
+                            && value.sodPolicyId() == null
+                            && value.requiresProductEntitlement()
+                            && "Approvals + Security".equals(value.owner())
+                            && List.of(
+                                    "route.approvals.work.hris-separation-waiver-task-approve.action")
+                            .equals(value.routeContractKeys()),
+                    value.contractKey() + ": exact HRM-013 approval authority drift.");
+        }
     }
 
     private boolean exactRequiredResponsibility(

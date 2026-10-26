@@ -144,17 +144,14 @@ class ProductAuthorizationV61Test(unittest.TestCase):
         self.assertEqual("people", step_up["ownerServiceKey"])
         self.assertEqual("dwp-people-server", step_up["audience"])
 
-    def test_latest_alias_index_auth_seed_and_service_peps_share_lineage(self) -> None:
+    def test_fixed_v61_artifacts_and_service_peps_preserve_lineage(self) -> None:
         auth = ROOT / "dwp-auth-server/src/main/resources/product-authorization"
         canonical = (CONTRACTS / "product-surfaces-v1.bundle-v61.json").read_bytes()
-        self.assertEqual(canonical, (CONTRACTS / "product-surfaces-v1.json").read_bytes())
-        self.assertEqual(canonical, (auth / "product-surfaces-v1.generated.json").read_bytes())
         self.assertEqual(canonical,
                          (auth / "product-surfaces-v1.bundle-v61.generated.json").read_bytes())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual((61, CHECKSUM, 61),
-                         (index["latestVersion"], index["latestChecksum"],
-                          len(index["versions"])))
+        v61 = next(value for value in index["versions"] if value["version"] == 61)
+        self.assertEqual((61, CHECKSUM), (v61["version"], v61["checksum"]))
         expected = {
             "people": (65, 5, 3, 23, 136, 163,
                        {"PAGE": 47, "DATA": 35, "ACTION": 54}),

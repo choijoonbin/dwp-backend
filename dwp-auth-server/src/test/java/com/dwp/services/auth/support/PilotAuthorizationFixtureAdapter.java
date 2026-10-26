@@ -28,11 +28,13 @@ public final class PilotAuthorizationFixtureAdapter {
     private static final String RESOURCE =
             "product-authorization/pilot-fixtures.v1.generated.json";
     private static final String CANONICAL_FIXTURE_CHECKSUM =
-            "8c53306abcaa6eb5dce2ec025dcae6b3e91b38a4fd89ef44139757c820b79180";
+            "bf9dd055bf8368e32409bfa0287317beda83de049ab4ea66cdcbce2a7961f218";
     private static final String V60_CHECKSUM =
             "405ac7c88d30a5730faa40c730968fffc873bd1a3679e4997532f0ea9ff1c47c";
     private static final String V61_CHECKSUM =
             "f7cf92a97f2fabf86f257010064a3183acf58f86cc2c9d7692a1555cab55aa24";
+    private static final String V62_CHECKSUM =
+            "cb370fd02a896452a64187fca8afb8bb3e3d281e490fba02e76f7a3c0d7f9770";
     public static final String EXPECTED_FIXTURE_CHECKSUM = readCanonicalFixtureChecksum();
     private static final List<String> CATALOG_NAMES = List.of(
             "scopes",
@@ -151,7 +153,7 @@ public final class PilotAuthorizationFixtureAdapter {
         ArrayNode versions = requiredArray(lineage, "versions");
         require("product-surfaces".equals(lineage.path("bundleKey").asText())
                         && lineage.path("indexSha256").asText().matches("^[0-9a-f]{64}$")
-                        && latestAliasVersion == 61
+                        && latestAliasVersion == 62
                         && versions.size() == latestAliasVersion,
                 "Pilot fixture registry lineage must contain every version through its latest alias.");
         for (int index = 0; index < versions.size(); index++) {
@@ -164,7 +166,8 @@ public final class PilotAuthorizationFixtureAdapter {
                     "Pilot fixture registry lineage must be canonical and contiguous.");
         }
         require(V60_CHECKSUM.equals(versions.get(59).path("sha256").asText())
-                        && V61_CHECKSUM.equals(versions.get(60).path("sha256").asText()),
+                        && V61_CHECKSUM.equals(versions.get(60).path("sha256").asText())
+                        && V62_CHECKSUM.equals(versions.get(61).path("sha256").asText()),
                 "Pilot fixture registry lineage terminal checksums changed.");
     }
 
