@@ -63,7 +63,7 @@ class Hrm012V60MigrationPostgresTest {
     void cleanMigrationThroughV60BuildsOnlyTheTwoTablesAndLockedControls() {
         DataSource source = dataSource();
         JdbcTemplate jdbc = new JdbcTemplate(source);
-        migrated = flyway(source, null);
+        migrated = flyway(source, "60");
         migrated.clean();
 
         migrated.migrate();
@@ -170,7 +170,7 @@ class Hrm012V60MigrationPostgresTest {
         ensureTenant(jdbc, TENANT_ONE, "upgrade");
         long sourceId = insertSource(jdbc, TENANT_ONE, "upgrade");
 
-        migrated = flyway(source, null);
+        migrated = flyway(source, "60");
         assertThat(migrated.migrate().migrationsExecuted).isEqualTo(1);
 
         assertThat(migrated.info().current().getVersion())
