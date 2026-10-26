@@ -6,9 +6,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.Objects;
 import java.util.UUID;
@@ -113,6 +114,27 @@ public final class HrisSeparationPersistenceModels {
         public byte[] exactResponseBody() {
             return exactResponseBody.clone();
         }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof RequestBindingWrite value
+                    && Arrays.deepEquals(components(), value.components());
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.deepHashCode(components());
+        }
+
+        private Object[] components() {
+            return new Object[] {waiverBindingId, tenantId, grantId, tenantGrantRevision,
+                    authorizationRevision, approvalRequestId, casePublicId, taskPublicId,
+                    taskType, caseMakerPublicId, requestedByActorPublicId, reasonCode,
+                    requestedTaskOwnerRevision, requestedTaskVersion, workflowVersionId,
+                    formVersionId, frozenPolicyRevision, originalCorrelationId,
+                    approvalRequestPayloadSha256, exactRequestBody, requestBodySha256,
+                    commandDigest, exactResponseBody, responseBodySha256, requestedAt, createdAt};
+        }
     }
 
     public record BindingReceipt(
@@ -127,6 +149,22 @@ public final class HrisSeparationPersistenceModels {
         @Override
         public byte[] exactResponseBody() {
             return exactResponseBody.clone();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof BindingReceipt value
+                    && Arrays.deepEquals(components(), value.components());
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.deepHashCode(components());
+        }
+
+        private Object[] components() {
+            return new Object[] {replayed, approvalRequestId,
+                    exactResponseBody, responseBodySha256};
         }
     }
 
@@ -177,6 +215,27 @@ public final class HrisSeparationPersistenceModels {
         public byte[] exactCallbackBody() {
             return exactCallbackBody.clone();
         }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof DecisionWrite value
+                    && Arrays.deepEquals(components(), value.components());
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.deepHashCode(components());
+        }
+
+        private Object[] components() {
+            return new Object[] {outboxId, tenantId, grantId, tenantGrantRevision,
+                    authorizationRevision, approvalRequestId, casePublicId, taskPublicId,
+                    callbackEventId, decision, decisionActorPublicId, caseMakerPublicId,
+                    requestedByActorPublicId, reasonCode, stepUp, decisionOccurredAt,
+                    originalCorrelationId, approvalRequestPayloadSha256,
+                    callbackPayloadSha256, exactCallbackBody, callbackBodySha256,
+                    commandDigest, availableAt, createdAt};
+        }
     }
 
     public record DeliveryClaim(
@@ -192,6 +251,7 @@ public final class HrisSeparationPersistenceModels {
             String commandDigest,
             UUID originalCorrelationId,
             UUID leaseToken,
+            String leaseOwner,
             int attemptCount) {
         public DeliveryClaim {
             exactCallbackBody = exactCallbackBody.clone();
@@ -200,6 +260,24 @@ public final class HrisSeparationPersistenceModels {
         @Override
         public byte[] exactCallbackBody() {
             return exactCallbackBody.clone();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof DeliveryClaim value
+                    && Arrays.deepEquals(components(), value.components());
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.deepHashCode(components());
+        }
+
+        private Object[] components() {
+            return new Object[] {outboxId, tenantId, grantId, tenantGrantRevision,
+                    authorizationRevision, approvalSigningKeyId, callbackPath,
+                    exactCallbackBody, callbackBodySha256, commandDigest,
+                    originalCorrelationId, leaseToken, leaseOwner, attemptCount};
         }
     }
 

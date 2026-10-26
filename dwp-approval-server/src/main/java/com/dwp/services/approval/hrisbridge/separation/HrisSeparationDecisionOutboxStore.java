@@ -30,6 +30,7 @@ public final class HrisSeparationDecisionOutboxStore {
     public void append(DecisionWrite value) {
         transactions.executeWithoutResult(status -> {
             scope.bind(value.tenantId());
+            grants.lockTenantInScope(value.tenantId());
             grants.requireCurrentAdmitInScope(value.tenantId(), value.grantId(),
                     value.tenantGrantRevision(), value.authorizationRevision());
             requireFrozenBinding(value);
@@ -63,6 +64,21 @@ public final class HrisSeparationDecisionOutboxStore {
             Instant leaseUntil) {
         DeliveryClaim claimed = transactions.execute(status -> {
             scope.bind(tenantId);
+            jdbc.update("""
+                    WITH expired AS (
+                        SELECT outbox_id
+                          FROM apr_hrm013_waiver_decision_outbox
+                         WHERE tenant_id=:tenant AND delivery_state='CLAIMED'
+                           AND lease_until<=clock_timestamp() AND attempt_count>=10
+                         ORDER BY lease_until,created_at,outbox_id
+                         FOR UPDATE SKIP LOCKED LIMIT 1
+                    )
+                    UPDATE apr_hrm013_waiver_decision_outbox outbox
+                       SET delivery_state='RESULT_UNKNOWN',lease_token=NULL,
+                           lease_owner=NULL,lease_until=NULL,
+                           last_failure_code='LEASE_EXPIRED_AT_LIMIT'
+                      FROM expired WHERE outbox.outbox_id=expired.outbox_id
+                    """, new MapSqlParameterSource("tenant", tenantId));
             List<DeliveryClaim> rows = jdbc.query("""
                     WITH current_grant AS (
                         SELECT grant_id,tenant_grant_revision,authorization_revision,
@@ -102,7 +118,7 @@ public final class HrisSeparationDecisionOutboxStore {
                               candidate.approval_signing_key_id,outbox.callback_path,
                               outbox.exact_callback_body,outbox.callback_body_sha256,
                               outbox.command_digest,outbox.original_correlation_id,
-                              outbox.lease_token,outbox.attempt_count
+                              outbox.lease_token,outbox.lease_owner,outbox.attempt_count
                     """, new MapSqlParameterSource("tenant", tenantId)
                     .addValue("worker", workerId)
                     .addValue("leaseUntil", Timestamp.from(leaseUntil)),
@@ -117,6 +133,7 @@ public final class HrisSeparationDecisionOutboxStore {
                             row.getString("command_digest"),
                             row.getObject("original_correlation_id", UUID.class),
                             row.getObject("lease_token", UUID.class),
+                            row.getString("lease_owner"),
                             row.getInt("attempt_count")));
             if (rows.size() > 1) throw new IllegalStateException("HRM-013 claim is ambiguous.");
             return rows.isEmpty() ? null : rows.getFirst();
@@ -125,9 +142,45 @@ public final class HrisSeparationDecisionOutboxStore {
     }
 
     public TenantGrant revalidateForSend(DeliveryClaim claim) {
-        return grants.requireCurrentCallbackGrant(claim.tenantId(), claim.grantId(),
-                claim.tenantGrantRevision(), claim.authorizationRevision(),
-                claim.approvalSigningKeyId());
+        TenantGrant result = transactions.execute(status -> {
+            scope.bind(claim.tenantId());
+            if (!sha256(claim.exactCallbackBody()).equals(claim.callbackBodySha256())) {
+                throw new IllegalStateException("HRM-013 callback bytes changed after claim.");
+            }
+            TenantGrant grant = grants.requireCurrentAdmitInScope(
+                    claim.tenantId(), claim.grantId(), claim.tenantGrantRevision(),
+                    claim.authorizationRevision());
+            if (!grant.approvalSigningKeyId().equals(claim.approvalSigningKeyId())) {
+                throw new IllegalStateException("HRM-013 Approval signing authority is stale.");
+            }
+            Integer lease = jdbc.queryForObject("""
+                    SELECT count(*) FROM apr_hrm013_waiver_decision_outbox
+                     WHERE tenant_id=:tenant AND outbox_id=:outbox
+                       AND delivery_state='CLAIMED' AND lease_token=:lease
+                       AND lease_owner=:owner AND lease_until>clock_timestamp()
+                       AND attempt_count=:attempt
+                       AND grant_id=:grant AND tenant_grant_revision=:tenantRevision
+                       AND authorization_revision=:authorizationRevision
+                       AND callback_path=:path AND callback_body_sha256=:bodyDigest
+                       AND command_digest=:commandDigest
+                       AND original_correlation_id=:correlation
+                    """, new MapSqlParameterSource("tenant", claim.tenantId())
+                    .addValue("outbox", claim.outboxId()).addValue("lease", claim.leaseToken())
+                    .addValue("owner", claim.leaseOwner())
+                    .addValue("attempt", claim.attemptCount()).addValue("grant", claim.grantId())
+                    .addValue("tenantRevision", claim.tenantGrantRevision())
+                    .addValue("authorizationRevision", claim.authorizationRevision())
+                    .addValue("path", claim.callbackPath())
+                    .addValue("bodyDigest", claim.callbackBodySha256())
+                    .addValue("commandDigest", claim.commandDigest())
+                    .addValue("correlation", claim.originalCorrelationId()), Integer.class);
+            if (lease == null || lease != 1) {
+                throw new IllegalStateException("HRM-013 delivery lease is no longer current.");
+            }
+            return grant;
+        });
+        if (result == null) throw new IllegalStateException("HRM-013 transaction returned no value.");
+        return result;
     }
 
     public void delivered(DeliveryClaim claim, String workerId,

@@ -45,6 +45,7 @@ public final class HrisSeparationWaiverBindingStore {
                         stored.exactResponseBody(), stored.responseBodySha256());
             }
 
+            grants.lockTenantInScope(value.tenantId());
             grants.requireCurrentAdmitInScope(value.tenantId(), value.grantId(),
                     value.tenantGrantRevision(), value.authorizationRevision());
             int inserted = jdbc.update("""

@@ -8,12 +8,15 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -31,6 +34,7 @@ class HrisSeparationWaiverStoresPostgresTest {
     private static final UUID DECIDER = uuid(902);
 
     private JdbcTemplate jdbc;
+    private NamedParameterJdbcTemplate named;
     private HrisSeparationGrantStore grants;
     private HrisSeparationProofReplayStore replays;
     private HrisSeparationWaiverBindingStore bindings;
@@ -64,7 +68,7 @@ class HrisSeparationWaiverStoresPostgresTest {
                  WHERE tenant_id=? AND lifecycle_state='PUBLISHED'
                  ORDER BY version_number,form_version_id LIMIT 1
                 """, UUID.class, TENANT);
-        var named = new NamedParameterJdbcTemplate(source);
+        named = new NamedParameterJdbcTemplate(source);
         var manager = new DataSourceTransactionManager(source);
         grants = new HrisSeparationGrantStore(named, manager);
         replays = new HrisSeparationProofReplayStore(named, manager);
@@ -161,6 +165,103 @@ class HrisSeparationWaiverStoresPostgresTest {
     }
 
     @Test
+    void byteBackedRecordsHaveDefensiveRoundTripValueSemantics() {
+        RequestBindingWrite binding = boundRequest(90, "{\"reason\":\"POLICY\"}");
+        RequestBindingWrite sameBinding = boundRequest(90, "{\"reason\":\"POLICY\"}");
+        assertThat(sameBinding).isEqualTo(binding).hasSameHashCodeAs(binding);
+        byte[] exposedRequest = binding.exactRequestBody();
+        exposedRequest[0] ^= 1;
+        assertThat(sameBinding).isEqualTo(binding);
+
+        BindingReceipt receipt = new BindingReceipt(false, binding.approvalRequestId(),
+                binding.exactResponseBody(), binding.responseBodySha256());
+        BindingReceipt sameReceipt = new BindingReceipt(false, binding.approvalRequestId(),
+                binding.exactResponseBody(), binding.responseBodySha256());
+        assertThat(sameReceipt).isEqualTo(receipt).hasSameHashCodeAs(receipt);
+
+        DecisionWrite decision = decision(binding, 91, WaiverDecision.REJECTED,
+                DECIDER, null, instant(910));
+        DecisionWrite sameDecision = copy(decision);
+        assertThat(sameDecision).isEqualTo(decision).hasSameHashCodeAs(decision);
+        byte[] exposedCallback = decision.exactCallbackBody();
+        exposedCallback[0] ^= 1;
+        assertThat(sameDecision).isEqualTo(decision);
+
+        DeliveryClaim claim = new DeliveryClaim(decision.outboxId(), TENANT,
+                currentGrant.grantId(), currentGrant.tenantGrantRevision(),
+                currentGrant.authorizationRevision(), currentGrant.approvalSigningKeyId(),
+                decision.callbackPath(), decision.exactCallbackBody(),
+                decision.callbackBodySha256(), decision.commandDigest(),
+                decision.originalCorrelationId(), uuid(9091), "round-trip-worker", 1);
+        DeliveryClaim sameClaim = new DeliveryClaim(claim.outboxId(), claim.tenantId(),
+                claim.grantId(), claim.tenantGrantRevision(), claim.authorizationRevision(),
+                claim.approvalSigningKeyId(), claim.callbackPath(), claim.exactCallbackBody(),
+                claim.callbackBodySha256(), claim.commandDigest(), claim.originalCorrelationId(),
+                claim.leaseToken(), claim.leaseOwner(), claim.attemptCount());
+        assertThat(sameClaim).isEqualTo(claim).hasSameHashCodeAs(claim);
+    }
+
+    @Test
+    void approvedSqlCheckRejectsEachNullableTextOrDigestField() {
+        String[] missingFields = {"audience", "purpose", "nonce", "digest"};
+        for (int index = 0; index < missingFields.length; index++) {
+            RequestBindingWrite binding = boundRequest(60 + index,
+                    "{\"reason\":\"POLICY\"}");
+            bindings.saveOrReplay(binding);
+            int suffix = 60 + index;
+            String missing = missingFields[index];
+            assertThatThrownBy(() -> directApprovedWithMissing(
+                    binding, suffix, missing))
+                    .isInstanceOf(DataAccessException.class);
+        }
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM apr_hrm013_waiver_decision_outbox", Long.class))
+                .isZero();
+    }
+
+    @Test
+    void requestBindingCheckAndInsertSerializeAheadOfConcurrentRevoke() throws Exception {
+        RequestBindingWrite binding = boundRequest(70, "{\"reason\":\"POLICY\"}");
+        installInsertPause("apr_hrm013_waiver_request_bindings", "binding");
+        CompletableFuture<BindingReceipt> inserted = CompletableFuture.supplyAsync(
+                () -> bindings.saveOrReplay(binding));
+        awaitActiveInsert("apr_hrm013_waiver_request_bindings");
+        CompletableFuture<TenantGrant> revoked = CompletableFuture.supplyAsync(() ->
+                grants.append(grant(2, 102, 202,
+                        currentGrant.grantId(), GrantDecision.REVOKE)));
+        awaitActiveInsert("apr_hrm013_tenant_grants");
+        assertThat(revoked).isNotDone();
+        assertThat(inserted.get(3, TimeUnit.SECONDS).replayed()).isFalse();
+        assertThat(revoked.get(3, TimeUnit.SECONDS).decision()).isEqualTo(GrantDecision.REVOKE);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM apr_hrm013_waiver_request_bindings
+                 WHERE approval_request_id=?
+                """, Long.class, binding.approvalRequestId())).isEqualTo(1L);
+    }
+
+    @Test
+    void decisionCheckAndInsertSerializeAheadOfConcurrentRevoke() throws Exception {
+        RequestBindingWrite binding = boundRequest(71, "{\"reason\":\"POLICY\"}");
+        bindings.saveOrReplay(binding);
+        DecisionWrite decision = decision(binding, 72, WaiverDecision.REJECTED,
+                DECIDER, null, instant(720));
+        installInsertPause("apr_hrm013_waiver_decision_outbox", "decision");
+        CompletableFuture<Void> inserted = CompletableFuture.runAsync(
+                () -> decisions.append(decision));
+        awaitActiveInsert("apr_hrm013_waiver_decision_outbox");
+        CompletableFuture<TenantGrant> revoked = CompletableFuture.supplyAsync(() ->
+                grants.append(grant(2, 102, 202,
+                        currentGrant.grantId(), GrantDecision.REVOKE)));
+        awaitActiveInsert("apr_hrm013_tenant_grants");
+        assertThat(revoked).isNotDone();
+        inserted.get(3, TimeUnit.SECONDS);
+        assertThat(revoked.get(3, TimeUnit.SECONDS).decision()).isEqualTo(GrantDecision.REVOKE);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM apr_hrm013_waiver_decision_outbox WHERE outbox_id=?
+                """, Long.class, decision.outboxId())).isEqualTo(1L);
+    }
+
+    @Test
     void approvedDecisionConsumesBoundStepUpAndDeliversImmutableExactBytes() {
         RequestBindingWrite binding = boundRequest(30, "{\"reason\":\"POLICY\"}");
         bindings.saveOrReplay(binding);
@@ -187,6 +288,13 @@ class HrisSeparationWaiverStoresPostgresTest {
                 Instant.now().plusSeconds(30)).orElseThrow();
         assertThat(decisions.revalidateForSend(claim).grantId()).isEqualTo(currentGrant.grantId());
         byte[] receipt = "{\"status\":\"SUCCEEDED\"}".getBytes(StandardCharsets.UTF_8);
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE apr_hrm013_waiver_decision_outbox
+                   SET delivery_state='DELIVERED',lease_token=NULL,lease_owner=NULL,
+                       lease_until=NULL,exact_receipt_body=?,receipt_body_sha256=NULL,
+                       delivered_at=clock_timestamp(),last_failure_code=NULL
+                 WHERE outbox_id=?
+                """, receipt, decision.outboxId())).isInstanceOf(DataAccessException.class);
         decisions.delivered(claim, "test-worker", receipt, Instant.now());
         assertThat(jdbc.queryForObject("""
                 SELECT delivery_state FROM apr_hrm013_waiver_decision_outbox WHERE outbox_id=?
@@ -228,19 +336,51 @@ class HrisSeparationWaiverStoresPostgresTest {
                    AND step_up_evidence_id IS NULL
                 """, Long.class, rejectedDecision.outboxId())).isEqualTo(1L);
 
-        for (int attempt = 1; attempt <= MAXIMUM_ATTEMPTS; attempt++) {
+        for (int attempt = 1; attempt < MAXIMUM_ATTEMPTS; attempt++) {
             DeliveryClaim claim = decisions.claim(TENANT, "retry-worker",
                     Instant.now().plusSeconds(30)).orElseThrow();
             assertThat(claim.attemptCount()).isEqualTo(attempt);
             decisions.failed(claim, "retry-worker", false, true,
                     "TRANSPORT_UNAVAILABLE", Instant.now().plusMillis(150));
-            if (attempt < MAXIMUM_ATTEMPTS) Thread.sleep(180);
+            Thread.sleep(180);
         }
-        assertThat(jdbc.queryForObject("""
-                SELECT delivery_state FROM apr_hrm013_waiver_decision_outbox WHERE outbox_id=?
-                """, String.class, rejectedDecision.outboxId())).isEqualTo("RESULT_UNKNOWN");
-        assertThat(decisions.claim(TENANT, "retry-worker",
+        DeliveryClaim finalClaim = decisions.claim(TENANT, "retry-worker",
+                Instant.now().plusMillis(300)).orElseThrow();
+        assertThat(finalClaim.attemptCount()).isEqualTo(MAXIMUM_ATTEMPTS);
+        Thread.sleep(350);
+        assertThat(decisions.claim(TENANT, "recovery-worker",
                 Instant.now().plusSeconds(30))).isEmpty();
+        assertThat(jdbc.queryForObject("""
+                SELECT delivery_state||':'||last_failure_code
+                  FROM apr_hrm013_waiver_decision_outbox WHERE outbox_id=?
+                """, String.class, rejectedDecision.outboxId()))
+                .isEqualTo("RESULT_UNKNOWN:LEASE_EXPIRED_AT_LIMIT");
+    }
+
+    @Test
+    void sendRevalidationRejectsExpiredAndReclaimedLease() throws Exception {
+        RequestBindingWrite binding = boundRequest(80, "{\"reason\":\"POLICY\"}");
+        bindings.saveOrReplay(binding);
+        DecisionWrite rejected = decision(binding, 81, WaiverDecision.REJECTED,
+                DECIDER, null, instant(810));
+        decisions.append(rejected);
+        DeliveryClaim expired = decisions.claim(TENANT, "old-worker",
+                Instant.now().plusMillis(300)).orElseThrow();
+        Thread.sleep(350);
+        assertThatThrownBy(() -> decisions.revalidateForSend(expired))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("HRM-013 delivery lease is no longer current.");
+
+        DeliveryClaim reclaimed = decisions.claim(TENANT, "new-worker",
+                Instant.now().plusSeconds(30)).orElseThrow();
+        assertThat(reclaimed.leaseToken()).isNotEqualTo(expired.leaseToken());
+        assertThat(reclaimed.leaseOwner()).isEqualTo("new-worker");
+        assertThat(decisions.revalidateForSend(reclaimed).grantId())
+                .isEqualTo(currentGrant.grantId());
+        assertThatThrownBy(() -> decisions.revalidateForSend(expired))
+                .isInstanceOf(IllegalStateException.class);
+        decisions.failed(reclaimed, "new-worker", true, false,
+                "PERMANENT_TEST_FAILURE", Instant.now().plusSeconds(1));
     }
 
     private RequestBindingWrite boundRequest(int suffix, String requestJson) {
@@ -266,6 +406,79 @@ class HrisSeparationWaiverStoresPostgresTest {
                 response, sha256(response), now, now);
     }
 
+    private void directApprovedWithMissing(RequestBindingWrite binding,
+            int suffix, String missing) {
+        byte[] body = "{\"decision\":\"APPROVED\"}".getBytes(StandardCharsets.UTF_8);
+        Instant occurred = instant(600 + suffix);
+        named.update("""
+                INSERT INTO apr_hrm013_waiver_decision_outbox(
+                    outbox_id,tenant_id,grant_id,tenant_grant_revision,
+                    authorization_revision,approval_request_id,case_public_id,
+                    task_public_id,callback_event_id,decision,decision_revision,
+                    owner_revision,decision_actor_public_id,case_maker_public_id,
+                    requested_by_actor_public_id,reason_code,step_up_evidence_id,
+                    step_up_evidence_audience,step_up_evidence_purpose,
+                    step_up_evidence_nonce_sha256,step_up_evidence_sha256,
+                    step_up_verified_at,step_up_consumed_at,decision_occurred_at,
+                    callback_path,original_correlation_id,
+                    approval_request_payload_sha256,callback_payload_sha256,
+                    exact_callback_body,callback_body_sha256,command_digest,
+                    delivery_state,attempt_count,available_at,created_at,updated_at)
+                SELECT :outbox,binding.tenant_id,binding.grant_id,
+                    binding.tenant_grant_revision,binding.authorization_revision,
+                    binding.approval_request_id,binding.case_public_id,
+                    binding.task_public_id,:event,'APPROVED',1,1,:actor,
+                    binding.case_maker_public_id,binding.requested_by_actor_public_id,
+                    binding.reason_code,:evidence,
+                    CASE WHEN :missing='audience' THEN NULL ELSE 'dwp-people-server' END,
+                    CASE WHEN :missing='purpose' THEN NULL
+                         ELSE 'HRIS_SEPARATION_TASK_WAIVER_DECISION' END,
+                    CASE WHEN :missing='nonce' THEN NULL ELSE :nonceDigest END,
+                    CASE WHEN :missing='digest' THEN NULL ELSE repeat('f',64) END,
+                    :verified,:consumed,:occurred,
+                    '/internal/hris-people/v1/separation-cases/'
+                        ||binding.case_public_id::text||'/tasks/'
+                        ||binding.task_public_id::text||'/waiver-decisions',
+                    binding.original_correlation_id,
+                    binding.approval_request_payload_sha256,repeat('d',64),
+                    :body,:bodyDigest,repeat('e',64),'PENDING',0,
+                    :occurred,:occurred,:occurred
+                  FROM apr_hrm013_waiver_request_bindings binding
+                 WHERE binding.tenant_id=:tenant
+                   AND binding.approval_request_id=:request
+                """, new MapSqlParameterSource("outbox", uuid(8600 + suffix))
+                .addValue("event", uuid(8700 + suffix)).addValue("actor", DECIDER)
+                .addValue("evidence", uuid(8800 + suffix)).addValue("missing", missing)
+                .addValue("nonceDigest", canonicalUuidDigest(uuid(8900 + suffix)))
+                .addValue("verified", java.sql.Timestamp.from(occurred.minusSeconds(10)))
+                .addValue("consumed", java.sql.Timestamp.from(occurred.minusSeconds(1)))
+                .addValue("occurred", java.sql.Timestamp.from(occurred))
+                .addValue("body", body).addValue("bodyDigest", sha256(body))
+                .addValue("tenant", TENANT).addValue("request", binding.approvalRequestId()));
+    }
+
+    private void installInsertPause(String table, String suffix) {
+        jdbc.execute("CREATE FUNCTION test_hrm013_pause_" + suffix + "() RETURNS trigger "
+                + "LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(0.75); RETURN NEW; END $$");
+        jdbc.execute("CREATE TRIGGER test_hrm013_pause_" + suffix
+                + " BEFORE INSERT ON " + table
+                + " FOR EACH ROW EXECUTE FUNCTION test_hrm013_pause_" + suffix + "()");
+    }
+
+    private void awaitActiveInsert(String table) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        boolean active = false;
+        while (System.nanoTime() < deadline && !active) {
+            Integer count = jdbc.queryForObject("""
+                    SELECT count(*) FROM pg_stat_activity
+                     WHERE pid<>pg_backend_pid() AND state='active' AND query LIKE ?
+                    """, Integer.class, "%INSERT INTO " + table + "%");
+            active = count != null && count > 0;
+            if (!active) Thread.sleep(10);
+        }
+        assertThat(active).as("paused insert into %s", table).isTrue();
+    }
+
     private DecisionWrite approvedDecision(RequestBindingWrite binding, int suffix, UUID nonce,
             Instant verified, Instant consumed, Instant occurred) {
         return decision(binding, suffix, WaiverDecision.APPROVED, DECIDER,
@@ -285,6 +498,18 @@ class HrisSeparationWaiverStoresPostgresTest {
                 binding.reasonCode(), evidence, occurred, binding.originalCorrelationId(),
                 binding.approvalRequestPayloadSha256(), "d".repeat(64), body, sha256(body),
                 "e".repeat(64), Instant.now(), Instant.now());
+    }
+
+    private static DecisionWrite copy(DecisionWrite value) {
+        return new DecisionWrite(value.outboxId(), value.tenantId(), value.grantId(),
+                value.tenantGrantRevision(), value.authorizationRevision(),
+                value.approvalRequestId(), value.casePublicId(), value.taskPublicId(),
+                value.callbackEventId(), value.decision(), value.decisionActorPublicId(),
+                value.caseMakerPublicId(), value.requestedByActorPublicId(), value.reasonCode(),
+                value.stepUp(), value.decisionOccurredAt(), value.originalCorrelationId(),
+                value.approvalRequestPayloadSha256(), value.callbackPayloadSha256(),
+                value.exactCallbackBody(), value.callbackBodySha256(), value.commandDigest(),
+                value.availableAt(), value.createdAt());
     }
 
     private static StepUpEvidence evidence(UUID nonce, Instant occurred) {

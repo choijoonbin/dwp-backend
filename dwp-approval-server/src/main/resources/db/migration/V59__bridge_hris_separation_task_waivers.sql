@@ -386,9 +386,13 @@ CREATE TABLE apr_hrm013_waiver_decision_outbox (
     CONSTRAINT ck_apr_hrm013_decision_step_up CHECK (
         (decision = 'APPROVED'
             AND step_up_evidence_id IS NOT NULL
+            AND step_up_evidence_audience IS NOT NULL
             AND step_up_evidence_audience = 'dwp-people-server'
+            AND step_up_evidence_purpose IS NOT NULL
             AND step_up_evidence_purpose = 'HRIS_SEPARATION_TASK_WAIVER_DECISION'
+            AND step_up_evidence_nonce_sha256 IS NOT NULL
             AND step_up_evidence_nonce_sha256 ~ '^[a-f0-9]{64}$'
+            AND step_up_evidence_sha256 IS NOT NULL
             AND step_up_evidence_sha256 ~ '^[a-f0-9]{64}$'
             AND step_up_verified_at IS NOT NULL
             AND step_up_consumed_at IS NOT NULL
@@ -433,6 +437,7 @@ CREATE TABLE apr_hrm013_waiver_decision_outbox (
     CONSTRAINT ck_apr_hrm013_decision_receipt CHECK (
         (delivery_state = 'DELIVERED'
             AND exact_receipt_body IS NOT NULL
+            AND receipt_body_sha256 IS NOT NULL
             AND octet_length(exact_receipt_body) BETWEEN 1 AND 16384
             AND encode(sha256(exact_receipt_body), 'hex') = receipt_body_sha256
             AND delivered_at IS NOT NULL)

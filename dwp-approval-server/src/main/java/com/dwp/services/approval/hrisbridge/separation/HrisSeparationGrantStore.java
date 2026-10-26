@@ -95,10 +95,18 @@ public final class HrisSeparationGrantStore {
         }));
     }
 
-    void requireCurrentAdmitInScope(long tenantId, UUID grantId,
+    TenantGrant requireCurrentAdmitInScope(long tenantId, UUID grantId,
             long tenantGrantRevision, long authorizationRevision) {
-        requireAdmit(currentInScope(tenantId), grantId,
-                tenantGrantRevision, authorizationRevision);
+        TenantGrant grant = currentInScope(tenantId);
+        requireAdmit(grant, grantId, tenantGrantRevision, authorizationRevision);
+        return grant;
+    }
+
+    void lockTenantInScope(long tenantId) {
+        jdbc.queryForObject("""
+                SELECT pg_advisory_xact_lock(hashtextextended(:material,0))
+                """, new MapSqlParameterSource("material",
+                "DWP_APPROVAL_HRM013_GRANT_V1:" + tenantId), Object.class);
     }
 
     private TenantGrant currentInScope(long tenantId) {
