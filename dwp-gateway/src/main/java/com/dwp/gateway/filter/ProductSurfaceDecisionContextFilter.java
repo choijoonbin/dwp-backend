@@ -181,7 +181,10 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.configuration.connector-mapping-version-activate.action",
             "route.hcm.configuration.connector-execution-reconcile.action",
             "route.hcm.configuration.connector-execution-retry.action",
-            "route.hcm.configuration.connector-execution-cancel.action");
+            "route.hcm.configuration.connector-execution-cancel.action",
+            "route.hcm.operations.exit-return.page",
+            "route.hcm.operations.exit-return.data",
+            "route.hcm.operations.separation-case.action");
     private static final Set<String> HRM007_ENTRY_QUERY_ROUTE_KEYS = Set.of(
             "route.hcm.team.people-changes.page",
             "route.hcm.team.people-changes.data",

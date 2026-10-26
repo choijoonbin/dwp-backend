@@ -64630,6 +64630,239 @@
           ]
         }
       ]
+    },
+    {
+      "version": 61,
+      "capabilities": [
+        {
+          "contractKey": "hcm.operations.separation.manage",
+          "productKey": "hcm",
+          "surfaceKey": "hcm.operations",
+          "owner": "People + HCM + Security",
+          "resolvedCapabilityCode": "ACTION.HRIS_SEPARATION_CASE:MANAGE",
+          "resourceKey": "ACTION.HRIS_SEPARATION_CASE",
+          "action": "MANAGE",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "scopeResolver": "WORKFORCE_TARGET_POPULATION",
+          "riskTier": "CRITICAL",
+          "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+          "responsibilityRequirement": "REQUIRED",
+          "requiredResponsibilityCode": "HRIS_DUTY_SEPARATION_MAKER",
+          "requiresProductEntitlement": true,
+          "mappingVersion": 1,
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE",
+          "legacySource": null,
+          "sodPolicyId": "NO_APPROVE_OWN_CHANGE",
+          "sunsetAt": null
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [
+        {
+          "predicatePolicyKey": "predicate.hcm-separation-case-scope.v1",
+          "ownerServiceKey": "people",
+          "targetBindingKinds": [
+            "OBJECT",
+            "TARGET_POPULATION"
+          ],
+          "inputEvidenceSchemaKey": "HcmSeparationCaseScopeEvidenceV1",
+          "parameterSchemaKey": "predicate.hcm-separation-case-scope.v1.parameters.v1",
+          "parameterSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "owner": "People + HCM + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ],
+      "routes": [
+        {
+          "routeContractKey": "route.hcm.operations.exit-return.page",
+          "authorizationEquivalenceKey": "wire-authority.hcm.operations.exit-return.v1",
+          "navigationContextId": "hcm.operations",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "hcm",
+            "surfaceKey": "hcm.operations"
+          },
+          "routeKind": "PAGE",
+          "sideEffectFree": null,
+          "uiRouteId": "hcm.operations.exit-return",
+          "uiRoutePattern": "/hr/operations/people/exit-return",
+          "accessProfiles": [
+            {
+              "profileKey": "people-operations-reader",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "hcm.operations.people.view"
+              },
+              "targetBindingKinds": [
+                "TARGET_POPULATION"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.hcm-separation-case-scope.v1"
+              ],
+              "projectionPolicyKey": "route.hcm.operations.exit-return.page.people-operations-reader.projection.v1",
+              "responseSchemaKey": "Hrm013ExitReturnProjectionV1",
+              "readOnly": true
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.hcm.operations.exit-return.page.binding.01",
+              "method": "GET",
+              "path": "/api/people/v1/hris/workbench/operations/exit/return",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.hcm.operations.exit-return.page.binding.01",
+              "method": "GET",
+              "path": "/v1/hris/workbench/operations/exit/return",
+              "pathParameterConstraints": {},
+              "serviceKey": "people"
+            }
+          ],
+          "owner": "People + HCM + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.exit-return.data",
+          "authorizationEquivalenceKey": "wire-authority.hcm.operations.exit-return.v1",
+          "navigationContextId": "hcm.operations",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "hcm",
+            "surfaceKey": "hcm.operations"
+          },
+          "routeKind": "DATA",
+          "sideEffectFree": true,
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "accessProfiles": [
+            {
+              "profileKey": "people-operations-reader",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "hcm.operations.people.view"
+              },
+              "targetBindingKinds": [
+                "TARGET_POPULATION"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.hcm-separation-case-scope.v1"
+              ],
+              "projectionPolicyKey": "route.hcm.operations.exit-return.data.people-operations-reader.projection.v1",
+              "responseSchemaKey": "Hrm013ExitReturnProjectionV1",
+              "readOnly": true
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.hcm.operations.exit-return.data.binding.01",
+              "method": "GET",
+              "path": "/api/people/v1/hris/workbench/operations/exit/return",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.hcm.operations.exit-return.data.binding.01",
+              "method": "GET",
+              "path": "/v1/hris/workbench/operations/exit/return",
+              "pathParameterConstraints": {},
+              "serviceKey": "people"
+            }
+          ],
+          "owner": "People + HCM + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.hcm.operations.separation-case.action",
+          "navigationContextId": "hcm.operations",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "hcm",
+            "surfaceKey": "hcm.operations"
+          },
+          "routeKind": "ACTION",
+          "sideEffectFree": null,
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "accessProfiles": [
+            {
+              "profileKey": "separation-case-maker",
+              "precedence": 300,
+              "activeAccessModes": [
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "hcm.operations.separation.manage"
+              },
+              "targetBindingKinds": [
+                "OBJECT",
+                "TARGET_POPULATION"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.hcm-separation-case-scope.v1",
+                "predicate.people.object-version.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.hcm.operations.separation-case.action.binding.01",
+              "method": "POST",
+              "path": "/api/people/v1/hris/separation-cases",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.hcm.operations.separation-case.action.binding.01",
+              "method": "POST",
+              "path": "/v1/hris/separation-cases",
+              "pathParameterConstraints": {},
+              "serviceKey": "people"
+            }
+          ],
+          "stepUpCommandBindings": [
+            {
+              "bindingKey": "route.hcm.operations.separation-case.action.binding.01",
+              "targetType": "WORK_RELATIONSHIP",
+              "targetIdBodyFields": [
+                "relationshipPublicId"
+              ],
+              "expectedObjectVersionSource": "COMMAND_HEADER",
+              "expectedObjectVersionName": "If-Match",
+              "ownerServiceKey": "people",
+              "audience": "dwp-people-server"
+            }
+          ],
+          "owner": "People + HCM + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {
@@ -65069,6 +65302,11 @@
         "contractKey": "hcm.integration.control-plane.execute",
         "requiredResponsibilityCode": "HRIS_DUTY_INTEGRATION_CONTROL_PLANE_EXECUTOR",
         "scopeResolver": "CONNECTOR_OR_LEGAL_ENTITY_SCOPE"
+      },
+      {
+        "contractKey": "hcm.operations.separation.manage",
+        "requiredResponsibilityCode": "HRIS_DUTY_SEPARATION_MAKER",
+        "scopeResolver": "WORKFORCE_TARGET_POPULATION"
       }
     ],
     "routes": [

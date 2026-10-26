@@ -252,23 +252,24 @@ class ProductAuthorizationV60Test(unittest.TestCase):
                 key,
             )
 
-    def test_latest_alias_index_fixture_and_service_projections_share_lineage(self) -> None:
+    def test_fixed_v60_artifacts_and_service_projections_preserve_lineage(self) -> None:
         auth = ROOT / "dwp-auth-server/src/main/resources/product-authorization"
         for path in (
-            CONTRACTS / "product-surfaces-v1.json",
-            auth / "product-surfaces-v1.generated.json",
+            CONTRACTS / "product-surfaces-v1.bundle-v60.json",
             auth / "product-surfaces-v1.bundle-v60.generated.json",
         ):
             self.assertEqual(self.bundle, json.loads(path.read_text()), str(path))
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual((60, CHECKSUM, 60), (
-            index["latestVersion"], index["latestChecksum"], len(index["versions"])
-        ))
+        v60 = next(value for value in index["versions"] if value["version"] == 60)
+        self.assertEqual((60, CHECKSUM), (v60["version"], v60["checksum"]))
         fixture = json.loads((CONTRACTS / "pilot-fixtures.v1.generated.json").read_text())
-        self.assertEqual(60, fixture["registryLineage"]["latestAliasVersion"])
+        fixture_v60 = next(
+            value for value in fixture["registryLineage"]["versions"]
+            if value["version"] == 60
+        )
         self.assertEqual(
             {"bundleKey": "product-surfaces", "version": 60, "sha256": CHECKSUM},
-            fixture["registryLineage"]["versions"][-1],
+            fixture_v60,
         )
         expected_counts = {
             "people": (64, 5, 3, 22, 133, 160, {"PAGE": 46, "DATA": 34, "ACTION": 53}),

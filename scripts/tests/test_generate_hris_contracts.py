@@ -50,6 +50,7 @@ EXPECTED_XCON_TYPES = {
     "com.dwp.contracts.hris.xcon.v1.Xcon025WorkerBankAccountTokenChangedV1",
     "com.dwp.contracts.hris.xcon.v1.Xcon026EmploymentContractIssuedV1",
     "com.dwp.contracts.hris.xcon.v1.Xcon027EmploymentAbsenceSnapshotV1",
+    "com.dwp.contracts.hris.xcon.v1.Xcon028WorkerSeparatedV1",
 }
 
 EXPECTED_PLATFORM_TYPES = {
@@ -98,6 +99,7 @@ EXPECTED_FIELDS = {
     "Xcon025WorkerBankAccountTokenChangedV1": ("aggregateId", "aggregateVersion", "causationId", "correlationId", "effectiveFrom", "effectiveTo", "eventId", "newAggregateVersion", "occurredAt", "payloadDigest", "paymentDestinationPublicId", "schemaVersion", "tenantId", "workerId"),
     "Xcon026EmploymentContractIssuedV1": ("aggregateId", "aggregateVersion", "causationId", "contractPublicId", "contractType", "correlationId", "documentReference", "eventId", "occurredAt", "payloadDigest", "schemaVersion", "tenantId", "validFrom", "validTo", "workerPublicId"),
     "Xcon027EmploymentAbsenceSnapshotV1": ("relationshipPublicId", "relationshipRevision", "workerPublicId", "workerStatus", "relationshipType", "relationshipStatus", "legalEntityPublicId", "relationshipEffectiveFrom", "relationshipEffectiveTo", "effectiveOn", "assignments", "ownerRevision", "asOf", "validUntil", "ownerContractId", "ownerService", "purposeCode", "scopeDigest", "contentSha256"),
+    "Xcon028WorkerSeparatedV1": ("aggregateId", "aggregateVersion", "causationId", "casePublicId", "correlationId", "effectiveDate", "eventId", "occurredAt", "payloadDigest", "relationshipPublicId", "schemaVersion", "separationType", "tenantId", "workerPublicId"),
     "HrisConfigurationVersionV1": ("configurationId", "configurationType", "scopeType", "scopeId", "version", "state", "effectiveFrom", "effectiveTo", "payloadSchemaVersion", "payloadDigest", "approvalReceiptId"),
     "HrisConfigurationPublishedV1": ("configurationId", "configurationType", "scopeType", "scopeId", "version", "effectiveFrom", "effectiveTo", "payloadSchemaVersion", "payloadDigest", "approvalReceiptId", "publishedAt", "eventSequence"),
     "HrisConfigurationInvalidatedV1": ("configurationId", "configurationType", "scopeType", "scopeId", "invalidatedVersion", "replacementVersion", "reasonCode", "invalidatedAt", "eventSequence"),
@@ -117,6 +119,9 @@ EXPECTED_FIELDS = {
 
 LEGACY_XCON_001_022_DIGEST = (
     "1b3199f8383a54b9873bbbb6569bbe1adfe8a521f623a6c4b9225d99c9c8ab89"
+)
+LEGACY_XCON_001_027_DIGEST = (
+    "e613098a626947a5c8513226e3d1872068b801f169159c02040e47186408769f"
 )
 LEGACY_PDX_001_014_DIGEST = (
     "51631855d3c8a0ffd0f726caa901f7cf516025d0ab6ecdd00476203299291848"
@@ -193,6 +198,12 @@ class HrisContractGeneratorTest(unittest.TestCase):
             ),
         )
         self.assertEqual(
+            LEGACY_XCON_001_027_DIGEST,
+            self.normalized_definition_digest(
+                source_by_id["xcon-v1"].document, "XCON_", 27
+            ),
+        )
+        self.assertEqual(
             LEGACY_PDX_001_014_DIGEST,
             self.normalized_definition_digest(
                 source_by_id["platform-dependency-v1"].document, "PDX_", 14
@@ -206,10 +217,10 @@ class HrisContractGeneratorTest(unittest.TestCase):
         }
         self.assertEqual(EXPECTED_XCON_TYPES, xcon)
         self.assertEqual(EXPECTED_PLATFORM_TYPES, platform)
-        self.assertEqual(42, len(contracts))
+        self.assertEqual(43, len(contracts))
 
         outputs = GENERATOR.expected_outputs(ROOT)
-        self.assertEqual(44, len(outputs))
+        self.assertEqual(45, len(outputs))
         for contract in contracts:
             with self.subTest(java_type=contract.java_type):
                 expected_fields = EXPECTED_FIELDS[contract.class_name]
@@ -242,7 +253,7 @@ class HrisContractGeneratorTest(unittest.TestCase):
                 path.relative_to(root): path.read_bytes()
                 for path in root.glob("dwp-platform-contracts/src/main/java/**/*.java")
             }
-            self.assertEqual(44, len(first))
+            self.assertEqual(45, len(first))
             self.assertEqual([], GENERATOR.check_outputs(root))
             self.assertEqual(0, GENERATOR.write_outputs(root))
             second = {

@@ -43,17 +43,17 @@ class ProductAuthorizationSeedLoaderTest {
                 loader.read(resources.getResource(
                         "classpath:product-authorization/product-surfaces-v1.generated.json"));
 
-        assertThat(index.latestVersion()).isEqualTo(60);
+        assertThat(index.latestVersion()).isEqualTo(61);
         assertThat(index.versions()).extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L,
                         23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L,
                         34L, 35L, 36L, 37L, 38L, 39L, 40L, 41L, 42L, 43L, 44L,
                         45L, 46L, 47L, 48L, 49L, 50L, 51L, 52L, 53L, 54L, 55L, 56L,
-                        57L, 58L, 59L, 60L);
+                        57L, 58L, 59L, 60L, 61L);
         assertThat(contract.bundleStatus()).isEqualTo("DRAFT");
-        assertThat(contract.version()).isEqualTo(60);
-        assertThat(contract.routes()).hasSize(1154);
+        assertThat(contract.version()).isEqualTo(61);
+        assertThat(contract.routes()).hasSize(1157);
     }
 
     @Test
@@ -78,7 +78,7 @@ class ProductAuthorizationSeedLoaderTest {
         @SuppressWarnings("unchecked")
         org.mockito.ArgumentCaptor<ProductAuthorizationContractDtos.BundleContract> captor =
                 org.mockito.ArgumentCaptor.forClass(ProductAuthorizationContractDtos.BundleContract.class);
-        verify(service, org.mockito.Mockito.times(60)).importDraft(captor.capture());
+        verify(service, org.mockito.Mockito.times(61)).importDraft(captor.capture());
         List<ProductAuthorizationContractDtos.BundleContract> imported = captor.getAllValues();
         assertThat(imported).extracting(ProductAuthorizationContractDtos.BundleContract::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
@@ -86,7 +86,7 @@ class ProductAuthorizationSeedLoaderTest {
                         23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L,
                         34L, 35L, 36L, 37L, 38L, 39L, 40L, 41L, 42L, 43L, 44L,
                         45L, 46L, 47L, 48L, 49L, 50L, 51L, 52L, 53L, 54L, 55L, 56L,
-                        57L, 58L, 59L, 60L);
+                        57L, 58L, 59L, 60L, 61L);
         assertThat(imported).extracting(ProductAuthorizationContractDtos.BundleContract::bundleStatus)
                 .containsOnly("DRAFT");
         verify(service, never()).approve(any(), anyLong(), any());

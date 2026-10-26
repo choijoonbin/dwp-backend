@@ -34,6 +34,8 @@ channels:
         $ref: '#/components/messages/workerBankAccountTokenChanged'
       employmentContractIssued:
         $ref: '#/components/messages/employmentContractIssued'
+      workerSeparated:
+        $ref: '#/components/messages/workerSeparated'
       performanceReviewSubmitted:
         $ref: '#/components/messages/performanceReviewSubmitted'
       timecardDecisionRecorded:
@@ -68,6 +70,7 @@ operations:
       - $ref: '#/channels/domainEvents/messages/workerTaxIdentityChanged'
       - $ref: '#/channels/domainEvents/messages/workerBankAccountTokenChanged'
       - $ref: '#/channels/domainEvents/messages/employmentContractIssued'
+      - $ref: '#/channels/domainEvents/messages/workerSeparated'
       - $ref: '#/channels/domainEvents/messages/performanceReviewSubmitted'
       - $ref: '#/channels/domainEvents/messages/timecardDecisionRecorded'
       - $ref: '#/channels/domainEvents/messages/controlledTransferStateChanged'
@@ -137,6 +140,11 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/EmploymentContractIssuedEnvelope'
+    workerSeparated:
+      name: WorkerSeparated.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WorkerSeparatedEnvelope'
     performanceReviewSubmitted:
       name: PerformanceReviewSubmitted.v1
       contentType: application/json
@@ -710,6 +718,54 @@ components:
               $ref: '#/components/schemas/EmploymentContractIssuedData'
     EmploymentContractIssuedData:
       $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_026'
+    WorkerSeparatedEnvelope:
+      x-dwp-partition-key: tenantId|source|aggregateType|aggregateId
+      x-dwp-event-id-derivation: UUID_NAME_FROM_BYTES_TENANT_ID_COLON_CASE_PUBLIC_ID_COLON_AGGREGATE_VERSION_COLON_WorkerSeparated.v1_UTF8
+      x-dwp-aggregate-id-source: casePublicId
+      x-dwp-aggregate-sequence-source: aggregateVersion
+      x-dwp-envelope-data-equality:
+        id: eventId
+        tenantId: tenantId
+        aggregateId: casePublicId
+        aggregateSequence: aggregateVersion
+        correlationId: correlationId
+        causationId: causationId
+        time: occurredAt
+        schemaVersion: schemaVersion
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - source
+            - tenantId
+            - aggregateType
+            - correlationId
+            - causationId
+            - data
+          properties:
+            type:
+              const: WorkerSeparated.v1
+            schemaVersion:
+              const: 1
+            source:
+              const: dwp-people-server
+            tenantId:
+              type: integer
+              minimum: 1
+            aggregateType:
+              const: SeparationCase
+            correlationId:
+              type: string
+              format: uuid
+            causationId:
+              type: string
+              format: uuid
+            data:
+              $ref: '#/components/schemas/WorkerSeparatedData'
+    WorkerSeparatedData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_028'
     PerformanceReviewSubmittedEnvelope:
       allOf:
         - $ref: '#/components/schemas/DomainEventEnvelope'

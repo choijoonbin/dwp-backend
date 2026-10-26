@@ -2011,6 +2011,15 @@ class ProductSurfaceDecisionContextFilterTest {
 
     @Test
     void exactTenantFeatureRouteFamilyAlwaysEvaluatesAuthAtRollout000And100() {
+        assertThat(catalog.match("GET",
+                "/api/people/v1/hris/workbench/operations/exit/return").routes())
+                .extracting(GeneratedProductRouteCatalog.Route::routeContractKey)
+                .containsExactlyInAnyOrder(
+                        "route.hcm.operations.exit-return.page",
+                        "route.hcm.operations.exit-return.data");
+        assertThat(catalog.match("POST", "/api/people/v1/hris/separation-cases").routes())
+                .extracting(GeneratedProductRouteCatalog.Route::routeContractKey)
+                .containsExactly("route.hcm.operations.separation-case.action");
         record RouteCase(String method, String path, boolean pay003Command) {
             RouteCase(String method, String path) {
                 this(method, path, false);
@@ -2034,6 +2043,8 @@ class ProductSurfaceDecisionContextFilterTest {
                 new RouteCase("GET", "/api/payroll/v1/workbench/configuration/statutory"),
                 new RouteCase("GET", "/api/payroll/v1/workbench/pay-tax-social-insurance"),
                 new RouteCase("GET", "/api/payroll/v1/workbench/pay-retirement"),
+                new RouteCase("GET", "/api/people/v1/hris/workbench/operations/exit/return"),
+                new RouteCase("POST", "/api/people/v1/hris/separation-cases"),
                 new RouteCase("POST", "/api/payroll/v1/country-packs/"
                         + "10000000-0000-4000-8000-000000000054/activate", true));
         ProductSurfaceContextAggregationService authority = authority(activationRequired(
