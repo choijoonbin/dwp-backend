@@ -687,6 +687,28 @@
         "contentSha256": {"$ref": "#/$defs/Digest"}
       },
       "required": ["relationshipPublicId", "relationshipRevision", "workerPublicId", "workerStatus", "relationshipType", "relationshipStatus", "legalEntityPublicId", "relationshipEffectiveFrom", "relationshipEffectiveTo", "effectiveOn", "assignments", "ownerRevision", "asOf", "validUntil", "ownerContractId", "ownerService", "purposeCode", "scopeDigest", "contentSha256"]
+    },
+    "XCON_028": {
+      "title": "WorkerSeparated.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aggregateId": {"$ref": "#/$defs/Uuid"},
+        "aggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "causationId": {"$ref": "#/$defs/Uuid"},
+        "casePublicId": {"$ref": "#/$defs/Uuid"},
+        "correlationId": {"$ref": "#/$defs/Uuid"},
+        "effectiveDate": {"$ref": "#/$defs/Date"},
+        "eventId": {"$ref": "#/$defs/Uuid"},
+        "occurredAt": {"$ref": "#/$defs/Instant"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "relationshipPublicId": {"$ref": "#/$defs/Uuid"},
+        "schemaVersion": {"type": "integer", "minimum": 1, "maximum": 1},
+        "separationType": {"type": "string", "enum": ["RESIGNATION", "TERMINATION", "RETIREMENT", "END_OF_CONTRACT"]},
+        "tenantId": {"type": "integer", "minimum": 1},
+        "workerPublicId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["aggregateId", "aggregateVersion", "causationId", "casePublicId", "correlationId", "effectiveDate", "eventId", "occurredAt", "payloadDigest", "relationshipPublicId", "schemaVersion", "separationType", "tenantId", "workerPublicId"]
     }
   }
 }

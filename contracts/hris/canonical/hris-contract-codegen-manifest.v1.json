@@ -8,14 +8,14 @@
       "sourceId": "xcon-v1",
       "schemaPath": "contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json",
       "schemaId": "urn:dwp:hris:cross-module-canonical-schemas:v1",
-      "schemaSha256": "edbdbee8ff0cd996b7619239eb15db844a5a87f2d23de26a8b6ecdd4dea19cc5",
+      "schemaSha256": "678bce45392a67a3272b5d3d75861b93fe53e976c3e844511cd50b50ce6287c6",
       "bindingRegisterProvenance": {
         "path": "coding-readiness/cross-module-schema-binding-register.csv",
         "sha256": "b78fbae31c9cd48c4eadc37ea689d4f6987642ee8562700205f3c14bad0c6334"
       },
       "definitionPrefix": "XCON_",
       "normalizedDigestMode": "materialized",
-      "expectedContractCount": 27,
+      "expectedContractCount": 28,
       "javaPackage": "com.dwp.contracts.hris.xcon.v1"
     },
     {
@@ -655,6 +655,14 @@
       "normalizedSchemaSha256": "5b7391739e6ae41ae46a772310fc7c79916eaf4d706bf4de58ba0083b0299a17",
       "producer": "HRIS-HRM",
       "consumers": ["HRIS-TIM"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_028",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon028WorkerSeparatedV1",
+      "normalizedSchemaSha256": "d918993ecf0d95423d0701746724c3ddbe5a32a34cd724bf42576ea56f7facd8",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
     },
     {
       "sourceId": "platform-dependency-v1",

@@ -22,7 +22,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = Path("contracts/hris/canonical/hris-contract-codegen-manifest.v1.json")
 JAVA_OUTPUT_ROOT = Path("dwp-platform-contracts/src/main/java")
-EXPECTED_MANIFEST_SHA256 = "074bb81779bcad8cc9ef76e9a9cc8ded003acab525b290f69ca20586090fdfc2"
+EXPECTED_MANIFEST_SHA256 = "02047a33ed262fa708c343022524961b90ecf15bc9c2604b94b1f0251cde2014"
 SHA256 = re.compile(r"[0-9a-f]{64}")
 FQN = re.compile(
     r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*\.[A-Z][A-Za-z0-9]*"
@@ -1051,6 +1051,12 @@ def local_invariant_validation_lines(
             f"{indent}}}",
             f"{indent}if (validTo != null && !validTo.isAfter(validFrom)) {{",
             f'{indent}    throw new IllegalArgumentException("validTo must be after validFrom");',
+            f"{indent}}}",
+        ]
+    if key == ("xcon-v1", "XCON_028"):
+        return [
+            f"{indent}if (!aggregateId.equals(casePublicId)) {{",
+            f'{indent}    throw new IllegalArgumentException("aggregateId must equal casePublicId");',
             f"{indent}}}",
         ]
     if key == ("xcon-v1", "EmploymentAbsenceAssignment"):
