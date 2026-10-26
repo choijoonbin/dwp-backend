@@ -68,6 +68,19 @@ spring:
 
 dwp:
   hris:
+    separation:
+      # BASE-TFR-HRM-013 remains dark until service grants, workload credentials,
+      # owner callbacks and the separately authorized task consumers are enrolled.
+      enabled: ${DWP_HRIS_SEPARATION_ENABLED:false}
+      waiver-relay-enabled: ${DWP_HRIS_SEPARATION_WAIVER_RELAY_ENABLED:false}
+      task-dispatch-relay-enabled: ${DWP_HRIS_SEPARATION_TASK_DISPATCH_RELAY_ENABLED:false}
+      authority-endpoint: ${DWP_HRIS_SEPARATION_AUTHORITY_ENDPOINT:https://dwp-auth.internal/internal/auth/v1/hris-service-grant-authority/resolve}
+      approval-endpoint: ${DWP_HRIS_SEPARATION_APPROVAL_ENDPOINT:https://dwp-approval.internal/internal/hris-approval/v1/separation-task-waiver-requests}
+      connect-timeout: ${DWP_HRIS_SEPARATION_CONNECT_TIMEOUT:PT2S}
+      request-timeout: ${DWP_HRIS_SEPARATION_REQUEST_TIMEOUT:PT5S}
+      relay-lease: ${DWP_HRIS_SEPARATION_RELAY_LEASE:PT30S}
+      retry-base: ${DWP_HRIS_SEPARATION_RETRY_BASE:PT1S}
+      relay-batch-size: ${DWP_HRIS_SEPARATION_RELAY_BATCH_SIZE:25}
     home:
       people:
         # BASE-TFR-HRM-003 remains dark until Platform workload trust and a

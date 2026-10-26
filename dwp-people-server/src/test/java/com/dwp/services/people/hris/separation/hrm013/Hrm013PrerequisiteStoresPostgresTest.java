@@ -1,5 +1,6 @@
 package com.dwp.services.people.hris.separation.hrm013;
 
+import com.dwp.platform.contracts.hris.separation.v1.Hrm013SeparationBridgeV1;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
@@ -209,11 +210,14 @@ class Hrm013PrerequisiteStoresPostgresTest {
         store.claimNext(new WaiverDeliveryClaimRequest(
                 TENANT, acceptedLease, "delivery-worker",
                 Instant.now().plusSeconds(30))).orElseThrow();
-        byte[] response = "{\"status\":\"ACCEPTED\"}"
-                .getBytes(StandardCharsets.UTF_8);
+        Instant acceptedAt = Instant.now();
+        byte[] response = Hrm013SeparationBridgeV1.encode(
+                new Hrm013SeparationBridgeV1.SeparationWaiverApprovalSubmissionReceiptV1(
+                        accepted.approvalRequestId(), accepted.requestRevision(), "PENDING",
+                        accepted.commandDigest(), accepted.correlationId(), acceptedAt));
         assertThat(store.accept(new WaiverDeliveryAcceptance(
                 TENANT, accepted.approvalRequestId(), acceptedLease,
-                response, Hrm013PersistenceModels.sha256(response), Instant.now())))
+                response, Hrm013PersistenceModels.sha256(response), acceptedAt)))
                 .isEqualTo(WaiverDeliveryDisposition.ACCEPTED);
         assertThat(jdbc.queryForMap("""
                 SELECT dispatch_state,response_body_sha256,lease_token

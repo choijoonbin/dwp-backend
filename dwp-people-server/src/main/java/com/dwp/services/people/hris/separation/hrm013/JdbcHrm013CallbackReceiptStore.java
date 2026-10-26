@@ -96,6 +96,16 @@ public final class JdbcHrm013CallbackReceiptStore
         return result == null ? Optional.empty() : result;
     }
 
+    @Override
+    public Optional<CallbackReceiptRecord> findForUpdate(CallbackIdentity identity) {
+        Optional<CallbackReceiptRecord> result = mandatory.execute(status -> {
+            Hrm013TenantScope.setLocal(jdbc, identity.tenantId());
+            lock(identity);
+            return query(identity, true).stream().findFirst();
+        });
+        return result == null ? Optional.empty() : result;
+    }
+
     private List<CallbackReceiptRecord> query(CallbackIdentity identity, boolean lock) {
         return jdbc.query("""
                 SELECT tenant_id,separation_case_id,separation_task_id,callback_type,
@@ -119,6 +129,13 @@ public final class JdbcHrm013CallbackReceiptStore
                 .addValue("caller", identity.callerWorkloadId())
                 .addValue("callbackEvent", identity.callbackEventId()),
                 (row, number) -> map(row));
+    }
+
+    private void lock(CallbackIdentity identity) {
+        jdbc.query("SELECT pg_advisory_xact_lock(hashtextextended(:lockKey,0))",
+                new MapSqlParameterSource().addValue("lockKey", "hrm013-callback\n"
+                        + identity.tenantId() + "\n" + identity.callerWorkloadId()
+                        + "\n" + identity.callbackEventId()), row -> null);
     }
 
     private static MapSqlParameterSource parameters(CallbackReceiptRecord value) {

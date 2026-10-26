@@ -37,6 +37,23 @@ public final class JdbcHrm013CallbackAuthorityStore
     public CallbackAuthorityRecord append(CallbackAuthorityRecord authority) {
         CallbackAuthorityRecord result = mandatory.execute(status -> {
             Hrm013TenantScope.setLocal(jdbc, authority.key().tenantId());
+            lock(authority.key());
+            Optional<CallbackAuthorityRecord> latest = query(authority.key(), true);
+            if (latest.filter(value -> value.publicId().equals(authority.publicId())
+                    && value.authorityRevision() == authority.authorityRevision()
+                    && value.authorityDigest().equals(authority.authorityDigest()))
+                    .isPresent()) {
+                return latest.orElseThrow();
+            }
+            long expectedRevision = latest.map(value -> value.authorityRevision() + 1L)
+                    .orElse(1L);
+            if (authority.authorityRevision() != expectedRevision
+                    || latest.map(CallbackAuthorityRecord::publicId)
+                    .map(id -> !id.equals(authority.supersedesAuthorityPublicId()))
+                    .orElse(authority.supersedesAuthorityPublicId() != null)) {
+                throw new IllegalStateException(
+                        "HRM-013 callback authority revision is not gap-free");
+            }
             int inserted = jdbc.update("""
                     INSERT INTO ppl_separation_callback_authorities(
                         public_id,tenant_id,case_public_id,task_public_id,
@@ -67,7 +84,25 @@ public final class JdbcHrm013CallbackAuthorityStore
     public Optional<CallbackAuthorityRecord> latest(CallbackAuthorityKey key) {
         Optional<CallbackAuthorityRecord> result = required.execute(status -> {
             Hrm013TenantScope.setLocal(jdbc, key.tenantId());
-            List<CallbackAuthorityRecord> rows = jdbc.query("""
+            lock(key);
+            return query(key, false);
+        });
+        return result == null ? Optional.empty() : result;
+    }
+
+    @Override
+    public Optional<CallbackAuthorityRecord> latestForUpdate(CallbackAuthorityKey key) {
+        Optional<CallbackAuthorityRecord> result = mandatory.execute(status -> {
+            Hrm013TenantScope.setLocal(jdbc, key.tenantId());
+            lock(key);
+            return query(key, true);
+        });
+        return result == null ? Optional.empty() : result;
+    }
+
+    private Optional<CallbackAuthorityRecord> query(
+            CallbackAuthorityKey key, boolean rowLock) {
+        List<CallbackAuthorityRecord> rows = jdbc.query("""
                     SELECT public_id,tenant_id,case_public_id,task_public_id,
                            separation_case_id,separation_task_id,callback_type,
                            caller_workload_id,binding_id,audience,purpose_code,task_type,
@@ -86,10 +121,18 @@ public final class JdbcHrm013CallbackAuthorityStore
                        AND approval_request_id IS NOT DISTINCT FROM :approvalRequest
                      ORDER BY authority_revision DESC
                      LIMIT 1
-                    """, keyParameters(key), (row, number) -> map(row));
-            return rows.stream().findFirst();
-        });
-        return result == null ? Optional.empty() : result;
+                    """ + (rowLock ? " FOR UPDATE" : ""), keyParameters(key),
+                (row, number) -> map(row));
+        return rows.stream().findFirst();
+    }
+
+    private void lock(CallbackAuthorityKey key) {
+        jdbc.query("SELECT pg_advisory_xact_lock(hashtextextended(:stream,0))",
+                keyParameters(key).addValue("stream", "hrm013-authority\n"
+                        + key.tenantId() + "\n" + key.bindingId() + "\n"
+                        + key.callerWorkloadId() + "\n" + key.casePublicId() + "\n"
+                        + key.taskPublicId() + "\n" + key.purposeCode() + "\n"
+                        + key.approvalRequestId()), row -> null);
     }
 
     private static MapSqlParameterSource parameters(CallbackAuthorityRecord value) {
