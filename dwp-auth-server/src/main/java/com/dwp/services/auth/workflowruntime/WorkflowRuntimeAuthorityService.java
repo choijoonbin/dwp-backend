@@ -112,7 +112,21 @@ public final class WorkflowRuntimeAuthorityService {
     private static void assertOwnerSources(WorkflowRuntimeProofVerifier.Verified proof, WorkflowRuntimeSourceRepository.Snapshot snapshot) {
         var owner = snapshot.subjects().get(proof.caller().actorId());
         if (!owner.subject().personPublicId().equals(proof.caller().personPublicId()) || !owner.permissions().containsAll(java.util.Set.of("APP.APPROVALS:VIEW", "ACTION.APPROVAL_FORM:VIEW"))) throw denied();
-        if (proof.caller().routeContractKey().equals("route.approvals.work.task-decision.action")) { if (!owner.canApprove()) throw denied(); }
-        else if (!owner.permissions().contains("ACTION.APPROVAL_REQUEST:UPDATE")) throw denied();
+        switch (proof.caller().routeContractKey()) {
+            case WorkflowRuntimeBindings.GENERIC_TASK_DECISION_ROUTE,
+                    WorkflowRuntimeBindings.HRM013_WAIVER_APPROVE_ROUTE -> {
+                if (!owner.canApprove()
+                        || !owner.permissions().contains("ACTION.APPROVAL_TASK:APPROVE")) {
+                    throw denied();
+                }
+            }
+            case "route.approvals.work.request-submit.action",
+                    "route.approvals.work.request-information-response.action" -> {
+                if (!owner.permissions().contains("ACTION.APPROVAL_REQUEST:UPDATE")) {
+                    throw denied();
+                }
+            }
+            default -> throw denied();
+        }
     }
 }

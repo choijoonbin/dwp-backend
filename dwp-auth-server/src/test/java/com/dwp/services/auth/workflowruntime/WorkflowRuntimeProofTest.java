@@ -67,6 +67,32 @@ class WorkflowRuntimeProofTest {
     @Test void unknownAliasCannotBecomeAProductionAction() {
         var binding = candidate(PoolMode.SEALED); ((ObjectNode) binding.get("owner")).put("routeContractKey", "route.approvals.work.drafts.recover.action"); denied(Operation.CANDIDATES, binding);
     }
+    @Test void hrisSeparationApproveIsAFirstClassRouteAndCannotRewriteToGenericDecision() {
+        var information = command(10, 11, new UUID(0, 11));
+        var command = (ObjectNode) information.get("command");
+        command.put("routeContractKey", WorkflowRuntimeBindings.HRM013_WAIVER_APPROVE_ROUTE)
+                .put("path", "/v1/hris/separation-waiver-tasks/" + TASK + "/approve");
+        var informationEnvelope = proof(Operation.INFORMATION_ADMISSION, information);
+        var admitted = verifier.verify(
+                informationEnvelope.transport(), informationEnvelope.body());
+        assertThat(admitted.caller().routeContractKey())
+                .isEqualTo(WorkflowRuntimeBindings.HRM013_WAIVER_APPROVE_ROUTE);
+
+        var voter = candidate(PoolMode.SEALED);
+        var owner = (ObjectNode) voter.get("owner");
+        owner.put("routeContractKey", WorkflowRuntimeBindings.HRM013_WAIVER_APPROVE_ROUTE)
+                .put("path", "/v1/hris/separation-waiver-tasks/" + TASK + "/approve");
+        voter.set("target", target(11, new UUID(0, 11), 11, new UUID(0, 11), 7));
+        var envelope = proof(Operation.VOTER, voter);
+        assertThat(verifier.verify(envelope.transport(), envelope.body()).caller()
+                .routeContractKey()).isEqualTo(WorkflowRuntimeBindings.HRM013_WAIVER_APPROVE_ROUTE);
+
+        owner.put("routeContractKey", WorkflowRuntimeBindings.GENERIC_TASK_DECISION_ROUTE);
+        denied(Operation.VOTER, voter);
+        owner.put("routeContractKey", WorkflowRuntimeBindings.HRM013_WAIVER_APPROVE_ROUTE)
+                .put("path", "/v1/tasks/" + TASK + "/decisions");
+        denied(Operation.VOTER, voter);
+    }
     @Test void runtimeKeyMaterialCannotReuseUserOrFrozenRoleKeys() {
         var reused = new WorkflowRuntimeKeys(JSON, publicKeys(OWNER), publicKeys(TRANSPORT), ATTESTATION.toJSONString(), publicKeys(ATTESTATION), publicKeys(OWNER));
         assertThat(reused.owners()).isEmpty(); assertThatThrownBy(reused::signer).isInstanceOf(BaseException.class);

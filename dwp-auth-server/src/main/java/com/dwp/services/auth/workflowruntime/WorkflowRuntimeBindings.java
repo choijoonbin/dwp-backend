@@ -7,6 +7,10 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class WorkflowRuntimeBindings {
+    public static final String GENERIC_TASK_DECISION_ROUTE =
+            "route.approvals.work.task-decision.action";
+    public static final String HRM013_WAIVER_APPROVE_ROUTE =
+            "route.approvals.work.hris-separation-waiver-task-approve.action";
     public static final Set<String> COMMAND_FIELDS = Set.of("tenantId", "actorId", "personPublicId", "commandPurpose", "targetId",
             "routeContractKey", "method", "path", "idempotencyKey", "rawBodySha256", "contextKey", "contextScopeKey",
             "decisionRevision", "accessMode", "rolloutState", "authorityValidUntil", "expectedVersion", "sourceGeneration");
@@ -48,7 +52,7 @@ public final class WorkflowRuntimeBindings {
         hash(command, "rawBodySha256"); number(command, "expectedVersion", 0, 9007199254740991L);
         number(command, "authorityValidUntil", 1, Long.MAX_VALUE);
         if (purpose.equals("TASK_INFORMATION")) {
-            if (!route.equals("route.approvals.work.task-decision.action") || !path.equals("/v1/tasks/" + target + "/decisions")
+            if (!taskCommandPath(route, path, target)
                     || !command.get("sourceGeneration").isNull()) throw denied();
         } else if (purpose.equals("REQUEST_REPLY")) {
             if (!route.equals("route.approvals.work.request-information-response.action") || !path.equals("/v1/requests/" + target + "/information-response")) throw denied();
@@ -67,7 +71,8 @@ public final class WorkflowRuntimeBindings {
         boolean valid = switch (route) {
             case "route.approvals.work.request-submit.action" -> path.equals("/v1/requests/" + request + "/submit");
             case "route.approvals.work.request-information-response.action" -> path.equals("/v1/requests/" + request + "/information-response");
-            case "route.approvals.work.task-decision.action" -> canonicalTaskPath(path);
+            case GENERIC_TASK_DECISION_ROUTE -> canonicalTaskPath(path);
+            case HRM013_WAIVER_APPROVE_ROUTE -> canonicalHrm013ApprovePath(path);
             default -> false;
         };
         if (!valid) throw denied();
@@ -104,8 +109,9 @@ public final class WorkflowRuntimeBindings {
         } else { uuid(target, "evidenceId"); hash(target, "evidenceSha256"); }
         if (use == TargetUse.CAST && actor != number(bindings.get("owner"), "actorId", 1, Long.MAX_VALUE)
                 || use == TargetUse.SEAT_RECHECK && actor != principal) throw denied();
-        if (use == TargetUse.CAST && text(bindings.get("owner"), "routeContractKey").equals("route.approvals.work.task-decision.action")
-                && !text(bindings.get("owner"), "path").equals("/v1/tasks/" + uuid(target, "taskId") + "/decisions")) throw denied();
+        if (use == TargetUse.CAST && !taskCommandPath(
+                text(bindings.get("owner"), "routeContractKey"),
+                text(bindings.get("owner"), "path"), uuid(target, "taskId"))) throw denied();
         var delegation = target.get("delegation");
         if (actor == principal) {
             if (!delegation.isNull() || !uuid(target, "actorPersonPublicId").equals(uuid(target, "principalPersonPublicId"))) throw denied();
@@ -123,6 +129,19 @@ public final class WorkflowRuntimeBindings {
         if (!path.startsWith("/v1/tasks/") || !path.endsWith("/decisions")) return false;
         String value = path.substring("/v1/tasks/".length(), path.length() - "/decisions".length());
         try { return UUID.fromString(value).toString().equals(value); } catch (IllegalArgumentException exception) { return false; }
+    }
+    private static boolean canonicalHrm013ApprovePath(String path) {
+        String prefix = "/v1/hris/separation-waiver-tasks/", suffix = "/approve";
+        if (!path.startsWith(prefix) || !path.endsWith(suffix)) return false;
+        String value = path.substring(prefix.length(), path.length() - suffix.length());
+        try { return UUID.fromString(value).toString().equals(value); }
+        catch (IllegalArgumentException exception) { return false; }
+    }
+    private static boolean taskCommandPath(String route, String path, UUID taskId) {
+        return (GENERIC_TASK_DECISION_ROUTE.equals(route)
+                && path.equals("/v1/tasks/" + taskId + "/decisions"))
+                || (HRM013_WAIVER_APPROVE_ROUTE.equals(route)
+                && path.equals("/v1/hris/separation-waiver-tasks/" + taskId + "/approve"));
     }
     public record Caller(long tenantId, long actorId, UUID personPublicId, String routeContractKey, String contextKey,
             String contextScopeKey, String accessMode, JsonNode sealed) {

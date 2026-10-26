@@ -28,10 +28,11 @@ public class ProductSurfaceStepUpRouteResolver {
     private static final String BUNDLE_KEY = "product-surfaces";
     private static final java.util.Set<Long> STEP_UP_RUNTIME_BUNDLE_VERSIONS =
             java.util.Set.of(2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L,
-                    14L, 15L, 16L, 32L, 49L, 50L, 52L, 53L, 54L, 55L, 56L, 57L);
+                    14L, 15L, 16L, 32L, 49L, 50L, 52L, 53L, 54L, 55L, 56L, 57L,
+                    62L);
     private static final java.util.Set<Long> SEALED_RUNTIME_BUNDLE_VERSIONS =
             java.util.Set.of(9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 32L, 49L, 50L, 52L, 53L,
-                    54L, 55L, 56L, 57L);
+                    54L, 55L, 56L, 57L, 62L);
     private static final String HRM012_ACTION_ROUTE =
             "route.hcm.operations.workforce-ingestion.action";
     private static final String HRM009_SHARED_ACTION_ROUTE =
@@ -40,6 +41,14 @@ public class ProductSurfaceStepUpRouteResolver {
             "hcm.operations.certificate.issue";
     private static final String HRM009_SELF_CAPABILITY =
             "hcm.personal.certificate.request";
+    private static final String HRM013_APPROVE_ROUTE =
+            "route.approvals.work.hris-separation-waiver-task-approve.action";
+    private static final String HRM013_APPROVE_CAPABILITY =
+            "approvals.work.hris-separation-waiver-task.approve";
+    private static final String HRM013_GATEWAY_PATH =
+            "/api/approvals/v1/hris/separation-waiver-tasks/{taskId}/approve";
+    private static final String HRM013_SERVICE_PATH =
+            "/v1/hris/separation-waiver-tasks/{taskId}/approve";
     private static final String AUTHORITY_ENDPOINT_KEY =
             "product-surface-step-up-challenge.issue";
     private static final String AUTHORITY_PUBLIC_PATH =
@@ -56,6 +65,11 @@ public class ProductSurfaceStepUpRouteResolver {
 
     private final ProductAuthorizationContractRepository repository;
     private final StoredDescriptorSeal seals;
+
+    static boolean supportsSealedRuntimeBundle(long version) {
+        return STEP_UP_RUNTIME_BUNDLE_VERSIONS.contains(version)
+                && SEALED_RUNTIME_BUNDLE_VERSIONS.contains(version);
+    }
 
     public ProductSurfaceStepUpRouteResolver(ProductAuthorizationContractRepository repository) {
         this.repository = repository;
@@ -131,7 +145,10 @@ public class ProductSurfaceStepUpRouteResolver {
                 profile.requiredAccess().capabilityContractKey());
         String effectiveActivationPolicy = capability == null
                 ? null : capability.activationPolicy();
-        if (HRM009_SHARED_ACTION_ROUTE.equals(resolved.route().routeContractKey())) {
+        if (HRM013_APPROVE_ROUTE.equals(resolved.route().routeContractKey())) {
+            effectiveActivationPolicy = validateHrm013ApproveRoute(
+                    resolved, profile, capability);
+        } else if (HRM009_SHARED_ACTION_ROUTE.equals(resolved.route().routeContractKey())) {
             effectiveActivationPolicy = validateHrm009SharedRoute(
                     request, resolved.route(), capabilities, capability);
         } else if (capability == null || !"ACTIVE".equals(capability.lifecycleState())
@@ -190,6 +207,123 @@ public class ProductSurfaceStepUpRouteResolver {
             throw unavailable();
         }
         return high.activationPolicy();
+    }
+
+    /**
+     * The separation-waiver approval command is intentionally a first-class route. It must
+     * never inherit the generic task-decision descriptor because that would allow a caller to
+     * obtain an APPROVE challenge for a different command path with the same task identifier.
+     */
+    private String validateHrm013ApproveRoute(
+            ResolvedRoute resolved,
+            ProductAuthorizationContractDtos.AccessProfile profile,
+            ProductAuthorizationContractDtos.CapabilityContract capability) {
+        return validateHrm013ApproveDescriptor(
+                resolved.route(), profile, capability, resolved.gateway(), resolved.stepUp());
+    }
+
+    String validateHrm013ApproveDescriptor(
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            ProductAuthorizationContractDtos.AccessProfile profile,
+            ProductAuthorizationContractDtos.CapabilityContract capability,
+            ProductAuthorizationContractDtos.GatewayBinding gateway,
+            ProductAuthorizationContractDtos.StepUpCommandBinding stepUp) {
+        List<ProductAuthorizationContractDtos.AccessProfile> profiles =
+                route == null ? List.of() : safe(route.accessProfiles());
+        List<ProductAuthorizationContractDtos.GatewayBinding> gatewayBindings =
+                route == null ? List.of() : safe(route.gatewayApiBindings());
+        List<ProductAuthorizationContractDtos.ServicePepBinding> serviceBindings =
+                route == null ? List.of() : safe(route.servicePepBindings());
+        List<ProductAuthorizationContractDtos.StepUpCommandBinding> stepUpBindings =
+                route == null ? List.of() : safe(route.stepUpCommandBindings());
+        if (route == null || route.subject() == null || profile == null
+                || capability == null || gateway == null || stepUp == null
+                || !HRM013_APPROVE_ROUTE.equals(route.routeContractKey())
+                || !"approvals.work".equals(route.navigationContextId())
+                || !"PRODUCT".equals(route.subject().type())
+                || !"approvals".equals(route.subject().productKey())
+                || !"approvals.work".equals(route.subject().surfaceKey())
+                || !"ACTION".equals(route.routeKind())
+                || route.bindingMode() != null
+                || route.purposeCode() != null
+                || route.sideEffectFree() != null
+                || route.uiRouteId() != null
+                || route.uiRoutePattern() != null
+                || route.authorizationEquivalenceKey() != null
+                || route.consumedApiRouteContractKeys() != null
+                || !"Approvals + Security".equals(route.owner())
+                || route.policyVersion() != 1
+                || !"ACTIVE".equals(route.lifecycleState())
+                || profiles.size() != 1 || !profiles.getFirst().equals(profile)
+                || gatewayBindings.size() != 1
+                || !gatewayBindings.getFirst().equals(gateway)
+                || serviceBindings.size() != 1
+                || stepUpBindings.size() != 1
+                || !stepUpBindings.getFirst().equals(stepUp)
+                || !HRM013_APPROVE_CAPABILITY.equals(capability.contractKey())
+                || !"ACTIVE".equals(capability.lifecycleState())
+                || !"approvals".equals(capability.productKey())
+                || !"approvals.work".equals(capability.surfaceKey())
+                || !"ACTION.APPROVAL_TASK:APPROVE".equals(
+                        capability.resolvedCapabilityCode())
+                || !"ACTION.APPROVAL_TASK".equals(capability.resourceKey())
+                || !"APPROVE".equals(capability.action())
+                || !"PERMISSION".equals(capability.authorityMode())
+                || !"NOT_REQUIRED".equals(capability.responsibilityRequirement())
+                || capability.requiredResponsibilityCode() != null
+                || !"DECIDABLE_TASK_SELF_APPROVAL_SOD".equals(
+                        capability.scopeResolver())
+                || !"HIGH".equals(capability.riskTier())
+                || !"STEPUP-MGMT-HIGH-V1".equals(capability.activationPolicy())
+                || capability.sodPolicyId() != null
+                || !capability.requiresProductEntitlement()
+                || !"Approvals + Security".equals(capability.owner())
+                || capability.mappingVersion() != 1
+                || capability.policyVersion() != 1
+                || capability.sunsetAt() != null
+                || capability.legacySource() != null
+                || !safe(capability.routeContractKeys()).equals(List.of(HRM013_APPROVE_ROUTE))
+                || !"full-work".equals(profile.profileKey())
+                || profile.precedence() != 300
+                || !safe(profile.activeAccessModes()).equals(List.of("NORMAL", "ELEVATED"))
+                || profile.readOnly()
+                || profile.requiredAccess() == null
+                || !"CAPABILITY".equals(profile.requiredAccess().type())
+                || !HRM013_APPROVE_CAPABILITY.equals(
+                        profile.requiredAccess().capabilityContractKey())
+                || profile.requiredAccess().accessPolicyKey() != null
+                || profile.requiredAccess().mode() != null
+                || profile.requiredAccess().capabilityContractKeys() != null
+                || !safe(profile.targetBindingKinds()).equals(List.of("OBJECT"))
+                || !safe(profile.predicatePolicyKeys()).equals(List.of(
+                        "predicate.approval-task-decision.v1",
+                        "predicate.approval.object-version.v1"))
+                || profile.responseProjectionBindings() != null
+                || !(HRM013_APPROVE_ROUTE + ".binding.01").equals(gateway.bindingKey())
+                || !"POST".equals(gateway.method())
+                || !HRM013_GATEWAY_PATH.equals(gateway.path())
+                || gateway.pathParameterConstraints() == null
+                || !gateway.pathParameterConstraints().isEmpty()
+                || gateway.queryParameterConstraints() != null
+                || !gateway.bindingKey().equals(serviceBindings.getFirst().bindingKey())
+                || !"approval".equals(serviceBindings.getFirst().serviceKey())
+                || !"POST".equals(serviceBindings.getFirst().method())
+                || !HRM013_SERVICE_PATH.equals(serviceBindings.getFirst().path())
+                || serviceBindings.getFirst().pathParameterConstraints() == null
+                || !serviceBindings.getFirst().pathParameterConstraints().isEmpty()
+                || serviceBindings.getFirst().queryParameterConstraints() != null
+                || !gateway.bindingKey().equals(stepUp.bindingKey())
+                || !"approval".equals(stepUp.ownerServiceKey())
+                || !"dwp-approval-server".equals(stepUp.audience())
+                || !"HRIS_SEPARATION_WAIVER_TASK".equals(stepUp.targetType())
+                || !"taskId".equals(stepUp.targetIdPathParameter())
+                || stepUp.targetIdBodyFields() != null
+                || !"COMMAND_HEADER".equals(stepUp.expectedObjectVersionSource())
+                || !"X-DWP-Expected-Object-Version".equals(
+                        stepUp.expectedObjectVersionName())) {
+            throw unavailable();
+        }
+        return capability.activationPolicy();
     }
 
     private void validateAuthorityEndpoint(

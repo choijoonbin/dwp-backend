@@ -41,8 +41,15 @@ public final class WorkflowRuntimeAdmissionLink {
         if (number(result, "authorityValidUntil", 1, Long.MAX_VALUE) < expires) throw denied();
         String purpose = text(result, "commandPurpose"); var target = uuid(result, "targetId");
         if (purpose.equals("TASK_INFORMATION")) {
-            if (!text(owner, "routeContractKey").equals("route.approvals.work.task-decision.action")
-                    || !text(owner, "path").equals("/v1/tasks/" + target + "/decisions") || !result.get("sourceGeneration").isNull()) throw denied();
+            String route = text(owner, "routeContractKey");
+            String path = text(owner, "path");
+            boolean generic = WorkflowRuntimeBindings.GENERIC_TASK_DECISION_ROUTE.equals(route)
+                    && path.equals("/v1/tasks/" + target + "/decisions");
+            boolean separation = WorkflowRuntimeBindings.HRM013_WAIVER_APPROVE_ROUTE.equals(route)
+                    && path.equals("/v1/hris/separation-waiver-tasks/" + target + "/approve");
+            if ((!generic && !separation) || !result.get("sourceGeneration").isNull()) {
+                throw denied();
+            }
         } else if (purpose.equals("REQUEST_REPLY")) {
             if (!text(owner, "routeContractKey").equals("route.approvals.work.request-information-response.action")
                     || !uuid(owner, "requestId").equals(target)) throw denied();

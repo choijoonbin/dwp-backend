@@ -63,6 +63,9 @@ class WorkflowRuntimeAuthorityPostgresTest {
         var generator = KeyPairGenerator.getInstance("RSA"); generator.initialize(2048); var keys = generator.generateKeyPair();
         context = new AnnotationConfigApplicationContext(); context.registerBean(javax.sql.DataSource.class, () -> source);
         context.registerBean(KeyPair.class, () -> keys);
+        context.registerBean(
+                com.dwp.services.auth.tenantfeatureactivation.TenantFeatureActivationReader.class,
+                com.dwp.services.auth.tenantfeatureactivation.TenantFeatureActivationReader::ungoverned);
         context.register(ProductSurfaceStepUpRuntimeSpringFixture.class, ProductAuthorizationAuthorityAdapter.class, WorkflowRuntimeIdentityAuthorityBridge.class);
         context.refresh(); jdbc = context.getBean(JdbcTemplate.class);
         context.getBean(ProductAuthorizationSeedLoader.class).run(new DefaultApplicationArguments(new String[0]));

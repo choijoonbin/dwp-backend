@@ -2,10 +2,12 @@ package com.dwp.services.auth.service;
 
 import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProductAuthorizationV62ContractTest {
     private static final String CAPABILITY =
@@ -13,18 +15,15 @@ class ProductAuthorizationV62ContractTest {
     private static final String ROUTE =
             "route.approvals.work.hris-separation-waiver-task-approve.action";
 
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final ProductAuthorizationContractValidator validator =
-            new ProductAuthorizationContractValidator(
-                    new ObjectMapper().findAndRegisterModules());
+            new ProductAuthorizationContractValidator(mapper);
 
     @Test
     void sealsTheDedicatedHrm013ApprovalCapabilityAndRoute() throws Exception {
-        ProductAuthorizationContractDtos.BundleContract contract;
-        try (var input = new ClassPathResource(
-                "product-authorization/product-surfaces-v1.bundle-v62.generated.json")
-                .getInputStream()) {
-            contract = validator.validateDocument(input);
-        }
+        assertThat(ProductSurfaceStepUpRouteResolver.supportsSealedRuntimeBundle(62L)).isTrue();
+        assertThat(ProductSurfaceStepUpRouteResolver.supportsSealedRuntimeBundle(61L)).isFalse();
+        ProductAuthorizationContractDtos.BundleContract contract = loadContract();
         assertThat(contract.version()).isEqualTo(62);
         assertThat(contract.bundleStatus()).isEqualTo("DRAFT");
         assertThat(contract.checksum()).isEqualTo(
@@ -116,5 +115,70 @@ class ProductAuthorizationV62ContractTest {
                                 assertThat(binding.audience()).isEqualTo("dwp-approval-server");
                             });
                 });
+    }
+
+    @Test
+    void resolverAcceptsOnlyTheExactHrm013ApproveDescriptor() throws Exception {
+        Descriptor descriptor = descriptor(loadContract());
+        var resolver = new ProductSurfaceStepUpRouteResolver(null);
+
+        assertThat(resolver.validateHrm013ApproveDescriptor(
+                descriptor.route(), descriptor.profile(), descriptor.capability(),
+                descriptor.gateway(), descriptor.stepUp()))
+                .isEqualTo("STEPUP-MGMT-HIGH-V1");
+
+        ObjectNode changedOwner = mapper.valueToTree(descriptor.route());
+        changedOwner.put("owner", "Generic Approvals");
+        assertDescriptorRejected(resolver, descriptor, changedOwner);
+
+        ObjectNode duplicateGateway = mapper.valueToTree(descriptor.route());
+        duplicateGateway.withArray("gatewayApiBindings")
+                .add(duplicateGateway.withArray("gatewayApiBindings").get(0).deepCopy());
+        assertDescriptorRejected(resolver, descriptor, duplicateGateway);
+
+        ObjectNode duplicateStepUp = mapper.valueToTree(descriptor.route());
+        duplicateStepUp.withArray("stepUpCommandBindings")
+                .add(duplicateStepUp.withArray("stepUpCommandBindings").get(0).deepCopy());
+        assertDescriptorRejected(resolver, descriptor, duplicateStepUp);
+    }
+
+    private void assertDescriptorRejected(
+            ProductSurfaceStepUpRouteResolver resolver,
+            Descriptor descriptor,
+            ObjectNode changedRoute) throws Exception {
+        ProductAuthorizationContractDtos.GovernedRoute route = mapper.treeToValue(
+                changedRoute, ProductAuthorizationContractDtos.GovernedRoute.class);
+        assertThatThrownBy(() -> resolver.validateHrm013ApproveDescriptor(
+                route, descriptor.profile(), descriptor.capability(),
+                descriptor.gateway(), descriptor.stepUp()))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class);
+    }
+
+    private ProductAuthorizationContractDtos.BundleContract loadContract() throws Exception {
+        try (var input = new ClassPathResource(
+                "product-authorization/product-surfaces-v1.bundle-v62.generated.json")
+                .getInputStream()) {
+            return validator.validateDocument(input);
+        }
+    }
+
+    private Descriptor descriptor(ProductAuthorizationContractDtos.BundleContract contract) {
+        var route = contract.routes().stream()
+                .filter(value -> ROUTE.equals(value.routeContractKey()))
+                .findFirst().orElseThrow();
+        var capability = contract.capabilities().stream()
+                .filter(value -> CAPABILITY.equals(value.contractKey()))
+                .findFirst().orElseThrow();
+        return new Descriptor(route, route.accessProfiles().getFirst(), capability,
+                route.gatewayApiBindings().getFirst(),
+                route.stepUpCommandBindings().getFirst());
+    }
+
+    private record Descriptor(
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            ProductAuthorizationContractDtos.AccessProfile profile,
+            ProductAuthorizationContractDtos.CapabilityContract capability,
+            ProductAuthorizationContractDtos.GatewayBinding gateway,
+            ProductAuthorizationContractDtos.StepUpCommandBinding stepUp) {
     }
 }

@@ -59,6 +59,20 @@ jwt:
 
 dwp:
   auth:
+    hris-service-grant-authority:
+      enabled: ${DWP_AUTH_HRIS_SERVICE_GRANT_AUTHORITY_ENABLED:false}
+    hrm013-requester-authority:
+      enabled: ${DWP_AUTH_HRM013_REQUESTER_AUTHORITY_ENABLED:false}
+    hrm013-identity-task-dispatch:
+      enabled: ${DWP_AUTH_HRM013_IDENTITY_TASK_DISPATCH_ENABLED:false}
+    hrm013-mtls:
+      client-auth: ${DWP_AUTH_HRM013_MTLS_CLIENT_AUTH:}
+      trust-store-location: ${DWP_AUTH_HRM013_MTLS_TRUST_STORE_LOCATION:}
+      trust-store-password: ${DWP_AUTH_HRM013_MTLS_TRUST_STORE_PASSWORD:}
+      trust-store-type: ${DWP_AUTH_HRM013_MTLS_TRUST_STORE_TYPE:}
+      revocation-mode: ${DWP_AUTH_HRM013_MTLS_REVOCATION_MODE:}
+      crl-location: ${DWP_AUTH_HRM013_MTLS_CRL_LOCATION:}
+      ocsp-responder: ${DWP_AUTH_HRM013_MTLS_OCSP_RESPONDER:}
     product-surface-token: ${DWP_PRODUCT_SURFACE_TOKEN:}
     meeting-followup-authority-token: ${DWP_MEETING_FOLLOWUP_AUTHORITY_TOKEN:}
     hris-origin-authority-token: ${DWP_HRIS_ORIGIN_AUTHORITY_TOKEN:}

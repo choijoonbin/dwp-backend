@@ -30,6 +30,35 @@ class WorkflowRuntimeAdmissionLinkTest {
         stage.put("admissionAttestation", parent).put("admissionAttestationSha256", WorkflowRuntimeJson.sha(parent)).put("commandRawBodySha256", values.get("rawBodySha256").asText());
         return bindings;
     }
+    private ObjectNode linkedHrm013Task(PoolMode mode) {
+        var command = command(10, 11, new UUID(0, 11));
+        var values = (ObjectNode) command.get("command");
+        values.put("routeContractKey", WorkflowRuntimeBindings.HRM013_WAIVER_APPROVE_ROUTE)
+                .put("path", "/v1/hris/separation-waiver-tasks/" + TASK + "/approve");
+        var envelope = proof(Operation.INFORMATION_ADMISSION, command);
+        var verified = verifier.verify(envelope.transport(), envelope.body());
+        var result = JSON.tree(Map.of());
+        WorkflowRuntimeBindings.INFO_RESULT_FIELDS.forEach(
+                field -> ((ObjectNode) result).set(field, values.get(field)));
+        Instant expiry = Instant.now().plusSeconds(15);
+        var current = new WorkflowRuntimeIdentityPort.OwnerEvidence(
+                "raw-auth-current", "raw-policy-current", expiry,
+                JSON.tree(Map.of("revision", 1)));
+        String parent = new WorkflowRuntimeAttestationIssuer(JSON, keys())
+                .sign(verified, current, current.stableVector(), result, expiry)
+                .attestation();
+        var bindings = candidate(
+                10, 11, new UUID(0, 11), 12, new UUID(0, 12),
+                "REVIEWER", mode, 1);
+        var owner = (ObjectNode) bindings.get("owner");
+        owner.put("routeContractKey", values.get("routeContractKey").asText())
+                .put("path", values.get("path").asText());
+        var stage = (ObjectNode) bindings.get("stage");
+        stage.put("admissionAttestation", parent)
+                .put("admissionAttestationSha256", WorkflowRuntimeJson.sha(parent))
+                .put("commandRawBodySha256", values.get("rawBodySha256").asText());
+        return bindings;
+    }
     @Test void sealedRecheckBindsOldGenerationAndOriginalReplyCasVersionWhileRestartBindsKnownNextVersion() {
         for (PoolMode mode : java.util.List.of(PoolMode.SEALED, PoolMode.REBUILD, PoolMode.RETAINED)) {
             var bindings = linked(mode); var envelope = proof(Operation.CANDIDATES, bindings);
@@ -54,6 +83,22 @@ class WorkflowRuntimeAdmissionLinkTest {
         ((ObjectNode) bindings.get("stage")).put("admissionAttestation", forged).put("admissionAttestationSha256", WorkflowRuntimeJson.sha(forged)); denied(bindings);
         bindings = linked(PoolMode.SEALED); var envelope = proof(Operation.CANDIDATES, bindings); JsonNode parent = link.require(verifier.verify(envelope.transport(), envelope.body()));
         assertThatThrownBy(() -> link.current(parent, new WorkflowRuntimeIdentityPort.OwnerEvidence("raw-auth-revoked", "raw-policy-current", Instant.now().plusSeconds(10), JSON.tree(Map.of())))).isInstanceOf(BaseException.class);
+    }
+    @Test void hrisSeparationApproveParentPreservesItsDedicatedRouteAndRejectsGenericRewrite() {
+        var bindings = linkedHrm013Task(PoolMode.SEALED);
+        var envelope = proof(Operation.CANDIDATES, bindings);
+        var parent = link.require(verifier.verify(envelope.transport(), envelope.body()));
+        assertThat(parent.get("result").get("routeContractKey").asText())
+                .isEqualTo(WorkflowRuntimeBindings.HRM013_WAIVER_APPROVE_ROUTE);
+        assertThat(parent.get("result").get("targetId").asText()).isEqualTo(TASK.toString());
+
+        bindings = linkedHrm013Task(PoolMode.SEALED);
+        ((ObjectNode) bindings.get("owner")).put(
+                "routeContractKey", WorkflowRuntimeBindings.GENERIC_TASK_DECISION_ROUTE);
+        denied(bindings);
+        bindings = linkedHrm013Task(PoolMode.SEALED);
+        ((ObjectNode) bindings.get("owner")).put("path", "/v1/tasks/" + TASK + "/decisions");
+        denied(bindings);
     }
     private void denied(ObjectNode bindings) {
         var envelope = proof(Operation.CANDIDATES, bindings);

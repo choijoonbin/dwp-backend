@@ -2,6 +2,8 @@ package com.dwp.services.auth.service;
 
 import static com.dwp.services.auth.workflowruntime.WorkflowRuntimeProtocol.*;
 import static com.dwp.services.auth.workflowruntime.WorkflowRuntimeProofVerifier.minimum;
+import static com.dwp.services.auth.workflowruntime.WorkflowRuntimeBindings.GENERIC_TASK_DECISION_ROUTE;
+import static com.dwp.services.auth.workflowruntime.WorkflowRuntimeBindings.HRM013_WAIVER_APPROVE_ROUTE;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.dwp.services.auth.workflowruntime.WorkflowRuntimeIdentityPort;
 import com.dwp.services.auth.workflowruntime.WorkflowRuntimeProofVerifier;
@@ -38,8 +40,14 @@ public final class WorkflowRuntimeIdentityAuthorityBridge implements WorkflowRun
                 || !subjects.getFirst().get("status").equals("ACTIVE") || !subjects.getFirst().get("tenantStatus").equals("ACTIVE")
                 || !subjects.getFirst().get("identityPlane").equals("TENANT")) throw denied();
         var identity = identities.load(caller.tenantId(), caller.actorId());
-        String permission = caller.routeContractKey().equals("route.approvals.work.task-decision.action")
-                ? "ACTION.APPROVAL_TASK:APPROVE" : "ACTION.APPROVAL_REQUEST:UPDATE";
+        String permission = switch (caller.routeContractKey()) {
+            case GENERIC_TASK_DECISION_ROUTE, HRM013_WAIVER_APPROVE_ROUTE ->
+                    "ACTION.APPROVAL_TASK:APPROVE";
+            case "route.approvals.work.request-submit.action",
+                    "route.approvals.work.request-information-response.action" ->
+                    "ACTION.APPROVAL_REQUEST:UPDATE";
+            default -> throw denied();
+        };
         if (!identity.hasPermission("APP.APPROVALS:VIEW") || !identity.hasPermission(permission)
                 || permission.endsWith("APPROVE") && !identity.hasPermission("ACTION.APPROVAL_TASK:VIEW")
                 || proof.operation() != Operation.INFORMATION_ADMISSION && !identity.hasPermission("ACTION.APPROVAL_FORM:VIEW")
