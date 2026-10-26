@@ -137,7 +137,19 @@ public final class GeneratedProductRouteCatalog {
                     new GenericSessionTopology("hcm.management", "DATA", "GET",
                             "/api/platform/v1/admin/hris/automation-runs/{runId}", "platform",
                             "/v1/admin/hris/automation-runs/{runId}",
-                            List.of("automation-executor"))));
+                            List.of("automation-executor"))),
+            Map.entry("route.hcm.configuration.connector-execution-detail.data",
+                    new GenericSessionTopology("hcm.management", "DATA", "GET",
+                            "/api/platform/v1/admin/hris/connector-executions/{executionId}",
+                            "platform",
+                            "/v1/admin/hris/connector-executions/{executionId}",
+                            List.of("integration-control-plane-executor"))),
+            Map.entry("route.hcm.configuration.connector-execution-create.action",
+                    new GenericSessionTopology("hcm.management", "ACTION", "POST",
+                            "/api/platform/v1/admin/hris/connectors/{connectorId}/executions",
+                            "platform",
+                            "/v1/admin/hris/connectors/{connectorId}/executions",
+                            List.of("integration-control-plane-executor"))));
     private static final Set<String> OTHER_EXACT_NO_COMMAND_STEP_UP_ROUTE_KEYS = Set.of(
             "route.approvals.admin.form-publish-review-reject.action",
             "route.approvals.admin.retention-policy-publication-command.data",
@@ -160,6 +172,9 @@ public final class GeneratedProductRouteCatalog {
     private static final Set<String> V58_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = Set.of(
             "route.hcm.operations.pay-retirement.page",
             "route.hcm.operations.pay-retirement.data");
+    private static final Set<String> V60_GENERIC_SESSION_STEP_UP_ROUTE_KEYS = Set.of(
+            "route.hcm.configuration.connector-execution-detail.data",
+            "route.hcm.configuration.connector-execution-create.action");
 
     /**
      * PER-008 is the first feedback transport contract to publish PAGE/DATA pairs on the same
@@ -434,8 +449,22 @@ public final class GeneratedProductRouteCatalog {
             Map<String, Set<String>> namespaces = new HashMap<>();
             Set<String> genericSessionRoutes = new HashSet<>();
             Set<String> performanceFeedbackRoutes = new HashSet<>();
+            Set<String> sys008Routes = new HashSet<>();
             for (JsonNode route : bundle.path("routes")) {
                 String routeKey = route.path("routeContractKey").asText();
+                Sys008GatewayRoutes.Binding sys008Binding =
+                        Sys008GatewayRoutes.binding(routeKey);
+                if (sys008Binding != null) {
+                    if (bundleVersion < 60) {
+                        throw new IllegalStateException(
+                                "A PRODUCT v60 SYS-008 route was introduced early: " + routeKey);
+                    }
+                    validateV60Sys008Topology(route, sys008Binding);
+                    if (!sys008Routes.add(routeKey)) {
+                        throw new IllegalStateException(
+                                "A PRODUCT v60 SYS-008 route is duplicated: " + routeKey);
+                    }
+                }
                 V59PerformanceFeedbackTopology performanceFeedbackTopology =
                         V59_PERFORMANCE_FEEDBACK_TOPOLOGIES.get(routeKey);
                 if (performanceFeedbackTopology != null) {
@@ -514,6 +543,10 @@ public final class GeneratedProductRouteCatalog {
                 expectedGenericSessionRoutes.removeAll(
                         V58_GENERIC_SESSION_STEP_UP_ROUTE_KEYS);
             }
+            if (bundleVersion < 60) {
+                expectedGenericSessionRoutes.removeAll(
+                        V60_GENERIC_SESSION_STEP_UP_ROUTE_KEYS);
+            }
             if (bundleVersion >= 49
                     && !genericSessionRoutes.equals(expectedGenericSessionRoutes)) {
                 throw new IllegalStateException(
@@ -525,6 +558,10 @@ public final class GeneratedProductRouteCatalog {
                 throw new IllegalStateException(
                         "The PRODUCT v59 performance-feedback topology closed set is incomplete.");
             }
+            if (bundleVersion >= 60 && !sys008Routes.equals(Sys008GatewayRoutes.ROUTE_KEYS)) {
+                throw new IllegalStateException(
+                        "The PRODUCT v60 SYS-008 topology closed set is incomplete.");
+            }
             Map<String, Set<String>> immutableNamespaces = namespaces.entrySet().stream()
                     .collect(java.util.stream.Collectors.toUnmodifiableMap(
                             Map.Entry::getKey, entry -> Set.copyOf(entry.getValue())));
@@ -533,6 +570,78 @@ public final class GeneratedProductRouteCatalog {
         } catch (IOException exception) {
             throw new IllegalStateException(
                     "Generated PRODUCT route registry cannot be read.", exception);
+        }
+    }
+
+    private void validateV60Sys008Topology(
+            JsonNode route,
+            Sys008GatewayRoutes.Binding binding) {
+        String routeKey = binding.routeContractKey();
+        String bindingKey = routeKey + ".binding.01";
+        JsonNode subject = route.path("subject");
+        JsonNode gateways = route.path("gatewayApiBindings");
+        JsonNode services = route.path("servicePepBindings");
+        JsonNode profiles = route.path("accessProfiles");
+        JsonNode stepUpBindings = route.path("stepUpCommandBindings");
+        Sys008GatewayRoutes.StepUpTarget stepUp =
+                Sys008GatewayRoutes.commandBoundStepUp(routeKey);
+        boolean exact = "ACTIVE".equals(route.path("lifecycleState").asText())
+                && route.path("policyVersion").asLong() == 1
+                && "PRODUCT".equals(subject.path("type").asText())
+                && "hcm".equals(subject.path("productKey").asText())
+                && "hcm.management".equals(subject.path("surfaceKey").asText())
+                && "hcm.management".equals(route.path("navigationContextId").asText())
+                && binding.routeKind().equals(route.path("routeKind").asText())
+                && ("DATA".equals(binding.routeKind())
+                        ? route.path("sideEffectFree").asBoolean(false)
+                        : route.path("sideEffectFree").isNull())
+                && gateways.isArray() && gateways.size() == 1
+                && services.isArray() && services.size() == 1
+                && profiles.isArray() && profiles.size() == 1;
+        if (exact) {
+            JsonNode gateway = gateways.get(0);
+            JsonNode service = services.get(0);
+            JsonNode profile = profiles.get(0);
+            exact = bindingKey.equals(gateway.path("bindingKey").asText())
+                    && binding.method().equals(gateway.path("method").asText())
+                    && binding.browserPath().equals(gateway.path("path").asText())
+                    && gateway.path("pathParameterConstraints").isObject()
+                    && bindingKey.equals(service.path("bindingKey").asText())
+                    && "platform".equals(service.path("serviceKey").asText())
+                    && binding.method().equals(service.path("method").asText())
+                    && binding.servicePath().equals(service.path("path").asText())
+                    && service.path("pathParameterConstraints").isObject()
+                    && gateway.path("pathParameterConstraints")
+                            .equals(service.path("pathParameterConstraints"))
+                    && "CAPABILITY".equals(
+                            profile.path("requiredAccess").path("type").asText())
+                    && binding.capability().equals(profile.path("requiredAccess")
+                            .path("capabilityContractKey").asText());
+        }
+        if (exact) {
+            if (stepUp == null) {
+                exact = stepUpBindings.isMissingNode()
+                        || stepUpBindings.isArray() && stepUpBindings.isEmpty();
+            } else {
+                JsonNode commandBinding = stepUpBindings.isArray()
+                        && stepUpBindings.size() == 1 ? stepUpBindings.get(0) : null;
+                exact = commandBinding != null
+                        && bindingKey.equals(commandBinding.path("bindingKey").asText())
+                        && "COMMAND_HEADER".equals(commandBinding
+                                .path("expectedObjectVersionSource").asText())
+                        && "If-Match".equals(commandBinding
+                                .path("expectedObjectVersionName").asText())
+                        && "platform".equals(commandBinding.path("ownerServiceKey").asText())
+                        && "dwp-platform-server".equals(
+                                commandBinding.path("audience").asText())
+                        && stepUp.targetType().equals(commandBinding.path("targetType").asText())
+                        && stepUp.targetIdPathParameter().equals(
+                                commandBinding.path("targetIdPathParameter").asText());
+            }
+        }
+        if (!exact) {
+            throw new IllegalStateException(
+                    "A PRODUCT v60 SYS-008 topology is invalid: " + routeKey);
         }
     }
 

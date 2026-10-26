@@ -24,7 +24,8 @@ import static com.dwp.services.platform.hrisconfiguration.explorer.HrisExplorerD
 @ConditionalOnExpression(
         "'${dwp.hris.explorer.enabled:false}' == 'true' || "
                 + "'${dwp.hris.controlled-transfer.enabled:false}' == 'true' || "
-                + "'${dwp.hris.automation-control-plane.enabled:false}' == 'true'")
+                + "'${dwp.hris.automation-control-plane.enabled:false}' == 'true' || "
+                + "'${dwp.hris.integration-control-plane.enabled:false}' == 'true'")
 final class HrisCommandReceiptController {
 
     private final HrisExplorerService service;

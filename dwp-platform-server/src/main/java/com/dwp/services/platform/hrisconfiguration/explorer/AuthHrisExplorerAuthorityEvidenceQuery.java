@@ -46,7 +46,8 @@ import static com.dwp.services.platform.hrisconfiguration.explorer.HrisPlatformR
 @ConditionalOnExpression(
         "'${dwp.hris.explorer.enabled:false}' == 'true' || "
                 + "'${dwp.hris.controlled-transfer.enabled:false}' == 'true' || "
-                + "'${dwp.hris.automation-control-plane.enabled:false}' == 'true'")
+                + "'${dwp.hris.automation-control-plane.enabled:false}' == 'true' || "
+                + "'${dwp.hris.integration-control-plane.enabled:false}' == 'true'")
 final class AuthHrisExplorerAuthorityEvidenceQuery
         implements HrisExplorerAuthorityEvidenceQuery,
         HrisExplorerReceiptAuthoritySource,
@@ -59,6 +60,8 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
     static final String RECEIPT_PURPOSE = "COMMAND_STATUS";
     static final String PLATFORM_ORIGIN_PURPOSE = "HRIS_SYSTEM_ADMIN";
     static final String CONTROLLED_TRANSFER_ORIGIN_PURPOSE =
+            "HRIS_INTEGRATION_ADMIN";
+    static final String INTEGRATION_CONTROL_PLANE_ORIGIN_PURPOSE =
             "HRIS_INTEGRATION_ADMIN";
     static final String CONTROLLED_TRANSFER_ACTION =
             "CONTROLLED_TRANSFER_CREATE";
@@ -176,6 +179,54 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
             Map.entry(
                     "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.cancel",
                     "route.hcm.configuration.automation-run-cancel.action"));
+    static final Map<String, String> INTEGRATION_ORIGIN_ROUTES_BY_ACTION = Map.ofEntries(
+            Map.entry("hris.action.sys.post.platform.v1.admin.hris.connectors",
+                    "route.hcm.configuration.connector-definition-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.test",
+                    "route.hcm.configuration.connector-test.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings.resource.dry-runs",
+                    "route.hcm.configuration.connector-mapping-dry-run.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.executions",
+                    "route.hcm.configuration.connector-execution-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.validate",
+                    "route.hcm.configuration.connector-definition-validate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.submit",
+                    "route.hcm.configuration.connector-definition-submit.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.approve",
+                    "route.hcm.configuration.connector-definition-approve.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.activate",
+                    "route.hcm.configuration.connector-definition-activate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings",
+                    "route.hcm.configuration.connector-mapping-version-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings.resource.validate",
+                    "route.hcm.configuration.connector-mapping-version-validate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings.resource.submit",
+                    "route.hcm.configuration.connector-mapping-version-submit.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings.resource.approve",
+                    "route.hcm.configuration.connector-mapping-version-approve.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings.resource.activate",
+                    "route.hcm.configuration.connector-mapping-version-activate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connector-executions.resource.reconcile",
+                    "route.hcm.configuration.connector-execution-reconcile.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connector-executions.resource.retry",
+                    "route.hcm.configuration.connector-execution-retry.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connector-executions.resource.cancel",
+                    "route.hcm.configuration.connector-execution-cancel.action"));
     static final Map<String, String> PLATFORM_ORIGIN_ROUTES_BY_ACTION =
             platformOriginRoutes();
 
@@ -183,6 +234,12 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
         Map<String, String> routes = new LinkedHashMap<>(
                 EXISTING_PLATFORM_ORIGIN_ROUTES_BY_ACTION);
         AUTOMATION_ORIGIN_ROUTES_BY_ACTION.forEach((action, route) -> {
+            if (routes.putIfAbsent(action, route) != null) {
+                throw new IllegalStateException(
+                        "Duplicate Platform receipt originating action: " + action);
+            }
+        });
+        INTEGRATION_ORIGIN_ROUTES_BY_ACTION.forEach((action, route) -> {
             if (routes.putIfAbsent(action, route) != null) {
                 throw new IllegalStateException(
                         "Duplicate Platform receipt originating action: " + action);
@@ -955,6 +1012,9 @@ final class AuthHrisExplorerAuthorityEvidenceQuery
         if (action == null || purposeCode == null) return false;
         if (CONTROLLED_TRANSFER_ACTION.equals(action)) {
             return CONTROLLED_TRANSFER_ORIGIN_PURPOSE.equals(purposeCode);
+        }
+        if (INTEGRATION_ORIGIN_ROUTES_BY_ACTION.containsKey(action)) {
+            return INTEGRATION_CONTROL_PLANE_ORIGIN_PURPOSE.equals(purposeCode);
         }
         return PLATFORM_ORIGIN_ROUTES_BY_ACTION.containsKey(action)
                 && PLATFORM_ORIGIN_PURPOSE.equals(purposeCode);

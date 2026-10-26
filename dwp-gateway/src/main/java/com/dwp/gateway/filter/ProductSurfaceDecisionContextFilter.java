@@ -7,6 +7,7 @@ import com.dwp.gateway.productsurface.ProductSurfaceContextDtos;
 import com.dwp.gateway.productsurface.Per004GatewayRoutes;
 import com.dwp.gateway.productsurface.Per004DecisionContextForwarder;
 import com.dwp.gateway.productsurface.Sys006GatewayRoutes;
+import com.dwp.gateway.productsurface.Sys008GatewayRoutes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -70,6 +71,9 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     private static final String STEP_UP_CHALLENGE_HEADER = "X-DWP-Step-Up-Challenge";
     private static final Pattern SYS006_IDEMPOTENCY_KEY = Pattern.compile(
             "[A-Za-z0-9][A-Za-z0-9._:-]{0,119}");
+    private static final Pattern SYS008_IDEMPOTENCY_KEY = Pattern.compile("[\\x21-\\x7E]{16,128}");
+    private static final Pattern SYS008_IF_MATCH = Pattern.compile(
+            "(?:W/)?\\\"[A-Za-z0-9._:-]+\\\"");
     private static final long SYS006_MAX_SAFE_OBJECT_REVISION = 9_007_199_254_740_991L;
     private static final String PAY_GROUP_PUBLIC_ID_HEADER = "X-DWP-Pay-Group-Public-Id";
     private static final Pattern COUNTRY_PACK_ACTIVATION_PATH = Pattern.compile(
@@ -157,7 +161,27 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             "route.hcm.personal.feedback-assignments-mine.data",
             "route.hcm.personal.feedback-assignment-detail.data",
             "route.hcm.personal.feedback-response-submit.action",
-            "route.hcm.performance.feedback-release.data");
+            "route.hcm.performance.feedback-release.data",
+            "route.hcm.configuration.settings-integrations.page",
+            "route.hcm.configuration.dwp-integrations.data",
+            "route.hcm.configuration.connector-catalog.data",
+            "route.hcm.configuration.connector-definition-create.action",
+            "route.hcm.configuration.connector-test.action",
+            "route.hcm.configuration.connector-mapping-dry-run.action",
+            "route.hcm.configuration.connector-execution-create.action",
+            "route.hcm.configuration.connector-execution-detail.data",
+            "route.hcm.configuration.connector-definition-validate.action",
+            "route.hcm.configuration.connector-definition-submit.action",
+            "route.hcm.configuration.connector-definition-approve.action",
+            "route.hcm.configuration.connector-definition-activate.action",
+            "route.hcm.configuration.connector-mapping-version-create.action",
+            "route.hcm.configuration.connector-mapping-version-validate.action",
+            "route.hcm.configuration.connector-mapping-version-submit.action",
+            "route.hcm.configuration.connector-mapping-version-approve.action",
+            "route.hcm.configuration.connector-mapping-version-activate.action",
+            "route.hcm.configuration.connector-execution-reconcile.action",
+            "route.hcm.configuration.connector-execution-retry.action",
+            "route.hcm.configuration.connector-execution-cancel.action");
     private static final Set<String> HRM007_ENTRY_QUERY_ROUTE_KEYS = Set.of(
             "route.hcm.team.people-changes.page",
             "route.hcm.team.people-changes.data",
@@ -552,11 +576,17 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         boolean sys006 = Sys006GatewayRoutes.claimsPath(
                 exchange.getRequest().getURI().getPath())
                 && exchange.getRequest().getMethod() != HttpMethod.OPTIONS;
+        boolean sys008 = Sys008GatewayRoutes.claimsPath(
+                exchange.getRequest().getURI().getPath())
+                && exchange.getRequest().getMethod() != HttpMethod.OPTIONS;
         if (per004 && !per004Forwarder.validInbound(exchange)) {
             return error(exchange, HttpStatus.BAD_REQUEST, "INVALID_PER004_AUTHORITY_INPUT", null);
         }
         if (sys006 && !Sys006InboundAuthorityFilter.validInbound(exchange)) {
             return error(exchange, HttpStatus.BAD_REQUEST, "INVALID_SYS006_AUTHORITY_INPUT", null);
+        }
+        if (sys008 && !Sys008InboundAuthorityFilter.validInbound(exchange)) {
+            return error(exchange, HttpStatus.BAD_REQUEST, "INVALID_SYS008_AUTHORITY_INPUT", null);
         }
         List<String> expectedValues = exchange.getRequest().getHeaders()
                 .getOrEmpty(EXPECTED_REVISION_HEADER);
@@ -619,6 +649,13 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
         }
         if (sys006 && !Sys006GatewayRoutes.matches(
+                match.uniqueRoute(),
+                sanitized.getMethod() == null ? null : sanitized.getMethod().name(),
+                sanitized.getURI().getPath())) {
+            return error(sanitizedExchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
+        }
+        if (sys008 && !Sys008GatewayRoutes.matches(
                 match.uniqueRoute(),
                 sanitized.getMethod() == null ? null : sanitized.getMethod().name(),
                 sanitized.getURI().getPath())) {
@@ -744,6 +781,44 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                     } else {
                         headers.set(IF_MATCH_HEADER, '"' + expectedObjectVersion + '"');
                         headers.set(EXPECTED_OBJECT_VERSION_HEADER, expectedObjectVersion);
+                    }
+                }).build();
+                sanitizedExchange = sanitizedExchange.mutate().request(sanitized).build();
+            }
+        }
+        if (Sys008GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey())) {
+            if (!callerPurposeValues.equals(List.of(Sys008GatewayRoutes.PURPOSE))) {
+                return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
+                        "INVALID_PURPOSE", null);
+            }
+            if (!route.stateChanging()) {
+                if (!idempotencyKeyValues.isEmpty() || !ifMatchValues.isEmpty()) {
+                    return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
+                            "INVALID_SYS008_COMMAND_HEADERS", null);
+                }
+            } else {
+                String idempotencyKey = safeSys008IdempotencyKey(idempotencyKeyValues);
+                boolean requiresObjectRevision =
+                        Sys008GatewayRoutes.requiresExpectedObjectRevision(
+                                route.routeContractKey());
+                String ifMatch = requiresObjectRevision
+                        ? canonicalSys008IfMatch(ifMatchValues) : null;
+                if (idempotencyKey == null
+                        || (requiresObjectRevision && ifMatch == null)
+                        || (!requiresObjectRevision && !ifMatchValues.isEmpty())) {
+                    return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
+                            "INVALID_SYS008_COMMAND_HEADERS", null);
+                }
+                sanitized = sanitized.mutate().headers(headers -> {
+                    headers.set(IDEMPOTENCY_KEY_HEADER, idempotencyKey);
+                    if (ifMatch == null) {
+                        headers.remove(IF_MATCH_HEADER);
+                        headers.remove(EXPECTED_OBJECT_VERSION_HEADER);
+                    } else {
+                        headers.set(IF_MATCH_HEADER, ifMatch);
+                        headers.set(EXPECTED_OBJECT_VERSION_HEADER,
+                                ifMatch.replaceFirst("^W/", "")
+                                        .substring(1, ifMatch.replaceFirst("^W/", "").length() - 1));
                     }
                 }).build();
                 sanitizedExchange = sanitizedExchange.mutate().request(sanitized).build();
@@ -1066,7 +1141,8 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 || PER008_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_TENANT_ROUTE_KEYS.contains(route.routeContractKey())
                 || NAVIGATION_V2_LEGAL_ENTITY_ROUTE_KEYS.contains(route.routeContractKey())
-                || Sys006GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey());
+                || Sys006GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey())
+                || Sys008GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey());
         String trustedPopulationKind = requiresPopulationKind
                 ? trustedPopulationKind(route, trustedResult.scope()) : null;
         if (requiresPopulationKind && blank(trustedPopulationKind)) {
@@ -1122,6 +1198,12 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         if (Sys006GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey())
                 && (result.revalidateAt() == null
                 || !Sys006InboundAuthorityFilter.validInbound(exchange))) {
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+        }
+        if (Sys008GatewayRoutes.ROUTE_KEYS.contains(route.routeContractKey())
+                && (result.revalidateAt() == null
+                || !Sys008InboundAuthorityFilter.validInbound(exchange))) {
             return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
         }
@@ -1187,9 +1269,13 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     }
 
     private String ownerPurpose(String routeContractKey) {
-        return Sys006GatewayRoutes.ROUTE_KEYS.contains(routeContractKey)
-                ? Sys006GatewayRoutes.PURPOSE
-                : WAVE2_OWNER_PURPOSE_BY_ROUTE.get(routeContractKey);
+        if (Sys006GatewayRoutes.ROUTE_KEYS.contains(routeContractKey)) {
+            return Sys006GatewayRoutes.PURPOSE;
+        }
+        if (Sys008GatewayRoutes.ROUTE_KEYS.contains(routeContractKey)) {
+            return Sys008GatewayRoutes.PURPOSE;
+        }
+        return WAVE2_OWNER_PURPOSE_BY_ROUTE.get(routeContractKey);
     }
 
     private boolean canonicalCountryPackActivationPath(String path) {
@@ -1227,6 +1313,19 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         } catch (NumberFormatException invalid) {
             return null;
         }
+    }
+
+    private String safeSys008IdempotencyKey(List<String> values) {
+        if (values.size() != 1) return null;
+        String value = values.getFirst();
+        return value != null && SYS008_IDEMPOTENCY_KEY.matcher(value).matches()
+                ? value : null;
+    }
+
+    private String canonicalSys008IfMatch(List<String> values) {
+        if (values.size() != 1) return null;
+        String value = values.getFirst();
+        return value != null && SYS008_IF_MATCH.matcher(value).matches() ? value : null;
     }
 
     private Mono<Void> deny(

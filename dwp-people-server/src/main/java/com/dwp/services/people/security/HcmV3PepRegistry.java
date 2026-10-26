@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Runtime-only, closed People PEP projection generated from the shared HRIS v59 registry.
+ * Runtime-only, closed People PEP projection generated from the shared HRIS v60 registry.
  * Provider-support profiles are parsed to detect contract drift, but they are not a service
  * readiness signal: {@link HcmProductSurfacePepFilter} denies them until the trusted request
  * carries the contractual legal-entity population boundary as well as the support session.
@@ -34,11 +34,11 @@ import java.util.stream.Collectors;
 public final class HcmV3PepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-people-pep-v59.generated.json";
-    static final String REGISTRY_V59_CHECKSUM =
-            "56582749cebf382c5c2669d83a30fb4c81fcb532db2878b15e6a83ced6898094";
-    static final String PROJECTION_V59_CHECKSUM =
-            "5ea079d6eed9a554b8f9c9eeb5eb713665836180b589f22e74c9daa182da9110";
+            "product-authorization/hcm-people-pep-v60.generated.json";
+    static final String REGISTRY_V60_CHECKSUM =
+            "405ac7c88d30a5730faa40c730968fffc873bd1a3679e4997532f0ea9ff1c47c";
+    static final String PROJECTION_V60_CHECKSUM =
+            "8c1a718274b7e126ccf1ebc91114e44336d4cc9e3bb840986bea8c082756f276";
     static final String ORGANIZATION_RESPONSIBILITY_BOUNDARY =
             "ORGANIZATION_TARGET_POPULATION";
     private static final String HRM011_CONTRACT_ISSUE_CAPABILITY =
@@ -592,23 +592,23 @@ public final class HcmV3PepRegistry {
 
     private void validateEnvelope(ObjectNode projection) {
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-people-pep-v59".equals(projection.path("projectionKey").asText())
+                        && "hcm-people-pep-v60".equals(projection.path("projectionKey").asText())
                         && "people".equals(projection.path("ownerServiceKey").asText()),
                 "Unexpected HCM People PEP envelope");
         JsonNode registry = projection.path("registryRef");
         require("product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 59
-                        && REGISTRY_V59_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 60
+                        && REGISTRY_V60_CHECKSUM.equals(registry.path("sha256").asText()),
                 "HCM People registry reference mismatch");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 1134
+        require(projection.path("sourceRegistryRouteCount").asInt() == 1154
                         && projection.path("projectedRouteContractCount").asInt() == 133
                         && projection.path("bindingPairCount").asInt() == 160,
                 "HCM People release counts changed");
         ObjectNode payload = projection.deepCopy();
         JsonNode checksum = payload.remove("projectionChecksum");
         require(checksum != null
-                        && PROJECTION_V59_CHECKSUM.equals(checksum.asText())
-                        && PROJECTION_V59_CHECKSUM.equals(sha256(payload)),
+                        && PROJECTION_V60_CHECKSUM.equals(checksum.asText())
+                        && PROJECTION_V60_CHECKSUM.equals(sha256(payload)),
                 "HCM People projection checksum mismatch");
     }
 

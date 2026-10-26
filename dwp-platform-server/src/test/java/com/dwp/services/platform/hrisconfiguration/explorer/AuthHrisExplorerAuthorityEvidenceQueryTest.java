@@ -145,10 +145,57 @@ class AuthHrisExplorerAuthorityEvidenceQueryTest {
                     "route.hcm.configuration.automation-schedule-suspend.action"),
             Map.entry(
                     "hris.action.sys.post.platform.v1.admin.hris.automation-runs.resource.cancel",
-                    "route.hcm.configuration.automation-run-cancel.action"));
+                    "route.hcm.configuration.automation-run-cancel.action"),
+            Map.entry("hris.action.sys.post.platform.v1.admin.hris.connectors",
+                    "route.hcm.configuration.connector-definition-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.test",
+                    "route.hcm.configuration.connector-test.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings.resource.dry-runs",
+                    "route.hcm.configuration.connector-mapping-dry-run.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.executions",
+                    "route.hcm.configuration.connector-execution-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.validate",
+                    "route.hcm.configuration.connector-definition-validate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.submit",
+                    "route.hcm.configuration.connector-definition-submit.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.approve",
+                    "route.hcm.configuration.connector-definition-approve.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.activate",
+                    "route.hcm.configuration.connector-definition-activate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings",
+                    "route.hcm.configuration.connector-mapping-version-create.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings.resource.validate",
+                    "route.hcm.configuration.connector-mapping-version-validate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings.resource.submit",
+                    "route.hcm.configuration.connector-mapping-version-submit.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings.resource.approve",
+                    "route.hcm.configuration.connector-mapping-version-approve.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connectors.resource.mappings.resource.activate",
+                    "route.hcm.configuration.connector-mapping-version-activate.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connector-executions.resource.reconcile",
+                    "route.hcm.configuration.connector-execution-reconcile.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connector-executions.resource.retry",
+                    "route.hcm.configuration.connector-execution-retry.action"),
+            Map.entry(
+                    "hris.action.sys.post.platform.v1.admin.hris.connector-executions.resource.cancel",
+                    "route.hcm.configuration.connector-execution-cancel.action"));
 
     @Test
-    void acceptsExactlyTheThirtyOneProducerActionRoutePairs() {
+    void acceptsExactlyTheFortySevenProducerActionRoutePairs() {
         assertThat(AuthHrisExplorerAuthorityEvidenceQuery
                 .PLATFORM_ORIGIN_ROUTES_BY_ACTION)
                 .containsExactlyInAnyOrderEntriesOf(EXPECTED_ORIGINS);
@@ -173,6 +220,28 @@ class AuthHrisExplorerAuthorityEvidenceQueryTest {
                 });
         assertThat(AuthHrisExplorerAuthorityEvidenceQuery
                 .AUTOMATION_ORIGIN_ROUTES_BY_ACTION.values())
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void integrationReceiptBridgeContainsExactlyTheSixteenSealedPairs() {
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery
+                .INTEGRATION_ORIGIN_ROUTES_BY_ACTION)
+                .hasSize(16)
+                .allSatisfy((action, route) -> {
+                    assertThat(action).startsWith("hris.action.sys.post.platform.");
+                    assertThat(EXPECTED_ORIGINS).containsEntry(action, route);
+                    assertThat(AuthHrisExplorerAuthorityEvidenceQuery
+                            .exactPlatformOrigin(action, route)).isTrue();
+                    assertThat(AuthHrisExplorerAuthorityEvidenceQuery
+                            .exactPlatformOriginPurpose(
+                                    action, "HRIS_INTEGRATION_ADMIN")).isTrue();
+                    assertThat(AuthHrisExplorerAuthorityEvidenceQuery
+                            .exactPlatformOriginPurpose(
+                                    action, "HRIS_SYSTEM_ADMIN")).isFalse();
+                });
+        assertThat(AuthHrisExplorerAuthorityEvidenceQuery
+                .INTEGRATION_ORIGIN_ROUTES_BY_ACTION.values())
                 .doesNotHaveDuplicates();
     }
 

@@ -9,6 +9,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
+import static com.dwp.services.auth.service.ProductAuthorizationContractRules.nullSafeMap;
+
 /**
  * Validates gate-specific snapshot topology and the closed elevated-risk command binding union.
  */
@@ -25,7 +27,8 @@ final class ProductAuthorizationGateTopologyValidator {
 
     static void validateRoute(
             ProductAuthorizationContractDtos.GovernedRoute route,
-            Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities) {
+            Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities,
+            long bundleVersion) {
         boolean elevatedStepUp = nullSafe(route.accessProfiles()).stream()
                 .map(ProductAuthorizationContractDtos.AccessProfile::requiredAccess)
                 .filter(java.util.Objects::nonNull)
@@ -92,7 +95,8 @@ final class ProductAuthorizationGateTopologyValidator {
             return;
         }
         if (elevatedStepUp
-                && isExactGenericStepUpWithoutFreshCommandRoute(route, capabilities)) {
+                && isExactGenericStepUpWithoutFreshCommandRoute(
+                        route, capabilities, bundleVersion)) {
             require(stepUps.isEmpty(), route.routeContractKey()
                     + ": generic session step-up must not synthesize fresh command bindings.");
             return;
@@ -195,16 +199,92 @@ final class ProductAuthorizationGateTopologyValidator {
 
     private static boolean isExactGenericStepUpWithoutFreshCommandRoute(
             ProductAuthorizationContractDtos.GovernedRoute route,
-            Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities) {
+            Map<String, ProductAuthorizationContractDtos.CapabilityContract> capabilities,
+            long bundleVersion) {
         return isExactGrandfatheredGenericStepUpRoute(route)
                 || isExactV49GenericStepUpWithoutFreshCommandRoute(route)
                 || isExactV56AutomationReadRoute(route)
+                || bundleVersion >= 60
+                        && isExactV60IntegrationControlPlaneGenericSessionRoute(route)
                 || ((PayrollV49ElevatedAuthorityPolicy.STATUTORY_READ_ROUTES.contains(
                         route.routeContractKey())
                         || PayrollV49ElevatedAuthorityPolicy.RETIREMENT_READ_ROUTES.contains(
                         route.routeContractKey()))
                         && PayrollV49ElevatedAuthorityPolicy.isExactRoute(
                                 route, capabilities));
+    }
+
+    /**
+     * SYS-008 uses the platform command-header contract for execution creation and
+     * an existing elevated session for execution detail. Neither route issues a
+     * fresh product-surface step-up challenge, so the registry must not synthesize
+     * a {@link ProductAuthorizationContractDtos.StepUpCommandBinding}. Keep the
+     * exception closed over the two exact v60 wire/profile shapes.
+     */
+    private static boolean isExactV60IntegrationControlPlaneGenericSessionRoute(
+            ProductAuthorizationContractDtos.GovernedRoute route) {
+        String key = route.routeContractKey();
+        if (!Set.of(
+                "route.hcm.configuration.connector-execution-create.action",
+                "route.hcm.configuration.connector-execution-detail.data").contains(key)
+                || route.subject() == null
+                || !"PRODUCT".equals(route.subject().type())
+                || !"hcm".equals(route.subject().productKey())
+                || !"hcm.management".equals(route.subject().surfaceKey())
+                || !"Platform + HCM + Security".equals(route.owner())
+                || route.policyVersion() != 1
+                || !"ACTIVE".equals(route.lifecycleState())
+                || route.gatewayApiBindings() == null
+                || route.gatewayApiBindings().size() != 1
+                || route.servicePepBindings() == null
+                || route.servicePepBindings().size() != 1
+                || route.accessProfiles() == null
+                || route.accessProfiles().size() != 1) {
+            return false;
+        }
+        var gateway = route.gatewayApiBindings().getFirst();
+        var service = route.servicePepBindings().getFirst();
+        var profile = route.accessProfiles().getFirst();
+        var required = profile.requiredAccess();
+        String bindingKey = key + ".binding.01";
+        if (!bindingKey.equals(gateway.bindingKey())
+                || !bindingKey.equals(service.bindingKey())
+                || !nullSafeMap(gateway.pathParameterConstraints()).isEmpty()
+                || !nullSafeMap(gateway.queryParameterConstraints()).isEmpty()
+                || !nullSafeMap(service.pathParameterConstraints()).isEmpty()
+                || !nullSafeMap(service.queryParameterConstraints()).isEmpty()
+                || !"integration-control-plane-executor".equals(profile.profileKey())
+                || profile.precedence() != 300
+                || !List.of("CONFIG_SCOPE", "OBJECT")
+                        .equals(profile.targetBindingKinds())
+                || !List.of(
+                        "predicate.hcm-settings-operations-authority.v1",
+                        "predicate.hcm-reference-configuration-authority.v1")
+                        .equals(profile.predicatePolicyKeys())
+                || required == null
+                || !"CAPABILITY".equals(required.type())
+                || !"hcm.integration.control-plane.execute"
+                        .equals(required.capabilityContractKey())) {
+            return false;
+        }
+        if (key.endsWith("connector-execution-create.action")) {
+            return exactRouteWire(route, "hcm.management", "ACTION", false, "POST",
+                    "/api/platform/v1/admin/hris/connectors/{connectorId}/executions",
+                    "platform",
+                    "/v1/admin/hris/connectors/{connectorId}/executions")
+                    && List.of("ELEVATED").equals(profile.activeAccessModes())
+                    && !profile.readOnly()
+                    && nullSafe(profile.responseProjectionBindings()).isEmpty();
+        }
+        return exactRouteWire(route, "hcm.management", "DATA", true, "GET",
+                "/api/platform/v1/admin/hris/connector-executions/{executionId}",
+                "platform",
+                "/v1/admin/hris/connector-executions/{executionId}")
+                && List.of("NORMAL", "ELEVATED").equals(profile.activeAccessModes())
+                && profile.readOnly()
+                && exactProjection(profile, bindingKey,
+                "sys008.sys-api-025.execution-detail.fields.v1",
+                "SysApi025GetResponseV1");
     }
 
     private static boolean isExactV56AutomationReadRoute(

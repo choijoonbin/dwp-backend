@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dwp:hris:sys-evt-005:payload:v1",
+  "title": "SYS-EVT-005 connector execution state changed payload",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "executionPublicId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "ACCEPTED",
+        "TRANSFORMING",
+        "DISPATCHED",
+        "RESULT_UNKNOWN",
+        "ACKNOWLEDGED",
+        "RECONCILING",
+        "RECONCILED",
+        "PARTIAL",
+        "FAILED",
+        "DEAD_LETTER",
+        "CANCELLED"
+      ]
+    },
+    "sourceCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000
+    },
+    "acceptedCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000
+    },
+    "rejectedCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000
+    },
+    "quarantinedCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000
+    },
+    "reconciliationDigest": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "executionPublicId",
+    "state",
+    "sourceCount",
+    "acceptedCount",
+    "rejectedCount",
+    "quarantinedCount",
+    "reconciliationDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": ["RECONCILED", "PARTIAL"]
+          }
+        },
+        "required": ["state"]
+      },
+      "then": {
+        "properties": {
+          "reconciliationDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  ]
+}

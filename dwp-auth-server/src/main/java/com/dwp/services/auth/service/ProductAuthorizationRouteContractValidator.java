@@ -72,7 +72,8 @@ final class ProductAuthorizationRouteContractValidator {
         validateBindings(route);
         validateProfiles(route, capabilities, policies, predicates,
                 capabilityRoutes, policyRoutes, predicateRoutes, bundleVersion);
-        ProductAuthorizationGateTopologyValidator.validateRoute(route, capabilities);
+        ProductAuthorizationGateTopologyValidator.validateRoute(
+                route, capabilities, bundleVersion);
     }
 
     void validateAuthorityEndpoints(ProductAuthorizationContractDtos.BundleContract contract) {

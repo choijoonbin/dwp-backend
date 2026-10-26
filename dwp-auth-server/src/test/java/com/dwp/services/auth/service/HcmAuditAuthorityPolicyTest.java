@@ -70,7 +70,7 @@ class HcmAuditAuthorityPolicyTest {
             ProductAuthorizationGateTopologyValidator.validateRoute(route,
                     contract.capabilities().stream().collect(java.util.stream.Collectors.toMap(
                             ProductAuthorizationContractDtos.CapabilityContract::contractKey,
-                            value -> value)));
+                            value -> value)), contract.version());
         }
     }
 

@@ -71,6 +71,10 @@ dwp:
       # SYS-006 remains dark until the separately admitted owner/runtime packet.
       # This switch only admits the shared receipt/evidence bridge.
       enabled: ${DWP_HRIS_AUTOMATION_CONTROL_PLANE_ENABLED:false}
+    integration-control-plane:
+      # SYS-008 remains dark until explicit tenant enrollment and owner admission.
+      # This switch only admits the shared receipt/evidence bridge.
+      enabled: ${DWP_HRIS_INTEGRATION_CONTROL_PLANE_ENABLED:false}
     explorer:
       enabled: ${DWP_HRIS_EXPLORER_ENABLED:false}
       auth-url: ${DWP_HRIS_EXPLORER_AUTH_URL:http://localhost:8001}
