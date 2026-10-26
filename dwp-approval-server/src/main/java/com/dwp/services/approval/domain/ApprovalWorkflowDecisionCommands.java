@@ -28,6 +28,14 @@ final class ApprovalWorkflowDecisionCommands {
 
     ApprovalCommandRepository.DecisionResult decide(ApprovalRequestContext.Actor actor, ApprovalQueryRepository.TaskAccess task,
             ApprovalDtos.DecisionRequest request, String correlation, ApprovalWorkflowQuorumFacade.ExpectedVote expected) {
+        return decide(actor, task, request, correlation, expected,
+                ApprovalTerminalDecisionContext.standard());
+    }
+
+    ApprovalCommandRepository.DecisionResult decide(ApprovalRequestContext.Actor actor,
+            ApprovalQueryRepository.TaskAccess task, ApprovalDtos.DecisionRequest request,
+            String correlation, ApprovalWorkflowQuorumFacade.ExpectedVote expected,
+            ApprovalTerminalDecisionContext terminalContext) {
         boolean tagged = commands.quorumWorkflow(actor.tenantId(), task.summary().requestId()) != null;
         if (tagged && "REQUEST_INFO".equalsIgnoreCase(request.decision())) {
             if (quorum == null) throw ApprovalWorkflowQuorum.unavailable("The durable information runtime is unavailable.");
@@ -38,13 +46,17 @@ final class ApprovalWorkflowDecisionCommands {
             quorum.prepareDecision(actor, task, expected);
         }
         lockDecisionOwner(actor, task, request);
+        if (!tagged && terminalContext.hrisSeparation()) {
+            throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "The HRM-013 binding has no durable quorum runtime.");
+        }
         if (!tagged && expected != null) throw new BaseException(ErrorCode.FORBIDDEN, "A quorum vote cannot target a legacy task.");
         if (!tagged && "APPROVE".equalsIgnoreCase(request.decision())) {
             governance.requireEligibleCandidateRoles(actor, queries.requestCandidateRoles(actor.tenantId(),
                     task.summary().requestId(), task.managementResourceSetKey()));
         }
         if (!tagged) return commands.decide(actor, task, request, correlation);
-        return quorum.decide(actor, task, request, expected);
+        return quorum.decide(actor, task, request, expected, terminalContext);
     }
 
     private void lockDecisionOwner(ApprovalRequestContext.Actor actor, ApprovalQueryRepository.TaskAccess task, ApprovalDtos.DecisionRequest request) {

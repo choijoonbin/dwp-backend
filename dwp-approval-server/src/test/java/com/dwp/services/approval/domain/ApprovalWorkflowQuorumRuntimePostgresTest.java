@@ -3,8 +3,14 @@ package com.dwp.services.approval.domain;
 import static com.dwp.services.approval.domain.ApprovalWorkflowQuorum.*;
 import static com.dwp.services.approval.domain.ApprovalWorkflowQuorumPostgresFixture.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.approval.security.ApprovalRequestContext;
+import com.dwp.services.approval.hrisbridge.separation.HrisSeparationProtocolException;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -21,6 +27,74 @@ class ApprovalWorkflowQuorumRuntimePostgresTest {
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
     ApprovalWorkflowQuorumPostgresFixture f;
     @BeforeEach void initialize() { f = new ApprovalWorkflowQuorumPostgresFixture(); f.initialize(POSTGRES); }
+
+    @Test void legacyApr001PinnedDraftKeepsItsOriginalAuditIdentity() {
+        var audit = ApprovalCommandLifecycleRepository.legacyHrisDraftAudit();
+        assertEquals("HRIS employee-change draft created", audit.message());
+        assertEquals("HRIS_EMPLOYEE_CHANGE", audit.source());
+    }
+
+    @Test void terminalAuthorityDenialAndOutageMapToOpaqueBrowserStatuses() {
+        assertEquals(ErrorCode.FORBIDDEN,
+                ApprovalService.terminalAuthorityFailure(
+                        HrisSeparationProtocolException.denied()).getErrorCode());
+        assertEquals(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                ApprovalService.terminalAuthorityFailure(
+                        HrisSeparationProtocolException.unavailable()).getErrorCode());
+    }
+
+    @Test void hrisTerminalContextCannotFallThroughWhenQuorumMetadataIsMissing() {
+        var queries = mock(ApprovalQueryRepository.class);
+        var commands = mock(ApprovalCommandRepository.class);
+        var governance = mock(ApprovalTaskGovernance.class);
+        var task = mock(ApprovalQueryRepository.TaskAccess.class);
+        var summary = mock(ApprovalDtos.TaskSummary.class);
+        UUID requestId = UUID.randomUUID();
+        UUID taskId = UUID.randomUUID();
+        when(summary.requestId()).thenReturn(requestId);
+        when(task.summary()).thenReturn(summary);
+        when(task.delegatedFromUserId()).thenReturn(null);
+        when(commands.quorumWorkflow(42L, requestId)).thenReturn(null);
+        var decisions = new ApprovalWorkflowDecisionCommands(queries, commands,
+                null, null, governance, null);
+        var actor = new ApprovalRequestContext.Actor(7L, 42L,
+                UUID.randomUUID(), "reviewer", Set.of(), Set.of());
+
+        BaseException failure = assertThrows(BaseException.class, () ->
+                decisions.decide(actor, task,
+                        new ApprovalDtos.DecisionRequest(
+                                "REJECT", null, 1L, null),
+                        UUID.randomUUID().toString(), null,
+                        ApprovalTerminalDecisionContext.hrisReject(
+                                taskId, UUID.randomUUID())));
+
+        assertEquals(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                failure.getErrorCode());
+        verify(commands, never()).decide(any(), any(), any(), any());
+    }
+
+    @Test void hrisTerminalContextWithoutASinkRollsBackBeforeAnyVoteMutation() {
+        f.start(one(Mode.ANY, null));
+        var ordinary = f.command("FINANCE", 101, 101, Decision.REJECT);
+        var hris = new ApprovalWorkflowQuorumRuntime.VoteCommand(
+                ordinary.tenantId(), ordinary.requestId(), ordinary.stepId(),
+                ordinary.generation(), ordinary.taskId(),
+                ordinary.expectedTaskVersion(), ordinary.expectedStageVersion(),
+                ordinary.expectedPins(), ordinary.actorUserId(),
+                ordinary.principalUserId(), ordinary.decision(), ordinary.reason(),
+                ApprovalTerminalDecisionContext.hrisReject(
+                        ordinary.taskId(), UUID.randomUUID()));
+
+        BaseException failure = assertThrows(BaseException.class,
+                () -> f.runtime.vote(hris));
+
+        assertEquals(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                failure.getErrorCode());
+        assertEquals(0, f.count("apr_quorum_votes"));
+        assertEquals("IN_REVIEW", f.jdbc.queryForObject(
+                "SELECT status FROM apr_requests WHERE request_id=?",
+                String.class, f.request));
+    }
 
     @ParameterizedTest @EnumSource(Mode.class)
     void persistsRealTasksAndDeterministicThresholds(Mode mode) {

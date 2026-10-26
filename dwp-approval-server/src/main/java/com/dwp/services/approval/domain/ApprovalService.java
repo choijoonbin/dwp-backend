@@ -1,6 +1,8 @@
 package com.dwp.services.approval.domain;
 
 import com.dwp.core.audit.AuditOutboxRecorder;
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.approval.integration.ApprovalIdentityDirectory;
 import com.dwp.services.approval.dwaion.DwaionProposalHandoffIdentity;
 import com.dwp.services.approval.dwaion.DwaionProposalHandoffOutboxRepository;
@@ -9,6 +11,8 @@ import com.dwp.services.approval.security.ApprovalHighRiskCommandGuard;
 import com.dwp.services.approval.security.ApprovalOwnerPredicateEvaluator;
 import com.dwp.services.approval.security.ApprovalPilotAuthorizationContext;
 import com.dwp.services.approval.security.ApprovalStepUpHeaders;
+import com.dwp.services.approval.hrisbridge.separation.HrisSeparationStepUpEvidenceVerifier;
+import com.dwp.services.approval.hrisbridge.separation.HrisSeparationProtocolException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +36,13 @@ public class ApprovalService {
     private final ApprovalWorkflowDecisionCommands workflowDecisions;
     private final ApprovalDelegationManagement delegationManagement;
     private final DwaionProposalHandoffOutboxRepository dwaionHandoffs;
+    private HrisSeparationStepUpEvidenceVerifier hrisSeparationStepUp;
+
+    @Autowired(required = false)
+    void bindHrisSeparationStepUp(
+            HrisSeparationStepUpEvidenceVerifier verifier) {
+        this.hrisSeparationStepUp = verifier;
+    }
 
     public ApprovalService(ApprovalQueryRepository queries, ApprovalCommandRepository commands,
             AuditOutboxRecorder audit, ApprovalIdentityDirectory identities) {
@@ -122,16 +133,114 @@ public class ApprovalService {
     @Transactional(noRollbackFor = ApprovalWorkflowQuorumInformationPending.class)
     public ApprovalDtos.TaskDetail decide(UUID taskId, ApprovalDtos.DecisionRequest request, String correlationId,
             ApprovalWorkflowQuorumFacade.ExpectedVote expectedQuorum) {
+        return decide(taskId, request, correlationId, expectedQuorum, (String) null);
+    }
+
+    @Transactional(noRollbackFor = ApprovalWorkflowQuorumInformationPending.class)
+    public ApprovalDtos.TaskDetail decide(UUID taskId, ApprovalDtos.DecisionRequest request,
+            String correlationId, ApprovalWorkflowQuorumFacade.ExpectedVote expectedQuorum,
+            String suppliedStepUpChallenge) {
         ApprovalRequestContext.Actor actor = prepare();
         ApprovalWorkflowCommandLiveFence.task(commands.jdbc, actor.tenantId(), taskId);
         ApprovalQueryRepository.TaskAccess task = queries.taskDetail(actor, taskId);
-        var result = workflowDecisions.decide(actor, task, request, correlationId, expectedQuorum);
+        ApprovalTerminalDecisionContext context = commands
+                .hrisSeparationDecisionBinding(actor, task.summary().requestId(), taskId)
+                .map(binding -> {
+                    if (suppliedStepUpChallenge != null
+                            || !"REJECT".equals(request.decision())) {
+                        throw new com.dwp.core.exception.BaseException(
+                                com.dwp.core.common.ErrorCode.FORBIDDEN,
+                                "HRM-013 approvals use only the dedicated approval route; "
+                                        + "the generic route accepts rejection without step-up.");
+                    }
+                    requireHrisMakerChecker(actor, binding);
+                    return ApprovalTerminalDecisionContext.hrisReject(
+                            taskId, binding.originalCorrelationId());
+                }).orElseGet(ApprovalTerminalDecisionContext::standard);
+        return decidePrepared(actor, task, taskId, request, correlationId,
+                expectedQuorum, context);
+    }
+
+    @Transactional(noRollbackFor = ApprovalWorkflowQuorumInformationPending.class)
+    public ApprovalDtos.TaskDetail decide(UUID taskId, ApprovalDtos.DecisionRequest request,
+            String correlationId, ApprovalWorkflowQuorumFacade.ExpectedVote expectedQuorum,
+            ApprovalTerminalDecisionContext terminalContext) {
+        ApprovalRequestContext.Actor actor = prepare();
+        ApprovalWorkflowCommandLiveFence.task(commands.jdbc, actor.tenantId(), taskId);
+        ApprovalQueryRepository.TaskAccess task = queries.taskDetail(actor, taskId);
+        return decidePrepared(actor, task, taskId, request, correlationId,
+                expectedQuorum, terminalContext);
+    }
+
+    @Transactional(noRollbackFor = ApprovalWorkflowQuorumInformationPending.class)
+    public ApprovalDtos.TaskDetail approveHrisSeparationWaiver(UUID taskId,
+            ApprovalDtos.DecisionRequest request, UUID correlationId,
+            ApprovalWorkflowQuorumFacade.ExpectedVote expectedQuorum,
+            ApprovalStepUpHeaders headers, String rawBodySha256) {
+        if (hrisSeparationStepUp == null) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.NOT_FOUND);
+        }
+        ApprovalRequestContext.Actor actor = prepare();
+        ApprovalWorkflowCommandLiveFence.task(commands.jdbc, actor.tenantId(), taskId);
+        ApprovalQueryRepository.TaskAccess task = queries.taskDetail(actor, taskId);
+        var binding = commands.hrisSeparationDecisionBinding(
+                actor, task.summary().requestId(), taskId).orElseThrow(() ->
+                new com.dwp.core.exception.BaseException(
+                        com.dwp.core.common.ErrorCode.NOT_FOUND));
+        requireHrisMakerChecker(actor, binding);
+        var permit = hrisSeparationStepUp.begin(
+                actor, taskId, request, correlationId, headers, rawBodySha256);
+        if (permit.priorResult()) {
+            return quorum == null ? taskGovernance.detail(actor, taskId)
+                    : quorum.detail(actor, taskGovernance.detail(actor, taskId));
+        }
+        ApprovalTerminalDecisionContext terminalContext =
+                hrisSeparationStepUp.consume(permit);
+        ApprovalDtos.TaskDetail detail = decidePrepared(actor, task, taskId, request,
+                correlationId.toString(), expectedQuorum, terminalContext);
+        hrisSeparationStepUp.complete(permit);
+        return detail;
+    }
+
+    private ApprovalDtos.TaskDetail decidePrepared(ApprovalRequestContext.Actor actor,
+            ApprovalQueryRepository.TaskAccess task, UUID taskId,
+            ApprovalDtos.DecisionRequest request, String correlationId,
+            ApprovalWorkflowQuorumFacade.ExpectedVote expectedQuorum,
+            ApprovalTerminalDecisionContext terminalContext) {
+        ApprovalCommandRepository.DecisionResult result;
+        try {
+            result = workflowDecisions.decide(actor, task, request, correlationId,
+                    expectedQuorum, terminalContext);
+        } catch (HrisSeparationProtocolException authorityFailure) {
+            if (!terminalContext.hrisSeparation()) throw authorityFailure;
+            throw terminalAuthorityFailure(authorityFailure);
+        }
         ApprovalServiceAudit.record(audit, actor, "approval.task.decided", "APPROVAL_TASK", taskId.toString(),
                 correlationId,
                 Map.of("requestId", task.summary().requestId().toString(),
                         "decision", result.decision(),
                         "requestStatus", result.requestStatus()));
         return task(taskId);
+    }
+
+    static BaseException terminalAuthorityFailure(
+            HrisSeparationProtocolException failure) {
+        ErrorCode publicCode = failure.authorityDenied()
+                ? ErrorCode.FORBIDDEN
+                : ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE;
+        return new BaseException(publicCode, publicCode.getMessage());
+    }
+
+    private static void requireHrisMakerChecker(ApprovalRequestContext.Actor actor,
+            ApprovalCommandLifecycleRepository.HrisSeparationDecisionBinding binding) {
+        if (actor.personPublicId() == null
+                || actor.personPublicId().equals(binding.caseMakerPublicId())
+                || actor.personPublicId().equals(binding.requestedByActorPublicId())) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.SOD_CONFLICT,
+                    "The HRM-013 decision actor must differ from maker and requester.");
+        }
     }
 
     @Transactional

@@ -172,7 +172,8 @@ public final class ApprovalStepUpVerifier {
         String challengeId = requiredText(claims, "jti", 160);
         String nonce = requiredText(claims, "nonce", 160);
         return new VerifiedChallenge(
-                challengeId, nonce, issuer, expected, Instant.ofEpochSecond(expiresAt));
+                challengeId, nonce, issuer, expected, Instant.ofEpochSecond(expiresAt),
+                Instant.ofEpochSecond(authenticatedAt), now);
     }
 
     public String payloadSha256(Object payload) {
@@ -418,6 +419,20 @@ public final class ApprovalStepUpVerifier {
             String nonce,
             String issuer,
             CommandBinding binding,
-            Instant expiresAt) {
+            Instant expiresAt,
+            Instant authenticatedAt,
+            Instant verifiedAt) {
+        /** Source-compatible constructor for existing product command guards. */
+        public VerifiedChallenge(String challengeId, String nonce, String issuer,
+                CommandBinding binding, Instant expiresAt) {
+            this(challengeId, nonce, issuer, binding, expiresAt,
+                    expiresAt.minusSeconds(1), Instant.now());
+        }
+
+        public VerifiedChallenge {
+            java.util.Objects.requireNonNull(expiresAt, "expiresAt");
+            java.util.Objects.requireNonNull(authenticatedAt, "authenticatedAt");
+            java.util.Objects.requireNonNull(verifiedAt, "verifiedAt");
+        }
     }
 }

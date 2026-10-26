@@ -5,6 +5,7 @@ import static com.dwp.services.approval.hrisbridge.separation.HrisSeparationPers
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -37,8 +38,10 @@ public final class HrisSeparationWaiverBindingStore {
 
             List<StoredBinding> existing = existing(value.tenantId(), value.approvalRequestId());
             if (!existing.isEmpty()) {
-                if (existing.size() != 1 || !existing.getFirst().sameRequest(value)) {
-                    throw new IllegalStateException("HRM-013 idempotency identity changed.");
+                if (existing.size() != 1 || !existing.getFirst().sameReplay(
+                        value.exactRequestBody(), value.requestBodySha256(),
+                        value.commandDigest())) {
+                    throw HrisSeparationProtocolException.conflict();
                 }
                 StoredBinding stored = existing.getFirst();
                 return new BindingReceipt(true, value.approvalRequestId(),
@@ -76,6 +79,29 @@ public final class HrisSeparationWaiverBindingStore {
         });
         if (result == null) throw new IllegalStateException("HRM-013 transaction returned no value.");
         return result;
+    }
+
+    /** Historical replay check that intentionally excludes grant identity. */
+    public Optional<BindingReceipt> replay(long tenantId, UUID approvalRequestId,
+            byte[] exactRequestBody, String commandDigest) {
+        BindingReceipt result = transactions.execute(status -> {
+            scope.bind(tenantId);
+            jdbc.queryForObject("""
+                    SELECT pg_advisory_xact_lock(hashtextextended(:material,0))
+                    """, new MapSqlParameterSource("material",
+                    "DWP_APPROVAL_HRM013_REQUEST_V1:" + tenantId
+                            + ':' + approvalRequestId), Object.class);
+            List<StoredBinding> rows = existing(tenantId, approvalRequestId);
+            if (rows.isEmpty()) return null;
+            if (rows.size() != 1 || !rows.getFirst().sameReplay(
+                    exactRequestBody, sha256(exactRequestBody), commandDigest)) {
+                throw HrisSeparationProtocolException.conflict();
+            }
+            StoredBinding stored = rows.getFirst();
+            return new BindingReceipt(true, approvalRequestId,
+                    stored.exactResponseBody(), stored.responseBodySha256());
+        });
+        return Optional.ofNullable(result);
     }
 
     private List<StoredBinding> existing(long tenantId, UUID requestId) {
@@ -134,14 +160,11 @@ public final class HrisSeparationWaiverBindingStore {
             String commandDigest,
             byte[] exactResponseBody,
             String responseBodySha256) {
-        boolean sameRequest(RequestBindingWrite value) {
-            return grantId.equals(value.grantId())
-                    && tenantGrantRevision == value.tenantGrantRevision()
-                    && authorizationRevision == value.authorizationRevision()
-                    && approvalRequestPayloadSha256.equals(value.approvalRequestPayloadSha256())
-                    && Arrays.equals(exactRequestBody, value.exactRequestBody())
-                    && requestBodySha256.equals(value.requestBodySha256())
-                    && commandDigest.equals(value.commandDigest());
+        boolean sameReplay(byte[] requestBody, String bodyDigest,
+                String commandIdentityDigest) {
+            return Arrays.equals(exactRequestBody, requestBody)
+                    && requestBodySha256.equals(bodyDigest)
+                    && commandDigest.equals(commandIdentityDigest);
         }
     }
 }

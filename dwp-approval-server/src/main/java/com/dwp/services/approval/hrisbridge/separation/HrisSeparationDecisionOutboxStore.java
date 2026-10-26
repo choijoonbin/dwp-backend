@@ -2,6 +2,7 @@ package com.dwp.services.approval.hrisbridge.separation;
 
 import static com.dwp.services.approval.hrisbridge.separation.HrisSeparationPersistenceModels.*;
 
+import com.dwp.platform.contracts.hris.separation.v1.Hrm013SeparationBridgeV1;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -28,6 +29,7 @@ public final class HrisSeparationDecisionOutboxStore {
     }
 
     public void append(DecisionWrite value) {
+        validate(value);
         transactions.executeWithoutResult(status -> {
             scope.bind(value.tenantId());
             grants.lockTenantInScope(value.tenantId());
@@ -237,6 +239,53 @@ public final class HrisSeparationDecisionOutboxStore {
                 """, parameters(value, value.stepUp()), Integer.class);
         if (matches == null || matches != 1) {
             throw new IllegalStateException("HRM-013 terminal source differs from its binding.");
+        }
+    }
+
+    private static void validate(DecisionWrite value) {
+        var body = Hrm013SeparationBridgeV1.decodeWaiverDecision(
+                value.exactCallbackBody());
+        Hrm013SeparationBridgeV1.requireBodyBinding(
+                Hrm013SeparationBridgeV1.HRM_010, body);
+        Hrm013SeparationBridgeV1.requireStepUpEvidenceSha256(
+                value.tenantId(), body);
+        String exactPath = Hrm013SeparationBridgeV1.HRM_010.path(
+                value.casePublicId(), value.taskPublicId());
+        String bodyDigest = Hrm013SeparationBridgeV1.requestBodySha256(
+                value.exactCallbackBody());
+        boolean evidenceMatches = value.stepUp() == null
+                ? body.stepUpEvidenceId() == null
+                : value.stepUp().evidenceId().equals(body.stepUpEvidenceId())
+                    && value.stepUp().audience().equals(body.stepUpEvidenceAudience())
+                    && value.stepUp().purpose().equals(body.stepUpEvidencePurpose())
+                    && value.stepUp().nonce().equals(body.stepUpEvidenceNonce())
+                    && value.stepUp().evidenceSha256().equals(
+                            body.stepUpEvidenceDigest())
+                    && value.stepUp().verifiedAt().equals(body.stepUpVerifiedAt())
+                    && value.stepUp().consumedAt().equals(body.stepUpConsumedAt());
+        if (!value.callbackEventId().equals(body.callbackEventId())
+                || !value.approvalRequestId().equals(body.approvalRequestId())
+                || !value.casePublicId().equals(body.casePublicId())
+                || !value.taskPublicId().equals(body.taskPublicId())
+                || !value.decision().name().equals(body.decision())
+                || !value.decisionActorPublicId().equals(
+                        body.decisionActorPublicId())
+                || body.ownerRevision() != 1 || body.decisionRevision() != 1
+                || !value.reasonCode().equals(body.reasonCode())
+                || !value.approvalRequestPayloadSha256().equals(
+                        body.originatingPayloadSha256())
+                || !value.decisionOccurredAt().equals(body.occurredAt())
+                || !value.originalCorrelationId().equals(body.correlationId())
+                || !value.callbackPayloadSha256().equals(body.payloadSha256())
+                || !value.callbackPath().equals(exactPath)
+                || !value.callbackBodySha256().equals(bodyDigest)
+                || !value.commandDigest().equals(
+                        Hrm013SeparationBridgeV1.commandDigest(
+                                Hrm013SeparationBridgeV1.HRM_010, exactPath,
+                                value.tenantId(), bodyDigest))
+                || !evidenceMatches) {
+            throw new IllegalStateException(
+                    "HRM-013 terminal callback is not an exact frozen decision.");
         }
     }
 

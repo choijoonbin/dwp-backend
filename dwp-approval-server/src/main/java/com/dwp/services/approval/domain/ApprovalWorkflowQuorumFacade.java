@@ -131,6 +131,13 @@ public class ApprovalWorkflowQuorumFacade {
 
     public ApprovalCommandRepository.DecisionResult decide(ApprovalRequestContext.Actor actor,
             ApprovalQueryRepository.TaskAccess task, ApprovalDtos.DecisionRequest decision, ExpectedVote expected) {
+        return decide(actor, task, decision, expected,
+                ApprovalTerminalDecisionContext.standard());
+    }
+
+    public ApprovalCommandRepository.DecisionResult decide(ApprovalRequestContext.Actor actor,
+            ApprovalQueryRepository.TaskAccess task, ApprovalDtos.DecisionRequest decision,
+            ExpectedVote expected, ApprovalTerminalDecisionContext terminalContext) {
         if (expected == null) throw ApprovalWorkflowQuorumRuntimeStore.conflict();
         return transactions.execute(status -> {
             new ApprovalWorkflowQuorumRuntimeStore(jdbc, mapper).lockRequest(actor.tenantId(), task.summary().requestId());
@@ -159,7 +166,8 @@ public class ApprovalWorkflowQuorumFacade {
             var receipt = runtime().vote(new ApprovalWorkflowQuorumRuntime.VoteCommand(actor.tenantId(),
                     task.summary().requestId(), (UUID) seat.get("step_id"), expected.generation(), task.summary().taskId(),
                     decision.expectedVersion(), expected.stageVersion(), expected.pins(), actor.userId(),
-                    ((Number) seat.get("principal_user_id")).longValue(), choice, decision.comment()));
+                    ((Number) seat.get("principal_user_id")).longValue(), choice,
+                    decision.comment(), terminalContext));
             return new ApprovalCommandRepository.DecisionResult(choice.name(), receipt.requestStatus());
         });
     }

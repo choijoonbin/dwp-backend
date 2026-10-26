@@ -117,6 +117,8 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
                 || path.startsWith("/v3/api-docs")
                 || ("POST".equals(request.getMethod())
                     && "/internal/hris-approval/v1/approval-requests".equals(path))
+                || ("POST".equals(request.getMethod())
+                    && "/internal/hris-approval/v1/separation-task-waiver-requests".equals(path))
                 || isHomeProviderPost(request, path)
                 || path.equals("/error");
     }
@@ -188,7 +190,7 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
                     "Verified user and tenant identity are required.");
             return;
         }
-        if (gatewayIdentity && ApprovalWorkEndpointPolicy.matches(request)) {
+        if (gatewayIdentity && requiresTenantWorkPlane(request)) {
             String plane = exactHeader(request, "X-DWP-Identity-Plane");
             String mode = exactHeader(request, ACTIVE_ACCESS_MODE_HEADER);
             // In 000/100 the Gateway deliberately omits decision/mode headers.
@@ -328,6 +330,29 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
                 && revision.matches("psr-[a-f0-9]{64}")
                 && validUntil != null
                 && validUntil.isAfter(OffsetDateTime.now());
+    }
+
+    /**
+     * The HRM-013 approve command is a dedicated personal-work endpoint. Keep
+     * its exact path match here until the shared endpoint-policy authority is
+     * expanded, so it cannot bypass the TENANT-plane/provider-support fence.
+     */
+    static boolean requiresTenantWorkPlane(HttpServletRequest request) {
+        if (ApprovalWorkEndpointPolicy.matches(request)) return true;
+        if (!"POST".equals(request.getMethod())) return false;
+        String path = request.getRequestURI();
+        String prefix = "/v1/hris/separation-waiver-tasks/";
+        String suffix = "/approve";
+        if (path == null || !path.startsWith(prefix) || !path.endsWith(suffix)) {
+            return false;
+        }
+        String candidate = path.substring(
+                prefix.length(), path.length() - suffix.length());
+        try {
+            return UUID.fromString(candidate).toString().equals(candidate);
+        } catch (IllegalArgumentException invalid) {
+            return false;
+        }
     }
 
     private boolean trustedText(String value) {

@@ -25,7 +25,29 @@ public final class ApprovalWorkflowQuorumRuntime {
 
     public record VoteCommand(long tenantId, UUID requestId, UUID stepId, long generation, UUID taskId,
             long expectedTaskVersion, long expectedStageVersion, Pins expectedPins, long actorUserId,
-            long principalUserId, Decision decision, String reason) { }
+            long principalUserId, Decision decision, String reason,
+            ApprovalTerminalDecisionContext terminalContext) {
+        public VoteCommand(long tenantId, UUID requestId, UUID stepId, long generation,
+                UUID taskId, long expectedTaskVersion, long expectedStageVersion,
+                Pins expectedPins, long actorUserId, long principalUserId,
+                Decision decision, String reason) {
+            this(tenantId, requestId, stepId, generation, taskId,
+                    expectedTaskVersion, expectedStageVersion, expectedPins,
+                    actorUserId, principalUserId, decision, reason,
+                    ApprovalTerminalDecisionContext.standard());
+        }
+
+        public VoteCommand {
+            if (terminalContext == null) {
+                terminalContext = ApprovalTerminalDecisionContext.standard();
+            }
+            if (terminalContext.hrisSeparation()
+                    && !taskId.equals(terminalContext.taskId())) {
+                throw new IllegalArgumentException(
+                        "HRM-013 terminal context targets a different task.");
+            }
+        }
+    }
     public record Receipt(UUID requestId, UUID stepId, long stageVersion, Outcome outcome, String requestStatus,
             int approved, int threshold) { }
 
@@ -118,6 +140,12 @@ public final class ApprovalWorkflowQuorumRuntime {
     }
 
     private Receipt cast(VoteCommand command) {
+        if (command.terminalContext().hrisSeparation()
+                && terminalDecisions == null) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "The HRM-013 terminal decision sink is unavailable.");
+        }
         long tenant = command.tenantId();
         UUID request = command.requestId();
         store.lockRequest(tenant, request);
@@ -194,7 +222,8 @@ public final class ApprovalWorkflowQuorumRuntime {
                 """, store.scope(tenant, request).addValue("status", requestStatus).addValue("now", time(now)).addValue("actor", vote.actorUserId())));
         if (terminalDecisions != null && !"IN_REVIEW".equals(requestStatus)) {
             terminalDecisions.accepted(tenant, request, voteId,
-                    vote.actorPersonPublicId(), now, requestStatus);
+                    vote.actorPersonPublicId(), now, requestStatus,
+                    command.terminalContext());
         }
         evidence.append(tenant, request, vote.actorUserId(), "Approval.Quorum.VoteAccepted",
                 Map.of("stepId", row.stepId().toString(), "stageVersion", vote.stageVersion(), "decision", vote.decision().name(),

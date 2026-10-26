@@ -4,6 +4,7 @@ import static com.dwp.services.approval.hrisbridge.separation.HrisSeparationPers
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.dwp.platform.contracts.hris.separation.v1.Hrm013SeparationBridgeV1;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -150,8 +151,8 @@ class HrisSeparationWaiverStoresPostgresTest {
 
         RequestBindingWrite changed = boundRequest(20, "{\"reason\":\"CHANGED\"}");
         assertThatThrownBy(() -> bindings.saveOrReplay(changed))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("HRM-013 idempotency identity changed.");
+                .isInstanceOf(HrisSeparationProtocolException.class)
+                .hasMessage("DIGEST_CONFLICT");
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM apr_hrm013_waiver_request_bindings", Long.class))
                 .isEqualTo(1L);
@@ -488,16 +489,52 @@ class HrisSeparationWaiverStoresPostgresTest {
 
     private DecisionWrite decision(RequestBindingWrite binding, int suffix,
             WaiverDecision decision, UUID actor, StepUpEvidence evidence, Instant occurred) {
-        byte[] body = ("{\"decision\":\"" + decision + "\",\"nonce\":\""
-                + (evidence == null ? "absent" : evidence.nonce()) + "\"}")
-                .getBytes(StandardCharsets.UTF_8);
+        UUID callbackEventId = uuid(7000 + suffix);
+        var unsigned = new Hrm013SeparationBridgeV1.SeparationWaiverDecisionV2(
+                callbackEventId, binding.approvalRequestId(), binding.casePublicId(),
+                binding.taskPublicId(), decision.name(), actor, 1, 1,
+                binding.reasonCode(), binding.approvalRequestPayloadSha256(),
+                evidence == null ? null : evidence.evidenceId(),
+                evidence == null ? null : evidence.audience(),
+                evidence == null ? null : evidence.purpose(),
+                evidence == null ? null : evidence.nonce(),
+                evidence == null ? null : "0".repeat(64),
+                evidence == null ? null : evidence.verifiedAt(),
+                evidence == null ? null : evidence.consumedAt(), occurred,
+                "0".repeat(64), binding.originalCorrelationId());
+        String evidenceDigest = evidence == null ? null
+                : Hrm013SeparationBridgeV1.stepUpEvidenceSha256(TENANT, unsigned);
+        StepUpEvidence storedEvidence = evidence == null ? null : new StepUpEvidence(
+                evidence.evidenceId(), evidence.audience(), evidence.purpose(),
+                evidence.nonce(), evidenceDigest, evidence.verifiedAt(),
+                evidence.consumedAt());
+        var sealed = Hrm013SeparationBridgeV1.seal(
+                new Hrm013SeparationBridgeV1.SeparationWaiverDecisionV2(
+                        callbackEventId, binding.approvalRequestId(),
+                        binding.casePublicId(), binding.taskPublicId(), decision.name(),
+                        actor, 1, 1, binding.reasonCode(),
+                        binding.approvalRequestPayloadSha256(),
+                        evidence == null ? null : evidence.evidenceId(),
+                        evidence == null ? null : evidence.audience(),
+                        evidence == null ? null : evidence.purpose(),
+                        evidence == null ? null : evidence.nonce(), evidenceDigest,
+                        evidence == null ? null : evidence.verifiedAt(),
+                        evidence == null ? null : evidence.consumedAt(), occurred,
+                        "0".repeat(64), binding.originalCorrelationId()));
+        byte[] body = Hrm013SeparationBridgeV1.encode(sealed);
+        String bodyDigest = Hrm013SeparationBridgeV1.requestBodySha256(body);
+        String path = Hrm013SeparationBridgeV1.HRM_010.path(
+                binding.casePublicId(), binding.taskPublicId());
         return new DecisionWrite(uuid(6000 + suffix), TENANT, currentGrant.grantId(),
                 currentGrant.tenantGrantRevision(), currentGrant.authorizationRevision(),
                 binding.approvalRequestId(), binding.casePublicId(), binding.taskPublicId(),
-                uuid(7000 + suffix), decision, actor, MAKER, REQUESTER,
-                binding.reasonCode(), evidence, occurred, binding.originalCorrelationId(),
-                binding.approvalRequestPayloadSha256(), "d".repeat(64), body, sha256(body),
-                "e".repeat(64), Instant.now(), Instant.now());
+                callbackEventId, decision, actor, MAKER, REQUESTER,
+                binding.reasonCode(), storedEvidence, occurred,
+                binding.originalCorrelationId(),
+                binding.approvalRequestPayloadSha256(), sealed.payloadSha256(), body,
+                bodyDigest, Hrm013SeparationBridgeV1.commandDigest(
+                        Hrm013SeparationBridgeV1.HRM_010, path, TENANT,
+                        bodyDigest), Instant.now(), Instant.now());
     }
 
     private static DecisionWrite copy(DecisionWrite value) {
