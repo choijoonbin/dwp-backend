@@ -9,6 +9,7 @@ import com.dwp.services.approval.domain.ApprovalService;
 import com.dwp.services.approval.domain.ApprovalWorkflowQuorumInformationPending;
 import com.dwp.services.approval.dwaion.DwaionProposalHandoffIdentity;
 import com.dwp.services.approval.security.ApprovalWorkflowQuorumCommandMetadata;
+import com.dwp.services.approval.security.ApprovalStepUpHeaders;
 import com.dwp.services.approval.security.ApprovalWorkflowQuorumCommandProof.Purpose;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
@@ -82,7 +83,9 @@ public class ApprovalController {
     public ApiResponse<ApprovalDtos.TaskDetail> decide(
             @PathVariable UUID taskId,
             @Valid @RequestBody ApprovalDtos.DecisionRequest request,
-            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Step-Up-Challenge", required = false)
+            String suppliedStepUpChallenge) {
         try {
             if ("REQUEST_INFO".equalsIgnoreCase(request.decision()) && request.quorum() != null) {
                 if (request.quorum().expectedRequestVersion() == null || request.quorum().expectedRequestVersion() < 0)
@@ -90,10 +93,53 @@ public class ApprovalController {
                 prepareWorkflowMetadata(Purpose.TASK_INFORMATION, taskId);
             }
             return ApiResponse.success(service.decide(taskId, request, correlationId,
-                    com.dwp.services.approval.domain.ApprovalWorkflowQuorumBindings.expected(request.quorum())));
+                    com.dwp.services.approval.domain.ApprovalWorkflowQuorumBindings.expected(request.quorum()),
+                    suppliedStepUpChallenge));
         } catch (ApprovalWorkflowQuorumInformationPending pending) {
             throw informationUnavailable();
         } finally { if (workflowMetadata != null) workflowMetadata.clear(); }
+    }
+
+    /** Source-compatible direct invocation retained for controller unit tests. */
+    public ApiResponse<ApprovalDtos.TaskDetail> decide(UUID taskId,
+            ApprovalDtos.DecisionRequest request, String correlationId) {
+        return decide(taskId, request, correlationId, null);
+    }
+
+    @PostMapping("/hris/separation-waiver-tasks/{taskId}/approve")
+    public ApiResponse<ApprovalDtos.TaskDetail> approveHrisSeparationWaiver(
+            @PathVariable UUID taskId,
+            @Valid @RequestBody ApprovalDtos.DecisionRequest request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader("X-Correlation-ID") String correlationId,
+            @RequestHeader("X-DWP-Step-Up-Challenge") String challenge,
+            @RequestHeader("X-DWP-Expected-Decision-Revision") String decisionRevision,
+            @RequestHeader("X-DWP-Expected-Object-Version") Long expectedVersion) {
+        if (workflowMetadata == null) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Exact HRM-013 command metadata is unavailable.");
+        }
+        String rawBodySha256 = workflowMetadata
+                .hrisSeparationApproveBodySha256(taskId);
+        return ApiResponse.success(service.approveHrisSeparationWaiver(
+                taskId, request, canonicalCorrelation(correlationId),
+                com.dwp.services.approval.domain.ApprovalWorkflowQuorumBindings
+                        .expected(request.quorum()),
+                ApprovalStepUpHeaders.of(challenge, idempotencyKey,
+                        decisionRevision, expectedVersion), rawBodySha256));
+    }
+
+    private static UUID canonicalCorrelation(String value) {
+        try {
+            UUID result = UUID.fromString(value);
+            if (!result.toString().equals(value)) throw new IllegalArgumentException();
+            return result;
+        } catch (RuntimeException invalid) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.INVALID_INPUT_VALUE,
+                    "X-Correlation-ID must be a canonical UUID.");
+        }
     }
 
     @GetMapping("/requests")

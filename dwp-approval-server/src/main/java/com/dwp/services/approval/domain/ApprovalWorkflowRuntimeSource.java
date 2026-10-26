@@ -56,6 +56,7 @@ public final class ApprovalWorkflowRuntimeSource {
             case "route.approvals.work.request-submit.action" -> path.equals("/v1/requests/"+request+"/submit");
             case "route.approvals.work.request-information-response.action" -> path.equals("/v1/requests/"+request+"/information-response");
             case "route.approvals.work.task-decision.action" -> canonicalTaskPath(path);
+            case "route.approvals.work.hris-separation-waiver-task-approve.action" -> canonicalHrisApprovePath(path);
             default -> false;
         };
         if (!valid) throw new BaseException(ErrorCode.FORBIDDEN);
@@ -181,6 +182,12 @@ public final class ApprovalWorkflowRuntimeSource {
     private static boolean canonicalTaskPath(String path) {
         if(path==null || !path.startsWith("/v1/tasks/") || !path.endsWith("/decisions")) return false;
         try {String id=path.substring(10,path.length()-10);return java.util.UUID.fromString(id).toString().equals(id);}
+        catch(IllegalArgumentException error) {return false;}
+    }
+    private static boolean canonicalHrisApprovePath(String path) {
+        String prefix="/v1/hris/separation-waiver-tasks/",suffix="/approve";
+        if(path==null || !path.startsWith(prefix) || !path.endsWith(suffix)) return false;
+        try {String id=path.substring(prefix.length(),path.length()-suffix.length());return java.util.UUID.fromString(id).toString().equals(id);}
         catch(IllegalArgumentException error) {return false;}
     }
 }

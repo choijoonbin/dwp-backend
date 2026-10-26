@@ -32,6 +32,7 @@ final class WorkflowRuntimeBindingContract {
             case "route.approvals.work.request-submit.action" -> path.equals("/v1/requests/"+request+"/submit");
             case "route.approvals.work.request-information-response.action" -> path.equals("/v1/requests/"+request+"/information-response");
             case "route.approvals.work.task-decision.action" -> taskPath(path);
+            case "route.approvals.work.hris-separation-waiver-task-approve.action" -> hrisApprovePath(path);
             default -> false;
         };
         if(!canonical || !text(owner,"idempotencyKey",120).matches("[A-Za-z0-9._:-]{1,120}")) throw denied();
@@ -68,8 +69,12 @@ final class WorkflowRuntimeBindingContract {
         if(!Set.of("CAST","SEAT_RECHECK","VOTE_RECHECK","INFORMATION_RECHECK").contains(use)) throw denied();
         if(Set.of("CAST","SEAT_RECHECK").contains(use)) {if(!target.get("evidenceId").isNull() || !target.get("evidenceSha256").isNull()) throw denied();}
         else {uuid(target,"evidenceId");hash(target,"evidenceSha256");}
-        if(use.equals("CAST") && (actor!=integer(owner,"actorId",1) || text(owner,"routeContractKey",160).equals("route.approvals.work.task-decision.action")
-                && !text(owner,"path",200).equals("/v1/tasks/"+task+"/decisions")) || use.equals("SEAT_RECHECK") && actor!=principal) throw denied();
+        if(use.equals("CAST") && (actor!=integer(owner,"actorId",1)
+                || text(owner,"routeContractKey",160).equals("route.approvals.work.task-decision.action")
+                    && !text(owner,"path",200).equals("/v1/tasks/"+task+"/decisions")
+                || text(owner,"routeContractKey",160).equals("route.approvals.work.hris-separation-waiver-task-approve.action")
+                    && !text(owner,"path",200).equals("/v1/hris/separation-waiver-tasks/"+task+"/approve"))
+                || use.equals("SEAT_RECHECK") && actor!=principal) throw denied();
         if(use.equals("INFORMATION_RECHECK") && stage.get("admissionAttestation").isNull()) throw denied();
         var grant=target.get("delegation");
         if(actor==principal) {if(!grant.isNull() || !uuid(target,"actorPersonPublicId").equals(uuid(target,"principalPersonPublicId"))) throw denied();}
@@ -83,5 +88,10 @@ final class WorkflowRuntimeBindingContract {
     private static boolean taskPath(String path) {
         if(!path.startsWith("/v1/tasks/") || !path.endsWith("/decisions")) return false;
         try {String id=path.substring(10,path.length()-10);return java.util.UUID.fromString(id).toString().equals(id);} catch(IllegalArgumentException error) {return false;}
+    }
+    private static boolean hrisApprovePath(String path) {
+        String prefix="/v1/hris/separation-waiver-tasks/",suffix="/approve";
+        if(path==null || !path.startsWith(prefix) || !path.endsWith(suffix)) return false;
+        try {String id=path.substring(prefix.length(),path.length()-suffix.length());return java.util.UUID.fromString(id).toString().equals(id);} catch(IllegalArgumentException error) {return false;}
     }
 }

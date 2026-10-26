@@ -40,6 +40,24 @@ public class ApprovalWorkflowQuorumCommandMetadata {
         if (!(value instanceof Verified verified)) throw unavailable();
         verify(verified, actor, purpose, target, request, body(request)); return verified;
     }
+
+    /**
+     * Returns the digest of the exact converter-consumed bytes for the dedicated
+     * HRM-013 approve route.  Re-serializing the DTO here would make distinct wire
+     * commands (for example, different property order or whitespace) share one
+     * step-up challenge identity.
+     */
+    public String hrisSeparationApproveBodySha256(UUID taskId) {
+        var request = request();
+        String expectedPath = "/v1/hris/separation-waiver-tasks/" + taskId + "/approve";
+        if (taskId == null || !"POST".equals(request.getMethod())
+                || !expectedPath.equals(request.getRequestURI())
+                || request.getQueryString() != null) {
+            throw forbidden();
+        }
+        return hash(body(request));
+    }
+
     public void clear() { var request = requests.getIfAvailable(); if (request != null) request.removeAttribute(ATTRIBUTE); }
     private void verify(Verified verified, ApprovalRequestContext.Actor actor, Purpose purpose, UUID target,
             HttpServletRequest request, byte[] body) {

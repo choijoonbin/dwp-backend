@@ -7,6 +7,7 @@ import com.dwp.services.approval.documentretention.ApprovalRetentionLiveGuard;
 import com.dwp.services.approval.security.ApprovalDecisionRevisionContext;
 import com.dwp.services.approval.security.ApprovalManagementScopeContext;
 import com.dwp.services.approval.security.ApprovalRequestContext;
+import com.dwp.services.approval.hrisbridge.separation.HrisSeparationRlsScope;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -87,6 +88,25 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             String priority,
             Map<String, Object> nativePayload,
             String correlationId) {
+        HrisDraftAudit audit = legacyHrisDraftAudit();
+        return createPinnedHrisDraft(actor, requestId, workflowVersionId,
+                formVersionId, title, summary, priority, nativePayload,
+                correlationId, audit.message(), audit.source());
+    }
+
+    public UUID createPinnedHrisDraft(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId,
+            UUID workflowVersionId,
+            UUID formVersionId,
+            String title,
+            String summary,
+            String priority,
+            Map<String, Object> nativePayload,
+            String correlationId,
+            String auditMessage,
+            String auditSource) {
+        HrisDraftAudit audit = requireHrisDraftAudit(auditMessage, auditSource);
         String normalizedPriority = normalizedPriority(priority);
         var rows = jdbc.queryForList("""
                 SELECT workflow_version.definition::text AS workflow_definition,
@@ -168,12 +188,76 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
         jdbc.update(ApprovalCommandSql01.CREATE_DRAFT_INSERT_APR_REQUESTS, params);
         jdbc.update(ApprovalCommandSql01.APR_REQUESTS_INSERT_APR_REQUEST_PAYLOADS, params);
         appendPayloadRevision(actor, requestId, "DRAFT_CREATED", correlationId,
-                "HRIS employee-change draft created");
+                audit.message());
         attachmentLifecycleBinding().initializeCreated(requestId, 0);
         appendEvent(actor, requestId, "REQUEST_DRAFTED",
-                "HRIS employee-change draft created", correlationId,
-                Map.of("source", "HRIS_EMPLOYEE_CHANGE"));
+                audit.message(), correlationId,
+                Map.of("source", audit.source()));
         return requestId;
+    }
+
+    record HrisDraftAudit(String message, String source) { }
+
+    static HrisDraftAudit legacyHrisDraftAudit() {
+        return new HrisDraftAudit("HRIS employee-change draft created",
+                "HRIS_EMPLOYEE_CHANGE");
+    }
+
+    private static HrisDraftAudit requireHrisDraftAudit(
+            String message, String source) {
+        HrisDraftAudit supplied = new HrisDraftAudit(message, source);
+        HrisDraftAudit separation = new HrisDraftAudit(
+                "HRIS separation-task waiver draft created",
+                "HRIS_SEPARATION_TASK_WAIVER");
+        if (!supplied.equals(legacyHrisDraftAudit())
+                && !supplied.equals(separation)) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "The HRIS draft audit identity is not registered.");
+        }
+        return supplied;
+    }
+
+    /** Immutable HRM-013 request binding used before either terminal command can mutate. */
+    public record HrisSeparationDecisionBinding(
+            UUID approvalRequestId,
+            UUID casePublicId,
+            UUID taskPublicId,
+            UUID caseMakerPublicId,
+            UUID requestedByActorPublicId,
+            UUID originalCorrelationId,
+            String approvalRequestPayloadSha256) { }
+
+    public java.util.Optional<HrisSeparationDecisionBinding> hrisSeparationDecisionBinding(
+            ApprovalRequestContext.Actor actor, UUID requestId, UUID taskId) {
+        new HrisSeparationRlsScope(jdbc).bind(actor.tenantId());
+        var rows = jdbc.query("""
+                SELECT binding.approval_request_id,binding.case_public_id,
+                       binding.task_public_id,binding.case_maker_public_id,
+                       binding.requested_by_actor_public_id,
+                       binding.original_correlation_id,
+                       binding.approval_request_payload_sha256
+                  FROM apr_hrm013_waiver_request_bindings binding
+                  JOIN apr_tasks task
+                    ON task.tenant_id=binding.tenant_id
+                   AND task.request_id=binding.approval_request_id
+                 WHERE binding.tenant_id=:tenant AND binding.approval_request_id=:request
+                   AND task.task_id=:task
+                 FOR SHARE OF binding
+                """, new MapSqlParameterSource("tenant", actor.tenantId())
+                .addValue("request", requestId).addValue("task", taskId),
+                (row, number) -> new HrisSeparationDecisionBinding(
+                        row.getObject("approval_request_id", UUID.class),
+                        row.getObject("case_public_id", UUID.class),
+                        row.getObject("task_public_id", UUID.class),
+                        row.getObject("case_maker_public_id", UUID.class),
+                        row.getObject("requested_by_actor_public_id", UUID.class),
+                        row.getObject("original_correlation_id", UUID.class),
+                        row.getString("approval_request_payload_sha256")));
+        if (rows.size() > 1) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
+                    "The HRM-013 task binding is ambiguous.");
+        }
+        return rows.stream().findFirst();
     }
 
     public void updateDraft(

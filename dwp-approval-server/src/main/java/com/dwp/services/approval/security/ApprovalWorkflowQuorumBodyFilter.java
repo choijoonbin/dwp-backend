@@ -19,7 +19,8 @@ public class ApprovalWorkflowQuorumBodyFilter extends OncePerRequestFilter {
     static final String OVERFLOW = ApprovalWorkflowQuorumBodyFilter.class.getName() + ".overflow";
     @Override protected boolean shouldNotFilter(HttpServletRequest request) {
         return !"POST".equals(request.getMethod()) || !(request.getRequestURI().matches("/v1/tasks/[^/]+/decisions")
-                || request.getRequestURI().matches("/v1/requests/[^/]+/information-response"));
+                || request.getRequestURI().matches("/v1/requests/[^/]+/information-response")
+                || request.getRequestURI().matches("/v1/hris/separation-waiver-tasks/[^/]+/approve"));
     }
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
