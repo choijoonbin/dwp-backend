@@ -111,6 +111,22 @@ dwp:
         fresh-seconds: ${DWP_HRIS_TIME_HOME_FRESH_SECONDS:60}
         stale-seconds: ${DWP_HRIS_TIME_HOME_STALE_SECONDS:300}
   time:
+    hrm013-task-dispatch:
+      # Phase 6 is deliberately inert until tenant grants and runtime credentials
+      # have been provisioned through the controlled activation procedure.
+      enabled: ${DWP_TIME_HRM013_TASK_DISPATCH_ENABLED:false}
+      auth-authority-uri: ${DWP_TIME_HRM013_AUTH_AUTHORITY_URI:}
+      people-origin: ${DWP_TIME_HRM013_PEOPLE_ORIGIN:}
+      relay-worker-id: ${DWP_TIME_HRM013_RELAY_WORKER_ID:time-hrm013}
+      relay-delay-ms: ${DWP_TIME_HRM013_RELAY_DELAY_MS:1000}
+      mtls:
+        client-auth: ${DWP_TIME_HRM013_MTLS_CLIENT_AUTH:}
+        trust-store-location: ${DWP_TIME_HRM013_MTLS_TRUST_STORE_LOCATION:}
+        trust-store-password: ${DWP_TIME_HRM013_MTLS_TRUST_STORE_PASSWORD:}
+        trust-store-type: ${DWP_TIME_HRM013_MTLS_TRUST_STORE_TYPE:PKCS12}
+        revocation-mode: ${DWP_TIME_HRM013_MTLS_REVOCATION_MODE:}
+        crl-location: ${DWP_TIME_HRM013_MTLS_CRL_LOCATION:}
+        ocsp-responder: ${DWP_TIME_HRM013_MTLS_OCSP_RESPONDER:}
     database:
       adoption-receipt-sha256: ${DWP_TIME_ADOPTION_RECEIPT_SHA256:}
       adoption-control-reference: ${DWP_TIME_ADOPTION_CONTROL_REFERENCE:}
