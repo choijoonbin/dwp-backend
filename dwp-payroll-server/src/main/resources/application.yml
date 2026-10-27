@@ -101,6 +101,19 @@ dwp:
       queue-capacity: ${DWP_API_HISTORY_QUEUE_CAPACITY:4096}
       batch-size: ${DWP_API_HISTORY_BATCH_SIZE:100}
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
+  payroll:
+    hrm013-task-dispatch:
+      # BASE-TFR-HRM-013 remains dark until V56, an external workload
+      # credential source, Auth resolver trust and tenant activation are
+      # independently approved. No local/dev credential fallback exists.
+      enabled: ${DWP_PAYROLL_HRM013_TASK_DISPATCH_ENABLED:false}
+      auth-url: ${DWP_PAYROLL_HRM013_AUTH_URL:}
+      people-url: ${DWP_PAYROLL_HRM013_PEOPLE_URL:}
+      relay-delay-ms: ${DWP_PAYROLL_HRM013_RELAY_DELAY_MS:2000}
+      relay-initial-delay-ms: ${DWP_PAYROLL_HRM013_RELAY_INITIAL_DELAY_MS:5000}
+      relay-lease-seconds: ${DWP_PAYROLL_HRM013_RELAY_LEASE_SECONDS:30}
+      relay-max-attempts: ${DWP_PAYROLL_HRM013_RELAY_MAX_ATTEMPTS:10}
+      relay-max-claims-per-poll: ${DWP_PAYROLL_HRM013_RELAY_MAX_CLAIMS_PER_POLL:8}
   hris:
     payroll:
       home-producer:
