@@ -5,8 +5,11 @@ from __future__ import annotations
 
 import argparse
 import base64
+import fcntl
 import hashlib
+import http.client
 import json
+import math
 import os
 import re
 import shlex
@@ -20,9 +23,11 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable, Iterator, Optional
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +38,7 @@ AGENT_LOCAL_ENV_FILE = AGENT_ROOT / ".env.local"
 RUNTIME_ROOT = BACKEND_ROOT / ".dev-runtime"
 LOG_ROOT = RUNTIME_ROOT / "logs"
 STATE_FILE = RUNTIME_ROOT / "processes.json"
+STATE_LOCK_FILE = RUNTIME_ROOT / "devctl.lock"
 LOCAL_APPROVAL_KEYS_ROOT = RUNTIME_ROOT / "keys"
 LOCAL_APPROVAL_KEYS_FILE = LOCAL_APPROVAL_KEYS_ROOT / "approval-runtime-jwks.json"
 LOCAL_JWK_GENERATOR = BACKEND_ROOT / "scripts" / "DevRuntimeJwkGenerator.java"
@@ -68,6 +74,20 @@ SPRING_READINESS_PATH = "/actuator/health/readiness"
 DEFAULT_SERVICE_STARTUP_TIMEOUT_SECONDS = 300
 MIN_SERVICE_STARTUP_TIMEOUT_SECONDS = 60
 MAX_SERVICE_STARTUP_TIMEOUT_SECONDS = 900
+ARTIFACT_FINGERPRINT_ATTEMPTS = 3
+ARTIFACT_SCAN_ATTEMPTS = 3
+ARTIFACT_FINGERPRINT_CHUNK_BYTES = 1024 * 1024
+NEW_PROCESS_TERM_TIMEOUT_SECONDS = 5.0
+NEW_PROCESS_KILL_TIMEOUT_SECONDS = 3.0
+PROCESS_GROUP_POLL_INTERVAL_SECONDS = 0.05
+PORT_RELEASE_TIMEOUT_SECONDS = 10.0
+PORT_RELEASE_POLL_INTERVAL_SECONDS = 0.1
+LEGACY_IDENTITY_CONFIRMATION_INTERVAL_SECONDS = 0.1
+MEETING_READINESS_MAXIMUM_RESPONSE_BYTES = 1024 * 1024
+MEETING_READINESS_MAXIMUM_METRIC_VALUE = (1 << 63) - 1
+MEETING_READINESS_USER_ID = "900018"
+MEETING_READINESS_TENANT_ID = "1"
+MEETING_BASELINE_ROLLOUT_REVISION = "rollout-" + "0" * 64
 AGENT_MODEL_ENVIRONMENT = frozenset(
     {
         "DWP_MODEL_PROVIDER",
@@ -89,6 +109,10 @@ class Service:
     command: tuple[str, ...]
     port: int
     health_path: str
+
+
+class MissingRuntimeArtifactError(RuntimeError):
+    """A missing build output that a controlled restart may regenerate."""
 
 
 @dataclass(frozen=True)
@@ -345,6 +369,35 @@ SERVICES = {
     ),
 }
 
+SHARED_RUNTIME_ARTIFACT_DIRECTORIES = {
+    "dwp-core": BACKEND_ROOT / "dwp-core" / "build" / "libs",
+    "dwp-audit": BACKEND_ROOT / "dwp-audit" / "build" / "libs",
+    "dwp-observability": BACKEND_ROOT / "dwp-observability" / "build" / "libs",
+    "dwp-platform-contracts": (
+        BACKEND_ROOT / "dwp-platform-contracts" / "build" / "libs"
+    ),
+}
+CORE_SHARED_RUNTIME_ARTIFACTS = (
+    "dwp-core",
+    "dwp-audit",
+    "dwp-observability",
+    "dwp-platform-contracts",
+)
+SERVICE_SHARED_RUNTIME_ARTIFACTS = {
+    "auth": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "platform": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "people": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "provider": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "approval": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "space": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "messaging": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "notification": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "meeting": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "time": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "payroll": CORE_SHARED_RUNTIME_ARTIFACTS,
+    "gateway": ("dwp-audit", "dwp-observability"),
+}
+
 CORE_SERVICES = {"auth", "platform", "people", "provider", "approval", "space"}
 HRIS_RUNTIME_SERVICES = {"time", "payroll"}
 OPTIONAL_RUNTIME_SERVICES = {
@@ -411,21 +464,157 @@ START_PHASES = (
 )
 
 
-def load_state() -> dict[str, dict[str, object]]:
-    if not STATE_FILE.exists():
+def _state_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise RuntimeError(f"Duplicate JSON member in {STATE_FILE}: {key}")
+        value[key] = item
+    return value
+
+
+def _valid_state_integer(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _validate_state(value: object) -> dict[str, dict[str, object]]:
+    if not isinstance(value, dict):
+        raise RuntimeError(f"Managed process state must be a JSON object: {STATE_FILE}")
+    state: dict[str, dict[str, object]] = {}
+    for name, process_state in value.items():
+        if name not in SERVICES or not isinstance(process_state, dict):
+            raise RuntimeError(f"Invalid managed process state entry: {name}")
+        pid = process_state.get("pid")
+        port = process_state.get("port")
+        command = process_state.get("command")
+        log_path = process_state.get("log")
+        if (
+            not _valid_state_integer(pid)
+            or not _valid_state_integer(port)
+            or port != SERVICES[name].port
+            or not isinstance(command, list)
+            or not command
+            or any(not isinstance(argument, str) for argument in command)
+            or not isinstance(log_path, str)
+            or not log_path
+        ):
+            raise RuntimeError(f"Invalid managed process state entry: {name}")
+        state[name] = process_state
+    return state
+
+
+def _load_state(*, allow_legacy_read_permissions: bool) -> dict[str, dict[str, object]]:
+    if not STATE_FILE.exists() and not STATE_FILE.is_symlink():
         return {}
     try:
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
+        metadata = STATE_FILE.lstat()
+        unsafe_permissions = (
+            metadata.st_mode & 0o033
+            if allow_legacy_read_permissions
+            else metadata.st_mode & 0o077
+        )
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or unsafe_permissions
+        ):
+            raise RuntimeError(
+                f"Managed process state must be an owner-controlled regular file: "
+                f"{STATE_FILE}"
+            )
+        value = json.loads(
+            STATE_FILE.read_text(encoding="utf-8"),
+            object_pairs_hook=_state_json_object,
+        )
+    except RuntimeError:
+        raise
+    except (json.JSONDecodeError, OSError) as error:
+        raise RuntimeError(f"Managed process state is unreadable: {STATE_FILE}") from error
+    return _validate_state(value)
+
+
+def load_state() -> dict[str, dict[str, object]]:
+    return _load_state(allow_legacy_read_permissions=False)
+
+
+def load_legacy_migration_state() -> dict[str, dict[str, object]]:
+    """Read old owner-controlled state while allowing group/other read bits only."""
+    return _load_state(allow_legacy_read_permissions=True)
+
+
+def _fsync_runtime_directory() -> None:
+    try:
+        descriptor = os.open(RUNTIME_ROOT, os.O_RDONLY)
+    except OSError as error:
+        raise RuntimeError(
+            f"Unable to open runtime state directory for fsync: {RUNTIME_ROOT}"
+        ) from error
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def save_state(state: dict[str, dict[str, object]]) -> None:
+    _validate_state(state)
+    RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
     if not state:
         STATE_FILE.unlink(missing_ok=True)
+        _fsync_runtime_directory()
         return
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{STATE_FILE.name}.", suffix=".tmp", dir=RUNTIME_ROOT
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as target:
+            json.dump(state, target, ensure_ascii=False, indent=2, sort_keys=True)
+            target.write("\n")
+            target.flush()
+            os.fsync(target.fileno())
+        descriptor = -1
+        os.replace(temporary_path, STATE_FILE)
+        _fsync_runtime_directory()
+    finally:
+        if descriptor >= 0:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        temporary_path.unlink(missing_ok=True)
+
+
+@contextmanager
+def state_change_lock() -> Iterator[None]:
     RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    flags = os.O_CREAT | os.O_RDWR
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(STATE_LOCK_FILE, flags, 0o600)
+    except OSError as error:
+        raise RuntimeError(f"Unable to open development state lock: {STATE_LOCK_FILE}") from error
+    locked = False
+    try:
+        os.fchmod(descriptor, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        except OSError as error:
+            raise RuntimeError(
+                f"Unable to acquire development state lock: {STATE_LOCK_FILE}"
+            ) from error
+        locked = True
+        yield
+    finally:
+        try:
+            if locked:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
 
 
 def _strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -670,6 +859,392 @@ def port_open(port: int) -> bool:
             return True
     except OSError:
         return False
+
+
+def wait_for_service_port_release(
+    service: Service,
+    timeout_seconds: float = PORT_RELEASE_TIMEOUT_SECONDS,
+) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while port_open(service.port):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(
+                f"Managed {service.name} process group stopped and its state was "
+                f"removed, but port {service.port} remains occupied; refusing to "
+                "adopt the port owner or start a replacement."
+            )
+        time.sleep(min(PORT_RELEASE_POLL_INTERVAL_SECONDS, remaining))
+
+
+def _ps_value(pid: int, field: str) -> str:
+    result = subprocess.run(
+        ("ps", "-ww", "-o", f"{field}=", "-p", str(pid)),
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    value = result.stdout.strip()
+    if result.returncode != 0 or not value:
+        raise RuntimeError(f"Unable to inspect managed process {pid}.")
+    return value
+
+
+def _command_matches_launch_spec(
+    actual_command: str, launch_command: Iterable[str]
+) -> bool:
+    try:
+        actual = shlex.split(actual_command)
+    except ValueError:
+        return False
+    expected = list(launch_command)
+    expected_tail = expected[1:]
+    return bool(expected_tail) and actual[-len(expected_tail):] == expected_tail
+
+
+def capture_process_identity(
+    pid: int,
+    service_name: str,
+    launch_command: Iterable[str],
+) -> dict[str, object]:
+    if not process_alive(pid):
+        raise RuntimeError(f"Managed {service_name} process {pid} is not running.")
+    try:
+        pgid = os.getpgid(pid)
+    except OSError as error:
+        raise RuntimeError(
+            f"Unable to inspect managed {service_name} process {pid}."
+        ) from error
+    if pgid != pid:
+        raise RuntimeError(
+            f"Managed {service_name} process {pid} is not its process-group owner."
+        )
+    started_at = _ps_value(pid, "lstart")
+    actual_command = _ps_value(pid, "command")
+    if not _command_matches_launch_spec(actual_command, launch_command):
+        raise RuntimeError(
+            f"Managed {service_name} process {pid} does not match its recorded "
+            "launch command."
+        )
+    return {
+        "pgid": pgid,
+        "startedAt": started_at,
+        "commandSha256": hashlib.sha256(actual_command.encode("utf-8")).hexdigest(),
+    }
+
+
+def verify_managed_process(
+    service: Service,
+    process_state: dict[str, object],
+) -> dict[str, object]:
+    launch_command = process_state.get("command")
+    if (
+        not isinstance(launch_command, list)
+        or not launch_command
+        or any(not isinstance(argument, str) for argument in launch_command)
+    ):
+        raise RuntimeError(
+            f"Managed {service.name} state has no valid recorded launch command."
+        )
+    pid = int(process_state["pid"])
+    current = capture_process_identity(pid, service.name, launch_command)
+    recorded = process_state.get("processIdentity")
+    if recorded is None:
+        raise RuntimeError(
+            f"Managed {service.name} process ownership is legacy/unrecorded; "
+            f"refusing automatic adoption or signalling. Stop pid {pid} outside "
+            "devctl, verify its process group is gone, then rerun devctl."
+        )
+    if not isinstance(recorded, dict) or recorded != current:
+        raise RuntimeError(
+            f"Managed {service.name} process identity changed; refusing to signal pid {pid}."
+        )
+    return current
+
+
+def capture_started_process_identity(
+    service: Service, process_state: dict[str, object]
+) -> dict[str, object]:
+    """Allow command exec transitions only within the recorded process generation."""
+    launch_command = process_state.get("command")
+    recorded = process_state.get("processIdentity")
+    if not isinstance(launch_command, list) or not isinstance(recorded, dict):
+        raise RuntimeError(
+            f"Managed {service.name} startup ownership is not recorded."
+        )
+    pid = int(process_state["pid"])
+    current = capture_process_identity(pid, service.name, launch_command)
+    if (
+        recorded.get("pgid") != current["pgid"]
+        or recorded.get("startedAt") != current["startedAt"]
+    ):
+        raise RuntimeError(
+            f"Managed {service.name} process generation changed during startup."
+        )
+    return current
+
+
+def refresh_started_process_identity(
+    service: Service,
+    process_state: dict[str, object],
+    state: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    current = capture_started_process_identity(service, process_state)
+    if process_state.get("processIdentity") != current:
+        process_state["processIdentity"] = current
+        process_state.pop("runtimeArtifacts", None)
+        save_state(state)
+    return current
+
+
+def managed_process_identity_matches(
+    service: Service, process_state: dict[str, object]
+) -> bool:
+    try:
+        verify_managed_process(service, process_state)
+    except (RuntimeError, KeyError, TypeError, ValueError):
+        return False
+    return True
+
+
+def migrate_legacy_process_identities(
+    service_names: Iterable[str], confirmed: bool
+) -> None:
+    """Explicitly bind legacy state to a stable live identity without signalling it."""
+    if not confirmed:
+        raise RuntimeError(
+            "Legacy process identity migration requires --yes because a later up/stop "
+            "may use the recorded identity for signalling."
+        )
+    names = list(dict.fromkeys(service_names))
+    if not names:
+        raise RuntimeError("Select at least one service for legacy identity migration.")
+    state = load_legacy_migration_state()
+    migrations: dict[str, dict[str, object]] = {}
+    already_recorded: list[str] = []
+    for name in names:
+        service = SERVICES[name]
+        process_state = state.get(name)
+        if process_state is None:
+            raise RuntimeError(f"No managed state exists for {name}; nothing to migrate.")
+        pid = int(process_state["pid"])
+        if not process_alive(pid):
+            _ensure_dead_state_has_no_live_group(service, process_state)
+            raise RuntimeError(
+                f"Managed {name} pid {pid} is not running; remove the dead state via "
+                "a normal up/stop instead of migrating it."
+            )
+        if process_state.get("processIdentity") is not None:
+            verify_managed_process(service, process_state)
+            already_recorded.append(name)
+            continue
+        launch_command = process_state.get("command")
+        if not isinstance(launch_command, list):
+            raise RuntimeError(f"Managed {name} has no recorded launch command.")
+        first = capture_process_identity(pid, name, launch_command)
+        time.sleep(LEGACY_IDENTITY_CONFIRMATION_INTERVAL_SECONDS)
+        second = capture_process_identity(pid, name, launch_command)
+        if first != second:
+            raise RuntimeError(
+                f"Managed {name} identity changed during explicit migration; "
+                "no state was updated."
+            )
+        migrations[name] = second
+
+    for name, identity in migrations.items():
+        state[name]["processIdentity"] = identity
+    # Always rewrite through the atomic 0600 path so a validated legacy 0644
+    # file is normalized even when every selected identity was already present.
+    save_state(state)
+    for name in already_recorded:
+        print(f"{name:10} identity already recorded and verified")
+    for name in migrations:
+        print(f"{name:10} legacy identity explicitly migrated (no signal sent)")
+
+
+def _artifact_stat_signature(
+    metadata: os.stat_result,
+) -> tuple[int, int, int, int, int, int]:
+    return (
+        metadata.st_mode,
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def _resolve_shared_runtime_artifact(module: str) -> Path:
+    artifact_directory = SHARED_RUNTIME_ARTIFACT_DIRECTORIES[module]
+    candidates = sorted(artifact_directory.glob(f"{module}-*-plain.jar"))
+    if not candidates:
+        raise MissingRuntimeArtifactError(
+            f"Shared runtime artifact is missing for {module} in {artifact_directory}."
+        )
+    if len(candidates) != 1:
+        raise RuntimeError(
+            f"Expected exactly one {module} runtime artifact, found {len(candidates)} "
+            f"in {artifact_directory}."
+        )
+    return candidates[0]
+
+
+def _stable_artifact_fingerprint(module: str, path: Path) -> dict[str, object]:
+    last_error = f"Shared runtime artifact changed while being fingerprinted: {path}"
+    for attempt in range(ARTIFACT_FINGERPRINT_ATTEMPTS):
+        try:
+            path_metadata = path.lstat()
+        except OSError as error:
+            raise RuntimeError(f"Shared runtime artifact is unreadable: {path}") from error
+        if (
+            stat.S_ISLNK(path_metadata.st_mode)
+            or not stat.S_ISREG(path_metadata.st_mode)
+            or path_metadata.st_uid != os.getuid()
+        ):
+            raise RuntimeError(
+                f"Shared runtime artifact must be an owner-controlled regular file: {path}"
+            )
+
+        flags = os.O_RDONLY
+        if hasattr(os, "O_CLOEXEC"):
+            flags |= os.O_CLOEXEC
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            descriptor = os.open(path, flags)
+        except OSError as error:
+            raise RuntimeError(f"Shared runtime artifact is unreadable: {path}") from error
+        try:
+            before = os.fstat(descriptor)
+            digest = hashlib.sha256()
+            while True:
+                chunk = os.read(descriptor, ARTIFACT_FINGERPRINT_CHUNK_BYTES)
+                if not chunk:
+                    break
+                digest.update(chunk)
+            after = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+        try:
+            final_path_metadata = path.lstat()
+        except OSError:
+            final_path_metadata = None
+
+        signature = _artifact_stat_signature(before)
+        if (
+            stat.S_ISREG(before.st_mode)
+            and before.st_uid == os.getuid()
+            and signature == _artifact_stat_signature(after)
+            and final_path_metadata is not None
+            and signature == _artifact_stat_signature(final_path_metadata)
+        ):
+            try:
+                relative_path = path.relative_to(BACKEND_ROOT)
+            except ValueError as error:
+                raise RuntimeError(
+                    f"Shared runtime artifact is outside the backend workspace: {path}"
+                ) from error
+            return {
+                "path": relative_path.as_posix(),
+                "sha256": digest.hexdigest(),
+                "size": before.st_size,
+                "mtimeNs": before.st_mtime_ns,
+                "ctimeNs": before.st_ctime_ns,
+                "device": before.st_dev,
+                "inode": before.st_ino,
+            }
+        if attempt + 1 < ARTIFACT_FINGERPRINT_ATTEMPTS:
+            time.sleep(0.02)
+    raise RuntimeError(last_error)
+
+
+def capture_service_runtime_artifacts(
+    service: Service,
+    cache: dict[str, dict[str, object]] | None = None,
+) -> dict[str, dict[str, object]]:
+    cache = cache if cache is not None else {}
+    fingerprints: dict[str, dict[str, object]] = {}
+    for module in SERVICE_SHARED_RUNTIME_ARTIFACTS.get(service.name, ()):
+        if module not in cache:
+            path = _resolve_shared_runtime_artifact(module)
+            cache[module] = _stable_artifact_fingerprint(module, path)
+        fingerprints[module] = dict(cache[module])
+    return fingerprints
+
+
+ArtifactSnapshot = dict[str, Optional[dict[str, object]]]
+
+
+def capture_shared_runtime_snapshot(services: Iterable[Service]) -> ArtifactSnapshot:
+    modules = {
+        module
+        for service in services
+        for module in SERVICE_SHARED_RUNTIME_ARTIFACTS.get(service.name, ())
+    }
+    snapshot: ArtifactSnapshot = {}
+    for module in sorted(modules):
+        try:
+            path = _resolve_shared_runtime_artifact(module)
+        except MissingRuntimeArtifactError:
+            snapshot[module] = None
+        else:
+            snapshot[module] = _stable_artifact_fingerprint(module, path)
+    return snapshot
+
+
+def stable_artifact_candidate_scan(
+    services: Iterable[Service],
+    scan: Callable[[ArtifactSnapshot], list[tuple[Service, str]]],
+) -> list[tuple[Service, str]]:
+    selected = list(services)
+    for attempt in range(ARTIFACT_SCAN_ATTEMPTS):
+        before = capture_shared_runtime_snapshot(selected)
+        candidates = scan(before)
+        after = capture_shared_runtime_snapshot(selected)
+        if before == after:
+            return candidates
+        if attempt + 1 < ARTIFACT_SCAN_ATTEMPTS:
+            time.sleep(0.02)
+    raise RuntimeError(
+        "Shared runtime artifacts changed throughout candidate scanning; "
+        "no managed process was signalled."
+    )
+
+
+def service_artifact_staleness(
+    service: Service,
+    process_state: dict[str, object],
+    cache: ArtifactSnapshot | None = None,
+) -> tuple[bool, str]:
+    expected_modules = SERVICE_SHARED_RUNTIME_ARTIFACTS.get(service.name, ())
+    if not expected_modules:
+        return False, ""
+    if cache is None:
+        try:
+            current = capture_service_runtime_artifacts(service)
+        except MissingRuntimeArtifactError:
+            return True, "shared runtime artifact missing"
+    else:
+        current: dict[str, dict[str, object]] = {}
+        for module in expected_modules:
+            if module not in cache:
+                raise RuntimeError(
+                    f"Shared runtime snapshot omitted required module {module}."
+                )
+            fingerprint = cache[module]
+            if fingerprint is None:
+                return True, "shared runtime artifact missing"
+            current[module] = fingerprint
+    recorded = process_state.get("runtimeArtifacts")
+    if not isinstance(recorded, dict):
+        return True, "untracked artifacts"
+    if set(recorded) != set(expected_modules):
+        return True, "artifact registry changed"
+    for module in expected_modules:
+        if recorded.get(module) != current[module]:
+            return True, f"{module} changed"
+    return False, ""
 
 
 def load_agent_local_environment(path: Path | None = None) -> dict[str, str]:
@@ -2131,6 +2706,115 @@ def health_ready(service: Service) -> bool:
         return False
 
 
+def meeting_home_ready(service: Service) -> bool:
+    token = service_environment("meeting").get("DWP_MEETING_SERVICE_TOKEN", "").strip()
+    if not token:
+        return False
+    headers = {
+        "Accept": "application/json",
+        "Cache-Control": "no-store",
+        "X-DWP-Service-Token": token,
+        "X-DWP-User-ID": MEETING_READINESS_USER_ID,
+        "X-DWP-Tenant-ID": MEETING_READINESS_TENANT_ID,
+        "X-DWP-Permissions": "APP.MEETINGS:VIEW",
+        "X-DWP-Rollout-State": "000",
+        "X-DWP-Rollout-Revision": MEETING_BASELINE_ROLLOUT_REVISION,
+        "X-DWP-Rollout-Cohort": "baseline",
+    }
+    connection = http.client.HTTPConnection("127.0.0.1", service.port, timeout=2)
+    try:
+        connection.request("GET", "/v1/home?timeZone=UTC", headers=headers)
+        response = connection.getresponse()
+        if response.status != 200:
+            return False
+        content_type = response.getheader("Content-Type", "") or ""
+        if content_type.split(";", 1)[0].strip().lower() != "application/json":
+            return False
+        body = response.read(MEETING_READINESS_MAXIMUM_RESPONSE_BYTES + 1)
+        if len(body) > MEETING_READINESS_MAXIMUM_RESPONSE_BYTES:
+            return False
+        payload = json.loads(body.decode("utf-8"))
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        http.client.HTTPException,
+    ):
+        return False
+    finally:
+        connection.close()
+    if not isinstance(payload, dict):
+        return False
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return False
+    server_now = data.get("serverNow")
+    if not isinstance(server_now, str):
+        return False
+    try:
+        parsed_server_now = datetime.fromisoformat(server_now.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if parsed_server_now.tzinfo is None or parsed_server_now.utcoffset() is None:
+        return False
+    metrics = data.get("metrics")
+    capabilities = data.get("capabilities")
+    if not isinstance(metrics, dict) or not isinstance(capabilities, dict):
+        return False
+
+    def numeric(value: object) -> bool:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return False
+        if isinstance(value, int):
+            return 0 <= value <= MEETING_READINESS_MAXIMUM_METRIC_VALUE
+        return (
+            math.isfinite(value)
+            and 0 <= value <= MEETING_READINESS_MAXIMUM_METRIC_VALUE
+        )
+
+    if any(
+        not numeric(metrics.get(key))
+        for key in ("meetingsToday", "meetingMinutesToday", "waitingForApproval")
+    ):
+        return False
+    for key in ("qualityScore", "averageJoinSeconds"):
+        if metrics.get(key) is not None and not numeric(metrics[key]):
+            return False
+    provider = capabilities.get("provider")
+    return (
+        payload.get("success") is True
+        and payload.get("status") == "SUCCESS"
+        and data.get("timeZone") == "UTC"
+        and isinstance(data.get("today"), list)
+        and isinstance(data.get("recent"), list)
+        and type(capabilities.get("available")) is bool
+        and isinstance(provider, str)
+        and bool(provider.strip())
+    )
+
+
+def service_ready(service: Service) -> bool:
+    if not health_ready(service):
+        return False
+    return service.name != "meeting" or meeting_home_ready(service)
+
+
+def managed_service_ready(
+    service: Service, process_state: dict[str, object]
+) -> bool:
+    if service.name != "meeting":
+        return service_ready(service)
+    before = verify_managed_process(service, process_state)
+    ready = service_ready(service)
+    after = verify_managed_process(service, process_state)
+    if before != after:
+        raise RuntimeError(
+            "Managed meeting process identity changed during the "
+            "functional-readiness probe."
+        )
+    return ready
+
+
 def service_startup_timeout_seconds() -> int:
     raw_value = os.environ.get(SERVICE_STARTUP_TIMEOUT_ENVIRONMENT)
     if raw_value is None:
@@ -2154,15 +2838,38 @@ def service_startup_timeout_seconds() -> int:
     return timeout_seconds
 
 
-def start_service(service: Service, state: dict[str, dict[str, object]]) -> None:
+def start_service(
+    service: Service,
+    state: dict[str, dict[str, object]],
+    *,
+    reject_external_owner: bool = False,
+) -> bool:
     current = state.get(service.name)
     if current and process_alive(int(current["pid"])):
+        verify_managed_process(service, current)
         print(f"{service.name:10} already running (pid={current['pid']})")
-        return
+        return False
+    if current:
+        _ensure_dead_state_has_no_live_group(service, current)
+        state.pop(service.name, None)
+        save_state(state)
+        wait_for_service_port_release(service)
+        reject_external_owner = True
     if port_open(service.port):
+        if reject_external_owner:
+            raise RuntimeError(
+                f"Port {service.port} for {service.name} became occupied after its "
+                "managed owner stopped; refusing to adopt the new owner or start "
+                "a replacement."
+            )
         if health_ready(service):
+            if service.name == "meeting":
+                raise RuntimeError(
+                    "Meeting is owned by an external process; refusing to disclose the "
+                    "functional-readiness service token."
+                )
             print(f"{service.name:10} already available (external, port={service.port})")
-            return
+            return False
         raise RuntimeError(
             f"Port {service.port} for {service.name} is occupied by an unhealthy process."
         )
@@ -2180,19 +2887,73 @@ def start_service(service: Service, state: dict[str, dict[str, object]]) -> None
             start_new_session=True,
         )
 
-    state[service.name] = {
-        "pid": process.pid,
-        "port": service.port,
-        "command": list(service.command),
-        "log": str(log_path),
-    }
-    save_state(state)
+    state_recorded = False
+    try:
+        identity: dict[str, object] | None = None
+        identity_error: RuntimeError | None = None
+        for _ in range(20):
+            try:
+                identity = capture_process_identity(
+                    process.pid, service.name, service.command
+                )
+                break
+            except RuntimeError as error:
+                identity_error = error
+                if process.poll() is not None:
+                    break
+                time.sleep(0.05)
+        if identity is None:
+            raise RuntimeError(
+                f"Unable to establish ownership of the new {service.name} process."
+            ) from identity_error
+
+        state[service.name] = {
+            "pid": process.pid,
+            "port": service.port,
+            "command": list(service.command),
+            "log": str(log_path),
+            "processIdentity": identity,
+        }
+        state_recorded = True
+        save_state(state)
+    except BaseException as start_error:
+        try:
+            terminate_spawned_process_group(process, service.name)
+        except RuntimeError as cleanup_error:
+            if state_recorded:
+                try:
+                    save_state(state)
+                except Exception:
+                    persistence_detail = " Ownership state could not be persisted."
+                else:
+                    persistence_detail = " Ownership state was retained."
+            else:
+                persistence_detail = " No verified ownership state was available."
+            raise RuntimeError(
+                f"New {service.name} process group may still be running after "
+                f"startup bookkeeping failed: {cleanup_error}."
+                f"{persistence_detail}"
+            ) from start_error
+        if state_recorded:
+            state.pop(service.name, None)
+            try:
+                save_state(state)
+            except Exception as rollback_error:
+                raise RuntimeError(
+                    f"New {service.name} process was stopped, but its failed-start "
+                    "state could not be rolled back."
+                ) from rollback_error
+        raise
     print(f"{service.name:10} starting (pid={process.pid}, port={service.port})")
+    return True
 
 
 def wait_for_services(
-    services: Iterable[Service], state: dict[str, dict[str, object]]
+    services: Iterable[Service],
+    state: dict[str, dict[str, object]],
+    started_names: set[str] | None = None,
 ) -> None:
+    started_names = started_names or set()
     pending = {service.name: service for service in services}
     deadline = time.monotonic() + service_startup_timeout_seconds()
     while pending and time.monotonic() < deadline:
@@ -2203,7 +2964,68 @@ def wait_for_services(
                 log_path = Path(str(process_state["log"]))
                 tail = "\n".join(log_path.read_text(errors="replace").splitlines()[-20:])
                 raise RuntimeError(f"{name} exited during startup.\n{tail}")
-            if health_ready(service):
+            started = name in started_names
+            if started:
+                if process_state is None:
+                    raise RuntimeError(
+                        f"Managed {name} state disappeared during startup."
+                    )
+                refresh_started_process_identity(service, process_state, state)
+            meeting_ready_identity: dict[str, object] | None = None
+            if service.name == "meeting":
+                if process_state is None:
+                    raise RuntimeError(
+                        "Meeting has no verified managed identity; refusing to send "
+                        "the functional-readiness service token."
+                    )
+                if started:
+                    # The Gradle launcher may exec from its shell into the Java
+                    # wrapper under the same pid. Do not require the initial
+                    # command hash until the unauthenticated actuator is ready.
+                    if not health_ready(service):
+                        ready = False
+                    else:
+                        before_probe = refresh_started_process_identity(
+                            service, process_state, state
+                        )
+                        ready = meeting_home_ready(service)
+                        after_probe = capture_started_process_identity(
+                            service, process_state
+                        )
+                        if before_probe != after_probe:
+                            raise RuntimeError(
+                                "Managed meeting process identity changed during "
+                                "the functional-readiness probe."
+                            )
+                        if ready:
+                            meeting_ready_identity = after_probe
+                else:
+                    ready = managed_service_ready(service, process_state)
+            else:
+                ready = service_ready(service)
+            if ready:
+                if started:
+                    if service.name == "meeting":
+                        if meeting_ready_identity is None:
+                            raise RuntimeError(
+                                "Managed meeting readiness identity was not captured."
+                            )
+                        ready_identity = meeting_ready_identity
+                    else:
+                        ready_identity = refresh_started_process_identity(
+                            service, process_state, state
+                        )
+                    process_state["processIdentity"] = ready_identity
+                    process_state.pop("runtimeArtifacts", None)
+                    # Persist the stable command generation before artifact I/O.
+                    # If baseline capture fails, future devctl runs can still
+                    # authenticate and safely reconcile the untracked process.
+                    save_state(state)
+                    if name in SERVICE_SHARED_RUNTIME_ARTIFACTS:
+                        process_state["runtimeArtifacts"] = (
+                            capture_service_runtime_artifacts(service)
+                        )
+                        save_state(state)
                 print(f"{name:10} ready at http://localhost:{service.port}")
                 pending.pop(name)
         if pending:
@@ -2214,37 +3036,471 @@ def wait_for_services(
         )
 
 
+def process_group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def reap_direct_child(pid: int) -> None:
+    """Reap pid only when it is a direct child; existing external parents are untouched."""
+    try:
+        os.waitpid(pid, os.WNOHANG)
+    except ChildProcessError:
+        pass
+
+
+def wait_for_process_group_exit(
+    pgid: int,
+    timeout_seconds: float,
+    process: subprocess.Popen[bytes] | None = None,
+    *,
+    leader_pid: int | None = None,
+) -> bool:
+    """Return on the first absent observation; never re-query a gone PGID."""
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        if process is not None:
+            process.poll()
+        elif leader_pid is not None:
+            reap_direct_child(leader_pid)
+        if not process_group_alive(pgid):
+            if process is not None:
+                try:
+                    process.wait(timeout=0)
+                except subprocess.TimeoutExpired:
+                    return False
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(PROCESS_GROUP_POLL_INTERVAL_SECONDS, remaining))
+
+
+def terminate_spawned_process_group(
+    process: subprocess.Popen[bytes], service_name: str
+) -> None:
+    """Boundedly terminate only the process group created by this Popen call."""
+    pgid = process.pid
+    process.poll()
+    if wait_for_process_group_exit(pgid, 0, process):
+        return
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except ProcessLookupError:
+        try:
+            process.wait(timeout=PROCESS_GROUP_POLL_INTERVAL_SECONDS)
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError(
+                f"newly spawned {service_name} group disappeared, but its leader "
+                "could not be reaped"
+            ) from error
+        return
+    except PermissionError as error:
+        raise RuntimeError(
+            f"unable to terminate newly spawned {service_name} process group {pgid}"
+        ) from error
+    if wait_for_process_group_exit(
+        pgid, NEW_PROCESS_TERM_TIMEOUT_SECONDS, process
+    ):
+        return
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except ProcessLookupError:
+        try:
+            process.wait(timeout=PROCESS_GROUP_POLL_INTERVAL_SECONDS)
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError(
+                f"newly spawned {service_name} group disappeared after SIGTERM, "
+                "but its leader could not be reaped"
+            ) from error
+        return
+    except PermissionError as error:
+        raise RuntimeError(
+            f"unable to kill newly spawned {service_name} process group {pgid}"
+        ) from error
+    if not wait_for_process_group_exit(
+        pgid, NEW_PROCESS_KILL_TIMEOUT_SECONDS, process
+    ):
+        raise RuntimeError(
+            f"newly spawned {service_name} process group {pgid} did not exit "
+            "after SIGTERM and SIGKILL"
+        )
+
+
+def _recorded_process_group(
+    process_state: dict[str, object], *, infer_legacy: bool
+) -> int | None:
+    identity = process_state.get("processIdentity")
+    if isinstance(identity, dict) and _valid_state_integer(identity.get("pgid")):
+        return int(identity["pgid"])
+    if infer_legacy and _valid_state_integer(process_state.get("pid")):
+        # Historical devctl launches also used start_new_session=True, so the
+        # leader pid was the group id. It is safe to observe this id, never to
+        # signal it without a recorded identity.
+        return int(process_state["pid"])
+    return None
+
+
+def _ensure_dead_state_has_no_live_group(
+    service: Service, process_state: dict[str, object]
+) -> None:
+    reap_direct_child(int(process_state["pid"]))
+    pgid = _recorded_process_group(process_state, infer_legacy=True)
+    if pgid is not None and process_group_alive(pgid):
+        raise RuntimeError(
+            f"Managed {service.name} leader pid {process_state['pid']} exited, but "
+            f"process group {pgid} is still alive; state was retained and the group "
+            "was not signalled."
+        )
+
+
+def terminate_process_group(pgid: int, pid: int, service_name: str) -> None:
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except ProcessLookupError:
+        reap_direct_child(pid)
+        return
+    except PermissionError as error:
+        raise RuntimeError(
+            f"Managed {service_name} process group {pgid} could not be signalled; "
+            "state was retained."
+        ) from error
+    if wait_for_process_group_exit(pgid, 10, leader_pid=pid):
+        return
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except ProcessLookupError:
+        reap_direct_child(pid)
+        return
+    except PermissionError as error:
+        raise RuntimeError(
+            f"Managed {service_name} process group {pgid} could not be killed; "
+            "state was retained."
+        ) from error
+    if not wait_for_process_group_exit(pgid, 3, leader_pid=pid):
+        raise RuntimeError(
+            f"Managed {service_name} process group {pgid} did not stop; "
+            "state was retained."
+        )
+
+
+def terminate_verified_managed_process(
+    service: Service, process_state: dict[str, object]
+) -> None:
+    pid = int(process_state["pid"])
+    if not process_alive(pid):
+        _ensure_dead_state_has_no_live_group(service, process_state)
+        return
+    verify_managed_process(service, process_state)
+    identity = process_state.get("processIdentity")
+    if not isinstance(identity, dict) or not _valid_state_integer(identity.get("pgid")):
+        raise RuntimeError(
+            f"Managed {service.name} process ownership is not recorded."
+        )
+    terminate_process_group(int(identity["pgid"]), pid, service.name)
+
+
+def stop_service(
+    service: Service,
+    state: dict[str, dict[str, object]],
+) -> None:
+    process_state = state.get(service.name)
+    if process_state is None:
+        return
+    pid = int(process_state["pid"])
+    if not process_alive(pid):
+        _ensure_dead_state_has_no_live_group(service, process_state)
+        state.pop(service.name, None)
+        save_state(state)
+        wait_for_service_port_release(service)
+        return
+    terminate_verified_managed_process(service, process_state)
+    state.pop(service.name, None)
+    save_state(state)
+    wait_for_service_port_release(service)
+    print(f"{service.name:10} stopped")
+
+
+def reconcile_stale_services(
+    services: Iterable[Service], state: dict[str, dict[str, object]]
+) -> set[str]:
+    selected = list(services)
+    for service in selected:
+        process_state = state.get(service.name)
+        if process_state is not None and not process_alive(int(process_state["pid"])):
+            _ensure_dead_state_has_no_live_group(service, process_state)
+
+    def scan(snapshot: ArtifactSnapshot) -> list[tuple[Service, str]]:
+        candidates: list[tuple[Service, str]] = []
+        for service in selected:
+            process_state = state.get(service.name)
+            if process_state is None or not process_alive(int(process_state["pid"])):
+                continue
+            stale, reason = service_artifact_staleness(
+                service, process_state, snapshot
+            )
+            if service.name == "meeting":
+                if stale:
+                    verify_managed_process(service, process_state)
+                elif not managed_service_ready(service, process_state):
+                    stale, reason = True, "functional readiness failed"
+            if stale:
+                verify_managed_process(service, process_state)
+                candidates.append((service, reason))
+        return candidates
+
+    candidates = stable_artifact_candidate_scan(selected, scan)
+
+    restarted = {service.name for service, _ in candidates}
+    for service, reason in reversed(candidates):
+        print(f"{service.name:10} stale ({reason}); restarting")
+        stop_service(service, state)
+    return restarted
+
+
+def cleanup_started_services(
+    selected: dict[str, Service],
+    state: dict[str, dict[str, object]],
+    started_names: set[str],
+) -> None:
+    ordered = [name for name in START_ORDER if name in started_names]
+    ordered.extend(sorted(started_names - set(ordered)))
+    errors: list[str] = []
+    state_changed = False
+    stopped_services: list[Service] = []
+    for name in reversed(ordered):
+        process_state = state.get(name)
+        if process_state is None:
+            continue
+        service = selected[name]
+        pid = int(process_state["pid"])
+        try:
+            if process_alive(pid):
+                current = capture_started_process_identity(service, process_state)
+                process_state["processIdentity"] = current
+                process_state.pop("runtimeArtifacts", None)
+                state_changed = True
+                terminate_process_group(int(current["pgid"]), pid, name)
+            else:
+                _ensure_dead_state_has_no_live_group(service, process_state)
+        except (KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
+            errors.append(f"{name}: {error}")
+            continue
+        state.pop(name, None)
+        state_changed = True
+        stopped_services.append(service)
+
+    state_persisted = True
+    if state_changed:
+        try:
+            save_state(state)
+        except Exception as error:
+            state_persisted = False
+            errors.append(f"state rollback: {error}")
+    if state_persisted:
+        for service in stopped_services:
+            try:
+                wait_for_service_port_release(service)
+            except RuntimeError as error:
+                errors.append(f"{service.name}: {error}")
+            else:
+                print(f"{service.name:10} stopped after startup failure")
+    if errors:
+        raise RuntimeError("Startup cleanup incomplete: " + "; ".join(errors))
+
+
+def start_and_wait_services_in_phases(
+    services: Iterable[Service],
+    state: dict[str, dict[str, object]],
+    require_owned_start_names: set[str] | None = None,
+) -> set[str]:
+    selected = {service.name: service for service in services}
+    require_owned_start_names = require_owned_start_names or set()
+    started: set[str] = set()
+    visited: set[str] = set()
+    try:
+        for phase_names in START_PHASES:
+            phase = [selected[name] for name in phase_names if name in selected]
+            visited.update(service.name for service in phase)
+            phase_started: set[str] = set()
+            for service in phase:
+                if service.name in require_owned_start_names:
+                    was_started = start_service(
+                        service, state, reject_external_owner=True
+                    )
+                else:
+                    was_started = start_service(service, state)
+                if was_started:
+                    phase_started.add(service.name)
+                    started.add(service.name)
+            wait_for_services(phase, state, phase_started)
+        uncovered = set(selected) - visited
+        if uncovered:
+            raise RuntimeError(
+                "Selected services are missing from startup phases: "
+                + ", ".join(sorted(uncovered))
+            )
+        return started
+    except BaseException as startup_error:
+        try:
+            cleanup_started_services(selected, state, started)
+        except RuntimeError as cleanup_error:
+            raise RuntimeError(
+                f"Startup failed and cleanup was incomplete: {cleanup_error}"
+            ) from startup_error
+        raise
+
+
+def managed_runtime_drift(
+    services: Iterable[Service], state: dict[str, dict[str, object]]
+) -> list[tuple[Service, str]]:
+    """Inspect all selected managed services before any convergence signal."""
+    selected = list(services)
+
+    def scan(snapshot: ArtifactSnapshot) -> list[tuple[Service, str]]:
+        candidates: list[tuple[Service, str]] = []
+        for service in selected:
+            process_state = state.get(service.name)
+            if process_state is None:
+                # An available external owner is deliberately outside devctl's
+                # reconciliation and signalling authority.
+                continue
+            pid = int(process_state["pid"])
+            if not process_alive(pid):
+                _ensure_dead_state_has_no_live_group(service, process_state)
+                candidates.append((service, "managed process exited"))
+                continue
+            verify_managed_process(service, process_state)
+            stale, reason = service_artifact_staleness(
+                service, process_state, snapshot
+            )
+            if stale:
+                candidates.append((service, reason))
+            elif service.name == "meeting":
+                if not managed_service_ready(service, process_state):
+                    candidates.append((service, "readiness failed"))
+            elif not health_ready(service):
+                raise RuntimeError(
+                    f"Managed {service.name} became degraded during final validation."
+                )
+        return candidates
+
+    return stable_artifact_candidate_scan(selected, scan)
+
+
+def converge_managed_services(
+    services: Iterable[Service],
+    state: dict[str, dict[str, object]],
+    restarted_names: set[str],
+) -> None:
+    selected = list(services)
+    maximum_passes = len(selected) + 1
+    for _ in range(maximum_passes):
+        candidates = managed_runtime_drift(selected, state)
+        if not candidates:
+            return
+        exhausted = sorted(
+            service.name
+            for service, _reason in candidates
+            if service.name in restarted_names
+        )
+        if exhausted:
+            raise RuntimeError(
+                "Runtime did not converge after one restart for: "
+                + ", ".join(exhausted)
+            )
+
+        candidate_names = {service.name for service, _reason in candidates}
+        reasons = {service.name: reason for service, reason in candidates}
+        for service in reversed(selected):
+            if service.name not in candidate_names:
+                continue
+            print(f"{service.name:10} {reasons[service.name]}; restarting")
+            stop_service(service, state)
+        restarted_names.update(candidate_names)
+        start_and_wait_services_in_phases(
+            (service for service in selected if service.name in candidate_names),
+            state,
+            candidate_names,
+        )
+    raise RuntimeError("Runtime artifact/readiness convergence exceeded its bound.")
+
+
 def stop_services() -> None:
     state = load_state()
-    for name in reversed(START_ORDER):
-        process_state = state.pop(name, None)
-        if not process_state:
+    for name in START_ORDER:
+        process_state = state.get(name)
+        if process_state is None:
             continue
         pid = int(process_state["pid"])
         if not process_alive(pid):
+            _ensure_dead_state_has_no_live_group(SERVICES[name], process_state)
             continue
-        try:
-            os.killpg(pid, signal.SIGTERM)
-        except ProcessLookupError:
+        verify_managed_process(SERVICES[name], process_state)
+
+    for name in reversed(START_ORDER):
+        process_state = state.get(name)
+        if process_state is None:
             continue
-        deadline = time.monotonic() + 10
-        while process_alive(pid) and time.monotonic() < deadline:
-            time.sleep(0.2)
-        if process_alive(pid):
-            os.killpg(pid, signal.SIGKILL)
-        print(f"{name:10} stopped")
-    save_state(state)
+        stop_service(SERVICES[name], state)
 
 
 def print_status() -> None:
     state = load_state()
     for name in START_ORDER:
+        service = SERVICES[name]
         process_state = state.get(name)
         pid = int(process_state["pid"]) if process_state else 0
         managed = bool(pid and process_alive(pid))
-        port = SERVICES[name].port
-        status = "running" if managed else "external" if port_open(port) else "stopped"
-        print(f"{name:10} {status:8} port={port}" + (f" pid={pid}" if managed else ""))
+        recorded_pgid = (
+            _recorded_process_group(process_state, infer_legacy=True)
+            if process_state is not None
+            else None
+        )
+        orphaned_group = bool(
+            process_state is not None
+            and not managed
+            and recorded_pgid is not None
+            and process_group_alive(recorded_pgid)
+        )
+        port = service.port
+        detail = ""
+        if managed:
+            try:
+                stale, detail = service_artifact_staleness(
+                    service, process_state  # type: ignore[arg-type]
+                )
+            except RuntimeError as error:
+                stale, detail = True, str(error)
+            if stale or not managed_process_identity_matches(
+                service, process_state  # type: ignore[arg-type]
+            ):
+                status = "stale"
+                detail = detail or "process identity is untracked"
+            else:
+                try:
+                    ready = managed_service_ready(service, process_state)
+                except RuntimeError as error:
+                    status = "stale"
+                    detail = str(error)
+                else:
+                    status = "ready" if ready else "degraded"
+        elif orphaned_group:
+            status = "degraded"
+            detail = f"leader exited; process group {recorded_pgid} is still alive"
+        elif port_open(port):
+            status = "external"
+        else:
+            status = "stopped"
+        suffix = f" pid={pid}" if managed else ""
+        if detail and status in {"stale", "degraded"}:
+            suffix += f" ({detail})"
+        print(f"{name:10} {status:10} port={port}{suffix}")
     docker_compose(
         "--profile", "events", "--profile", "media", "ps", check=False
     )
@@ -2270,7 +3526,14 @@ def reset_database(confirmed: bool) -> None:
         "--profile", "events", "--profile", "media",
         "down", "-v", "--remove-orphans"
     )
-    shutil.rmtree(RUNTIME_ROOT, ignore_errors=True)
+    if RUNTIME_ROOT.exists():
+        for runtime_entry in RUNTIME_ROOT.iterdir():
+            if runtime_entry == STATE_LOCK_FILE:
+                continue
+            if runtime_entry.is_dir() and not runtime_entry.is_symlink():
+                shutil.rmtree(runtime_entry)
+            else:
+                runtime_entry.unlink(missing_ok=True)
     print("Local PostgreSQL and Redis data was removed. Run './dev up full' for a fresh schema.")
 
 
@@ -2295,6 +3558,13 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("stop", help="stop managed application processes")
     commands.add_parser("down", help="stop applications and PostgreSQL")
     commands.add_parser("status", help="show application and infrastructure status")
+
+    migration_parser = commands.add_parser(
+        "migrate-legacy-state",
+        help="explicitly bind legacy managed state to live identities without signalling",
+    )
+    migration_parser.add_argument("services", nargs="+", choices=START_ORDER)
+    migration_parser.add_argument("--yes", action="store_true")
 
     logs_parser = commands.add_parser("logs", help="show managed service logs")
     logs_parser.add_argument("service", nargs="?", choices=START_ORDER)
@@ -2322,38 +3592,46 @@ def main() -> None:
     elif args.command == "up":
         services = resolve_services(args.profiles)
         doctor(services)
-        start_infrastructure(
-            include_events=any(
-                service.name == "notification" for service in services
-            ),
-            include_media=any(
-                service.name in {"messaging", "meeting"} for service in services
-            ),
-            include_people=any(service.name == "people" for service in services),
-            include_time=any(service.name == "time" for service in services),
-            include_payroll=any(service.name == "payroll" for service in services),
-        )
-        state = load_state()
-        selected = {service.name: service for service in services}
-        for phase_names in START_PHASES:
-            phase = [selected[name] for name in phase_names if name in selected]
-            for service in phase:
-                start_service(service, state)
-            wait_for_services(phase, state)
+        with state_change_lock():
+            start_infrastructure(
+                include_events=any(
+                    service.name == "notification" for service in services
+                ),
+                include_media=any(
+                    service.name in {"messaging", "meeting"} for service in services
+                ),
+                include_people=any(service.name == "people" for service in services),
+                include_time=any(service.name == "time" for service in services),
+                include_payroll=any(service.name == "payroll" for service in services),
+            )
+            state = load_state()
+            restarted_names = reconcile_stale_services(services, state)
+            tracked_before_start = set(state)
+            started_names = start_and_wait_services_in_phases(
+                services, state, restarted_names
+            )
+            restarted_names.update(started_names & tracked_before_start)
+            converge_managed_services(services, state, restarted_names)
     elif args.command == "stop":
-        stop_services()
+        with state_change_lock():
+            stop_services()
     elif args.command == "down":
-        stop_services()
-        docker_compose(
-            "--profile", "events", "--profile", "media",
-            "down", "--remove-orphans"
-        )
+        with state_change_lock():
+            stop_services()
+            docker_compose(
+                "--profile", "events", "--profile", "media",
+                "down", "--remove-orphans"
+            )
     elif args.command == "status":
         print_status()
+    elif args.command == "migrate-legacy-state":
+        with state_change_lock():
+            migrate_legacy_process_identities(args.services, args.yes)
     elif args.command == "logs":
         show_logs(args.service, args.follow)
     elif args.command == "reset":
-        reset_database(args.yes)
+        with state_change_lock():
+            reset_database(args.yes)
     elif args.command == "bootstrap-hris-authority":
         bootstrap_hris_authority(args.yes)
 

@@ -19920,7 +19920,10 @@
             "enum": [
               "NOT_CONFIGURED",
               "DISABLED",
-              "CONFIGURED_UNVERIFIED"
+              "CONFIGURED_UNVERIFIED",
+              "HEALTHY",
+              "DEGRADED",
+              "STALE"
             ],
             "type": "string"
           },
@@ -38386,13 +38389,33 @@
             "format": "uuid",
             "type": "string"
           },
+          "fromFloorId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "fromNodeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fromPositionX": {
+            "type": "number"
+          },
+          "fromPositionY": {
+            "type": "number"
+          },
+          "toFloorId": {
             "format": "uuid",
             "type": "string"
           },
           "toNodeId": {
             "format": "uuid",
             "type": "string"
+          },
+          "toPositionX": {
+            "type": "number"
+          },
+          "toPositionY": {
+            "type": "number"
           },
           "travelMode": {
             "enum": [

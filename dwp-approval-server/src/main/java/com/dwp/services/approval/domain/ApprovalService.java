@@ -17,7 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,7 +34,7 @@ public class ApprovalService {
     private final ApprovalWorkflowManagementCommands workflowCommands;
     private final ApprovalWorkflowDecisionCommands workflowDecisions;
     private final ApprovalDelegationManagement delegationManagement;
-    private final DwaionProposalHandoffOutboxRepository dwaionHandoffs;
+    private final ApprovalRequestLifecycleCommands requestCommands;
     private HrisSeparationStepUpEvidenceVerifier hrisSeparationStepUp;
 
     @Autowired(required = false)
@@ -79,13 +78,15 @@ public class ApprovalService {
         this.highRiskGuard = highRiskGuard;
         this.ownerPredicates = ownerPredicates;
         this.quorum = quorum;
-        this.dwaionHandoffs = dwaionHandoffs;
         workflowCommands = new ApprovalWorkflowManagementCommands(commands, queries, audit);
         delegationManagement = new ApprovalDelegationManagement(
                 queries, commands, audit, identities, ownerPredicates);
         this.taskGovernance = new ApprovalTaskGovernance(
                 queries, identities, ownerPredicates);
         workflowDecisions = new ApprovalWorkflowDecisionCommands(queries, commands, identities, ownerPredicates, taskGovernance, quorum);
+        requestCommands = new ApprovalRequestLifecycleCommands(
+                queries, commands, audit, identities, ownerPredicates, taskGovernance,
+                quorum, workflowDecisions, dwaionHandoffs);
     }
 
     @Transactional
@@ -109,19 +110,7 @@ public class ApprovalService {
             UUID taskId,
             long expectedVersion,
             String correlationId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        ApprovalWorkflowCommandLiveFence.task(commands.jdbc, actor.tenantId(), taskId);
-        ApprovalQueryRepository.TaskAccess task = queries.taskDetail(actor, taskId);
-        if (ApprovalPilotAuthorizationContext.requiresPredicate(
-                "predicate.approval-task-claimable.v1")) {
-            requireOwnerPredicates();
-            ownerPredicates.lockClaimableTask(actor, task, expectedVersion);
-        } else {
-            ApprovalLegacyDelegationGuard.verify(actor, task, identities);
-        }
-        commands.claim(actor, task, expectedVersion, correlationId);
-        ApprovalServiceAudit.record(audit, actor, "approval.task.claimed", "APPROVAL_TASK", taskId.toString(),
-                correlationId, Map.of("requestId", task.summary().requestId().toString()));
+        requestCommands.claim(prepare(), taskId, expectedVersion, correlationId);
         return task(taskId);
     }
 
@@ -256,9 +245,7 @@ public class ApprovalService {
 
     @Transactional
     public ApprovalDtos.RequestDetail requestDetail(UUID requestId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        var detail = queries.requestDetail(actor, requestId);
-        return commands.quorumWorkflow(actor.tenantId(), requestId) == null ? detail : requireQuorum().informationDetail(actor, detail);
+        return requestCommands.requestDetail(prepare(), requestId);
     }
 
     @Transactional
@@ -273,23 +260,7 @@ public class ApprovalService {
             ApprovalDtos.CreateRequest request,
             String correlationId,
             DwaionProposalHandoffIdentity handoffIdentity) {
-        ApprovalRequestContext.Actor actor = prepare();
-        if (ownerPredicates != null && ApprovalPilotAuthorizationContext.current().isPresent()) {
-            ownerPredicates.requirePublishedForm(actor, request.formId(), request.workflowId());
-        }
-        UUID requestId = commands.createDraft(actor, request, correlationId);
-        if (request.dwaionProposalHandoff() != null) {
-            if (dwaionHandoffs == null || handoffIdentity == null) {
-                throw new com.dwp.core.exception.BaseException(
-                        com.dwp.core.common.ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                        "The DWAI-ON Approval completion bridge is unavailable.");
-            }
-            dwaionHandoffs.bindDraft(actor, requestId, request.dwaionProposalHandoff(),
-                    handoffIdentity, correlationId);
-        }
-        ApprovalServiceAudit.record(audit, actor, "approval.request.drafted", "APPROVAL_REQUEST", requestId.toString(),
-                correlationId, Map.of("workflowId", request.workflowId().toString()));
-        return queries.request(actor, requestId);
+        return requestCommands.create(prepare(), request, correlationId, handoffIdentity);
     }
 
     @Transactional
@@ -297,12 +268,7 @@ public class ApprovalService {
             UUID requestId,
             ApprovalDtos.UpdateDraftRequest request,
             String correlationId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        lockOwnedRequest(actor, requestId, request.expectedVersion());
-        commands.updateDraft(actor, requestId, request, correlationId);
-        ApprovalServiceAudit.record(audit, actor, "approval.request.draft.updated", "APPROVAL_REQUEST", requestId.toString(),
-                correlationId, Map.of("workflowId", request.workflowId().toString()));
-        return queries.requestDetail(actor, requestId);
+        return requestCommands.updateDraft(prepare(), requestId, request, correlationId);
     }
 
     @Transactional
@@ -310,69 +276,12 @@ public class ApprovalService {
             UUID requestId,
             long expectedVersion,
             String correlationId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        lockOwnedRequest(actor, requestId, expectedVersion);
-        if (commands.quorumWorkflow(actor.tenantId(), requestId) != null) {
-            requireQuorum().submit(actor, requestId, expectedVersion, correlationId);
-        } else {
-            taskGovernance.requireEligibleCandidateRoles(actor, queries.requestCandidateRoles(actor, requestId));
-            commands.submit(actor, requestId, expectedVersion, correlationId);
-        }
-        ApprovalServiceAudit.record(audit, actor, "approval.request.submitted", "APPROVAL_REQUEST", requestId.toString(),
-                correlationId, Map.of());
-        ApprovalDtos.RequestSummary result = queries.request(actor, requestId);
-        if (dwaionHandoffs != null) {
-            dwaionHandoffs.markDomainCommitted(actor, requestId, result, correlationId);
-        }
-        return result;
+        return requestCommands.submit(prepare(), requestId, expectedVersion, correlationId);
     }
 
     @Transactional
     public ApprovalDtos.RequestPreflight preflight(UUID requestId, long expectedVersion) {
-        ApprovalRequestContext.Actor actor = prepare();
-        List<ApprovalDtos.RequestPreflightCheck> checks = new java.util.ArrayList<>();
-        if (commands.quorumWorkflow(actor.tenantId(), requestId) == null) {
-            commands.preflightLegacySubmit(actor, requestId, expectedVersion);
-            checks.add(new ApprovalDtos.RequestPreflightCheck(
-                    "OWNED_DRAFT", "PASS", "The current actor owns the exact draft version."));
-            checks.add(new ApprovalDtos.RequestPreflightCheck(
-                    "CONCURRENCY", "PASS", "The stored draft version matches the requested version."));
-            checks.add(new ApprovalDtos.RequestPreflightCheck(
-                    "FORM_SCHEMA_AND_ROUTE", "PASS", "The stored payload matches its published form and route."));
-            checks.add(new ApprovalDtos.RequestPreflightCheck(
-                    "ATTACHMENT_EVIDENCE", "PASS", "All submission attachments are sealed for this version."));
-            taskGovernance.requireEligibleCandidateRoles(actor, queries.requestCandidateRoles(actor, requestId));
-            checks.add(new ApprovalDtos.RequestPreflightCheck(
-                    "CANDIDATE_AUTHORITY", "PASS", "Every configured approver role is active and staffed."));
-            return new ApprovalDtos.RequestPreflight(
-                    requestId, expectedVersion, true, "LEGACY_SEQUENTIAL", checks, Instant.now(), null);
-        }
-        ApprovalWorkflowQuorumSimulation.Result result = requireQuorum().preflight(actor, requestId);
-        commands.prepareQuorumSubmit(actor, requestId, expectedVersion);
-        checks.add(new ApprovalDtos.RequestPreflightCheck(
-                "OWNED_DRAFT", "PASS", "The current actor owns the exact draft version."));
-        checks.add(new ApprovalDtos.RequestPreflightCheck(
-                "CONCURRENCY", "PASS", "The stored draft version matches the requested version."));
-        checks.add(new ApprovalDtos.RequestPreflightCheck(
-                "FORM_SCHEMA_AND_ROUTE", "PASS", "The stored payload matches its pinned form and conditional route."));
-        checks.add(new ApprovalDtos.RequestPreflightCheck(
-                "ATTACHMENT_EVIDENCE", "PASS", "All submission attachments are sealed for this version."));
-        boolean ready = result.status() != ApprovalWorkflowQuorumSimulation.Status.BLOCKED
-                && result.status() != ApprovalWorkflowQuorumSimulation.Status.UNKNOWN;
-        if (result.issues().isEmpty()) {
-            checks.add(new ApprovalDtos.RequestPreflightCheck(
-                    "CANDIDATE_AUTHORITY", "PASS", "Current candidate authority satisfies every executable stage."));
-            checks.add(new ApprovalDtos.RequestPreflightCheck(
-                    "SEGREGATION_OF_DUTIES", "PASS", "Requester exclusion and quorum rules were evaluated from pinned policy."));
-        } else {
-            for (ApprovalWorkflowQuorumSimulation.Issue issue : result.issues()) {
-                checks.add(new ApprovalDtos.RequestPreflightCheck(
-                        issue.code(), "BLOCKED", issue.stageKey() == null ? "WORKFLOW" : issue.stageKey()));
-            }
-        }
-        return new ApprovalDtos.RequestPreflight(
-                requestId, expectedVersion, ready, result.schemaContract(), checks,
-                result.evaluatedAt(), result.validUntil());
+        return requestCommands.preflight(prepare(), requestId, expectedVersion);
     }
 
     @Transactional
@@ -380,13 +289,7 @@ public class ApprovalService {
             UUID requestId,
             long expectedVersion,
             String correlationId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        lockOwnedRequest(actor, requestId, expectedVersion);
-        if (commands.quorumWorkflow(actor.tenantId(), requestId) != null) requireQuorum().cancel(actor, requestId);
-        commands.withdraw(actor, requestId, expectedVersion, correlationId);
-        ApprovalServiceAudit.record(audit, actor, "approval.request.withdrawn", "APPROVAL_REQUEST", requestId.toString(),
-                correlationId, Map.of());
-        return queries.request(actor, requestId);
+        return requestCommands.withdraw(prepare(), requestId, expectedVersion, correlationId);
     }
 
     @Transactional(noRollbackFor = ApprovalWorkflowQuorumInformationPending.class)
@@ -394,12 +297,7 @@ public class ApprovalService {
             UUID requestId,
             ApprovalDtos.InformationResponseRequest request,
             String correlationId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        if (commands.quorumWorkflow(actor.tenantId(), requestId) != null) return requireQuorum().reply(actor, requestId, request);
-        if (request.sourceGeneration() != null) throw new com.dwp.core.exception.BaseException(com.dwp.core.common.ErrorCode.FORBIDDEN);
-        return workflowDecisions.respondLegacy(actor, requestId, request, correlationId,
-                () -> lockOwnedRequest(actor, requestId, request.expectedVersion()),
-                () -> ApprovalServiceAudit.record(audit, actor, "approval.request.information.responded", "APPROVAL_REQUEST", requestId.toString(), correlationId, Map.of()));
+        return requestCommands.respondToInformationRequest(prepare(), requestId, request, correlationId);
     }
 
     @Transactional
@@ -789,21 +687,6 @@ public class ApprovalService {
         if (highRiskGuard != null) highRiskGuard.complete(permit);
     }
 
-    private void lockOwnedRequest(
-            ApprovalRequestContext.Actor actor,
-            UUID requestId,
-            long expectedVersion) {
-        if (ownerPredicates != null && ApprovalPilotAuthorizationContext.requiresPredicate(
-                "predicate.approval.own-request.v1")) {
-            ownerPredicates.lockOwnedRequest(actor, requestId, expectedVersion);
-        }
-    }
-    private void requireOwnerPredicates() {
-        if (ownerPredicates == null) {
-            throw new com.dwp.core.exception.BaseException(
-                    com.dwp.core.common.ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                    "The Approval owner predicate evaluator is unavailable.");
-        }
-    }
+
 
 }

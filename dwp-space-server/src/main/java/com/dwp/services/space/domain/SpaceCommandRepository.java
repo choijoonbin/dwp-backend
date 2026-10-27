@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
@@ -23,13 +24,20 @@ import java.util.UUID;
 public class SpaceCommandRepository {
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
+    private final SpaceMembershipWriteGuard membershipGuard;
 
     public SpaceCommandRepository(
             NamedParameterJdbcTemplate jdbc,
             ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.membershipGuard = new SpaceMembershipWriteGuard(jdbc);
     }
+
+    void lockMembershipScope(SpaceRequestContext.Subject subject, UUID spaceId) {
+        membershipGuard.lockScope(subject, spaceId);
+    }
+
     public UUID createRequest(
             SpaceRequestContext.Subject subject,
             SpaceDtos.CreateSpaceRequest input) {
@@ -59,7 +67,7 @@ public class SpaceCommandRepository {
                 .addValue("decidedBy", decision.autoProvision() ? subject.userId() : null)
                 .addValue("decisionNote", decision.autoProvision()
                         ? "Approved by tenant Space creation policy." : null)
-                .addValue("decidedAt", decision.autoProvision() ? Instant.now() : null);
+                .addValue("decidedAt", decision.autoProvision() ? Timestamp.from(Instant.now()) : null);
         try {
             jdbc.update("""
                     INSERT INTO spc_space_requests (
@@ -142,7 +150,7 @@ public class SpaceCommandRepository {
                 .addValue("displayName", subject.displayName())
                 .addValue("payload", payload)
                 .addValue("sha256", sha256(payload))
-                .addValue("publishedAt", publishDirectly ? Instant.now() : null);
+                .addValue("publishedAt", publishDirectly ? Timestamp.from(Instant.now()) : null);
         jdbc.update("""
                 INSERT INTO spc_content_items (
                     content_id, tenant_id, space_id, content_type, title, summary,
@@ -241,29 +249,7 @@ public class SpaceCommandRepository {
             SpaceRequestContext.Subject subject,
             UUID spaceId,
             SpaceDtos.CreateAccessRequest input) {
-        Integer activeMemberships = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM spc_memberships
-                 WHERE tenant_id = :tenantId AND space_id = :spaceId
-                   AND principal_type = 'USER' AND principal_ref IN (:userRefs)
-                   AND lifecycle_state = 'ACTIVE'
-                   AND (valid_until IS NULL OR valid_until > CURRENT_TIMESTAMP)
-                """, new MapSqlParameterSource()
-                .addValue("tenantId", subject.tenantId())
-                .addValue("spaceId", spaceId)
-                .addValue("userRefs", subject.personPublicId() == null
-                        ? List.of(Long.toString(subject.userId()))
-                        : List.of(Long.toString(subject.userId()), subject.personPublicId().toString())),
-                Integer.class);
-        if (activeMemberships != null && activeMemberships > 0) {
-            throw conflict("The requester already has an active Space membership.");
-        }
-        String visibility = jdbc.queryForObject("""
-                SELECT visibility FROM spc_spaces
-                 WHERE tenant_id = :tenantId AND space_id = :spaceId
-                   AND lifecycle_state = 'ACTIVE'
-                """, new MapSqlParameterSource()
-                .addValue("tenantId", subject.tenantId())
-                .addValue("spaceId", spaceId), String.class);
+        String visibility = membershipGuard.requireAccessRequest(subject, spaceId);
         boolean autoApprove = "OPEN".equals(visibility) && "VIEWER".equals(input.requestedRole());
         UUID requestId = UUID.randomUUID();
         MapSqlParameterSource params = new MapSqlParameterSource()
@@ -279,7 +265,7 @@ public class SpaceCommandRepository {
                 .addValue("status", autoApprove ? "APPROVED" : "PENDING")
                 .addValue("decisionNote", autoApprove
                         ? "Approved by the open Space membership policy." : null)
-                .addValue("decidedAt", autoApprove ? Instant.now() : null);
+                .addValue("decidedAt", autoApprove ? Timestamp.from(Instant.now()) : null);
         try {
             jdbc.update("""
                     INSERT INTO spc_access_requests (
@@ -311,6 +297,7 @@ public class SpaceCommandRepository {
             UUID spaceId,
             UUID accessRequestId,
             SpaceDtos.AccessDecision input) {
+        membershipGuard.lockScope(subject, spaceId);
         List<AccessProvisioning> requests = jdbc.query("""
                 UPDATE spc_access_requests
                    SET status = :status,
@@ -360,6 +347,10 @@ public class SpaceCommandRepository {
             UUID spaceId,
             UUID membershipId,
             SpaceDtos.UpdateMemberRequest input) {
+        membershipGuard.lockScope(subject, spaceId);
+        if (!"OWNER".equals(input.memberRole())) {
+            membershipGuard.requireAnotherOwner(subject, spaceId, membershipId);
+        }
         int updated = jdbc.update("""
                 UPDATE spc_memberships
                    SET member_role = :memberRole,
@@ -371,12 +362,15 @@ public class SpaceCommandRepository {
                  WHERE tenant_id = :tenantId AND space_id = :spaceId
                    AND membership_id = :membershipId
                    AND version = :expectedVersion
+                   AND (CAST(:validUntil AS TIMESTAMPTZ) IS NULL
+                        OR (CAST(:validUntil AS TIMESTAMPTZ) > CURRENT_TIMESTAMP
+                            AND CAST(:validUntil AS TIMESTAMPTZ) > valid_from))
                 """, new MapSqlParameterSource()
                 .addValue("tenantId", subject.tenantId())
                 .addValue("spaceId", spaceId)
                 .addValue("membershipId", membershipId)
                 .addValue("memberRole", input.memberRole())
-                .addValue("validUntil", input.validUntil())
+                .addValue("validUntil", input.validUntil() == null ? null : Timestamp.from(input.validUntil()))
                 .addValue("userId", subject.userId())
                 .addValue("expectedVersion", input.expectedVersion()));
         if (updated == 0) throw conflict("Space membership changed in another session.");
@@ -386,27 +380,13 @@ public class SpaceCommandRepository {
             SpaceRequestContext.Subject subject,
             UUID spaceId,
             UUID membershipId) {
-        Integer targetIsSoleOwner = jdbc.queryForObject("""
-                SELECT CASE WHEN target.member_role = 'OWNER'
-                                  AND (SELECT COUNT(*) FROM spc_memberships owner_record
-                                        WHERE owner_record.tenant_id = target.tenant_id
-                                          AND owner_record.space_id = target.space_id
-                                          AND owner_record.member_role = 'OWNER'
-                                          AND owner_record.lifecycle_state = 'ACTIVE') <= 1
-                            THEN 1 ELSE 0 END
-                  FROM spc_memberships target
-                 WHERE target.tenant_id = :tenantId AND target.space_id = :spaceId
-                   AND target.membership_id = :membershipId
-                """, new MapSqlParameterSource()
-                .addValue("tenantId", subject.tenantId())
-                .addValue("spaceId", spaceId)
-                .addValue("membershipId", membershipId), Integer.class);
-        if (Integer.valueOf(1).equals(targetIsSoleOwner)) {
-            throw conflict("The final active Space owner cannot be revoked.");
-        }
+        membershipGuard.lockScope(subject, spaceId);
+        membershipGuard.requireAnotherOwner(subject, spaceId, membershipId);
         int updated = jdbc.update("""
                 UPDATE spc_memberships
-                   SET lifecycle_state = 'REVOKED', valid_until = CURRENT_TIMESTAMP,
+                   SET lifecycle_state = 'REVOKED',
+                       valid_until = CASE WHEN valid_from < CURRENT_TIMESTAMP
+                                          THEN CURRENT_TIMESTAMP ELSE valid_until END,
                        version = version + 1, approved_by = :userId,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE tenant_id = :tenantId AND space_id = :spaceId
@@ -428,6 +408,7 @@ public class SpaceCommandRepository {
             String memberRole,
             String source,
             Instant validUntil) {
+        membershipGuard.prepareUpsert(subject, spaceId, principalType, principalRef, memberRole);
         jdbc.update("""
                 INSERT INTO spc_memberships (
                     membership_id, tenant_id, space_id, principal_type,
@@ -452,7 +433,7 @@ public class SpaceCommandRepository {
                 .addValue("principalRef", principalRef)
                 .addValue("memberRole", memberRole)
                 .addValue("source", source)
-                .addValue("validUntil", validUntil)
+                .addValue("validUntil", validUntil == null ? null : Timestamp.from(validUntil))
                 .addValue("userId", subject.userId()));
     }
 

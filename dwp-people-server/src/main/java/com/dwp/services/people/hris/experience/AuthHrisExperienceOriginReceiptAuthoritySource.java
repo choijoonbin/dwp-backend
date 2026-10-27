@@ -1,5 +1,6 @@
 package com.dwp.services.people.hris.experience;
 
+import static com.dwp.services.people.hris.experience.HrisOriginAuthorityClientConfiguration.*;
 import com.dwp.core.http.OutboundHttpHeaders;
 import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.core.security.ProductSurfaceScopeKey;
@@ -18,12 +19,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -34,7 +33,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * Re-evaluates the sealed HRM-008/HRM-010 originating action rather than
@@ -56,7 +54,6 @@ final class AuthHrisExperienceOriginReceiptAuthoritySource
     static final String AUTHORITY_PREDICATE =
             "predicate.hcm-employee-change-authority.v1";
 
-    private static final long MAX_TIMEOUT_MILLIS = 5_000L;
     private static final String CONTEXT_KEY_PATTERN = "psc-[0-9a-f]{64}";
     private static final String ROUTE_GRANT_PATTERN = "grant-[0-9a-f]{32}";
     private static final String DIGEST_PATTERN = "[0-9a-f]{64}";
@@ -539,41 +536,6 @@ final class AuthHrisExperienceOriginReceiptAuthoritySource
             OffsetDateTime value,
             OffsetDateTime now) {
         return value == null || value.isAfter(now);
-    }
-
-    private static RestClient client(
-            RestClient.Builder builder,
-            String baseUrl,
-            Duration timeout) {
-        if (!canonical(baseUrl, 2_048) || timeout == null || timeout.isZero()
-                || timeout.isNegative() || timeout.toMillis() > MAX_TIMEOUT_MILLIS) {
-            throw new IllegalArgumentException(
-                    "HRIS origin authority URL/timeout is invalid.");
-        }
-        HttpClient httpClient = HttpClient.newBuilder().connectTimeout(timeout)
-                .followRedirects(HttpClient.Redirect.NEVER).build();
-        JdkClientHttpRequestFactory requestFactory =
-                new JdkClientHttpRequestFactory(httpClient);
-        requestFactory.setReadTimeout(timeout);
-        return builder.clone().baseUrl(baseUrl).requestFactory(requestFactory).build();
-    }
-
-    private static String canonicalToken(String value) {
-        return canonicalOptional(value, 4_096);
-    }
-
-    private static String canonicalOptional(String value, int maximum) {
-        if (value == null || value.isBlank()) return "";
-        if (!canonical(value, maximum)) {
-            throw new IllegalArgumentException("HRIS origin authority value is not canonical.");
-        }
-        return value;
-    }
-
-    private static boolean canonical(String value, int maximum) {
-        return value != null && !value.isBlank() && value.length() <= maximum
-                && value.equals(value.strip()) && value.indexOf('\r') < 0
-                && value.indexOf('\n') < 0;
     }
 
     private static Map.Entry<RouteKey, OriginRoute> route(

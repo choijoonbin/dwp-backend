@@ -166,33 +166,27 @@ class PayrollPopulationEntryQueryContractTest {
     }
 
     @Test
-    void readyAndActionRequireEveryCurrentPreflightPrerequisite() throws Exception {
+    void readyAndActionRequireEveryCurrentPreflightPrerequisite() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
-        JdbcPayrollPreparationStore store = new JdbcPayrollPreparationStore(
+        PayrollPreparationQueryJdbc queries = new PayrollPreparationQueryJdbc(
                 jdbc,
                 new PayrollPreparationCanonical(
                         mapper, CURSOR_SECRET, Clock.fixed(NOW, ZoneOffset.UTC)),
                 mock(PayrollPreparationSemanticSnapshotPort.class),
                 mock(PayrollPreparationPopulationSnapshotPort.class),
-                Clock.fixed(NOW, ZoneOffset.UTC));
-        Method method = JdbcPayrollPreparationStore.class.getDeclaredMethod(
-                "entryItem", PayrollPreparationAuthority.Actor.class,
-                PayrollPreparationAuthority.PopulationTuple.class,
-                long.class, long.class, Instant.class, String.class, boolean.class);
-        method.setAccessible(true);
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                mock(PayrollPreparationSourceJdbc.class));
         PayrollPreparationAuthority.Actor actor = actor(PayrollPreparationRoute.DATA);
         PayrollPreparationAuthority.PopulationTuple tuple =
                 actor.scope().populations().iterator().next();
 
-        PayrollPreparationModels.EntryItem ready =
-                (PayrollPreparationModels.EntryItem) method.invoke(
-                        store, actor, tuple, 4L, 9L, NOW, PROJECTION_DIGEST, true);
+        PayrollPreparationModels.EntryItem ready = queries.entryItem(
+                actor, tuple, 4L, 9L, NOW, PROJECTION_DIGEST, true);
         assertThat(ready.statusCode()).isEqualTo("READY");
         assertThat(ready.availableActions()).hasSize(1);
 
-        PayrollPreparationModels.EntryItem blocked =
-                (PayrollPreparationModels.EntryItem) method.invoke(
-                        store, actor, tuple, 4L, 9L, NOW, PROJECTION_DIGEST, false);
+        PayrollPreparationModels.EntryItem blocked = queries.entryItem(
+                actor, tuple, 4L, 9L, NOW, PROJECTION_DIGEST, false);
         assertThat(blocked.statusCode()).isEqualTo("PREFLIGHT_BLOCKED");
         assertThat(blocked.availableActions()).isEmpty();
     }

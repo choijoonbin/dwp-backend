@@ -193,10 +193,35 @@ class NavigationPolicyPostgresTest {
 
     @Test
     void legalEntityOverlayCannotReenableTenantDenialAndEnforcedMissingFailsClosed() {
+        AccessContext tenantAuthor = author(43, 303, null);
+        AccessContext tenantChecker = checker(43, 404, null);
+        AccessContext overlayAuthor = author(43, 303, LEGAL_ENTITY);
         PolicyDocument hostileOverlay = NavigationPolicyCanonicalTest.policy(
                 ScopeKind.LEGAL_ENTITY, LEGAL_ENTITY, true);
         assertThatThrownBy(() -> transaction(() -> service.createDraft(
-                author(303, LEGAL_ENTITY), command("hostile-overlay-create", false),
+                overlayAuthor, command("hostile-overlay-create", false),
+                draft(hostileOverlay, 0))))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("TENANT_BASELINE_REQUIRED");
+
+        CommandReceipt baseline = transaction(() -> service.createDraft(
+                tenantAuthor, command("overlay-baseline-create", false),
+                draft(NavigationPolicyCanonicalTest.policy(ScopeKind.TENANT, null, false), 0)));
+        CommandReceipt validated = transaction(() -> service.validate(
+                tenantAuthor, command("overlay-baseline-validate", false),
+                baseline.revisionId(), lifecycle(0)));
+        CommandReceipt submitted = transaction(() -> service.submit(
+                tenantAuthor, command("overlay-baseline-submit", false),
+                baseline.revisionId(), lifecycle(validated.objectVersion())));
+        CommandReceipt approved = transaction(() -> service.approve(
+                tenantChecker, command("overlay-baseline-approve", true),
+                baseline.revisionId(), lifecycle(submitted.objectVersion())));
+        transaction(() -> service.publish(
+                tenantChecker, command("overlay-baseline-publish", true),
+                baseline.revisionId(), lifecycle(approved.objectVersion())));
+
+        assertThatThrownBy(() -> transaction(() -> service.createDraft(
+                overlayAuthor, command("hostile-overlay-create", false),
                 draft(hostileOverlay, 0))))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("OVERLAY_REENABLES_NODE");
@@ -244,20 +269,29 @@ class NavigationPolicyPostgresTest {
     }
 
     private static AccessContext author(long subjectId, UUID legalEntity) {
-        return access(subjectId, legalEntity,
+        return author(42, subjectId, legalEntity);
+    }
+
+    private static AccessContext author(long tenantId, long subjectId, UUID legalEntity) {
+        return access(tenantId, subjectId, legalEntity,
                 "APP.HCM:VIEW,CONFIG.HRIS_NAVIGATION_POLICY:VIEW,"
                         + "CONFIG.HRIS_NAVIGATION_POLICY:UPDATE");
     }
 
     private static AccessContext checker(long subjectId, UUID legalEntity) {
-        return access(subjectId, legalEntity,
+        return checker(42, subjectId, legalEntity);
+    }
+
+    private static AccessContext checker(long tenantId, long subjectId, UUID legalEntity) {
+        return access(tenantId, subjectId, legalEntity,
                 "APP.HCM:VIEW,CONFIG.HRIS_NAVIGATION_POLICY:VIEW,"
                         + "ACTION.HRIS_NAVIGATION_POLICY_PUBLISH:PUBLISH");
     }
 
-    private static AccessContext access(long subjectId, UUID legalEntity, String permissions) {
+    private static AccessContext access(
+            long tenantId, long subjectId, UUID legalEntity, String permissions) {
         return new AccessContext(
-                42, subjectId, UUID.nameUUIDFromBytes(("subject-" + subjectId).getBytes()),
+                tenantId, subjectId, UUID.nameUUIDFromBytes(("subject-" + subjectId).getBytes()),
                 permissions, "TENANT_ADMIN", "hcm-management-context", scopeKey(),
                 "decision-7", NOW.plusHours(1), PURPOSE);
     }

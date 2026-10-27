@@ -3,6 +3,9 @@ package com.dwp.services.platform.workplace;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.media.LocalTenantMediaStorage;
+import com.dwp.services.platform.workplace.connectorops.WorkplaceConnectorOpsRepository;
+import com.dwp.services.platform.workplace.connectorops.WorkplaceConnectorOpsService;
+import com.dwp.services.platform.workplace.connectorops.WorkplaceConnectorReplayAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
@@ -21,8 +24,11 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -170,6 +176,60 @@ class WorkplaceExperienceCollaborationPostgresTest {
         ConnectorStatus status = write(() -> service.saveConnector(f.tenant(), OWNER, ConnectorKind.ACTUAL_PRESENCE,
                 new ConnectorRequest("badge-adapter", true, "tenant-config/badge", 0L, "Configure adapter", true), null));
         assertThat(status.status()).isEqualTo(ConnectionState.CONFIGURED_UNVERIFIED); assertThat(status.lastVerifiedAt()).isNull();
+        OffsetDateTime observedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        var operationsRepository = new WorkplaceConnectorOpsRepository(jdbc, mapper);
+        var operations = new WorkplaceConnectorOpsService(
+                operationsRepository, governanceRepository, mapper, List.of(),
+                Duration.ofMinutes(5), Duration.ofMinutes(10), Duration.ofDays(90));
+        var configured = operationsRepository.runtime(
+                f.tenant(),
+                com.dwp.services.platform.workplace.connectorops.WorkplaceConnectorOpsDtos
+                        .ConnectorKind.ACTUAL_PRESENCE).orElseThrow();
+        write(() -> operations.observePolledRuntime(configured,
+                new WorkplaceConnectorReplayAdapter.RuntimeObservation(
+                        com.dwp.services.platform.workplace.connectorops.WorkplaceConnectorOpsDtos
+                                .ProviderReportedState.HEALTHY,
+                        List.of(com.dwp.services.platform.workplace.connectorops
+                                .WorkplaceConnectorOpsDtos.Capability.HEALTH),
+                        observedAt, observedAt, 0L, "badge-checkpoint", 0L, 0L, null,
+                        "badge-adapter", "1", "badge_runtime_1")));
+        ConnectorStatus verified = overview(f, VIEWER, null).actualPresence();
+        assertThat(verified.status()).isEqualTo(ConnectionState.HEALTHY);
+        assertThat(verified.lastVerifiedAt()).isNotNull();
+        assertThat(verified.configurationReference()).isNull();
+        jdbc.update("""
+                UPDATE wp_connector_runtime_truth
+                   SET provider = 'mismatched-provider'
+                 WHERE tenant_id = ? AND connector_kind = 'ACTUAL_PRESENCE'
+                """, f.tenant());
+        assertThat(overview(f, VIEWER, null).actualPresence().status())
+                .isEqualTo(ConnectionState.CONFIGURED_UNVERIFIED);
+        jdbc.update("""
+                UPDATE wp_connector_runtime_truth
+                   SET provider = 'badge-adapter', configuration_version = ?
+                 WHERE tenant_id = ? AND connector_kind = 'ACTUAL_PRESENCE'
+                """, configured.configurationVersion() + 1, f.tenant());
+        assertThat(overview(f, VIEWER, null).actualPresence().status())
+                .isEqualTo(ConnectionState.CONFIGURED_UNVERIFIED);
+        jdbc.update("""
+                UPDATE wp_connector_runtime_truth
+                   SET configuration_version = ?
+                 WHERE tenant_id = ? AND connector_kind = 'ACTUAL_PRESENCE'
+                """, configured.configurationVersion(), f.tenant());
+        jdbc.update("""
+                UPDATE wp_connector_runtime_truth
+                   SET reported_state = 'UNAVAILABLE', received_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND connector_kind = 'ACTUAL_PRESENCE'
+                """, f.tenant());
+        assertThat(overview(f, VIEWER, null).actualPresence().status())
+                .isEqualTo(ConnectionState.DEGRADED);
+        jdbc.update("""
+                UPDATE wp_connector_runtime_truth
+                   SET received_at = CURRENT_TIMESTAMP - INTERVAL '6 minutes'
+                 WHERE tenant_id = ? AND connector_kind = 'ACTUAL_PRESENCE'
+                """, f.tenant());
+        assertThat(overview(f, VIEWER, null).actualPresence().status())
+                .isEqualTo(ConnectionState.STALE);
         assertThat(service.governanceOverview(f.tenant()).connectors())
                 .extracting(ConnectorStatus::kind)
                 .containsExactly(ConnectorKind.CALENDAR, ConnectorKind.ACTUAL_PRESENCE,

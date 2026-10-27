@@ -251,12 +251,12 @@ abstract class PlatformSecurityPolicySupport extends OncePerRequestFilter {
 
     protected boolean hasRoomsAuthority(HttpServletRequest request) {
         String path = request.getRequestURI();
-        if (("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod()))
-                && "/v1/rooms/bookings".equals(path)
-                && "route.workplace.work.reservations.page".equals(
-                request.getHeader(ROUTE_CONTRACT_HEADER))) {
+        String workplacePermission = workplaceRoomPermission(request, path);
+        if (workplacePermission != null) {
             return hasAuthority(
-                    request.getHeader(PERMISSIONS_HEADER), "APP.WORKPLACE", "VIEW");
+                    request.getHeader(PERMISSIONS_HEADER),
+                    "APP.WORKPLACE",
+                    workplacePermission);
         }
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
@@ -268,6 +268,46 @@ abstract class PlatformSecurityPolicySupport extends OncePerRequestFilter {
         };
         return hasAuthority(
                 request.getHeader(PERMISSIONS_HEADER), "APP.ROOMS", requiredPermission);
+    }
+
+    private String workplaceRoomPermission(HttpServletRequest request, String path) {
+        String method = request.getMethod();
+        String route = request.getHeader(ROUTE_CONTRACT_HEADER);
+        if ("GET".equals(method)) {
+            if ("/v1/rooms/policy".equals(path)
+                    && "route.workplace.work.room-policy-get.data".equals(route)) {
+                return "VIEW";
+            }
+            if ("/v1/rooms/availability".equals(path)
+                    && "route.workplace.work.room-availability-get.data".equals(route)) {
+                return "VIEW";
+            }
+            if ("/v1/rooms/bookings".equals(path)
+                    && "route.workplace.work.reservations.page".equals(route)) {
+                return "VIEW";
+            }
+        }
+        if ("POST".equals(method)
+                && "/v1/rooms/bookings".equals(path)
+                && "route.workplace.work.room-bookings-post.action".equals(route)) {
+            return "CREATE";
+        }
+        if ("PUT".equals(method)
+                && path.matches("^/v1/rooms/bookings/[A-Za-z0-9_-]+$")
+                && "route.workplace.work.room-booking-by-event-id-put.action".equals(route)) {
+            return "UPDATE";
+        }
+        if ("POST".equals(method)
+                && path.matches("^/v1/rooms/bookings/[A-Za-z0-9_-]+/cancel$")
+                && "route.workplace.work.room-booking-cancel-post.action".equals(route)) {
+            return "UPDATE";
+        }
+        if ("POST".equals(method)
+                && path.matches("^/v1/rooms/bookings/[A-Za-z0-9_-]+/response$")
+                && "route.workplace.work.room-booking-response-post.action".equals(route)) {
+            return "UPDATE";
+        }
+        return null;
     }
 
     protected boolean hasRoomsAdminAuthority(HttpServletRequest request) {

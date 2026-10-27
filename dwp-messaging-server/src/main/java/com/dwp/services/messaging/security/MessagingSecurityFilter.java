@@ -132,7 +132,8 @@ public class MessagingSecurityFilter extends OncePerRequestFilter {
             return has(permissions, "APP.MESSAGING", "VIEW")
                     && has(permissions, "APP.WORK", "VIEW");
         }
-        if (("PUT".equals(method) && "/v1/privacy-preferences".equals(path))
+        if (("PUT".equals(method) && ("/v1/privacy-preferences".equals(path)
+                    || "/v1/presence/heartbeat".equals(path)))
                 || ("POST".equals(method)
                     && path.matches("/v1/conversations/[0-9a-fA-F-]{36}/read-receipts"))) {
             return has(permissions, "APP.MESSAGING", "VIEW");

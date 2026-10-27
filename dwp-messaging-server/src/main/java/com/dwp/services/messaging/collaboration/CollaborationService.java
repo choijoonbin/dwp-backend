@@ -4,7 +4,9 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.messaging.collaboration.CollaborationSearchPort.SearchDocument;
 import com.dwp.services.messaging.domain.MessagingTenantPolicyGuard;
+import com.dwp.services.messaging.presence.MessagingPresenceService;
 import com.dwp.services.messaging.security.MessagingRequestContext;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,14 +37,29 @@ public class CollaborationService {
     private final ConversationCreationRepository creationRepository;
     private final CollaborationSearchPort searchPort;
     private final MessagingTenantPolicyGuard policyGuard;
+    private final MessagingPresenceService presence;
 
+    @Autowired
     public CollaborationService(
             ConversationCreationRepository creationRepository,
             CollaborationSearchPort searchPort,
-            MessagingTenantPolicyGuard policyGuard) {
+            MessagingTenantPolicyGuard policyGuard,
+            MessagingPresenceService presence) {
         this.creationRepository = creationRepository;
         this.searchPort = searchPort;
         this.policyGuard = policyGuard;
+        this.presence = presence;
+    }
+
+    CollaborationService(
+            ConversationCreationRepository creationRepository,
+            CollaborationSearchPort searchPort,
+            MessagingTenantPolicyGuard policyGuard) {
+        this(
+                creationRepository,
+                searchPort,
+                policyGuard,
+                MessagingPresenceService.unavailable());
     }
 
     @Transactional
@@ -122,6 +139,17 @@ public class CollaborationService {
         List<SearchDocument> documents = searchPort.search(
                 new CollaborationSearchPort.SearchCriteria(
                         subject.tenantId(), subject.userId(), query, types, limit));
+        MessagingPresenceService.PresenceSnapshot presenceSnapshot =
+                types.contains(CollaborationDtos.SearchType.PERSON)
+                        ? presence.snapshot(
+                                subject.tenantId(),
+                                documents.stream()
+                                        .filter(document -> document.type()
+                                                == CollaborationDtos.SearchType.PERSON)
+                                        .map(SearchDocument::userId)
+                                        .filter(java.util.Objects::nonNull)
+                                        .toList())
+                        : MessagingPresenceService.PresenceSnapshot.unavailable();
 
         List<CollaborationDtos.ConversationSearchResult> conversations = new ArrayList<>();
         List<CollaborationDtos.MessageSearchResult> messages = new ArrayList<>();
@@ -152,7 +180,9 @@ public class CollaborationService {
                         document.emailAddress(),
                         document.jobTitle(),
                         document.organizationName(),
-                        document.presenceState()));
+                        document.userId() == null
+                                ? "UNKNOWN"
+                                : presenceSnapshot.state(document.userId())));
             }
         }
         return new CollaborationDtos.SearchResponse(

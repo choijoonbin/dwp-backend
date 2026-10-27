@@ -312,6 +312,49 @@ public class WorkplaceConnectorOpsRepository {
                 """, this::runtime, limit);
     }
 
+    /**
+     * Resolves one enabled connector owned by an exact bundled identity before any limit is
+     * applied. This keeps verification publishers from being starved by unrelated connector rows
+     * while still leaving the adapter responsible for its final fail-closed readiness check.
+     */
+    public Optional<RuntimeRow> observableConfigurationForIdentity(
+            String tenantKey,
+            long userId,
+            UUID personPublicId,
+            ConnectorKind kind,
+            String provider,
+            String configurationReference) {
+        return jdbc.query("""
+                SELECT c.tenant_id, c.connector_kind, c.provider configured_provider, c.enabled,
+                       c.configuration_reference, c.version configuration_version,
+                       t.observation_id, t.provider observed_provider,
+                       t.configuration_version observed_configuration_version,
+                       t.reported_state, t.capabilities, t.source_observed_at,
+                       t.received_at, t.last_success_at, t.lag_seconds,
+                       t.checkpoint_reference, t.retry_queue_depth,
+                       t.dead_letter_queue_depth, t.error_code,
+                       t.observation_sequence, t.version runtime_version,
+                       NULL::uuid active_replay_job_id
+                  FROM wp_experience_connector_configurations c
+                  JOIN sys_service_tenants tenant
+                    ON tenant.tenant_id = c.tenant_id
+                   AND tenant.tenant_key = ?
+                  JOIN cal_identity_links identity_link
+                    ON identity_link.tenant_id = c.tenant_id
+                   AND identity_link.user_id = ?
+                   AND identity_link.person_public_id = ?
+                  LEFT JOIN wp_connector_runtime_truth t
+                    ON t.tenant_id = c.tenant_id AND t.connector_kind = c.connector_kind
+                 WHERE c.enabled = TRUE
+                   AND c.connector_kind = ?
+                   AND c.provider = ?
+                   AND c.configuration_reference = ?
+                   AND c.updated_by = ?
+                 LIMIT 1
+                """, this::runtime, tenantKey, userId, personPublicId, kind.name(), provider,
+                configurationReference, userId).stream().findFirst();
+    }
+
     public int purgeExpiredSensitivePayloads(int limit, OffsetDateTime now) {
         return jdbc.update("""
                 WITH expired AS (

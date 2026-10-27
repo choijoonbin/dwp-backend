@@ -29,11 +29,15 @@ class MessagingProductSurfaceContractCandidateTest {
         assertThat(bundle.path("bundleStatus").asText()).isEqualTo("DRAFT");
         JsonNode index = objectMapper.readTree(Files.readString(contractArtifact(
                 "contracts/product-authorization/product-surfaces-v1.index.json")));
-        assertThat(index.path("latestVersion").asInt()).isEqualTo(34);
-        assertThat(index.path("versions").get(3).path("bundleStatus").asText())
-                .isEqualTo("DRAFT");
-        assertThat(index.path("versions").get(4).path("bundleStatus").asText())
-                .isEqualTo("DRAFT");
+        int latestIndexedVersion = index.path("versions").findValues("version").stream()
+                .mapToInt(JsonNode::asInt)
+                .max()
+                .orElseThrow();
+        assertThat(index.path("latestVersion").asInt()).isEqualTo(latestIndexedVersion);
+        assertThat(index.path("versions").findParents("version")).anySatisfy(version -> {
+            assertThat(version.path("version").asInt()).isEqualTo(4);
+            assertThat(version.path("bundleStatus").asText()).isEqualTo("DRAFT");
+        });
         assertThat(index.has("activeVersion")).isFalse();
 
         Map<String, JsonNode> routes = messagingRoutes(bundle);

@@ -310,7 +310,7 @@ public class AuthSessionVerifier implements SessionVerifier {
             return "APP.CALENDAR";
         }
         if (path.startsWith("/api/platform/v1/rooms")) {
-            return "APP.ROOMS";
+            return "APP.ROOMS,APP.WORKPLACE";
         }
         if (path.startsWith("/api/platform/v1/workplace")) {
             return "APP.WORKPLACE";

@@ -3,6 +3,7 @@ package com.dwp.services.platform.workplace.workplacenavigation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -62,6 +63,15 @@ class WorkplaceNavigationServiceTest {
         assertThat(route.totalTravelSeconds()).isEqualTo(50);
         assertThat(route.steps()).extracting(RouteStep::travelMode)
                 .containsExactly(TravelMode.WALK, TravelMode.ELEVATOR);
+        assertThat(route.steps().getFirst())
+                .satisfies(step -> {
+                    assertThat(step.fromFloorId()).isEqualTo(floorId);
+                    assertThat(step.toFloorId()).isEqualTo(floorId);
+                    assertThat(step.fromPositionX()).isEqualByComparingTo("10");
+                    assertThat(step.fromPositionY()).isEqualByComparingTo("20");
+                    assertThat(step.toPositionX()).isEqualByComparingTo("50");
+                    assertThat(step.toPositionY()).isEqualByComparingTo("50");
+                });
         assertThat(route.graphRevisionId()).isEqualTo(graphId);
     }
 
@@ -111,7 +121,11 @@ class WorkplaceNavigationServiceTest {
     }
 
     private NodeRow node(UUID nodeId, NodeKind kind, boolean accessible, UUID restrictedZoneId) {
-        return new NodeRow(nodeId, floorId, kind, accessible, restrictedZoneId);
+        BigDecimal x = nodeId.equals(originNode) ? new BigDecimal("10")
+                : nodeId.equals(elevatorNode) ? new BigDecimal("50") : new BigDecimal("80");
+        BigDecimal y = nodeId.equals(originNode) ? new BigDecimal("20")
+                : nodeId.equals(elevatorNode) ? new BigDecimal("50") : new BigDecimal("70");
+        return new NodeRow(nodeId, floorId, kind, x, y, accessible, restrictedZoneId);
     }
 
     private EdgeRow edge(

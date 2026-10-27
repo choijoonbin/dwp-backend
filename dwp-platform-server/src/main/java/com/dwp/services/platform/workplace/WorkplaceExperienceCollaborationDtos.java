@@ -31,7 +31,19 @@ public final class WorkplaceExperienceCollaborationDtos {
         VEHICLE,
         FACILITY_WORK_ORDER
     }
-    public enum ConnectionState { NOT_CONFIGURED, DISABLED, CONFIGURED_UNVERIFIED }
+    /**
+     * Member-safe connector state. Configuration alone never advances beyond
+     * {@code CONFIGURED_UNVERIFIED}; the runtime states require a matching,
+     * provider-owned observation whose configuration version is current.
+     */
+    public enum ConnectionState {
+        NOT_CONFIGURED,
+        DISABLED,
+        CONFIGURED_UNVERIFIED,
+        HEALTHY,
+        DEGRADED,
+        STALE
+    }
 
     public record WorkPlan(UUID planId, LocalDate planDate, PlanMode mode, UUID siteId,
                            UUID floorId, UUID resourceId, UUID groupRef,

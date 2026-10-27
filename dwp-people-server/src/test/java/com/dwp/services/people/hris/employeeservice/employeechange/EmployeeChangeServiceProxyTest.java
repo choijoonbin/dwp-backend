@@ -3,6 +3,7 @@ package com.dwp.services.people.hris.employeeservice.employeechange;
 import com.dwp.services.people.hr.HcmPopulationRepository;
 import com.dwp.services.people.hr.HcmPopulationScopeService;
 import com.dwp.services.people.hris.employeeservice.employeechange.approvalbridge.EmployeeChangeApprovalRequestOutbox;
+import com.dwp.services.people.hris.experience.HrisExperienceNotificationHandoff;
 import com.dwp.services.people.security.HcmHighRiskCommandGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,8 @@ class EmployeeChangeServiceProxyTest {
                     () -> mock(HcmHighRiskCommandGuard.class))
             .withBean(EmployeeChangeApprovalRequestOutbox.class,
                     () -> mock(EmployeeChangeApprovalRequestOutbox.class))
+            .withBean(HrisExperienceNotificationHandoff.class,
+                    () -> mock(HrisExperienceNotificationHandoff.class))
             .withBean(ObjectMapper.class,
                     () -> new ObjectMapper().findAndRegisterModules())
             .withBean(PlatformTransactionManager.class,

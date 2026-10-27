@@ -89,7 +89,11 @@ class MessagingProductSurfacePepPostgresIntegrationTest {
         when(service.home()).thenReturn(new MessagingDtos.HomeResponse(
                 OffsetDateTime.parse("2026-08-28T00:00:00Z"),
                 new MessagingDtos.HomeMetrics(0, 0, 0, 0, 0),
-                List.of(), List.of(), List.of()));
+                List.of(),
+                List.of(),
+                new MessagingDtos.PresenceMetadata(
+                        "LIVE", OffsetDateTime.parse("2026-08-28T00:00:00Z"), 75, 20),
+                List.of()));
         when(service.messages(eq(conversationId), eq(null), eq(50)))
                 .thenReturn(new MessagingDtos.MessagePage(List.of(), false, null));
 

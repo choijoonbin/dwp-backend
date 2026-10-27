@@ -3,10 +3,13 @@ package com.dwp.services.platform.workplace;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
@@ -20,14 +23,31 @@ public class WorkplaceExperienceCollaborationService {
     private final WorkplaceRuntimeGovernance runtime;
     private final WorkplaceSpatialGovernanceRepository auditRepository;
     private final ObjectMapper mapper;
+    private final Duration connectorFreshness;
 
     public WorkplaceExperienceCollaborationService(WorkplaceExperienceCollaborationRepository repository,
             WorkplaceRuntimeGovernance runtime, WorkplaceSpatialGovernanceRepository auditRepository,
             ObjectMapper mapper) {
+        this(repository, runtime, auditRepository, mapper, Duration.ofMinutes(5));
+    }
+
+    @Autowired
+    public WorkplaceExperienceCollaborationService(
+            WorkplaceExperienceCollaborationRepository repository,
+            WorkplaceRuntimeGovernance runtime,
+            WorkplaceSpatialGovernanceRepository auditRepository,
+            ObjectMapper mapper,
+            @Value("${dwp.workplace.connector-runtime.freshness:PT5M}")
+            Duration connectorFreshness) {
         this.repository = repository;
         this.runtime = runtime;
         this.auditRepository = auditRepository;
         this.mapper = mapper;
+        if (connectorFreshness == null || connectorFreshness.isZero()
+                || connectorFreshness.isNegative()) {
+            throw new IllegalArgumentException("connectorFreshness must be positive");
+        }
+        this.connectorFreshness = connectorFreshness;
     }
 
     @Transactional(readOnly = true)
@@ -55,11 +75,45 @@ public class WorkplaceExperienceCollaborationService {
                 .map(candidate -> project(candidate, policy)).filter(Objects::nonNull).toList();
         List<WorkPlan> own = repository.ownPlans(tenantId, userId, from, to).stream()
                 .filter(plan -> viewableOwnPlan(tenantId, userId, groupHeader, plan)).toList();
-        ConnectorStatus presence = repository.connector(tenantId, ConnectorKind.ACTUAL_PRESENCE);
-        // Member projection never exposes an administrator's configuration reference.
-        presence = new ConnectorStatus(presence.kind(), presence.provider(), presence.status(), null, null, presence.version());
+        OffsetDateTime generatedAt = OffsetDateTime.now();
+        ConnectorStatus presence = memberConnectorStatus(
+                tenantId, ConnectorKind.ACTUAL_PRESENCE, generatedAt);
         return new CollaborationOverview(own, shared, repository.preference(tenantId, userId, false),
-                policy, shareableGroups, presence, OffsetDateTime.now());
+                policy, shareableGroups, presence, generatedAt);
+    }
+
+    private ConnectorStatus memberConnectorStatus(
+            long tenantId,
+            ConnectorKind kind,
+            OffsetDateTime evaluatedAt) {
+        ConnectorStatus configured = repository.connector(tenantId, kind);
+        // A member never receives the administrator-owned configuration reference.
+        if (configured.status() != ConnectionState.CONFIGURED_UNVERIFIED) {
+            return new ConnectorStatus(configured.kind(), configured.provider(),
+                    configured.status(), null, null, configured.version());
+        }
+        WorkplaceExperienceCollaborationRepository.ConnectorRuntimeEvidence evidence =
+                repository.connectorRuntime(tenantId, kind).orElse(null);
+        boolean matches = evidence != null
+                && evidence.enabled()
+                && Objects.equals(evidence.configuredProvider(), evidence.observedProvider())
+                && evidence.observedConfigurationVersion() != null
+                && evidence.configurationVersion() == evidence.observedConfigurationVersion()
+                && evidence.receivedAt() != null
+                && evidence.sourceObservedAt() != null
+                && evidence.reportedState() != null;
+        if (!matches) {
+            return new ConnectorStatus(configured.kind(), configured.provider(),
+                    ConnectionState.CONFIGURED_UNVERIFIED, null, null, configured.version());
+        }
+        ConnectionState state = evidence.receivedAt().isBefore(
+                evaluatedAt.minus(connectorFreshness))
+                ? ConnectionState.STALE
+                : "HEALTHY".equals(evidence.reportedState())
+                        ? ConnectionState.HEALTHY
+                        : ConnectionState.DEGRADED;
+        return new ConnectorStatus(configured.kind(), configured.provider(), state,
+                null, evidence.receivedAt(), configured.version());
     }
 
     @Transactional

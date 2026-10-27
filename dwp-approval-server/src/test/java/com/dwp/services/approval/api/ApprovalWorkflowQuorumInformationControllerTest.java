@@ -62,7 +62,7 @@ class ApprovalWorkflowQuorumInformationControllerTest {
         var legacy = new ApprovalDtos.DecisionRequest("REQUEST_INFO", "Evidence", 0L);
         mvc.perform(post("/v1/tasks/{taskId}/decisions", target).contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(legacy))).andExpect(status().isOk());
-        verify(service).decide(eq(target), eq(legacy), isNull(), isNull());
+        verify(service).decide(eq(target), eq(legacy), isNull(), isNull(), isNull(String.class));
         var reply = new ApprovalDtos.InformationResponseRequest("Evidence", Map.of(), 0L);
         mvc.perform(post("/v1/requests/{requestId}/information-response", target).contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(reply))).andExpect(status().isOk());

@@ -126,22 +126,4 @@ final class HrisExplorerController {
         return value;
     }
 
-    private long positiveLong(String value) {
-        try {
-            long parsed = Long.parseLong(value);
-            if (parsed > 0) return parsed;
-        } catch (NumberFormatException ignored) {
-        }
-        throw new BaseException(ErrorCode.FORBIDDEN,
-                "Verified Explorer tenant is required");
-    }
-
-    private UUID uuid(String value) {
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException exception) {
-            throw new BaseException(ErrorCode.FORBIDDEN,
-                    "Verified Explorer principal is required");
-        }
-    }
 }

@@ -1,5 +1,7 @@
 package com.dwp.platform.contracts.hris.home;
 
+import static com.dwp.platform.contracts.hris.home.HrisHomeMaterializationJson.*;
+
 import com.dwp.platform.contracts.hris.generated.CanonicalHrisJson;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonParser;
@@ -57,7 +59,6 @@ public record HrisHomeContributionMaterializationV1(
     public static final String PURPOSE = "HRIS_HOME_MATERIALIZATION";
     public static final String MASKED_DISPLAY = "••••";
 
-    private static final Pattern DIGEST = Pattern.compile("^[0-9a-f]{64}$");
     private static final Pattern PAYLOAD_REF =
             Pattern.compile("^href_[A-Za-z0-9_-]{16,128}$");
     private static final Pattern DEEP_LINK = Pattern.compile("^/hr(?:/|$).{0,296}$");
@@ -684,78 +685,6 @@ public record HrisHomeContributionMaterializationV1(
 
     private static void requireDecision(Decision expected, Decision actual, String type) {
         if (actual != expected) throw invalid(type + " has an invalid decision discriminant");
-    }
-
-    private static void requireEqual(String expected, String actual, String field) {
-        if (!expected.equals(actual)) throw invalid(field + " must equal " + expected);
-    }
-
-    private static void requireDigest(String value, String field) {
-        if (value == null || !DIGEST.matcher(value).matches()) {
-            throw invalid(field + " must be a lowercase SHA-256 digest");
-        }
-    }
-
-    private static void positive(long value, String field) {
-        if (value < 1) throw invalid(field + " must be positive");
-    }
-
-    private static boolean safeText(String value) {
-        if (value == null || value.isBlank() || value.length() > 120
-                || !value.equals(value.trim()) || value.indexOf('<') >= 0
-                || value.indexOf('>') >= 0) return false;
-        return value.codePoints().noneMatch(Character::isISOControl);
-    }
-
-    private static JsonNode required(JsonNode node, String field) {
-        JsonNode value = node == null ? null : node.get(field);
-        if (value == null || value.isNull()) throw invalid("missing required field " + field);
-        return value;
-    }
-
-    private static String text(JsonNode node, String field) {
-        JsonNode value = required(node, field);
-        if (!value.isTextual()) throw invalid(field + " must be text");
-        return value.textValue();
-    }
-
-    private static long integer(JsonNode node, String field) {
-        JsonNode value = required(node, field);
-        if (!value.isIntegralNumber() || !value.canConvertToLong()) {
-            throw invalid(field + " must be an integer");
-        }
-        return value.longValue();
-    }
-
-    private static Instant instant(JsonNode node, String field) {
-        return Instant.parse(text(node, field));
-    }
-
-    private static UUID uuid(JsonNode node, String field) {
-        return UUID.fromString(text(node, field));
-    }
-
-    private static <E extends Enum<E>> E enumValue(
-            JsonNode node, String field, Class<E> enumType) {
-        String value = text(node, field);
-        try {
-            return Enum.valueOf(enumType, value);
-        } catch (IllegalArgumentException exception) {
-            throw invalid(field + " is not a closed canonical value");
-        }
-    }
-
-    private static void exactObject(JsonNode node, Set<String> fields, String name) {
-        if (node == null || !node.isObject()) throw invalid(name + " must be an object");
-        Set<String> actual = new HashSet<>();
-        node.fieldNames().forEachRemaining(actual::add);
-        if (!actual.equals(fields)) {
-            Set<String> unknown = new HashSet<>(actual);
-            unknown.removeAll(fields);
-            Set<String> missing = new HashSet<>(fields);
-            missing.removeAll(actual);
-            throw invalid(name + " has unknown=" + unknown + " missing=" + missing);
-        }
     }
 
     private static IllegalArgumentException invalid(String message) {

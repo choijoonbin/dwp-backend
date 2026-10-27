@@ -3,6 +3,7 @@ package com.dwp.services.messaging.domain;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.messaging.attachment.AttachmentService;
+import com.dwp.services.messaging.presence.MessagingPresenceService;
 import com.dwp.services.messaging.realtime.MessagingEventRecorder;
 import com.dwp.services.messaging.security.MessagingRequestContext;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,6 @@ import java.util.UUID;
 public class MessagingService {
 
     private static final int WORK_SOURCE_EXCERPT_LIMIT = 500;
-
     private static final Set<String> SCOPES =
             Set.of("ALL", "FAVORITES", "SPACES", "DIRECT", "CHANNELS", "MENTIONS");
     private static final Set<String> NOTIFICATION_LEVELS =
@@ -36,6 +36,7 @@ public class MessagingService {
     private final MessagingEventRecorder events;
     private final MessagingNotificationEvents notificationEvents;
     private final AttachmentService attachments;
+    private final MessagingPresenceService presence;
 
     @Autowired
     public MessagingService(
@@ -46,7 +47,8 @@ public class MessagingService {
             MessagingInteractionCommandRepository interactions,
             MessagingEventRecorder events,
             MessagingNotificationEvents notificationEvents,
-            AttachmentService attachments) {
+            AttachmentService attachments,
+            MessagingPresenceService presence) {
         this.queries = queries;
         this.policyGuard = policyGuard;
         this.commands = commands;
@@ -55,6 +57,7 @@ public class MessagingService {
         this.events = events;
         this.notificationEvents = notificationEvents;
         this.attachments = attachments;
+        this.presence = presence;
     }
 
     MessagingService(
@@ -71,20 +74,33 @@ public class MessagingService {
                 interactions,
                 events,
                 MessagingNotificationEvents.disabled(),
-                null);
+                null,
+                MessagingPresenceService.unavailable());
+    }
+
+    MessagingService(
+            MessagingQueryRepository queries,
+            MessagingCommandRepository commands,
+            MessagingMessageQueryRepository messageQueries,
+            MessagingInteractionCommandRepository interactions,
+            MessagingEventRecorder events,
+            MessagingPresenceService presence) {
+        this(
+                queries,
+                new MessagingTenantPolicyGuard(queries),
+                commands,
+                messageQueries,
+                interactions,
+                events,
+                MessagingNotificationEvents.disabled(),
+                null,
+                presence);
     }
 
     @Transactional(readOnly = true)
     public MessagingDtos.HomeResponse home() {
-        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
-        long tenantId = subject.tenantId();
-        long userId = subject.userId();
-        return new MessagingDtos.HomeResponse(
-                OffsetDateTime.now(),
-                queries.metrics(tenantId, userId),
-                queries.conversations(tenantId, userId, "ALL", "", 0, 8),
-                queries.conversations(tenantId, userId, "SPACES", "", 0, 6),
-                queries.people(tenantId, userId, "", 8));
+        return MessagingPresenceProjection.home(
+                queries, presence, MessagingRequestContext.get());
     }
 
     @Transactional(readOnly = true)
@@ -113,7 +129,8 @@ public class MessagingService {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();
         MessagingDtos.ConversationSummary conversation = visibleConversation(
                 subject.tenantId(), subject.userId(), conversationId);
-        return detail(subject.tenantId(), subject.userId(), conversation);
+        return MessagingPresenceProjection.detail(
+                queries, presence, subject.tenantId(), subject.userId(), conversation);
     }
 
     @Transactional(readOnly = true)
@@ -479,7 +496,8 @@ public class MessagingService {
     @Transactional(readOnly = true)
     public List<MessagingDtos.PersonSummary> people(String query, int limit) {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();
-        return queries.people(subject.tenantId(), subject.userId(), query(query), Math.min(Math.max(limit, 1), 50));
+        return MessagingPresenceProjection.people(
+                queries, presence, subject, query(query), limit);
     }
 
     @Transactional(readOnly = true)
@@ -524,21 +542,6 @@ public class MessagingService {
         if (value == null) return null;
         String result = value.strip();
         return result.length() <= limit ? result : result.substring(0, limit);
-    }
-
-    private MessagingDtos.ConversationDetail detail(
-            long tenantId,
-            long userId,
-            MessagingDtos.ConversationSummary conversation) {
-        return new MessagingDtos.ConversationDetail(
-                conversation,
-                queries.members(tenantId, conversation.conversationId(), userId),
-                queries.messages(tenantId, conversation.conversationId(), userId, 80),
-                new MessagingDtos.RealtimeStatus(
-                        "SSE",
-                        "/api/messaging/v1/stream",
-                        "ACTIVE",
-                        "Durable event replay supports Last-Event-ID reconnect recovery."));
     }
 
     private boolean canModerate(long tenantId, UUID conversationId, long userId) {

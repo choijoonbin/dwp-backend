@@ -542,8 +542,11 @@ class TimeCloseMigrationIntegrationTest {
                          WHERE tenant_id=? AND population_public_id=?
                         """, TENANT + 1, populationId));
 
-        Flyway upgradeFlyway = flyway(upgradeMigrationDataSource, null);
+        Flyway upgradeFlyway = flyway(
+                upgradeMigrationDataSource, MigrationVersion.fromVersion("12"));
         assertThat(upgradeFlyway.migrate().migrationsExecuted).isOne();
+        assertThat(upgradeFlyway.info().current().getVersion())
+                .isEqualTo(MigrationVersion.fromVersion("12"));
         assertThat(upgradeFlyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(upgradeFlyway.migrate().migrationsExecuted).isZero();
         assertThat(history(upgrade).subList(0, historyBefore.size()))

@@ -1,6 +1,7 @@
 package com.dwp.services.space.domain;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -388,13 +389,13 @@ public final class SpaceDtos {
             @NotBlank @Size(max = 200) String principalRef,
             @NotBlank
             @Pattern(regexp = "VIEWER|CONTRIBUTOR|EDITOR|MODERATOR|OWNER|GUEST") String memberRole,
-            Instant validUntil) {
+            @Future Instant validUntil) {
     }
 
     public record UpdateMemberRequest(
             @NotBlank
             @Pattern(regexp = "VIEWER|CONTRIBUTOR|EDITOR|MODERATOR|OWNER|GUEST") String memberRole,
-            Instant validUntil,
+            @Future Instant validUntil,
             @NotNull Long expectedVersion) {
     }
 

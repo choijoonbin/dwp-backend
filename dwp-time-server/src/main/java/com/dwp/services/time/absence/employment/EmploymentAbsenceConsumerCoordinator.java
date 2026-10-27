@@ -15,6 +15,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import static com.dwp.services.time.absence.employment.EmploymentAbsenceInboxValidation.*;
+
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -205,15 +207,6 @@ public final class EmploymentAbsenceConsumerCoordinator {
             }
             return DeliveryOutcome.DEAD;
         });
-    }
-
-    private static UUID canonicalRelationshipId(String value) {
-        try {
-            UUID parsed = UUID.fromString(value);
-            return parsed.toString().equals(value) ? parsed : null;
-        } catch (RuntimeException invalid) {
-            return null;
-        }
     }
 
     private Prepared prepare(DomainEventEnvelope event) {
@@ -621,23 +614,6 @@ public final class EmploymentAbsenceConsumerCoordinator {
         audit.append(tenantId, relationshipPublicId, UUID.randomUUID(),
                 "TIM003_RELATIONSHIP_BLOCKED", "DENIED",
                 Map.of("reason", reason, "projectionVersion", stored.projectionVersion()));
-    }
-
-    private static String canonicalDeadReason(String storedReason) {
-        if (DomainEventInboxStrictValidationSupport.PAYLOAD_CONFLICT_REASON
-                .equals(storedReason)) {
-            return "PAYLOAD_CONFLICT";
-        }
-        if (storedReason != null && storedReason.startsWith(
-                DomainEventInboxStrictValidationSupport.INVALID_EVENT_REASON)) {
-            return "EVENT_CONTRACT_VIOLATION";
-        }
-        try {
-            EmploymentAbsenceContract.code(storedReason, "storedReason");
-            return storedReason;
-        } catch (RuntimeException ignored) {
-            return "INBOX_DEAD_BLOCKER";
-        }
     }
 
     private EmploymentAbsenceProjection persist(

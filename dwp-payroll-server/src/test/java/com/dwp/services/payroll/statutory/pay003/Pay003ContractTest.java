@@ -96,8 +96,16 @@ class Pay003ContractTest {
                 List.of("itemPublicId:ASC")))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(queryWith(Map.of(), List.of(
-                "itemPublicId:ASC", "itemPublicId:DESC")).sort())
-                .containsExactly("itemPublicId:ASC", "itemPublicId:DESC");
+                "countryPackMetadata:ASC", "itemPublicId:DESC")).sort())
+                .containsExactly("countryPackMetadata:ASC", "itemPublicId:DESC");
+        assertThatThrownBy(() -> queryWith(Map.of(), List.of(
+                "itemPublicId:ASC", "itemPublicId:DESC")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("closed schema");
+        assertThatThrownBy(() -> queryWith(Map.of(), List.of(
+                "itemPublicId:ASC", "countryPackMetadata:ASC")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("closed schema");
         assertThatThrownBy(() -> queryWith(Map.of(), List.of(
                 "countryPackMetadata:ASC")))
                 .isInstanceOf(IllegalArgumentException.class);

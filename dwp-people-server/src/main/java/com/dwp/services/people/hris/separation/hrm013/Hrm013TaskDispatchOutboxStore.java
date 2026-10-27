@@ -1,5 +1,6 @@
 package com.dwp.services.people.hris.separation.hrm013;
 
+import static com.dwp.services.people.hris.separation.hrm013.Hrm013TaskDispatchSnapshotCodec.*;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013TaskDispatchV1;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -7,7 +8,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -432,94 +432,6 @@ public final class Hrm013TaskDispatchOutboxStore
         }
     }
 
-    private static void requireSnapshot(JsonNode value) {
-        java.util.Set<String> expected = java.util.Set.of(
-                "bindingId", "ownerWorkloadId", "purpose", "taskType",
-                "requestBodySha256", "payloadSha256",
-                "dispatchTenantGrantRevision", "dispatchAuthorizationRevision",
-                "callbackTenantGrantRevision", "callbackAuthorizationRevision");
-        java.util.Set<String> actual = new java.util.HashSet<>();
-        if (value == null || !value.isObject()) {
-            throw new IllegalStateException("dispatch fence snapshot is not an object");
-        }
-        value.fieldNames().forEachRemaining(actual::add);
-        if (!actual.equals(expected)
-                || value.path("dispatchTenantGrantRevision").longValue() < 1
-                || value.path("dispatchAuthorizationRevision").longValue() < 1
-                || value.path("callbackTenantGrantRevision").longValue() < 1
-                || value.path("callbackAuthorizationRevision").longValue() < 1) {
-            throw new IllegalStateException("dispatch fence snapshot shape is invalid");
-        }
-    }
-
-    private static Hrm013TaskDispatchV1.DispatchBody decodeStored(
-            Hrm013TaskDispatchV1.Profile profile, long tenantId, JsonNode node) {
-        try {
-            Hrm013TaskDispatchV1.DispatchBody body;
-            if (profile.equals(Hrm013TaskDispatchV1.IDENTITY)) {
-                body = new Hrm013TaskDispatchV1.IdentityTaskDispatch(
-                        text(node, "schemaName"), exactInt(node, "schemaVersion"),
-                        uuid(node, "dispatchEventId"), uuid(node, "casePublicId"),
-                        uuid(node, "taskPublicId"), text(node, "taskType"),
-                        positive(node, "taskOwnerRevision"),
-                        positive(node, "taskVersion"), instant(node, "dispatchedAt"),
-                        text(node, "payloadSha256"), uuid(node, "correlationId"),
-                        uuid(node, "personPublicId"), text(node, "separationType"),
-                        LocalDate.parse(text(node, "effectiveDate")));
-            } else {
-                body = new Hrm013TaskDispatchV1.TimeAndPayrollTaskDispatch(
-                        text(node, "schemaName"), exactInt(node, "schemaVersion"),
-                        uuid(node, "dispatchEventId"), uuid(node, "casePublicId"),
-                        uuid(node, "taskPublicId"), text(node, "taskType"),
-                        positive(node, "taskOwnerRevision"),
-                        positive(node, "taskVersion"), instant(node, "dispatchedAt"),
-                        text(node, "payloadSha256"), uuid(node, "correlationId"),
-                        uuid(node, "workerPublicId"),
-                        uuid(node, "relationshipPublicId"),
-                        text(node, "separationType"),
-                        LocalDate.parse(text(node, "effectiveDate")),
-                        LocalDate.parse(text(node, "lastWorkingDate")));
-            }
-            Hrm013TaskDispatchV1.requireProfileBinding(profile, tenantId, body);
-            return body;
-        } catch (RuntimeException malformed) {
-            throw new IllegalStateException("invalid stored dispatch payload", malformed);
-        }
-    }
-
-    private static String text(JsonNode node, String field) {
-        JsonNode value = node == null ? null : node.get(field);
-        if (value == null || !value.isTextual() || value.textValue().isBlank()) {
-            throw new IllegalArgumentException(field);
-        }
-        return value.textValue();
-    }
-
-    private static UUID uuid(JsonNode node, String field) {
-        UUID value = UUID.fromString(text(node, field));
-        if (!value.toString().equals(text(node, field))) throw new IllegalArgumentException(field);
-        return value;
-    }
-
-    private static long positive(JsonNode node, String field) {
-        JsonNode value = node == null ? null : node.get(field);
-        if (value == null || !value.isIntegralNumber() || !value.canConvertToLong()
-                || value.longValue() < 1) throw new IllegalArgumentException(field);
-        return value.longValue();
-    }
-
-    private static int exactInt(JsonNode node, String field) {
-        long value = positive(node, field);
-        if (value > Integer.MAX_VALUE) throw new IllegalArgumentException(field);
-        return (int) value;
-    }
-
-    private static Instant instant(JsonNode node, String field) {
-        Instant value = Instant.parse(text(node, field));
-        if (!value.toString().equals(text(node, field))) throw new IllegalArgumentException(field);
-        return value;
-    }
-
     private void quarantineInTransaction(long tenantId, UUID event, String code) {
         var parameters = new MapSqlParameterSource().addValue("tenant", tenantId)
                 .addValue("event", event).addValue("now", Timestamp.from(clock.instant()))
@@ -732,8 +644,6 @@ public final class Hrm013TaskDispatchOutboxStore
     }
 
     static Hrm013TaskDispatchV1.Profile profile(String eventType) {
-        return Hrm013TaskDispatchV1.PROFILES.stream()
-                .filter(value -> value.eventType().equals(eventType))
-                .findFirst().orElseThrow(() -> new IllegalArgumentException("unknown dispatch event"));
+        return Hrm013TaskDispatchSnapshotCodec.profile(eventType);
     }
 }

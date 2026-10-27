@@ -176,6 +176,10 @@ dwp:
       observation-producer-enabled: ${DWP_WORKPLACE_CONNECTOR_OBSERVATION_PRODUCER_ENABLED:false}
       observation-producer-batch-size: ${DWP_WORKPLACE_CONNECTOR_OBSERVATION_PRODUCER_BATCH_SIZE:50}
       observation-producer-delay-ms: ${DWP_WORKPLACE_CONNECTOR_OBSERVATION_PRODUCER_DELAY_MS:60000}
+      # Exact default-tenant SKAX fixture only; the adapter verifies the bundled identity and
+      # refuses every other tenant/provider/reference combination.
+      bundled-verification-presence-enabled: ${DWP_WORKPLACE_BUNDLED_VERIFICATION_PRESENCE_ENABLED:true}
+      bundled-verification-presence-delay-ms: ${DWP_WORKPLACE_BUNDLED_VERIFICATION_PRESENCE_DELAY_MS:60000}
       sensitive-payload-retention: ${DWP_WORKPLACE_CONNECTOR_SENSITIVE_RETENTION:PT2160H}
       retention-enabled: ${DWP_WORKPLACE_CONNECTOR_RETENTION_ENABLED:true}
       retention-batch-size: ${DWP_WORKPLACE_CONNECTOR_RETENTION_BATCH_SIZE:200}

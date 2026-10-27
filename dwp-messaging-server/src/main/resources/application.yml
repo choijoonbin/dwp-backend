@@ -84,6 +84,12 @@ dwp:
       typing-key-prefix: ${DWP_MESSAGING_TYPING_KEY_PREFIX:dwp:messaging:typing:v1}
       typing-ttl: ${DWP_MESSAGING_TYPING_TTL:8s}
       shard-count: ${DWP_MESSAGING_REDIS_SHARD_COUNT:32}
+    presence:
+      enabled: ${DWP_MESSAGING_PRESENCE_ENABLED:true}
+      ttl: ${DWP_MESSAGING_PRESENCE_TTL:75s}
+      refresh-after: ${DWP_MESSAGING_PRESENCE_REFRESH_AFTER:20s}
+      key-prefix: ${DWP_MESSAGING_PRESENCE_KEY_PREFIX:dwp:messaging:presence:v1}
+      active-user-warning-threshold: ${DWP_MESSAGING_PRESENCE_ACTIVE_USER_WARNING_THRESHOLD:${DWP_MESSAGING_PRESENCE_MAXIMUM_ACTIVE_USERS:5000}}
     meeting:
       provider: ${DWP_MESSAGING_MEETING_PROVIDER:disabled}
       token-ttl: ${DWP_MESSAGING_MEETING_TOKEN_TTL:PT5M}
@@ -125,6 +131,11 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        presence:
+          include: messagingPresenceHealth
+          show-components: always
+          show-details: always
 
 logging:
   level:

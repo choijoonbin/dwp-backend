@@ -640,10 +640,6 @@ final class ControlledTransferService {
         return value != null && value.matches("^[a-f0-9]{64}$");
     }
 
-    private static boolean blank(String value) {
-        return value == null || value.isBlank();
-    }
-
     private static boolean canonical(String value, int maximum) {
         return value != null && !value.isBlank() && value.length() <= maximum
                 && value.equals(value.strip()) && value.indexOf('\r') < 0

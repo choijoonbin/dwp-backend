@@ -371,7 +371,11 @@ public class WorkplaceNavigationService {
                 case RAMP -> "Use the ramp.";
                 case WALK -> "Follow the published corridor.";
             };
-            result.add(new RouteStep(arc.from(), arc.to(), nodes.get(arc.to()).floorId(),
+            NodeRow from = nodes.get(arc.from());
+            NodeRow to = nodes.get(arc.to());
+            result.add(new RouteStep(arc.from(), arc.to(), to.floorId(),
+                    from.floorId(), to.floorId(),
+                    from.positionX(), from.positionY(), to.positionX(), to.positionY(),
                     mode, arc.edge().travelSeconds(), ko, en));
         }
         return List.copyOf(result);

@@ -178,11 +178,19 @@ public final class MessagingDtos {
             int savedItems) {
     }
 
+    public record PresenceMetadata(
+            String authority,
+            OffsetDateTime evaluatedAt,
+            long leaseTtlSeconds,
+            long refreshAfterSeconds) {
+    }
+
     public record HomeResponse(
             OffsetDateTime generatedAt,
             HomeMetrics metrics,
             List<ConversationSummary> priority,
             List<ConversationSummary> spaces,
+            PresenceMetadata presence,
             List<PersonSummary> people) {
     }
 

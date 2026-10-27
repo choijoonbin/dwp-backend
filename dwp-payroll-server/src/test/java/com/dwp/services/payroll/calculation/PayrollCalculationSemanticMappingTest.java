@@ -177,7 +177,9 @@ class PayrollCalculationSemanticMappingTest {
         PayrollCalculationCanonical canonical = PayrollCalculationTestSupport.canonical();
         PayrollCalculationTestSupport.InMemoryStore store =
                 new PayrollCalculationTestSupport.InMemoryStore();
-        store.seedPreparedRun(PayrollCalculationTestSupport.preparedRun(1, 101, RUN_ID));
+        var prepared = PayrollCalculationTestSupport.preparedRun(1, 101, RUN_ID);
+        store.seedPreparedRun(prepared);
+        var preparedSnapshot = store.snapshot(1, RUN_ID, 1);
         PayrollCalculationService service = new PayrollCalculationService(
                 store, canonical, mock(PayrollHighRiskCommandGuard.class),
                 new PayrollCalculationSemanticBinder(
@@ -188,14 +190,19 @@ class PayrollCalculationSemanticMappingTest {
 
         assertThatThrownBy(() -> service.calculate(
                 PayrollCalculationTestSupport.calculator(1, 101), RUN_ID,
-                "semantic-unavailable", 1, UUID.randomUUID(),
+                "semantic-unavailable", prepared.revision(), UUID.randomUUID(),
                 new ActionCommand("REGULAR_RUN", null, null)))
                 .isInstanceOfSatisfying(BaseException.class,
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
 
-        assertThat(store.snapshotCount()).isZero();
+        assertThat(store.snapshotCount()).isEqualTo(1);
+        assertThat(store.snapshot(1, RUN_ID, 1)).isEqualTo(preparedSnapshot);
+        assertThat(store.prepareCalls()).isZero();
+        assertThat(store.freezeCalls()).isZero();
+        assertThat(store.cloneCalls()).isZero();
         assertThat(store.receiptCount()).isZero();
+        assertThat(store.auditCount()).isZero();
         assertThat(store.attemptCount(1, RUN_ID)).isZero();
         assertThat(store.runRevisionCount(1, RUN_ID)).isEqualTo(1);
         assertThat(store.lineCount(1, RUN_ID)).isZero();

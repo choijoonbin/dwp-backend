@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 import javax.sql.DataSource;
+import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -74,6 +75,8 @@ class EmploymentAbsenceProjectionMigrationPostgresTest {
                 """, Boolean.class)).isTrue();
 
         assertThat(database.upgradeFlyway().migrate().migrationsExecuted).isOne();
+        assertThat(database.upgradeFlyway().info().current().getVersion())
+                .isEqualTo(MigrationVersion.fromVersion("14"));
         assertThat(database.upgradeFlyway().migrate().migrationsExecuted).isZero();
         assertThat(database.upgradeFlyway().validateWithResult().validationSuccessful).isTrue();
     }

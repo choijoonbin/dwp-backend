@@ -86,6 +86,54 @@ class WorkplaceOpenApiV20ContractTest {
         }
     }
 
+    @Test
+    void collaborationConnectorStatusExportsProviderRuntimeFreshnessStates() throws Exception {
+        JsonNode platform = read("contracts/openapi/platform.json");
+        JsonNode gateway = read("contracts/openapi/gateway-public.json");
+        List<String> states = List.of(
+                "NOT_CONFIGURED", "DISABLED", "CONFIGURED_UNVERIFIED",
+                "HEALTHY", "DEGRADED", "STALE");
+
+        assertThat(platform.path("components").path("schemas").path("ConnectorStatus")
+                .path("properties").path("status").path("enum"))
+                .extracting(JsonNode::asText)
+                .containsExactlyElementsOf(states);
+        assertThat(gateway.path("components").path("schemas").path("platform_ConnectorStatus")
+                .path("properties").path("status").path("enum"))
+                .extracting(JsonNode::asText)
+                .containsExactlyElementsOf(states);
+    }
+
+    @Test
+    void navigationRouteStepsExposeFloorPlanCoordinatesThroughThePublicProjection() throws Exception {
+        JsonNode platform = read("contracts/openapi/platform.json");
+        JsonNode gateway = read("contracts/openapi/gateway-public.json");
+        List<String> coordinates = List.of(
+                "fromPositionX", "fromPositionY", "toPositionX", "toPositionY");
+        List<String> floorIdentifiers = List.of("fromFloorId", "toFloorId");
+
+        JsonNode ownerProperties = platform.path("components").path("schemas")
+                .path("RouteStep").path("properties");
+        JsonNode publicProperties = gateway.path("components").path("schemas")
+                .path("platform_RouteStep").path("properties");
+        for (String coordinate : coordinates) {
+            assertThat(ownerProperties.path(coordinate).path("type").asText())
+                    .as("owner RouteStep.%s", coordinate).isEqualTo("number");
+            assertThat(publicProperties.path(coordinate).path("type").asText())
+                    .as("public RouteStep.%s", coordinate).isEqualTo("number");
+        }
+        for (String floorIdentifier : floorIdentifiers) {
+            assertThat(ownerProperties.path(floorIdentifier).path("type").asText())
+                    .as("owner RouteStep.%s", floorIdentifier).isEqualTo("string");
+            assertThat(ownerProperties.path(floorIdentifier).path("format").asText())
+                    .as("owner RouteStep.%s format", floorIdentifier).isEqualTo("uuid");
+            assertThat(publicProperties.path(floorIdentifier).path("type").asText())
+                    .as("public RouteStep.%s", floorIdentifier).isEqualTo("string");
+            assertThat(publicProperties.path(floorIdentifier).path("format").asText())
+                    .as("public RouteStep.%s format", floorIdentifier).isEqualTo("uuid");
+        }
+    }
+
     private void assertDeviceOperation(JsonNode operation, String description, boolean gateway) {
         assertThat(operation.isObject()).as(description).isTrue();
         assertThat(operation.path("x-dwp-identity-plane").asText())

@@ -4,34 +4,34 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.approval.attachment.binding.ApprovalAttachmentLifecycleBinding;
 import com.dwp.services.approval.documentretention.ApprovalRetentionLiveGuard;
-import com.dwp.services.approval.security.ApprovalDecisionRevisionContext;
-import com.dwp.services.approval.security.ApprovalManagementScopeContext;
 import com.dwp.services.approval.security.ApprovalRequestContext;
 import com.dwp.services.approval.hrisbridge.separation.HrisSeparationRlsScope;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
+import com.dwp.services.approval.domain.ApprovalCommandLifecycleSupport.NextStep;
 
 
 class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
+    private final ApprovalPinnedHrisDraftWriter pinnedHrisDrafts;
+
     ApprovalCommandLifecycleRepository(
             NamedParameterJdbcTemplate jdbc,
             ObjectMapper objectMapper) {
         super(jdbc, objectMapper);
+        pinnedHrisDrafts = new ApprovalPinnedHrisDraftWriter(
+                jdbc, definition -> payloadSupport.quorumDefinition(definition) != null,
+                payloadSupport::isTypedFormSchema,
+                (schema, payload) -> normalizeRequestPayload(schema, payload, false),
+                payloadSupport::json);
     }
 
     public UUID createDraft(
@@ -108,85 +108,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             String auditSource) {
         HrisDraftAudit audit = requireHrisDraftAudit(auditMessage, auditSource);
         String normalizedPriority = normalizedPriority(priority);
-        var rows = jdbc.queryForList("""
-                SELECT workflow_version.definition::text AS workflow_definition,
-                       workflow.data_classification,
-                       workflow.management_resource_set_key,
-                       form_version.schema_payload::text AS form_schema
-                  FROM apr_tenants tenant
-                  JOIN apr_workflow_versions workflow_version
-                    ON workflow_version.tenant_id=tenant.tenant_id
-                   AND workflow_version.workflow_version_id=:workflowVersionId
-                   AND workflow_version.lifecycle_state='PUBLISHED'
-                   AND (workflow_version.effective_from IS NULL OR workflow_version.effective_from<=CURRENT_TIMESTAMP)
-                   AND (workflow_version.effective_to IS NULL OR workflow_version.effective_to>CURRENT_TIMESTAMP)
-                  JOIN apr_workflow_definitions workflow
-                    ON workflow.tenant_id=workflow_version.tenant_id
-                   AND workflow.workflow_id=workflow_version.workflow_id
-                   AND workflow.lifecycle_state='PUBLISHED'
-                  JOIN apr_form_versions form_version
-                    ON form_version.tenant_id=tenant.tenant_id
-                   AND form_version.form_version_id=:formVersionId
-                   AND form_version.lifecycle_state='PUBLISHED'
-                  JOIN apr_forms form
-                    ON form.tenant_id=form_version.tenant_id AND form.form_id=form_version.form_id
-                   AND form.lifecycle_state='PUBLISHED'
-                   AND form.management_resource_set_key=workflow.management_resource_set_key
-                  JOIN apr_form_categories category
-                    ON category.tenant_id=form.tenant_id AND category.category_id=form.category_id
-                   AND category.lifecycle_state='ACTIVE'
-                   AND category.management_resource_set_key=form.management_resource_set_key
-                  JOIN apr_form_workflow_bindings binding
-                    ON binding.tenant_id=tenant.tenant_id AND binding.form_id=form.form_id
-                   AND binding.workflow_id=workflow.workflow_id AND binding.lifecycle_state='ACTIVE'
-                   AND (binding.effective_from IS NULL OR binding.effective_from<=CURRENT_TIMESTAMP)
-                   AND (binding.effective_to IS NULL OR binding.effective_to>CURRENT_TIMESTAMP)
-                 WHERE tenant.tenant_id=:tenantId AND tenant.lifecycle_state='ACTIVE'
-                """, new MapSqlParameterSource()
-                .addValue("tenantId", actor.tenantId())
-                .addValue("workflowVersionId", workflowVersionId)
-                .addValue("formVersionId", formVersionId));
-        if (rows.size() != 1) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                    "The pinned HRIS workflow and form binding is no longer available.");
-        }
-        var runtime = rows.getFirst();
-        if (payloadSupport.quorumDefinition((String) runtime.get("workflow_definition")) == null) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                    "The pinned HRIS workflow is not a typed quorum workflow.");
-        }
-        String formSchema = (String) runtime.get("form_schema");
-        if (payloadSupport.isTypedFormSchema(formSchema)) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                    "The HRIS bridge requires its closed native payload form binding.");
-        }
-        Map<String, Object> payload = normalizeRequestPayload(
-                formSchema, new LinkedHashMap<>(nativePayload), false);
-        if (!new LinkedHashMap<>(nativePayload).equals(payload)) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                    "The HRIS native payload does not exactly match its published form.");
-        }
-        String payloadJson = payloadSupport.json(payload);
-        String requestNumber = "APR-" + Instant.now().toEpochMilli() + "-"
-                + requestId.toString().substring(0, 6).toUpperCase(Locale.ROOT);
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("requestId", requestId)
-                .addValue("tenantId", actor.tenantId())
-                .addValue("requestNumber", requestNumber)
-                .addValue("workflowVersionId", workflowVersionId)
-                .addValue("formVersionId", formVersionId)
-                .addValue("title", title)
-                .addValue("summary", summary)
-                .addValue("userId", actor.userId())
-                .addValue("personPublicId", actor.personPublicId())
-                .addValue("requesterName", actor.displayName())
-                .addValue("priority", normalizedPriority)
-                .addValue("classification", runtime.get("data_classification"))
-                .addValue("managementScope", runtime.get("management_resource_set_key"))
-                .addValue("payload", payloadJson)
-                .addValue("correlationId", correlationId);
-        jdbc.update(ApprovalCommandSql01.CREATE_DRAFT_INSERT_APR_REQUESTS, params);
-        jdbc.update(ApprovalCommandSql01.APR_REQUESTS_INSERT_APR_REQUEST_PAYLOADS, params);
+        pinnedHrisDrafts.insert(actor, requestId, workflowVersionId, formVersionId,
+                title, summary, normalizedPriority, nativePayload, correlationId);
         appendPayloadRevision(actor, requestId, "DRAFT_CREATED", correlationId,
                 audit.message());
         attachmentLifecycleBinding().initializeCreated(requestId, 0);
@@ -205,16 +128,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
 
     private static HrisDraftAudit requireHrisDraftAudit(
             String message, String source) {
-        HrisDraftAudit supplied = new HrisDraftAudit(message, source);
-        HrisDraftAudit separation = new HrisDraftAudit(
-                "HRIS separation-task waiver draft created",
-                "HRIS_SEPARATION_TASK_WAIVER");
-        if (!supplied.equals(legacyHrisDraftAudit())
-                && !supplied.equals(separation)) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
-                    "The HRIS draft audit identity is not registered.");
-        }
-        return supplied;
+        ApprovalCommandLifecycleSupport.requireHrisDraftAuditIdentity(message, source);
+        return new HrisDraftAudit(message, source);
     }
 
     /** Immutable HRM-013 request binding used before either terminal command can mutate. */
@@ -469,18 +384,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
         if (typedForm) validateTypedInformationPatch(request.payload());
         else validateInformationPatch(request.payload());
         Map<String, Object> amendedPayload = informationPayloadBase(current.formSchema(), current.payload());
-        if (request.payload() != null) amendedPayload.putAll(request.payload());
-        if (request.payload() != null && request.payload().containsKey("summary")) {
-            Object summaryValue = amendedPayload.get("summary");
-            if (!(summaryValue instanceof String summary)
-                    || summary.strip().isEmpty()
-                    || summary.strip().length() > 2000) {
-                throw new BaseException(
-                        ErrorCode.INVALID_INPUT_VALUE,
-                        "The amended approval summary must contain at most 2000 characters.");
-            }
-            amendedPayload.put("summary", summary.strip());
-        }
+        amendedPayload = ApprovalCommandLifecycleSupport.amendSummary(
+                amendedPayload, request.payload());
         amendedPayload = normalizeRequestPayload(actor, requestId, current.formSchema(), amendedPayload, true, request.expectedVersion());
         if ("CONDITIONAL".equals(current.bindingType())
                 && !matchesRouteCondition(current.bindingCondition(), amendedPayload, current.formSchema())) {
@@ -488,25 +393,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                     ErrorCode.INVALID_STATE,
                     "The amended request no longer matches its governed approval route.");
         }
-        List<String> amendedFields = new java.util.ArrayList<>();
-        if (request.payload() != null || typedForm) {
-            Map<String, Object> previousValues = typedForm
-                    ? ApprovalFormSchemaV2Canonical.freeze(current.payload()) : current.payload();
-            Map<String, Object> resultingValues = typedForm
-                    ? ApprovalFormSchemaV2Canonical.freeze(amendedPayload) : amendedPayload;
-            Set<String> changedKeys = new HashSet<>();
-            if (typedForm) {
-                changedKeys.addAll(current.payload().keySet());
-                changedKeys.addAll(amendedPayload.keySet());
-            } else changedKeys.addAll(request.payload().keySet());
-            for (String key : changedKeys) {
-                if (!java.util.Objects.equals(
-                        previousValues.get(key), resultingValues.get(key))) {
-                    amendedFields.add(key);
-                }
-            }
-        }
-        amendedFields.sort(String::compareTo);
+        List<String> amendedFields = ApprovalCommandLifecycleSupport.amendedFields(
+                current.payload(), amendedPayload, request.payload(), typedForm);
         var attachments = attachmentLifecycleBinding();
         var attachmentPin = attachments.prepare(requestId, request.expectedVersion(), ApprovalAttachmentLifecycleBinding.Intent.INFO_RESPONSE);
         boolean materialChange = !amendedFields.isEmpty() || attachmentPin.materialChange();
@@ -561,18 +449,11 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
         }
 
         attachments.seal(attachmentPin, attachments.target(requestId));
-        Map<String, Object> eventEvidence = new LinkedHashMap<>();
-        eventEvidence.put("responseLength", request.message().trim().length());
-        eventEvidence.put("amendedFields", amendedFields);
-        eventEvidence.put("materialChange", materialChange);
-        eventEvidence.put("previousPayloadRevision", previousEvidence.revision());
-        eventEvidence.put("previousPayloadSha256", previousEvidence.sha256());
-        eventEvidence.put("payloadRevision", resultingEvidence.revision());
-        eventEvidence.put("payloadSha256", resultingEvidence.sha256());
-        eventEvidence.put("supersededDecisionCount", supersededDecisions);
-        if (restartedTaskId != null) {
-            eventEvidence.put("restartedTaskId", restartedTaskId.toString());
-        }
+        Map<String, Object> eventEvidence = ApprovalCommandLifecycleSupport.informationEvidence(
+                request.message(), amendedFields, materialChange,
+                previousEvidence.revision(), previousEvidence.sha256(),
+                resultingEvidence.revision(), resultingEvidence.sha256(),
+                supersededDecisions, restartedTaskId);
         appendEvent(actor, requestId, "INFORMATION_RESPONDED",
                 request.message().trim(), correlationId, eventEvidence);
         appendIntegration(actor, requestId, "approval.request.information.responded", correlationId,
@@ -588,32 +469,12 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             UUID requestId,
             InformationRuntime current,
             String correlationId) {
-        int cumulativeMinutes = 0;
-        for (int index = 0; index < current.steps().size(); index++) {
-            ApprovalCommandRepository.RuntimeStep step = current.steps().get(index);
-            cumulativeMinutes = Math.addExact(cumulativeMinutes, step.slaMinutes());
-            int stepUpdated = jdbc.update(
-                    ApprovalCommandInformationSql.RESTART_STEPS,
-                    workActorParams(actor, current.managementResourceSetKey())
-                            .addValue("requestId", requestId)
-                            .addValue("sequenceNumber", index + 1)
-                            .addValue("candidateRole", step.candidateRole())
-                            .addValue("cumulativeMinutes", cumulativeMinutes));
-            requireUpdated(stepUpdated);
-        }
-        NextStep firstStep = jdbc.query(
-                ApprovalCommandInformationSql.RESTART_FIRST_STEP,
-                new MapSqlParameterSource()
-                        .addValue("tenantId", actor.tenantId())
-                        .addValue("requestId", requestId),
-                result -> result.next()
-                        ? new NextStep(
-                                result.getObject("step_id", UUID.class),
-                                result.getString("step_key"),
-                                result.getString("step_name"),
-                                result.getString("candidate_role"),
-                                result.getTimestamp("due_at").toInstant())
-                        : null);
+        ApprovalCommandLifecycleSupport.restartSteps(jdbc, requestId,
+                current.steps().stream().map(step -> new ApprovalCommandLifecycleSupport.Step(
+                        step.candidateRole(), step.slaMinutes())).toList(),
+                () -> workActorParams(actor, current.managementResourceSetKey()));
+        NextStep firstStep = ApprovalCommandLifecycleSupport.nextStep(
+                jdbc, actor.tenantId(), requestId, ApprovalCommandInformationSql.RESTART_FIRST_STEP);
         if (firstStep == null) throw new BaseException(ErrorCode.INVALID_STATE);
         UUID taskId = UUID.randomUUID();
         int inserted = jdbc.update(
@@ -804,16 +665,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
     }
 
     private NextStep nextWaitingStep(long tenantId, UUID requestId) {
-        return jdbc.query(ApprovalCommandSql01.NEXT_WAITING_STEP_SELECT_APR_STEPS, new MapSqlParameterSource()
-                .addValue("tenantId", tenantId)
-                .addValue("requestId", requestId), result -> result.next()
-                        ? new NextStep(
-                                result.getObject("step_id", UUID.class),
-                                result.getString("step_key"),
-                                result.getString("step_name"),
-                                result.getString("candidate_role"),
-                                result.getTimestamp("due_at").toInstant())
-                        : null);
+        return ApprovalCommandLifecycleSupport.nextStep(jdbc, tenantId, requestId,
+                ApprovalCommandSql01.NEXT_WAITING_STEP_SELECT_APR_STEPS);
     }
 
     private void activateNextStep(
@@ -840,12 +693,5 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
     }
 
 
-    private record NextStep(
-            UUID stepId,
-            String stepKey,
-            String stepName,
-            String candidateRole,
-            Instant dueAt) {
-    }
 
 }

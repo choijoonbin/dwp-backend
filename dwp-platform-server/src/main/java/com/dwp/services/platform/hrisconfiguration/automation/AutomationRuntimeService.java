@@ -20,11 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,9 +37,7 @@ import java.util.UUID;
         havingValue = "true",
         matchIfMissing = false)
 final class AutomationRuntimeService {
-
-    private static final Duration MIN_LEASE = Duration.ofSeconds(5);
-    private static final Duration MAX_LEASE = Duration.ofMinutes(5);
+    private final AutomationRuntimeEvidence runtimeEvidence;
 
     private final AutomationRepository control;
     private final AutomationExecutionRepository execution;
@@ -75,12 +70,14 @@ final class AutomationRuntimeService {
             throw new IllegalStateException("AUTOMATION_EVIDENCE_PROVIDER_AMBIGUOUS");
         }
         this.evidence = evidenceProviders.isEmpty() ? null : evidenceProviders.getFirst();
+        this.runtimeEvidence = new AutomationRuntimeEvidence(
+                execution, registry, verifier, this.handlers, canonical);
     }
 
     @Transactional
     ScheduleFireOutcome fireSchedule(SchedulerAuthority authority, FireRequest request) {
         bind(authority.tenantId(), authority.subjectPrincipalPublicId());
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         ScheduleExecution schedule = execution.lockScheduleForFire(
                 authority.tenantId(), request.schedulePublicId(), now);
         if (!schedule.inputTemplateRef().equals(request.inputReference())) {
@@ -124,14 +121,14 @@ final class AutomationRuntimeService {
                     replay.get());
         }
         requireScheduleCas(schedule, request);
-        VerifiedArtifact current = revalidate(schedule.manifest(),
+        VerifiedArtifact current = runtimeEvidence.revalidate(schedule.manifest(),
                 schedule.definitionDigest(), schedule.executionPolicyDigest(),
                 schedule.compatibilityBaselineDigest(), now);
         if (!current.signedManifest().manifest().allowedScopeTypes()
                 .contains(request.scopeType())) {
             throw new IllegalStateException("AUTOMATION_SCOPE_NOT_ALLOWED");
         }
-        OffsetDateTime next = nextFire(schedule, missed
+        OffsetDateTime next = AutomationRuntimeEvidence.nextFire(schedule, missed
                 ? request.schedulerWindowStart() : request.scheduledInstantUtc());
         if (missed) {
             execution.skipMissedFire(schedule, fireKey,
@@ -158,12 +155,12 @@ final class AutomationRuntimeService {
             long tenantId, UUID subject, UUID runPublicId,
             long expectedRunRevision, Duration duration) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireRevision(run, expectedRunRevision);
-        revalidate(run, now);
+        AutomationRuntimeEvidence.requireRevision(run, expectedRunRevision);
+        runtimeEvidence.revalidate(run, now);
         LeaseGrant granted = execution.acquireWorkerLease(
-                run, UUID.randomUUID(), now.plus(validLease(duration)), now);
+                run, UUID.randomUUID(), now.plus(AutomationRuntimeEvidence.validLease(duration)), now);
         RuntimeRun changed = execution.lockRuntimeRun(tenantId, runPublicId);
         appendRuntimeEvent(subject, changed, "WORKER_LEASED", now);
         return granted;
@@ -174,16 +171,16 @@ final class AutomationRuntimeService {
             long tenantId, UUID subject, UUID runPublicId,
             LeaseGrant current, Duration duration) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
         AutomationDomainPolicy.requireActiveFence(
                 AutomationDomainPolicy.AuthorityKind.WORKER,
                 run.workerLease(), run.reconcilerLease(), current.token(),
                 current.authorityFenceEpoch(), current.controlFenceEpoch(), now,
                 false, "ORIGINAL");
-        revalidate(run, now);
+        runtimeEvidence.revalidate(run, now);
         return execution.renewWorkerLease(
-                run, current, now.plus(validLease(duration)), now);
+                run, current, now.plus(AutomationRuntimeEvidence.validLease(duration)), now);
     }
 
     /** Materialization is side-effect free and precedes every PREPARED receipt. */
@@ -191,14 +188,14 @@ final class AutomationRuntimeService {
     void materialize(
             long tenantId, UUID subject, UUID runPublicId, LeaseGrant worker) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireWorker(run, worker, now, false);
-        VerifiedArtifact current = revalidate(run, now);
-        AutomationInvocationV1 invocation = invocation(run);
-        TypedAutomationHandlerPort handler = handler(current.signedManifest().identity());
+        runtimeEvidence.requireWorker(run, worker, now, false);
+        VerifiedArtifact current = runtimeEvidence.revalidate(run, now);
+        AutomationInvocationV1 invocation = AutomationRuntimeEvidence.invocation(run);
+        TypedAutomationHandlerPort handler = runtimeEvidence.handler(current.signedManifest().identity());
         List<AutomationItemPlan> items = List.copyOf(handler.materialize(invocation));
-        validateMaterialization(run, items);
+        AutomationRuntimeEvidence.validateMaterialization(run, items);
         execution.materializeItems(run, worker, items, now);
         RuntimeRun changed = execution.lockRuntimeRun(tenantId, runPublicId);
         appendRuntimeEvent(subject, changed, "ITEMS_MATERIALIZED", now);
@@ -208,10 +205,10 @@ final class AutomationRuntimeService {
     PreparedOriginal prepareOriginal(
             long tenantId, UUID subject, UUID runPublicId, LeaseGrant worker) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireWorker(run, worker, now, true);
-        VerifiedArtifact current = revalidate(run, now);
+        runtimeEvidence.requireWorker(run, worker, now, true);
+        VerifiedArtifact current = runtimeEvidence.revalidate(run, now);
         String digest = canonical.digest(Map.of(
                 "runPublicId", run.run().publicId(),
                 "runRevisionDecimal", Long.toString(run.run().objectRevision()),
@@ -231,12 +228,12 @@ final class AutomationRuntimeService {
             LeaseGrant worker,
             PreparedOriginal prepared) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireWorker(run, worker, now, true);
-        VerifiedArtifact current = revalidate(run, now);
+        runtimeEvidence.requireWorker(run, worker, now, true);
+        VerifiedArtifact current = runtimeEvidence.revalidate(run, now);
         if (!current.signedManifest().equals(prepared.manifest())
-                || !prepared.invocation().equals(invocation(run))) {
+                || !prepared.invocation().equals(AutomationRuntimeEvidence.invocation(run))) {
             throw new IllegalStateException("AUTOMATION_DISPATCH_MANIFEST_CHANGED");
         }
         for (var item : prepared.items()) {
@@ -249,7 +246,7 @@ final class AutomationRuntimeService {
                         item.acceptedAt(),
                         item.effectIdempotencyKey(), item.effectRequestDigest()))
                 .toList();
-        return List.copyOf(handler(prepared.manifest().identity())
+        return List.copyOf(runtimeEvidence.handler(prepared.manifest().identity())
                 .invoke(prepared.invocation(), requests));
     }
 
@@ -262,20 +259,20 @@ final class AutomationRuntimeService {
             PreparedOriginal prepared,
             List<AutomationRunItemReceiptV1> receipts) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireWorker(run, worker, now, true);
-        VerifiedArtifact current = revalidate(run, now);
+        runtimeEvidence.requireWorker(run, worker, now, true);
+        VerifiedArtifact current = runtimeEvidence.revalidate(run, now);
         if (!current.signedManifest().equals(prepared.manifest())
-                || !prepared.invocation().equals(invocation(run))) {
+                || !prepared.invocation().equals(AutomationRuntimeEvidence.invocation(run))) {
             throw new IllegalStateException("AUTOMATION_DISPATCH_CONTEXT_CHANGED");
         }
         List<AutomationRunItemReceiptV1> normalized =
-                validateAndNormalizeReceipts(run, prepared, receipts);
+                AutomationRuntimeEvidence.validateAndNormalizeReceipts(run, prepared, receipts);
         RuntimeRun changed = execution.finalizeOriginal(
                 run, worker, prepared, normalized, now);
         RuntimeRun checkpointed = execution.appendCheckpointAndRecalculate(
-                changed, worker, receiptSetDigest(changed, normalized), null, now);
+                changed, worker, runtimeEvidence.receiptSetDigest(changed, normalized), null, now);
         appendRuntimeEvent(subject, checkpointed, "ORIGINAL_EFFECTS_CHECKPOINTED", now);
         return checkpointed;
     }
@@ -290,9 +287,9 @@ final class AutomationRuntimeService {
             boolean explicitlyRevoked,
             String reason) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireRevision(run, expectedRunRevision);
+        AutomationRuntimeEvidence.requireRevision(run, expectedRunRevision);
         AutomationDomainPolicy.RecoveryDecision decision =
                 AutomationDomainPolicy.ownerRecovery(
                         run.controlFenceEpoch(), run.workerFenceEpoch(),
@@ -321,16 +318,16 @@ final class AutomationRuntimeService {
             long tenantId, UUID subject, UUID runPublicId,
             long expectedRunRevision, Duration duration) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireRevision(run, expectedRunRevision);
-        revalidate(run, now);
+        AutomationRuntimeEvidence.requireRevision(run, expectedRunRevision);
+        runtimeEvidence.revalidate(run, now);
         if (run.reconciliationRequiredAt() == null
                 || run.reconciliationRequiredReason() == null) {
             throw new IllegalStateException("AUTOMATION_RECONCILIATION_NOT_REQUIRED");
         }
         LeaseGrant granted = execution.acquireReconcilerLease(
-                run, UUID.randomUUID(), now.plus(validLease(duration)), now);
+                run, UUID.randomUUID(), now.plus(AutomationRuntimeEvidence.validLease(duration)), now);
         RuntimeRun changed = execution.lockRuntimeRun(tenantId, runPublicId);
         appendRuntimeEvent(subject, changed, "RECONCILER_LEASED", now);
         return granted;
@@ -346,10 +343,10 @@ final class AutomationRuntimeService {
             String effectKey,
             String requestDigest) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireReconciler(run, reconciler, now, false);
-        revalidate(run, now);
+        runtimeEvidence.requireReconciler(run, reconciler, now, false);
+        runtimeEvidence.revalidate(run, now);
         if (evidence == null) {
             throw new IllegalStateException("AUTOMATION_EFFECT_EVIDENCE_UNAVAILABLE");
         }
@@ -376,10 +373,10 @@ final class AutomationRuntimeService {
             UUID itemPublicId,
             LeaseGrant reconciler) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireReconciler(run, reconciler, now, true);
-        VerifiedArtifact current = revalidate(run, now);
+        runtimeEvidence.requireReconciler(run, reconciler, now, true);
+        VerifiedArtifact current = runtimeEvidence.revalidate(run, now);
         if (run.compensationPolicyRef() == null) {
             throw new IllegalStateException("AUTOMATION_COMPENSATION_NOT_DECLARED");
         }
@@ -413,21 +410,21 @@ final class AutomationRuntimeService {
             LeaseGrant reconciler,
             PreparedCompensation prepared) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireReconciler(run, reconciler, now, true);
-        VerifiedArtifact current = revalidate(run, now);
+        runtimeEvidence.requireReconciler(run, reconciler, now, true);
+        VerifiedArtifact current = runtimeEvidence.revalidate(run, now);
         if (!current.signedManifest().equals(prepared.manifest())
-                || !prepared.invocation().equals(invocation(run))
+                || !prepared.invocation().equals(AutomationRuntimeEvidence.invocation(run))
                 || prepared.runRevision() != run.run().objectRevision()
                 || prepared.attemptNumber() != run.attemptNumber()) {
             throw new IllegalStateException("AUTOMATION_DISPATCH_MANIFEST_CHANGED");
         }
         execution.assertLiveCompensationAuthority(run, reconciler, prepared);
-        AutomationRunItemReceiptV1 original = requireCommittedOriginal(run, prepared);
-        requireCompensationContext(prepared, original);
+        AutomationRunItemReceiptV1 original = runtimeEvidence.requireCommittedOriginal(run, prepared);
+        AutomationRuntimeEvidence.requireCompensationContext(prepared, original);
         List<AutomationRunItemReceiptV1> returned = List.copyOf(
-                handler(prepared.manifest().identity()).compensate(
+                runtimeEvidence.handler(prepared.manifest().identity()).compensate(
                         prepared.invocation(), List.of(original),
                         new AutomationRuntimePorts.AutomationCompensationRequest(
                                 prepared.itemPublicId(),
@@ -458,8 +455,8 @@ final class AutomationRuntimeService {
             throw new IllegalStateException(
                     "AUTOMATION_COMPENSATION_RECEIPT_MISMATCH");
         }
-        requireSafeTerminalDisposition(receipt);
-        return normalizeReceipt(run, receipt);
+        AutomationRuntimeEvidence.requireSafeTerminalDisposition(receipt);
+        return AutomationRuntimeEvidence.normalizeReceipt(run, receipt);
     }
 
     @Transactional
@@ -471,18 +468,18 @@ final class AutomationRuntimeService {
             PreparedCompensation prepared,
             AutomationRunItemReceiptV1 receipt) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireReconciler(run, reconciler, now, true);
-        VerifiedArtifact current = revalidate(run, now);
+        runtimeEvidence.requireReconciler(run, reconciler, now, true);
+        VerifiedArtifact current = runtimeEvidence.revalidate(run, now);
         if (!current.signedManifest().equals(prepared.manifest())
-                || !prepared.invocation().equals(invocation(run))
+                || !prepared.invocation().equals(AutomationRuntimeEvidence.invocation(run))
                 || prepared.runRevision() != run.run().objectRevision()
                 || prepared.attemptNumber() != run.attemptNumber()) {
             throw new IllegalStateException("AUTOMATION_DISPATCH_CONTEXT_CHANGED");
         }
-        AutomationRunItemReceiptV1 original = requireCommittedOriginal(run, prepared);
-        requireCompensationContext(prepared, original);
+        AutomationRunItemReceiptV1 original = runtimeEvidence.requireCommittedOriginal(run, prepared);
+        AutomationRuntimeEvidence.requireCompensationContext(prepared, original);
         AutomationRunItemReceiptV1 checked =
                 Sys006TypedArtifactContract.requireInteroperable(receipt);
         if (!checked.runId().equals(runPublicId)
@@ -500,8 +497,8 @@ final class AutomationRuntimeService {
             throw new IllegalStateException(
                     "AUTOMATION_COMPENSATION_RECEIPT_MISMATCH");
         }
-        requireSafeTerminalDisposition(checked);
-        AutomationRunItemReceiptV1 normalized = normalizeReceipt(run, checked);
+        AutomationRuntimeEvidence.requireSafeTerminalDisposition(checked);
+        AutomationRunItemReceiptV1 normalized = AutomationRuntimeEvidence.normalizeReceipt(run, checked);
         String outcome = "SUCCEEDED".equals(normalized.state())
                 ? "COMMITTED" : "RESULT_UNKNOWN";
         String receiptDigest = canonical.digest(normalized);
@@ -521,10 +518,10 @@ final class AutomationRuntimeService {
             LeaseGrant newReconciler,
             PreparedCompensation prepared) {
         bind(tenantId, subject);
-        OffsetDateTime now = now();
+        OffsetDateTime now = runtimeEvidence.now();
         RuntimeRun run = execution.lockRuntimeRun(tenantId, runPublicId);
-        requireReconciler(run, newReconciler, now, false);
-        revalidate(run, now);
+        runtimeEvidence.requireReconciler(run, newReconciler, now, false);
+        runtimeEvidence.revalidate(run, now);
         if (evidence == null) {
             throw new IllegalStateException("AUTOMATION_EFFECT_EVIDENCE_UNAVAILABLE");
         }
@@ -570,66 +567,11 @@ final class AutomationRuntimeService {
         control.appendRunEventAndAudit(seal, changed.run(), transition, now);
     }
 
-    private VerifiedArtifact revalidate(RuntimeRun run, OffsetDateTime now) {
-        return revalidate(run.manifest(), run.definitionDigest(),
-                run.executionPolicyDigest(), run.compatibilityBaselineDigest(), now);
-    }
-
-    private VerifiedArtifact revalidate(
-            AutomationHandlerRegistryPort.SignedManifest manifest,
-            String definitionDigest,
-            String executionPolicyDigest,
-            String compatibilityDigest,
-            OffsetDateTime now) {
-        VerifiedArtifact current = verifier.revalidate(
-                manifest, definitionDigest, executionPolicyDigest, compatibilityDigest);
-        AutomationRuntimePorts.requireFresh(
-                registry, current.signedManifest(), current.freshUntil(), now);
-        if (!current.signedManifest().equals(manifest)) {
-            throw new IllegalStateException("AUTOMATION_HANDLER_EVIDENCE_MISMATCH");
-        }
-        return current;
-    }
-
-    private void requireWorker(
-            RuntimeRun run, LeaseGrant worker, OffsetDateTime now,
-            boolean externalDispatch) {
-        AutomationDomainPolicy.requireActiveFence(
-                AutomationDomainPolicy.AuthorityKind.WORKER,
-                run.workerLease(), run.reconcilerLease(), worker.token(),
-                worker.authorityFenceEpoch(), worker.controlFenceEpoch(), now,
-                externalDispatch, "ORIGINAL");
-    }
-
-    private void requireReconciler(
-            RuntimeRun run, LeaseGrant reconciler, OffsetDateTime now,
-            boolean externalDispatch) {
-        AutomationDomainPolicy.requireActiveFence(
-                AutomationDomainPolicy.AuthorityKind.RECONCILER,
-                run.workerLease(), run.reconcilerLease(), reconciler.token(),
-                reconciler.authorityFenceEpoch(), reconciler.controlFenceEpoch(), now,
-                externalDispatch, "COMPENSATION");
-    }
-
     private void bind(long tenantId, UUID subject) {
         if (tenantId < 1 || subject == null) {
             throw new IllegalArgumentException("AUTOMATION_RUNTIME_AUTHORITY_REQUIRED");
         }
         control.bindTenantPrincipal(tenantId, subject);
-    }
-
-    private static Duration validLease(Duration duration) {
-        if (duration == null || duration.compareTo(MIN_LEASE) < 0
-                || duration.compareTo(MAX_LEASE) > 0) {
-            throw new IllegalArgumentException("AUTOMATION_LEASE_DURATION_INVALID");
-        }
-        return duration;
-    }
-
-    private static void requireRevision(RuntimeRun run, long expected) {
-        if (expected < 1 || run.run().objectRevision() != expected) {
-            throw new IllegalStateException("AUTOMATION_RUN_CAS_CONFLICT");
-        }
     }
 
     private static void requireScheduleCas(
@@ -643,205 +585,6 @@ final class AutomationRuntimeService {
                 || !schedule.nextFireAt().isEqual(request.scheduledInstantUtc())) {
             throw new IllegalStateException("AUTOMATION_SCHEDULE_FIRE_CAS_CONFLICT");
         }
-    }
-
-    private static OffsetDateTime nextFire(
-            ScheduleExecution schedule, OffsetDateTime after) {
-        return AutomationDomainPolicy.nextScheduleFire(
-                schedule.expression(), schedule.timezone(),
-                schedule.timezoneDatabaseRevision(), after);
-    }
-
-    private TypedAutomationHandlerPort handler(HandlerIdentity identity) {
-        TypedAutomationHandlerPort handler = handlers.get(identity);
-        if (handler == null) {
-            throw new IllegalStateException("AUTOMATION_TYPED_HANDLER_UNAVAILABLE");
-        }
-        return handler;
-    }
-
-    private static AutomationInvocationV1 invocation(RuntimeRun run) {
-        var manifest = run.manifest().manifest();
-        return new AutomationInvocationV1(
-                run.run().publicId(), run.run().definitionPublicId(),
-                run.run().versionNumber(), manifest.handlerKey(),
-                manifest.contractVersion(), run.scopeType(), run.scopeId(),
-                run.requestedAt().toInstant(), run.requestedByActorRef(),
-                run.idempotencyKey(), run.inputReference(), run.inputDigest(),
-                run.expectedItemCount(), run.correlationId());
-    }
-
-    private static void validateMaterialization(
-            RuntimeRun run, List<AutomationItemPlan> items) {
-        if (items.size() != run.expectedItemCount()) {
-            throw new IllegalStateException("AUTOMATION_ITEM_COUNT_MISMATCH");
-        }
-        HashSet<UUID> ids = new HashSet<>();
-        HashSet<Long> sequences = new HashSet<>();
-        for (AutomationItemPlan item : items) {
-            if (!ids.add(item.itemId()) || !sequences.add(item.itemSequence())) {
-                throw new IllegalStateException("AUTOMATION_ITEM_IDENTITY_DUPLICATE");
-            }
-        }
-        for (long expected = 1; expected <= items.size(); expected++) {
-            if (!sequences.contains(expected)) {
-                throw new IllegalStateException(
-                        "AUTOMATION_ITEM_SEQUENCE_NOT_CONTIGUOUS");
-            }
-        }
-    }
-
-    private static void requireCompensationContext(
-            PreparedCompensation prepared,
-            AutomationRunItemReceiptV1 original) {
-        if (!original.itemId().equals(prepared.itemPublicId())
-                || original.itemSequence() != prepared.itemSequence()
-                || !original.subjectRef().equals(prepared.subjectRef())
-                || !original.acceptedAt().equals(prepared.acceptedAt())) {
-            throw new IllegalStateException(
-                    "AUTOMATION_COMPENSATION_CONTEXT_SUBSTITUTED");
-        }
-    }
-
-    private AutomationRunItemReceiptV1 requireCommittedOriginal(
-            RuntimeRun run, PreparedCompensation prepared) {
-        AutomationRunItemReceiptV1 original =
-                Sys006TypedArtifactContract.requireInteroperable(
-                        execution.loadCommittedOriginalReceipt(
-                                run, prepared.itemPublicId()));
-        if (original.completedAt() == null
-                || original.completedAt().isBefore(original.acceptedAt())
-                || !java.util.Set.of("SUCCEEDED", "FAILED", "CANCELED",
-                "DEAD_LETTERED").contains(original.state())
-                || !canonical.digest(original).equals(
-                prepared.originalEffectReceiptDigest())) {
-            throw new IllegalStateException(
-                    "AUTOMATION_COMPENSATION_ORIGINAL_RECEIPT_INVALID");
-        }
-        return original;
-    }
-
-    private static List<AutomationRunItemReceiptV1> validateAndNormalizeReceipts(
-            RuntimeRun run,
-            PreparedOriginal prepared,
-            List<AutomationRunItemReceiptV1> receipts) {
-        Map<UUID, AutomationExecutionRepository.PreparedItem> preparedById =
-                prepared.items().stream().collect(
-                        java.util.stream.Collectors.toUnmodifiableMap(
-                                AutomationExecutionRepository.PreparedItem::itemPublicId,
-                                item -> item));
-        Map<UUID, AutomationRunItemReceiptV1> indexed = new HashMap<>();
-        for (AutomationRunItemReceiptV1 raw : receipts) {
-            AutomationRunItemReceiptV1 receipt =
-                    Sys006TypedArtifactContract.requireInteroperable(raw);
-            AutomationExecutionRepository.PreparedItem preparedItem =
-                    preparedById.get(receipt.itemId());
-            if (!receipt.runId().equals(run.run().publicId())
-                    || receipt.runRevision() != run.run().objectRevision()
-                    || receipt.attemptNumber() != run.attemptNumber()
-                    || !receipt.correlationId().equals(run.correlationId())
-                    || preparedItem == null
-                    || receipt.itemSequence() != preparedItem.itemSequence()
-                    || !receipt.subjectRef().equals(preparedItem.subjectRef())
-                    || !receipt.acceptedAt().equals(preparedItem.acceptedAt())) {
-                throw new IllegalStateException("AUTOMATION_HANDLER_RECEIPT_MISMATCH");
-            }
-            if (!java.util.Set.of("SUCCEEDED", "FAILED", "CANCELED",
-                    "DEAD_LETTERED").contains(receipt.state())
-                    || receipt.completedAt() == null
-                    || receipt.completedAt().isBefore(receipt.acceptedAt())) {
-                throw new IllegalStateException(
-                        "AUTOMATION_HANDLER_RECEIPT_NOT_TERMINAL");
-            }
-            requireSafeTerminalDisposition(receipt);
-            AutomationRunItemReceiptV1 normalized = normalizeReceipt(run, receipt);
-            if (indexed.putIfAbsent(normalized.itemId(), normalized) != null) {
-                throw new IllegalStateException("AUTOMATION_HANDLER_RECEIPT_MISMATCH");
-            }
-        }
-        if (!indexed.keySet().equals(preparedById.keySet())) {
-            throw new IllegalStateException("AUTOMATION_HANDLER_RECEIPT_SET_MISMATCH");
-        }
-        return List.copyOf(indexed.values());
-    }
-
-    private static void requireSafeTerminalDisposition(
-            AutomationRunItemReceiptV1 receipt) {
-        boolean retryableFailure = "FAILED".equals(receipt.state())
-                && receipt.retryable();
-        if (("SUCCEEDED".equals(receipt.state())
-                && (receipt.resultDigest() == null || receipt.retryable()
-                || receipt.nextAttemptAt() != null))
-                || ("FAILED".equals(receipt.state())
-                && (receipt.errorCode() == null
-                || retryableFailure != (receipt.nextAttemptAt() != null)))
-                || (retryableFailure
-                && !receipt.nextAttemptAt().isAfter(receipt.completedAt()))
-                || (java.util.Set.of("CANCELED", "DEAD_LETTERED")
-                .contains(receipt.state())
-                && (receipt.retryable() || receipt.nextAttemptAt() != null))) {
-            throw new IllegalStateException(
-                    "AUTOMATION_HANDLER_RECEIPT_DISPOSITION_UNSAFE");
-        }
-    }
-
-    private static AutomationRunItemReceiptV1 normalizeReceipt(
-            RuntimeRun run, AutomationRunItemReceiptV1 receipt) {
-        boolean deadLetter = "FAILED".equals(receipt.state())
-                && (run.run().retryMode() == AutomationDtos.RetryMode.NONE
-                || !receipt.retryable()
-                || run.attemptNumber() >= run.run().maxAttempts());
-        String state = deadLetter ? "DEAD_LETTERED" : receipt.state();
-        boolean retryable = "FAILED".equals(state) && receipt.retryable();
-        Instant completedAt = receipt.completedAt().truncatedTo(ChronoUnit.MICROS);
-        Instant nextAttemptAt = retryable
-                ? receipt.nextAttemptAt().truncatedTo(ChronoUnit.MICROS) : null;
-        return new AutomationRunItemReceiptV1(
-                receipt.runId(), receipt.runRevision(), receipt.itemId(),
-                receipt.itemSequence(), receipt.subjectRef(), state,
-                receipt.attemptNumber(),
-                receipt.acceptedAt().truncatedTo(ChronoUnit.MICROS), completedAt,
-                receipt.resultRef(), receipt.resultDigest(), receipt.errorCode(),
-                retryable, nextAttemptAt, receipt.correlationId());
-    }
-
-    private String receiptSetDigest(
-            RuntimeRun run, List<AutomationRunItemReceiptV1> receipts) {
-        List<Map<String, Object>> ordered = receipts.stream()
-                .sorted(java.util.Comparator.comparingLong(
-                        AutomationRunItemReceiptV1::itemSequence)
-                        .thenComparing(receipt -> receipt.itemId().toString()))
-                .map(receipt -> {
-                    Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("itemPublicId", receipt.itemId());
-                    item.put("itemSequence", Long.toString(receipt.itemSequence()));
-                    item.put("receiptState", mapReceiptState(receipt));
-                    item.put("attemptNumber", receipt.attemptNumber());
-                    item.put("resultDigest", receipt.resultDigest());
-                    item.put("errorCode", receipt.errorCode());
-                    item.put("compensationReceiptDigest", null);
-                    return item;
-                }).toList();
-        Map<String, Object> document = new LinkedHashMap<>();
-        document.put("runPublicId", run.run().publicId());
-        document.put("runRevision", Long.toString(run.run().objectRevision()));
-        document.put("items", ordered);
-        return canonical.digest(document);
-    }
-
-    private static String mapReceiptState(AutomationRunItemReceiptV1 receipt) {
-        if ("FAILED".equals(receipt.state())) {
-            return receipt.retryable() ? "FAILED_RETRYABLE" : "FAILED_FINAL";
-        }
-        return switch (receipt.state()) {
-            case "CANCELED" -> "CANCELLED";
-            case "DEAD_LETTERED" -> "DEAD_LETTER";
-            default -> receipt.state();
-        };
-    }
-
-    private OffsetDateTime now() {
-        return execution.databaseNow();
     }
 
     record SchedulerAuthority(

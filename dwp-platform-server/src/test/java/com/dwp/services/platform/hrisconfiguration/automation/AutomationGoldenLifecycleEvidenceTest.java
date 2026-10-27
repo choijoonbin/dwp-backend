@@ -563,9 +563,10 @@ class AutomationGoldenLifecycleEvidenceTest {
     }
 
     private static VerifiedArtifact verified(SignedManifest signed) {
+        // Runtime validation uses the database clock rather than the fixed control-plane clock.
         return new VerifiedArtifact(
                 signed, "trusted-keys-golden-r1", D,
-                "compatibility-golden-v1", E, F, NOW.plusDays(1));
+                "compatibility-golden-v1", E, F, repository.databaseNow().plusDays(1));
     }
 
     private static SignedManifest signedManifest() {

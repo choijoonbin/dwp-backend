@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -17,10 +16,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.regex.Pattern;
+
+import static com.dwp.services.people.hris.workbench.hrm007.Hrm007QueryFilters.CODE;
+import static com.dwp.services.people.hris.workbench.hrm007.Hrm007QueryFilters.PUBLIC_ID;
 
 /** Pure request validation, filtering, stable paging, and sealed projection logic. */
 @Component
@@ -28,10 +28,6 @@ import java.util.regex.Pattern;
         havingValue = "true", matchIfMissing = false)
 final class Hrm007Projector {
 
-    private static final Pattern CODE = Pattern.compile("[A-Z][A-Z0-9_]{1,63}");
-    private static final Pattern PUBLIC_ID = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
-    private static final Pattern POLICY_KEY =
-            Pattern.compile("[A-Za-z0-9._:-]{1,128}");
     private static final Pattern CURSOR = Pattern.compile("[A-Za-z0-9_-]{16,1024}");
     private static final int FIELD_GROUP_COUNT = 3;
 
@@ -82,9 +78,9 @@ final class Hrm007Projector {
         if (effectiveSort.stream().noneMatch(value -> value.startsWith("itemPublicId:"))) {
             effectiveSort.add("itemPublicId:ASC");
         }
-        String locale = locale(request.locale());
-        String timeZone = timeZone(request.timeZone());
-        Object filter = filter(definition, request.filter());
+        String locale = Hrm007QueryFilters.locale(request.locale());
+        String timeZone = Hrm007QueryFilters.timeZone(request.timeZone());
+        Object filter = Hrm007QueryFilters.filter(definition, request.filter());
         if (request.cursor() != null && !CURSOR.matcher(request.cursor()).matches()) {
             throw Hrm007Exception.invalid("HRM-007 cursor format is invalid.");
         }
@@ -303,19 +299,6 @@ final class Hrm007Projector {
                 };
     }
 
-    private String status(
-            Hrm007ProjectionSource.ProjectionRow row,
-            Hrm007Authority.Decision authority) {
-        String controlling = switch (row) {
-            case Hrm007ProjectionSource.PeopleChangeRow ignored -> "APPROVAL_STATUS";
-            case Hrm007ProjectionSource.AppointmentRow ignored -> "APPOINTMENT";
-            case Hrm007ProjectionSource.PeopleEmploymentRow ignored -> "POLICY_METADATA";
-        };
-        return authority.fieldDecisions().get(controlling)
-                == Hrm007Authority.FieldDecision.VIEW
-                ? row.statusCode() : "RESTRICTED";
-    }
-
     private List<Hrm007Dtos.AvailableAction> actions(
             Hrm007QueryDefinition definition,
             Hrm007ProjectionSource.ProjectionRow row,
@@ -523,130 +506,17 @@ final class Hrm007Projector {
         return left.compareTo(right);
     }
 
-    private Object filter(Hrm007QueryDefinition definition, Object source) {
-        return switch (definition) {
-            case PEOPLE_CHANGES -> {
-                if (!(source instanceof Hrm007Dtos.PeopleChangesFilter value)) {
-                    throw Hrm007Exception.invalid("IAQ-005 filter shape is invalid.");
-                }
-                yield new Hrm007Dtos.PeopleChangesFilter(
-                        aggregate(value.changeRequestSummary()),
-                        status(value.limitedEmployment()), status(value.approvalStatus()),
-                        value.effectiveOn());
-            }
-            case APPOINTMENTS -> {
-                if (!(source instanceof Hrm007Dtos.AppointmentsFilter value)) {
-                    throw Hrm007Exception.invalid("IAQ-007 filter shape is invalid.");
-                }
-                yield new Hrm007Dtos.AppointmentsFilter(
-                        temporal(value.appointment()), reference(value.assignment()),
-                        range(value.employment()), value.effectiveOn());
-            }
-            case PEOPLE_EMPLOYMENT -> {
-                if (!(source instanceof Hrm007Dtos.PeopleEmploymentFilter value)) {
-                    throw Hrm007Exception.invalid("IAQ-013 filter shape is invalid.");
-                }
-                yield new Hrm007Dtos.PeopleEmploymentFilter(
-                        policy(value.policyMetadata()), policy(value.employmentRule()),
-                        aggregate(value.impactSummary()), value.effectiveOn());
-            }
+    private String status(
+            Hrm007ProjectionSource.ProjectionRow row,
+            Hrm007Authority.Decision authority) {
+        String controlling = switch (row) {
+            case Hrm007ProjectionSource.PeopleChangeRow ignored -> "APPROVAL_STATUS";
+            case Hrm007ProjectionSource.AppointmentRow ignored -> "APPOINTMENT";
+            case Hrm007ProjectionSource.PeopleEmploymentRow ignored -> "POLICY_METADATA";
         };
-    }
-
-    private Hrm007Dtos.AggregateFilter aggregate(Hrm007Dtos.AggregateFilter value) {
-        if (value == null) return null;
-        if (value.minimumItemCount() != null && value.minimumItemCount() < 0
-                || value.maximumItemCount() != null && value.maximumItemCount() < 0
-                || value.minimumItemCount() != null && value.maximumItemCount() != null
-                && value.minimumItemCount() > value.maximumItemCount()) {
-            throw Hrm007Exception.invalid("Aggregate filter bounds are invalid.");
-        }
-        return value;
-    }
-
-    private Hrm007Dtos.StatusFilter status(Hrm007Dtos.StatusFilter value) {
-        if (value == null) return null;
-        List<String> codes = list(value.codes(), CODE, 50, "status code");
-        if (value.minimumRevision() != null && value.minimumRevision() < 1) {
-            throw Hrm007Exception.invalid("Status minimum revision is invalid.");
-        }
-        return new Hrm007Dtos.StatusFilter(codes, value.minimumRevision());
-    }
-
-    private Hrm007Dtos.TemporalFilter temporal(Hrm007Dtos.TemporalFilter value) {
-        if (value == null) return null;
-        if (after(value.startFrom(), value.startTo())
-                || after(value.endFrom(), value.endTo())) {
-            throw Hrm007Exception.invalid("Temporal filter bounds are invalid.");
-        }
-        return value;
-    }
-
-    private Hrm007Dtos.ReferenceFilter reference(Hrm007Dtos.ReferenceFilter value) {
-        if (value == null) return null;
-        return new Hrm007Dtos.ReferenceFilter(
-                list(value.codes(), CODE, 50, "reference code"),
-                list(value.publicIds(), PUBLIC_ID, 50, "reference public id"));
-    }
-
-    private Hrm007Dtos.EffectiveRangeFilter range(Hrm007Dtos.EffectiveRangeFilter value) {
-        if (value == null) return null;
-        if (value.from() != null && value.to() != null
-                && value.from().isAfter(value.to())) {
-            throw Hrm007Exception.invalid("Effective-range filter bounds are invalid.");
-        }
-        return value;
-    }
-
-    private Hrm007Dtos.PolicyFilter policy(Hrm007Dtos.PolicyFilter value) {
-        if (value == null) return null;
-        List<String> keys = list(value.policyKeys(), POLICY_KEY, 50, "policy key");
-        if (value.minimumRevision() != null && value.minimumRevision() < 1) {
-            throw Hrm007Exception.invalid("Policy minimum revision is invalid.");
-        }
-        return new Hrm007Dtos.PolicyFilter(keys, value.minimumRevision());
-    }
-
-    private List<String> list(
-            List<String> source,
-            Pattern pattern,
-            int maximum,
-            String label) {
-        if (source == null) return List.of();
-        List<String> copy = List.copyOf(source);
-        if (copy.size() > maximum || new HashSet<>(copy).size() != copy.size()
-                || copy.stream().anyMatch(value ->
-                value == null || !pattern.matcher(value).matches())) {
-            throw Hrm007Exception.invalid("HRM-007 " + label + " values are invalid.");
-        }
-        return copy;
-    }
-
-    private String locale(String source) {
-        if (source == null || !source.equals(source.trim())
-                || source.length() < 2 || source.length() > 35) {
-            throw Hrm007Exception.invalid("HRM-007 locale is invalid.");
-        }
-        Locale value = Locale.forLanguageTag(source.replace('_', '-'));
-        if (value.getLanguage().isBlank() || "und".equals(value.toLanguageTag())) {
-            throw Hrm007Exception.invalid("HRM-007 locale is invalid.");
-        }
-        return value.toLanguageTag();
-    }
-
-    private String timeZone(String source) {
-        if (source == null || !source.equals(source.trim())
-                || source.isBlank() || source.length() > 255
-                || ZoneId.SHORT_IDS.containsKey(source)) {
-            throw Hrm007Exception.invalid("HRM-007 time zone is invalid.");
-        }
-        try {
-            ZoneId value = ZoneId.of(source);
-            return value.getRules().isFixedOffset()
-                    ? value.normalized().getId() : value.getId();
-        } catch (DateTimeException exception) {
-            throw Hrm007Exception.invalid("HRM-007 time zone is invalid.");
-        }
+        return authority.fieldDecisions().get(controlling)
+                == Hrm007Authority.FieldDecision.VIEW
+                ? row.statusCode() : "RESTRICTED";
     }
 
     private boolean aggregate(Hrm007Dtos.AggregateFilter filter, int count) {
@@ -706,10 +576,6 @@ final class Hrm007Projector {
 
     private boolean active(LocalDate date, LocalDate from, LocalDate to) {
         return !date.isBefore(from) && (to == null || !date.isAfter(to));
-    }
-
-    private boolean after(Instant left, Instant right) {
-        return left != null && right != null && left.isAfter(right);
     }
 
     private long canonicalRevision(long revision) {

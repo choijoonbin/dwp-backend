@@ -79,8 +79,8 @@ public class SpaceService {
         boolean canManage = queries.canManage(subject, summary.spaceId());
         String role = summary.memberRole();
         boolean canViewContent = role != null || canModerate || "OPEN".equals(summary.visibility());
-        boolean canContribute = canModerate
-                || (role != null && List.of("CONTRIBUTOR", "EDITOR").contains(role));
+        boolean canContribute = "ACTIVE".equals(summary.lifecycleState())
+                && (canModerate || (role != null && List.of("CONTRIBUTOR", "EDITOR").contains(role)));
         Map<String, String> policies = queries.policies(subject.tenantId(), summary.spaceId());
         return new SpaceDtos.SpaceDetail(
                 summary,
@@ -155,7 +155,7 @@ public class SpaceService {
             SpaceDtos.CreateContentRequest input,
             String correlationId) {
         SpaceRequestContext.Subject subject = SpaceRequestContext.get();
-        SpaceDtos.SpaceSummary space = queries.space(subject, spaceKey);
+        SpaceDtos.SpaceSummary space = lockedSpace(subject, spaceKey);
         if (!canContribute(subject, space)) throw new BaseException(ErrorCode.FORBIDDEN);
         UUID contentId = commands.createContent(subject, space.spaceId(), input);
         record(subject, "SPACE_CONTENT_CREATED", "SPACE_CONTENT", contentId.toString(),
@@ -202,7 +202,12 @@ public class SpaceService {
         SpaceRequestContext.Subject subject = SpaceRequestContext.get();
         require(subject, "ACTION.SPACE_MEMBERSHIP", "CREATE", "MANAGE");
         SpaceDtos.SpaceSummary space = queries.space(subject, spaceKey);
-        if (space.memberRole() != null && !"VIEWER".equals(space.memberRole())) {
+        if (!"ACTIVE".equals(space.lifecycleState())
+                || !List.of("OPEN", "REQUEST").contains(space.visibility())) {
+            throw new BaseException(ErrorCode.FORBIDDEN,
+                    "This Space does not accept membership requests.");
+        }
+        if (space.memberRole() != null) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
                     "The requester already has an active Space membership.");
         }
@@ -240,7 +245,7 @@ public class SpaceService {
             SpaceDtos.AccessDecision input,
             String correlationId) {
         SpaceRequestContext.Subject subject = SpaceRequestContext.get();
-        SpaceDtos.SpaceSummary space = queries.space(subject, spaceKey);
+        SpaceDtos.SpaceSummary space = lockedSpace(subject, spaceKey);
         requireSpaceManager(subject, space);
         commands.decideAccessRequest(subject, space.spaceId(), requestId, input);
         record(subject, "SPACE_ACCESS_DECIDED", "SPACE_ACCESS_REQUEST", requestId.toString(),
@@ -253,7 +258,7 @@ public class SpaceService {
             SpaceDtos.SaveMemberRequest input,
             String correlationId) {
         SpaceRequestContext.Subject subject = SpaceRequestContext.get();
-        SpaceDtos.SpaceSummary space = queries.space(subject, spaceKey);
+        SpaceDtos.SpaceSummary space = lockedSpace(subject, spaceKey);
         requireSpaceManager(subject, space);
         commands.saveMember(subject, space.spaceId(), input);
         record(subject, "SPACE_MEMBERSHIP_SAVED", "SPACE", space.spaceId().toString(),
@@ -271,7 +276,7 @@ public class SpaceService {
             SpaceDtos.UpdateMemberRequest input,
             String correlationId) {
         SpaceRequestContext.Subject subject = SpaceRequestContext.get();
-        SpaceDtos.SpaceSummary space = queries.space(subject, spaceKey);
+        SpaceDtos.SpaceSummary space = lockedSpace(subject, spaceKey);
         requireSpaceManager(subject, space);
         commands.updateMember(subject, space.spaceId(), membershipId, input);
         record(subject, "SPACE_MEMBERSHIP_UPDATED", "SPACE_MEMBERSHIP",
@@ -286,7 +291,7 @@ public class SpaceService {
             UUID membershipId,
             String correlationId) {
         SpaceRequestContext.Subject subject = SpaceRequestContext.get();
-        SpaceDtos.SpaceSummary space = queries.space(subject, spaceKey);
+        SpaceDtos.SpaceSummary space = lockedSpace(subject, spaceKey);
         requireSpaceManager(subject, space);
         commands.revokeMember(subject, space.spaceId(), membershipId);
         record(subject, "SPACE_MEMBERSHIP_REVOKED", "SPACE_MEMBERSHIP",
@@ -300,7 +305,7 @@ public class SpaceService {
             SpaceDtos.UpdatePolicyRequest input,
             String correlationId) {
         SpaceRequestContext.Subject subject = SpaceRequestContext.get();
-        SpaceDtos.SpaceSummary space = queries.space(subject, spaceKey);
+        SpaceDtos.SpaceSummary space = lockedSpace(subject, spaceKey);
         if (!queries.canManage(subject, space.spaceId())) throw new BaseException(ErrorCode.FORBIDDEN);
         commands.updatePolicies(subject, space.spaceId(), input);
         record(subject, "SPACE_POLICIES_UPDATED", "SPACE", space.spaceId().toString(),
@@ -470,11 +475,19 @@ public class SpaceService {
         }
     }
 
+    private SpaceDtos.SpaceSummary lockedSpace(SpaceRequestContext.Subject subject, String spaceKey) {
+        SpaceDtos.SpaceSummary space = queries.space(subject, spaceKey);
+        commands.lockMembershipScope(subject, space.spaceId());
+        return queries.space(subject, spaceKey);
+    }
+
     private boolean canContribute(
             SpaceRequestContext.Subject subject,
             SpaceDtos.SpaceSummary space) {
-        return queries.canModerate(subject, space.spaceId())
-                || List.of("CONTRIBUTOR", "EDITOR").contains(space.memberRole());
+        return "ACTIVE".equals(space.lifecycleState())
+                && (queries.canModerate(subject, space.spaceId())
+                    || (space.memberRole() != null
+                        && List.of("CONTRIBUTOR", "EDITOR").contains(space.memberRole())));
     }
 
     private void requireSpaceManager(

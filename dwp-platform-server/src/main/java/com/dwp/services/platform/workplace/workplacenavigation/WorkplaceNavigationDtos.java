@@ -124,6 +124,12 @@ public final class WorkplaceNavigationDtos {
             UUID fromNodeId,
             UUID toNodeId,
             UUID floorId,
+            UUID fromFloorId,
+            UUID toFloorId,
+            BigDecimal fromPositionX,
+            BigDecimal fromPositionY,
+            BigDecimal toPositionX,
+            BigDecimal toPositionY,
             TravelMode travelMode,
             int travelSeconds,
             String directionKo,
@@ -346,7 +352,8 @@ public final class WorkplaceNavigationDtos {
             OffsetDateTime submittedAt, OffsetDateTime publishedAt, OffsetDateTime updatedAt) { }
 
     record NodeRow(
-            UUID nodeId, UUID floorId, NodeKind kind, boolean accessible,
+            UUID nodeId, UUID floorId, NodeKind kind,
+            BigDecimal positionX, BigDecimal positionY, boolean accessible,
             UUID restrictedZoneId) { }
 
     record EdgeRow(

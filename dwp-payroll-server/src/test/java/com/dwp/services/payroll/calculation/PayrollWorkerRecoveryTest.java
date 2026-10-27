@@ -228,11 +228,11 @@ class PayrollWorkerRecoveryTest {
             PayrollCalculationTestSupport.MutableClock clock) {
 
         UUID calculate() {
-            store.seedPreparedRun(
-                    PayrollCalculationTestSupport.preparedRun(1, 101, RUN_ID));
+            var prepared = PayrollCalculationTestSupport.preparedRun(1, 101, RUN_ID);
+            store.seedPreparedRun(prepared);
             return service.calculate(
                     PayrollCalculationTestSupport.calculator(1, 101), RUN_ID,
-                    "pay-gold-003", 1, UUID.randomUUID(),
+                    "pay-gold-003", prepared.revision(), UUID.randomUUID(),
                     new ActionCommand("REGULAR_RUN", null, null)).receiptId();
         }
     }

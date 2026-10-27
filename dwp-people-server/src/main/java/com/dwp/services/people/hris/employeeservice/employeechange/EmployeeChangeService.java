@@ -1,5 +1,6 @@
 package com.dwp.services.people.hris.employeeservice.employeechange;
 
+import static com.dwp.services.people.hris.employeeservice.employeechange.EmployeeChangeCommandSupport.*;
 import com.dwp.contracts.hris.xcon.v1.Xcon022EmployeeChangeAppliedV1;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
@@ -20,13 +21,11 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -627,43 +626,7 @@ class EmployeeChangeService {
     }
 
     private CommandResult replay(EmployeeChangeRepository.ReceiptRow receipt) {
-        return new CommandResult(toReceipt(receipt), replayEntityVersion(receipt));
-    }
-
-    private long replayEntityVersion(EmployeeChangeRepository.ReceiptRow receipt) {
-        try {
-            if (receipt.resultReference() != null) {
-                com.fasterxml.jackson.databind.JsonNode result =
-                        mapper.readTree(receipt.resultReference());
-                com.fasterxml.jackson.databind.JsonNode version = result.get("requestVersion");
-                if (version != null && version.canConvertToLong() && version.longValue() > 0) {
-                    return version.longValue();
-                }
-            }
-        } catch (Exception ignored) {
-            // Fail closed below; a successful receipt without its immutable result is corrupt.
-        }
-        throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                "The prior employee-change command result is unavailable.");
-    }
-
-    private CommandReceiptV1 toReceipt(EmployeeChangeRepository.ReceiptRow row) {
-        return new CommandReceiptV1(
-                row.receiptId(), row.commandType(), row.action(), row.subjectPublicId(),
-                row.populationDigest(), row.fieldRevision(), row.purpose(),
-                row.authorizationRevision(), receiptStatus(row.lifecycleState()),
-                row.correlationId(), row.requestDigest(), row.createdAt());
-    }
-
-    private String receiptStatus(String lifecycle) {
-        return switch (lifecycle) {
-            case "RECEIVED" -> "ACCEPTED";
-            case "VALIDATING", "RUNNING" -> "RUNNING";
-            case "SUCCEEDED" -> "SUCCEEDED";
-            case "REJECTED", "CANCELLED" -> "REJECTED";
-            case "FAILED_RETRYABLE", "DEAD" -> "FAILED";
-            default -> "RESULT_UNKNOWN";
-        };
+        return new CommandResult(toReceipt(receipt), replayEntityVersion(mapper, receipt));
     }
 
     private String commandDigest(
@@ -685,92 +648,12 @@ class EmployeeChangeService {
         return canonicalizer.requestDigest(binding);
     }
 
-    private PeopleRequestContext.Actor actor() {
-        PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        if (actor.userId() == null || actor.userId() < 1
-                || actor.tenantId() == null || actor.tenantId() < 1
-                || actor.personPublicId() == null) {
-            throw new BaseException(ErrorCode.UNAUTHORIZED,
-                    "A tenant-bound People identity is required.");
-        }
-        return actor;
-    }
-
-    private String idempotencyKey(String value) {
-        if (value == null || value.length() < 16 || value.length() > 128
-                || !value.equals(value.trim())
-                || !value.matches("[A-Za-z0-9._:-]{16,128}")) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
-                    "A canonical Idempotency-Key is required.");
-        }
-        return value;
-    }
-
-    private long expectedVersion(String value, boolean allowZero) {
-        if (value == null || !value.matches("(?:W/)?\"(?:v:)?[0-9]+\"")) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
-                    "If-Match must contain a numeric governed version.");
-        }
-        long version;
-        try {
-            String number = value.replaceFirst("^(?:W/)?\"(?:v:)?", "")
-                    .replace("\"", "");
-            version = Long.parseLong(number);
-        } catch (RuntimeException exception) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
-                    "If-Match contains an invalid governed version.");
-        }
-        if (!allowZero && version < 1) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
-                    "Employee-change request versions must be positive.");
-        }
-        return version;
-    }
-
-    private String purpose(String capability, String requested) {
-        String expected = switch (capability) {
-            case "hcm.personal.profile.update" -> "EMPLOYEE_SELF_SERVICE";
-            case "hcm.team.people-change.request" -> "TEAM_MANAGEMENT";
-            case EmployeeChangeAuthority.APPLY_CAPABILITY -> "HR_LIFECYCLE";
-            default -> "HR_OPERATIONS";
-        };
-        if (requested == null || requested.isBlank()) return expected;
-        String value = requested.trim().toUpperCase(Locale.ROOT);
-        if (!value.matches("[A-Z][A-Z0-9._-]{2,63}") || !expected.equals(value)) {
-            throw new BaseException(ErrorCode.FORBIDDEN,
-                    "The employee-change purpose is not authorized for this route.");
-        }
-        return value;
-    }
-
-    private void requireUniqueEvidence(List<EmployeeChangeDtos.EvidenceReference> evidence) {
-        if (evidence.stream().map(EmployeeChangeDtos.EvidenceReference::objectRef)
-                .distinct().count() != evidence.size()) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
-                    "Employee-change evidence references must be unique.");
-        }
-    }
-
-    private UUID deterministicUuid(
-            String namespace,
-            long tenantId,
-            UUID subject,
-            String action,
-            String key) {
-        String value = namespace + '\n' + tenantId + '\n' + subject + '\n' + action + '\n' + key;
-        return UUID.nameUUIDFromBytes(value.getBytes(StandardCharsets.UTF_8));
-    }
-
     private String json(Object value) {
         try {
             return mapper.writeValueAsString(value);
         } catch (Exception exception) {
             throw new IllegalStateException("Employee-change event serialization failed.", exception);
         }
-    }
-
-    private BaseException versionConflict(String message) {
-        return new BaseException(ErrorCode.OBJECT_VERSION_CONFLICT, message);
     }
 
     record WorkbenchResult(

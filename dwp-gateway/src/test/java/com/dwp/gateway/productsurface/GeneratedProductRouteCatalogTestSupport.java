@@ -104,4 +104,21 @@ abstract class GeneratedProductRouteCatalogTestSupport {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("authority endpoint");
     }
+
+    protected void assertRoute(
+            GeneratedProductRouteCatalog catalog,
+            String method,
+            String path,
+            String routeKey,
+            boolean stateChanging,
+            String query) {
+        GeneratedProductRouteCatalog.Match match = catalog.match(method, path, query);
+        assertThat(match.status()).as(method + " " + path)
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(match.uniqueRoute()).isNotNull().satisfies(route -> {
+            assertThat(route.routeContractKey()).isEqualTo(routeKey);
+            assertThat(route.stateChanging()).isEqualTo(stateChanging);
+        });
+    }
+
 }

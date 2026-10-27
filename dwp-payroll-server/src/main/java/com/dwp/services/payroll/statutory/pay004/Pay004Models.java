@@ -568,12 +568,4 @@ final class Pay004Models {
             throw new IllegalArgumentException(name + " is invalid");
         }
     }
-
-    private static boolean looksLikeUuid(String value) {
-        try {
-            return UUID.fromString(value).toString().equals(value);
-        } catch (RuntimeException exception) {
-            return false;
-        }
-    }
 }

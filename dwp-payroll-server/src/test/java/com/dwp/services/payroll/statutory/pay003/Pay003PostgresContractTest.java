@@ -342,6 +342,8 @@ class Pay003PostgresContractTest {
         Pay003Models.SocialInsuranceProviderOutcome outcome =
                 providerOutcome(pack, facts, List.of(facts.highLine(), facts.lowLine()));
         Pay003Models.PreparedSocialInsuranceFact prepared = publisher.prepare(outcome);
+        assertThat(prepared.sourceResultLineIds())
+                .containsExactly(facts.lowLine(), facts.highLine());
         publisher.publish(outcome);
 
         assertThat(admin.queryForObject("""
@@ -800,8 +802,12 @@ class Pay003PostgresContractTest {
     }
 
     private V50Facts v50Facts() {
-        UUID low = UUID.fromString("20000000-0000-0000-0000-000000000001");
-        UUID high = UUID.fromString("f0000000-0000-0000-0000-000000000001");
+        // Fresh public IDs retain opposite sign bits to exercise canonical UUID ordering.
+        UUID source = UUID.randomUUID();
+        UUID low = new UUID(source.getMostSignificantBits() & Long.MAX_VALUE,
+                source.getLeastSignificantBits());
+        UUID high = new UUID(source.getMostSignificantBits() | Long.MIN_VALUE,
+                source.getLeastSignificantBits());
         return new V50Facts(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 low, high);

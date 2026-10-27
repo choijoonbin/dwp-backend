@@ -1,32 +1,23 @@
 package com.dwp.services.platform.hrisconfiguration.referenceconfiguration;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationDtos.*;
 
 @Repository
 class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepository {
+    final JdbcReferenceConfigurationMapping mapping;
+
+
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
@@ -34,6 +25,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
     JdbcReferenceConfigurationRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.mapping = new JdbcReferenceConfigurationMapping(objectMapper);
     }
 
     @Override
@@ -46,7 +38,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
         jdbc.query(
                 "SELECT pg_advisory_xact_lock(?)",
                 resultSet -> null,
-                advisoryKey(tenantId, subjectId, originatingAction, idempotencyKey));
+                mapping.advisoryKey(tenantId, subjectId, originatingAction, idempotencyKey));
     }
 
     @Override
@@ -62,7 +54,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                       FROM hris_reference_configuration_command_receipts
                      WHERE tenant_id = ? AND subject_id = ?
                        AND originating_action = ? AND idempotency_key = ?
-                    """, (rs, row) -> storedReceipt(rs),
+                    """, (rs, row) -> mapping.storedReceipt(rs),
                     tenantId, subjectId, originatingAction, idempotencyKey));
         } catch (EmptyResultDataAccessException ignored) {
             return Optional.empty();
@@ -77,7 +69,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                     SELECT request_digest, receipt_payload
                       FROM hris_reference_configuration_command_receipts
                      WHERE tenant_id = ? AND receipt_id = ?
-                    """, (rs, row) -> storedReceipt(rs), tenantId, receiptId));
+                    """, (rs, row) -> mapping.storedReceipt(rs), tenantId, receiptId));
         } catch (EmptyResultDataAccessException ignored) {
             return Optional.empty();
         }
@@ -106,9 +98,9 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                 idempotencyKey,
                 requestDigest,
                 receipt.commandType(),
-                resultConfigurationId(receipt.resultRef()),
-                resultVersion(receipt.resultRef()),
-                write(receipt),
+                mapping.resultConfigurationId(receipt.resultRef()),
+                mapping.resultVersion(receipt.resultRef()),
+                mapping.write(receipt),
                 receipt.createdAt());
     }
 
@@ -207,7 +199,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                 command.schemaKey(),
                 command.schemaVersion(),
                 command.payload().reference(),
-                normalizeDigest(command.payload().digest()),
+                mapping.normalizeDigest(command.payload().digest()),
                 actorId,
                 now,
                 now);
@@ -234,7 +226,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                       FROM hris_reference_configuration_versions
                      WHERE tenant_id = ? AND configuration_id = ? AND version = ?
                        AND scope_type = ? AND scope_id = ?
-                    """, this::version,
+                    """, mapping::version,
                     tenantId, configurationId, version, scope.type().name(), scope.id()));
         } catch (EmptyResultDataAccessException ignored) {
             return Optional.empty();
@@ -250,10 +242,10 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
             UUID seekAfter,
             int limit) {
         List<WorkbenchRow> candidates = latestRows(tenantId, scope, asOf).stream()
-                .filter(row -> matchesCatalog(row, filter))
+                .filter(row -> mapping.matchesCatalog(row, filter))
                 .sorted(Comparator.comparing(row -> row.item().publicId()))
                 .toList();
-        int start = seekIndex(candidates, seekAfter);
+        int start = mapping.seekIndex(candidates, seekAfter);
         boolean seekFound = seekAfter == null || start >= 0;
         if (!seekFound) return new CatalogPage(List.of(), false, false);
         int from = seekAfter == null ? 0 : start + 1;
@@ -273,10 +265,10 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
             UUID seekAfter,
             int limit) {
         List<WorkbenchRow> candidates = latestRows(tenantId, scope, asOf).stream()
-                .filter(row -> matchesWorkbench(row, query.filter()))
-                .sorted(workbenchComparator(query.sort()))
+                .filter(row -> mapping.matchesWorkbench(row, query.filter()))
+                .sorted(mapping.workbenchComparator(query.sort()))
                 .toList();
-        int start = seekIndex(candidates, seekAfter);
+        int start = mapping.seekIndex(candidates, seekAfter);
         boolean seekFound = seekAfter == null || start >= 0;
         if (!seekFound) return new WorkbenchPage(List.of(), false, false);
         int from = seekAfter == null ? 0 : start + 1;
@@ -311,7 +303,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                       history.snapshot) v
                  WHERE c.tenant_id = ? AND c.scope_type = ? AND c.scope_id = ?
                 """, (rs, row) -> {
-                    VersionDetail detail = version(rs, row);
+                    VersionDetail detail = mapping.version(rs, row);
                     CatalogItem item = new CatalogItem(
                             detail.configurationId(),
                             rs.getString("configuration_key"),
@@ -500,28 +492,28 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                 tenantId, configurationId, rollbackVersion, source.domain().name(),
                 scope.type().name(), scope.id(), now, source.schemaKey(),
                 source.schemaVersion(), source.payloadReference(), source.payloadDigest(),
-                value(source.validation(), ValidationFact::receiptId),
-                value(source.validation(), ValidationFact::evidenceDigest),
-                value(source.validation(), fact -> fact.schemaRevision()),
-                value(source.validation(), ValidationFact::populationScopeDigest),
-                value(source.validation(), ValidationFact::producedAt),
-                value(source.simulation(), SimulationFact::receiptId),
-                value(source.simulation(), SimulationFact::validationReceiptId),
-                value(source.simulation(), SimulationFact::evidenceDigest),
+                mapping.value(source.validation(), ValidationFact::receiptId),
+                mapping.value(source.validation(), ValidationFact::evidenceDigest),
+                mapping.value(source.validation(), fact -> fact.schemaRevision()),
+                mapping.value(source.validation(), ValidationFact::populationScopeDigest),
+                mapping.value(source.validation(), ValidationFact::producedAt),
+                mapping.value(source.simulation(), SimulationFact::receiptId),
+                mapping.value(source.simulation(), SimulationFact::validationReceiptId),
+                mapping.value(source.simulation(), SimulationFact::evidenceDigest),
                 ownerImpactDigest,
-                value(source.simulation(), SimulationFact::producedAt),
-                value(source.simulation(), SimulationFact::freshUntil),
-                value(source.submission(), SubmissionFact::receiptId),
-                value(source.submission(), SubmissionFact::validationReceiptId),
-                value(source.submission(), SubmissionFact::simulationReceiptId),
-                value(source.submission(), SubmissionFact::evidenceDigest),
-                value(source.submission(), SubmissionFact::approvalWorkflowKey),
-                value(source.submission(), SubmissionFact::producedAt),
+                mapping.value(source.simulation(), SimulationFact::producedAt),
+                mapping.value(source.simulation(), SimulationFact::freshUntil),
+                mapping.value(source.submission(), SubmissionFact::receiptId),
+                mapping.value(source.submission(), SubmissionFact::validationReceiptId),
+                mapping.value(source.submission(), SubmissionFact::simulationReceiptId),
+                mapping.value(source.submission(), SubmissionFact::evidenceDigest),
+                mapping.value(source.submission(), SubmissionFact::approvalWorkflowKey),
+                mapping.value(source.submission(), SubmissionFact::producedAt),
                 command.approvalReceiptId(),
-                value(source.approval(), ApprovalFact::submissionReceiptId),
-                value(source.approval(), ApprovalFact::decisionDigest),
-                value(source.approval(), ApprovalFact::evidenceDigest),
-                value(source.approval(), ApprovalFact::producedAt),
+                mapping.value(source.approval(), ApprovalFact::submissionReceiptId),
+                mapping.value(source.approval(), ApprovalFact::decisionDigest),
+                mapping.value(source.approval(), ApprovalFact::evidenceDigest),
+                mapping.value(source.approval(), ApprovalFact::producedAt),
                 source.authoredBy(), actorId, currentVersion, command.reasonCode(), now, now);
         captureSnapshot(tenantId, scope, configurationId, currentVersion, now);
         captureSnapshot(tenantId, scope, configurationId, rollbackVersion, now);
@@ -633,138 +625,6 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
         }
     }
 
-    private StoredReceipt storedReceipt(ResultSet rs) throws SQLException {
-        return new StoredReceipt(
-                rs.getString("request_digest"),
-                read(rs.getString("receipt_payload"), CommandReceipt.class));
-    }
-
-    private VersionDetail version(ResultSet rs, int row) throws SQLException {
-        UUID validationReceipt = rs.getObject("validation_receipt_id", UUID.class);
-        ValidationFact validation = validationReceipt == null ? null : new ValidationFact(
-                validationReceipt,
-                rs.getString("validation_evidence_digest"),
-                rs.getInt("validation_schema_revision"),
-                rs.getString("validation_scope_digest"),
-                rs.getObject("validated_at", OffsetDateTime.class));
-        UUID simulationReceipt = rs.getObject("simulation_receipt_id", UUID.class);
-        SimulationFact simulation = simulationReceipt == null ? null : new SimulationFact(
-                simulationReceipt,
-                rs.getObject("simulation_validation_receipt_id", UUID.class),
-                rs.getString("simulation_evidence_digest"),
-                rs.getString("simulation_impact_digest"),
-                rs.getObject("simulated_at", OffsetDateTime.class),
-                rs.getObject("simulation_fresh_until", OffsetDateTime.class));
-        UUID submissionReceipt = rs.getObject("submission_receipt_id", UUID.class);
-        SubmissionFact submission = submissionReceipt == null ? null : new SubmissionFact(
-                submissionReceipt,
-                rs.getObject("submission_validation_receipt_id", UUID.class),
-                rs.getObject("submission_simulation_receipt_id", UUID.class),
-                rs.getString("submitted_evidence_digest"),
-                rs.getString("approval_workflow_key"),
-                rs.getObject("submitted_at", OffsetDateTime.class));
-        UUID approvalReceipt = rs.getObject("approval_receipt_id", UUID.class);
-        ApprovalFact approval = approvalReceipt == null ? null : new ApprovalFact(
-                approvalReceipt,
-                rs.getObject("approval_submission_receipt_id", UUID.class),
-                rs.getString("approval_decision_digest"),
-                rs.getString("approval_evidence_digest"),
-                rs.getObject("approved_at", OffsetDateTime.class));
-        return new VersionDetail(
-                rs.getObject("configuration_id", UUID.class),
-                rs.getLong("version"),
-                Domain.valueOf(rs.getString("domain")),
-                ScopeType.valueOf(rs.getString("scope_type")),
-                rs.getObject("scope_id", UUID.class),
-                LifecycleState.valueOf(rs.getString("lifecycle_state")),
-                rs.getObject("effective_from", OffsetDateTime.class),
-                rs.getObject("effective_to", OffsetDateTime.class),
-                rs.getString("schema_key"),
-                rs.getInt("schema_version"),
-                rs.getString("payload_reference"),
-                rs.getString("payload_digest"),
-                validation,
-                simulation,
-                submission,
-                approval,
-                rs.getLong("aggregate_version"),
-                nullableLong(rs, "authored_by"),
-                nullableLong(rs, "approved_by"),
-                rs.getObject("scheduled_at", OffsetDateTime.class),
-                nullableLong(rs, "supersedes_version"),
-                nullableLong(rs, "replacement_version"),
-                rs.getObject("created_at", OffsetDateTime.class),
-                rs.getObject("updated_at", OffsetDateTime.class));
-    }
-
-    private boolean matchesCatalog(WorkbenchRow row, CatalogFilter filter) {
-        if (filter == null) return true;
-        if (filter.key() != null && !row.item().key().equals(filter.key())) return false;
-        if (filter.domain() != null && row.item().domain() != filter.domain()) return false;
-        if (filter.state() != null && row.item().state() != filter.state()) return false;
-        return filter.minimumVersion() == null || row.item().version() >= filter.minimumVersion();
-    }
-
-    private boolean matchesWorkbench(WorkbenchRow row, WorkbenchFilter filter) {
-        if (filter == null) return true;
-        CatalogItem item = row.item();
-        VersionDetail detail = row.detail();
-        if (notEmpty(filter.policyKeys()) && !filter.policyKeys().contains(detail.schemaKey())) return false;
-        if (filter.minimumPolicyRevision() != null
-                && detail.version() < filter.minimumPolicyRevision()) return false;
-        if (notEmpty(filter.referencePublicIds())
-                && !filter.referencePublicIds().contains(item.publicId().toString())) return false;
-        if (notEmpty(filter.referenceCodes())
-                && !filter.referenceCodes().contains(item.domain().name())) return false;
-        if (notEmpty(filter.effectiveStatuses())
-                && !filter.effectiveStatuses().contains(item.state().name())) return false;
-        if (filter.minimumStatusRevision() != null
-                && detail.version() < filter.minimumStatusRevision()) return false;
-        if (filter.effectiveOn() != null) {
-            if (filter.effectiveOn().isBefore(detail.effectiveFrom().toLocalDate())) return false;
-            if (detail.effectiveTo() != null
-                    && !filter.effectiveOn().isBefore(detail.effectiveTo().toLocalDate())) return false;
-        }
-        return true;
-    }
-
-    private Comparator<WorkbenchRow> workbenchComparator(List<String> sorts) {
-        Comparator<WorkbenchRow> comparator = null;
-        for (String sort : sorts) {
-            Comparator<WorkbenchRow> next = switch (sort) {
-                case "policyVersion:ASC" -> Comparator.comparingLong(row -> row.detail().version());
-                case "policyVersion:DESC" -> Comparator.comparingLong(
-                        (WorkbenchRow row) -> row.detail().version()).reversed();
-                case "referenceData:ASC" -> Comparator.comparing(row -> row.item().key());
-                case "referenceData:DESC" -> Comparator.comparing(
-                        (WorkbenchRow row) -> row.item().key()).reversed();
-                case "effectiveStatus:ASC" -> Comparator.comparing(
-                        row -> row.item().state().name());
-                case "effectiveStatus:DESC" -> Comparator.comparing(
-                        (WorkbenchRow row) -> row.item().state().name()).reversed();
-                case "itemPublicId:ASC" -> Comparator.comparing(row -> row.item().publicId());
-                case "itemPublicId:DESC" -> Comparator.comparing(
-                        (WorkbenchRow row) -> row.item().publicId()).reversed();
-                default -> throw new IllegalArgumentException("REFERENCE_CONFIGURATION_SORT_INVALID");
-            };
-            comparator = comparator == null ? next : comparator.thenComparing(next);
-        }
-        Comparator<WorkbenchRow> stable = Comparator.comparing(row -> row.item().publicId());
-        return comparator == null ? stable : comparator.thenComparing(stable);
-    }
-
-    private int seekIndex(List<WorkbenchRow> candidates, UUID seekAfter) {
-        if (seekAfter == null) return -1;
-        for (int index = 0; index < candidates.size(); index++) {
-            if (candidates.get(index).item().publicId().equals(seekAfter)) return index;
-        }
-        return -1;
-    }
-
-    private boolean notEmpty(List<?> values) {
-        return values != null && !values.isEmpty();
-    }
-
     private void bindTenant(long tenantId) {
         if (tenantId <= 0) throw new IllegalArgumentException("tenantId must be positive");
         jdbc.queryForObject(
@@ -781,59 +641,5 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
         jdbc.queryForObject(
                 "SELECT set_config('dwp.principal_public_id', ?, true)",
                 String.class, subjectPrincipalPublicId.toString());
-    }
-
-    private long advisoryKey(
-            long tenantId,
-            long subjectId,
-            String originatingAction,
-            String idempotencyKey) {
-        String material = tenantId + "|" + subjectId + "|" + originatingAction + "|" + idempotencyKey;
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(material.getBytes(StandardCharsets.UTF_8));
-            return ByteBuffer.wrap(digest).getLong();
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
-    }
-
-    private Long nullableLong(ResultSet rs, String column) throws SQLException {
-        long value = rs.getLong(column);
-        return rs.wasNull() ? null : value;
-    }
-
-    private String normalizeDigest(String digest) {
-        return digest.startsWith("sha256:")
-                ? digest.substring(7).toLowerCase(Locale.ROOT)
-                : digest.toLowerCase(Locale.ROOT);
-    }
-
-    private String write(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("REFERENCE_CONFIGURATION_SERIALIZATION_FAILED", exception);
-        }
-    }
-
-    private <T> T read(String value, Class<T> type) {
-        try {
-            return objectMapper.readValue(value, type);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("REFERENCE_CONFIGURATION_RECEIPT_INVALID", exception);
-        }
-    }
-
-    private UUID resultConfigurationId(String resultRef) {
-        return UUID.fromString(resultRef.split("/", -1)[0]);
-    }
-
-    private long resultVersion(String resultRef) {
-        return Long.parseLong(resultRef.split("/", -1)[1]);
-    }
-
-    private <T, R> R value(T source, java.util.function.Function<T, R> extractor) {
-        return source == null ? null : extractor.apply(source);
     }
 }

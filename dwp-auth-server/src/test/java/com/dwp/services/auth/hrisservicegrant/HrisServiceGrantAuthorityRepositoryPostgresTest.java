@@ -1,5 +1,7 @@
 package com.dwp.services.auth.hrisservicegrant;
 
+import static com.dwp.services.auth.hrisservicegrant.HrisServiceGrantReadinessPostgresFixture.*;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -10,22 +12,16 @@ import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantQuiesceService.Gra
 import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantQuiesceService.SuccessorGrant;
 import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantRotationReadinessVerifier.ReadinessItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.security.KeyPairGenerator;
-import java.security.Signature;
-import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,14 +45,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class HrisServiceGrantAuthorityRepositoryPostgresTest {
     @Container private static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine");
-    private static final String MODULUS =
+    static final String MODULUS =
             "1WuF1l_k-pcnIjxEQTyeJX1et0auB46t3l7NjeyRte9_oVL66Rq8Uo11rzv9iBlL"
             + "DkvTmj0GXDbaWbeWAStunX3OzvKzqn_vczThwE7YRCLi_l7zuyQwwiw74m0oeYm"
             + "Ti_IyE8vALsioFiCMDkfJoLQVAkowCuoKJXP0NpMkklO-EFxQf-OGa2Fx70DewRS"
             + "FA8sNMxyMbXC6YQV02JVN_QJdfcd9AdsqCd6BCTwBRj1uGaJAPIi43aMBSLr7ja"
             + "oU7RHvR9AtFwQLby_WmTNd4U3Iw4p0kdhcCSRJZahwcx-o47n5ziZ7BhENVBpnG"
             + "_sLGPkylV6fNL4R-gAfNDQoxQ";
-    private static final HrisServiceGrantAuthorityV1.TargetTuple TARGET =
+    static final HrisServiceGrantAuthorityV1.TargetTuple TARGET =
             new HrisServiceGrantAuthorityV1.TargetTuple(
                     "SVC-TST-HRM-001", "dwp-people-server", "dwp-auth-server",
                     "HRIS_TEST_ROTATION");
@@ -615,26 +611,26 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
         assertThat(repository.remainsCurrent(profile, sameKidDifferentVector, claims)).isFalse();
     }
 
-    private static HrisServiceGrantAuthorityRepository repository(DataSource source) {
+    static HrisServiceGrantAuthorityRepository repository(DataSource source) {
         return new HrisServiceGrantAuthorityRepository(new JdbcTemplate(source),
                 new DataSourceTransactionManager(source), new ObjectMapper());
     }
 
-    private static HrisServiceGrantAuthorityV1.ResolveRequest probe(long tenantId) {
+    static HrisServiceGrantAuthorityV1.ResolveRequest probe(long tenantId) {
         return new HrisServiceGrantAuthorityV1.ResolveRequest(tenantId, "dwp-people-server",
                 TARGET.callerWorkloadId(), TARGET.ownerWorkloadId(), TARGET.bindingId(),
                 TARGET.purpose(), HrisServiceGrantAuthorityV1.ResolutionMode.PROBE_MISSING,
                 0, 0, UUID.randomUUID(), null);
     }
 
-    private static HrisServiceGrantAuthorityV1.ResolveRequest newWork(long tenantId) {
+    static HrisServiceGrantAuthorityV1.ResolveRequest newWork(long tenantId) {
         return new HrisServiceGrantAuthorityV1.ResolveRequest(tenantId, "dwp-people-server",
                 TARGET.callerWorkloadId(), TARGET.ownerWorkloadId(), TARGET.bindingId(),
                 TARGET.purpose(), HrisServiceGrantAuthorityV1.ResolutionMode.NEW_WORK,
                 11, 21, UUID.randomUUID(), null);
     }
 
-    private static HrisServiceGrantAuthorityV1.ResolveRequest drain(
+    static HrisServiceGrantAuthorityV1.ResolveRequest drain(
             long tenantId, Instant effectiveAt) {
         var fields = new HrisServiceGrantAuthorityV1.DrainFields(UUID.randomUUID(),
                 effectiveAt.minusSeconds(1), "8".repeat(64),
@@ -646,7 +642,7 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
                 11, 21, UUID.randomUUID(), fields);
     }
 
-    private static HrisServiceGrantAuthorityV1.ResolveRequest grantRequest(long tenantId,
+    static HrisServiceGrantAuthorityV1.ResolveRequest grantRequest(long tenantId,
             HrisServiceGrantAuthorityV1.TargetTuple target, String requester,
             HrisServiceGrantAuthorityV1.ResolutionMode mode, long tenantRevision,
             long authorizationRevision, Instant effectiveAt) {
@@ -662,13 +658,13 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
                 UUID.randomUUID(), fields);
     }
 
-    private static Hrm013WorkloadProofV1.ReplayReservation replay(
+    static Hrm013WorkloadProofV1.ReplayReservation replay(
             long tenantId, String jti, String nonce) {
         return new Hrm013WorkloadProofV1.ReplayReservation(tenantId, "SVC-AUT-HRM-011",
                 "dwp-people-server", jti, nonce, Instant.now().plusSeconds(120));
     }
 
-    private static HrisServiceGrantAuthorityV1.ReadinessObservation observation(
+    static HrisServiceGrantAuthorityV1.ReadinessObservation observation(
             long tenantId, UUID grantSetId, UUID fenceId, Instant effectiveAt,
             HrisServiceGrantAuthorityV1.ServiceRole role, long tenantRevision,
             long authorizationRevision) {
@@ -676,7 +672,7 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
                 tenantRevision, authorizationRevision);
     }
 
-    private static List<HrisServiceGrantAuthorityV1.ReadinessObservation> observations(
+    static List<HrisServiceGrantAuthorityV1.ReadinessObservation> observations(
             long tenantId, UUID grantSetId, UUID fenceId, Instant effectiveAt,
             HrisServiceGrantAuthorityV1.TargetTuple target, long tenantRevision,
             long authorizationRevision) {
@@ -688,7 +684,7 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
                         tenantRevision, authorizationRevision));
     }
 
-    private static HrisServiceGrantAuthorityV1.ReadinessObservation observation(
+    static HrisServiceGrantAuthorityV1.ReadinessObservation observation(
             long tenantId, UUID grantSetId, UUID fenceId, Instant effectiveAt,
             HrisServiceGrantAuthorityV1.TargetTuple target,
             HrisServiceGrantAuthorityV1.ServiceRole role, long tenantRevision,
@@ -711,11 +707,11 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
                 effectiveAt, role, 0, effectiveAt, eligibleAt, digest);
     }
 
-    private static GrantBinding binding(String callerKey, String ownerKey) {
+    static GrantBinding binding(String callerKey, String ownerKey) {
         return binding(TARGET, callerKey, ownerKey);
     }
 
-    private static GrantBinding binding(HrisServiceGrantAuthorityV1.TargetTuple target,
+    static GrantBinding binding(HrisServiceGrantAuthorityV1.TargetTuple target,
             String callerKey, String ownerKey) {
         return new GrantBinding(target, "spiffe://dwp/service/" + target.callerWorkloadId(),
                 callerKey, jwk(callerKey),
@@ -723,26 +719,26 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
                 "a".repeat(64));
     }
 
-    private static GrantBinding binding(HrisServiceGrantAuthorityV1.TargetTuple target,
+    static GrantBinding binding(HrisServiceGrantAuthorityV1.TargetTuple target,
             String callerKeyId, KeyPair callerKey, String ownerKeyId, KeyPair ownerKey) {
         return new GrantBinding(target, "spiffe://dwp/service/" + target.callerWorkloadId(),
-                callerKeyId, jwk(callerKey, callerKeyId),
+                callerKeyId, HrisServiceGrantReadinessPostgresFixture.jwk(callerKey, callerKeyId),
                 "spiffe://dwp/service/" + target.ownerWorkloadId(), ownerKeyId,
-                jwk(ownerKey, ownerKeyId), "a".repeat(64));
+                HrisServiceGrantReadinessPostgresFixture.jwk(ownerKey, ownerKeyId), "a".repeat(64));
     }
 
-    private static HrisServiceGrantAuthorityV1.RsaPublicJwk jwk(String keyId) {
+    static HrisServiceGrantAuthorityV1.RsaPublicJwk jwk(String keyId) {
         return new HrisServiceGrantAuthorityV1.RsaPublicJwk(
                 "RS256", "AQAB", keyId, "RSA", MODULUS, "sig");
     }
 
-    private static SuccessorGrant successor(String readinessDigest,
+    static SuccessorGrant successor(String readinessDigest,
             List<GrantBinding> bindings) {
         return new SuccessorGrant(UUID.randomUUID(), 32, 42,
                 "5".repeat(64), readinessDigest, bindings);
     }
 
-    private static UUID seedGrant(PGSimpleDataSource source, long tenantId,
+    static UUID seedGrant(PGSimpleDataSource source, long tenantId,
             long grantRevision, long tenantRevision, long authorizationRevision,
             String grantDigest) throws Exception {
         return seedGrant(source, tenantId, grantRevision, tenantRevision,
@@ -750,7 +746,7 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
                 List.of(binding("people-v1", "auth-v1")));
     }
 
-    private static UUID seedGrant(PGSimpleDataSource source, long tenantId,
+    static UUID seedGrant(PGSimpleDataSource source, long tenantId,
             long grantRevision, long tenantRevision, long authorizationRevision,
             String grantDigest, List<GrantBinding> bindings) throws Exception {
         UUID grantSetId = UUID.randomUUID();
@@ -765,7 +761,7 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
         return grantSetId;
     }
 
-    private static UUID seedRequesterGrant(PGSimpleDataSource source, long tenantId)
+    static UUID seedRequesterGrant(PGSimpleDataSource source, long tenantId)
             throws Exception {
         UUID grantSetId = UUID.randomUUID();
         try (Connection connection = source.getConnection()) {
@@ -785,7 +781,7 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
         return grantSetId;
     }
 
-    private static void insertGrant(Connection connection, long tenantId, UUID grantSetId,
+    static void insertGrant(Connection connection, long tenantId, UUID grantSetId,
             long grantRevision, long tenantRevision, long authorizationRevision,
             String grantDigest) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement("""
@@ -801,7 +797,7 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
         }
     }
 
-    private static UUID seedSuccessor(PGSimpleDataSource source, long tenantId,
+    static UUID seedSuccessor(PGSimpleDataSource source, long tenantId,
             UUID predecessor, long grantRevision, long tenantRevision,
             long authorizationRevision, String grantDigest, List<GrantBinding> bindings)
             throws Exception {
@@ -828,7 +824,7 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
         return grantSetId;
     }
 
-    private static void insertBinding(Connection connection, long tenantId, UUID grantSetId,
+    static void insertBinding(Connection connection, long tenantId, UUID grantSetId,
             GrantBinding value) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement("""
                 INSERT INTO auth_hris_service_grant_bindings (
@@ -853,12 +849,12 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
         }
     }
 
-    private static UUID seedFence(PGSimpleDataSource source, long tenantId, UUID grantSetId,
+    static UUID seedFence(PGSimpleDataSource source, long tenantId, UUID grantSetId,
             Instant effectiveAt) {
         return seedFence(source, tenantId, grantSetId, effectiveAt, TARGET);
     }
 
-    private static UUID seedFence(PGSimpleDataSource source, long tenantId, UUID grantSetId,
+    static UUID seedFence(PGSimpleDataSource source, long tenantId, UUID grantSetId,
             Instant effectiveAt, HrisServiceGrantAuthorityV1.TargetTuple target) {
         UUID fenceId = UUID.randomUUID();
         new JdbcTemplate(source).update("""
@@ -875,14 +871,14 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
         return fenceId;
     }
 
-    private static int replayCount(JdbcTemplate jdbc, long tenantId) {
+    static int replayCount(JdbcTemplate jdbc, long tenantId) {
         return jdbc.queryForObject("""
                 SELECT count(*) FROM auth_hris_service_authority_proof_replays
                  WHERE tenant_id = ?
                 """, Integer.class, tenantId);
     }
 
-    private static boolean waitForAdvisoryWait(JdbcTemplate jdbc, int backendPid)
+    static boolean waitForAdvisoryWait(JdbcTemplate jdbc, int backendPid)
             throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         do {
@@ -896,13 +892,13 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
         return false;
     }
 
-    private static void createTenant(PGSimpleDataSource source, long tenantId) {
+    static void createTenant(PGSimpleDataSource source, long tenantId) {
         new JdbcTemplate(source).update(
                 "INSERT INTO com_tenants (tenant_id, code, name) VALUES (?, ?, ?)",
                 tenantId, "hrm013-" + tenantId, "HRM013 " + tenantId);
     }
 
-    private static PGSimpleDataSource runtimeSource(
+    static PGSimpleDataSource runtimeSource(
             PGSimpleDataSource admin, long tenantId, boolean authorityAccess) {
         String role = "hrm013_runtime_" + tenantId;
         JdbcTemplate jdbc = new JdbcTemplate(admin);
@@ -924,168 +920,11 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
         return source;
     }
 
-    private static PGSimpleDataSource adminSource() {
+    static PGSimpleDataSource adminSource() {
         var source = new PGSimpleDataSource();
         source.setURL(POSTGRES.getJdbcUrl()); source.setUser(POSTGRES.getUsername());
         source.setPassword(POSTGRES.getPassword());
         return source;
     }
 
-    private static List<ReadinessItem> signedReadinessItems(long tenantId, UUID grantSetId,
-            UUID fenceId, Instant effectiveAt,
-            List<HrisServiceGrantAuthorityV1.ReadinessObservation> observations,
-            KeyPair callerKey, KeyPair ownerKey, GrantBinding binding) {
-        return signedReadinessItems(tenantId, grantSetId, fenceId, effectiveAt, observations,
-                callerKey, ownerKey, binding,
-                Instant.now().minusSeconds(1).truncatedTo(ChronoUnit.SECONDS), 1);
-    }
-
-    private static List<ReadinessItem> signedReadinessItems(long tenantId, UUID grantSetId,
-            UUID fenceId, Instant effectiveAt,
-            List<HrisServiceGrantAuthorityV1.ReadinessObservation> observations,
-            KeyPair callerKey, KeyPair ownerKey, GrantBinding binding,
-            Instant observedAt, long issueDelaySeconds) {
-        return signedReadinessItems(tenantId, grantSetId, fenceId, effectiveAt,
-                observations, callerKey, ownerKey, binding, observedAt,
-                issueDelaySeconds, 180);
-    }
-
-    private static List<ReadinessItem> signedReadinessItems(long tenantId, UUID grantSetId,
-            UUID fenceId, Instant effectiveAt,
-            List<HrisServiceGrantAuthorityV1.ReadinessObservation> observations,
-            KeyPair callerKey, KeyPair ownerKey, GrantBinding binding,
-            Instant observedAt, long issueDelaySeconds,
-            long receiptLifetimeSeconds) {
-        return observations.stream().map(observation -> {
-            var role = observation.attestingServiceRole();
-            return signedReadinessItem(tenantId, grantSetId, fenceId, effectiveAt,
-                    observation, role == HrisServiceGrantAuthorityV1.ServiceRole.CALLER
-                            ? callerKey : ownerKey,
-                    role == HrisServiceGrantAuthorityV1.ServiceRole.CALLER
-                            ? binding.callerSigningKeyId() : binding.ownerSigningKeyId(),
-                    observedAt, issueDelaySeconds, receiptLifetimeSeconds);
-        }).toList();
-    }
-
-    private static ReadinessItem signedReadinessItem(long tenantId, UUID grantSetId,
-            UUID fenceId, Instant effectiveAt,
-            HrisServiceGrantAuthorityV1.ReadinessObservation observation,
-            KeyPair signer, String keyId, Instant observedAt, long issueDelaySeconds,
-            long receiptLifetimeSeconds) {
-        try {
-            var role = observation.attestingServiceRole();
-            String workload = role == HrisServiceGrantAuthorityV1.ServiceRole.CALLER
-                    ? observation.callerWorkloadId() : observation.ownerWorkloadId();
-            Instant expiresAt = observedAt.plusSeconds(receiptLifetimeSeconds);
-            UUID correlation = UUID.randomUUID();
-            ObjectNode receipt = new ObjectMapper().createObjectNode();
-            receipt.put("schemaName", HrisServiceGrantRotationReadinessVerifier.SCHEMA);
-            receipt.put("schemaVersion", 1); receipt.put("tenantId", tenantId);
-            receipt.put("bindingId", observation.bindingId());
-            receipt.put("callerWorkloadId", observation.callerWorkloadId());
-            receipt.put("ownerWorkloadId", observation.ownerWorkloadId());
-            receipt.put("bindingPurpose", observation.purpose());
-            receipt.put("serviceWorkloadId", workload);
-            receipt.put("attestingServiceRole", role.name());
-            receipt.put("oldGrantSetId", grantSetId.toString());
-            receipt.put("quiesceFenceId", fenceId.toString());
-            receipt.put("quiesceRevision", observation.quiesceRevision());
-            receipt.put("quiesceEffectiveAt", effectiveAt.toString());
-            receipt.put("observedDrainActivityRevision", observation.drainActivityRevision());
-            receipt.put("drainQuietSince", observation.drainQuietSince().toString());
-            receipt.put("readinessEligibleAt", observation.readinessEligibleAt().toString());
-            receipt.put("readinessObservationSha256", observation.readinessObservationSha256());
-            receipt.put("observedGrantRevision", 1);
-            receipt.put("tenantGrantRevision", observation.tenantGrantRevision());
-            receipt.put("authorizationRevision", observation.authorizationRevision());
-            receipt.put("pendingCount", 0); receipt.putNull("oldestPendingAt");
-            receipt.put("observedAt", observedAt.toString());
-            receipt.put("expiresAt", expiresAt.toString());
-            receipt.put("correlationId", correlation.toString());
-            receipt.put("evidenceSha256", Hrm013WorkloadProofV1.sha256(
-                    HrisServiceGrantRotationReadinessVerifier.canonicalBytes(receipt)));
-            byte[] receiptBytes = HrisServiceGrantRotationReadinessVerifier.canonicalBytes(receipt);
-
-            ObjectNode claims = new ObjectMapper().createObjectNode();
-            Instant issuedAt = observedAt.plusSeconds(issueDelaySeconds);
-            claims.put("iss", workload); claims.put("aud", "dwp-auth-server");
-            claims.put("sub", workload); claims.put("iat", issuedAt.getEpochSecond());
-            claims.put("nbf", issuedAt.getEpochSecond());
-            claims.put("exp", issuedAt.plusSeconds(300).getEpochSecond());
-            claims.put("jti", UUID.randomUUID().toString());
-            claims.put("requestNonce", UUID.randomUUID().toString());
-            for (String field : List.of("tenantId", "bindingId", "callerWorkloadId",
-                    "ownerWorkloadId", "bindingPurpose", "serviceWorkloadId",
-                    "attestingServiceRole", "oldGrantSetId", "quiesceFenceId",
-                    "quiesceRevision", "quiesceEffectiveAt", "observedDrainActivityRevision",
-                    "drainQuietSince", "readinessEligibleAt", "readinessObservationSha256",
-                    "observedGrantRevision", "tenantGrantRevision", "authorizationRevision",
-                    "evidenceSha256", "correlationId")) claims.set(field, receipt.get(field));
-            claims.put("proofPurpose", HrisServiceGrantRotationReadinessVerifier.PROOF_PURPOSE);
-            byte[] claimBytes = HrisServiceGrantRotationReadinessVerifier.canonicalBytes(claims);
-            ObjectNode header = new ObjectMapper().createObjectNode();
-            header.put("alg", "RS256");
-            header.put("typ", HrisServiceGrantRotationReadinessVerifier.PROOF_TYPE);
-            header.put("kid", keyId);
-            String encodedHeader = encode(HrisServiceGrantRotationReadinessVerifier
-                    .canonicalBytes(header));
-            String signingInput = encodedHeader + "." + encode(claimBytes);
-            Signature signature = Signature.getInstance("SHA256withRSA");
-            signature.initSign(signer.getPrivate());
-            signature.update(signingInput.getBytes(StandardCharsets.US_ASCII));
-            return new ReadinessItem(receiptBytes, claimBytes,
-                    encodedHeader + ".." + encode(signature.sign()));
-        } catch (Exception failure) {
-            throw new IllegalStateException(failure);
-        }
-    }
-
-    private static String readinessDigest(List<ReadinessItem> items) throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        List<ObjectNode> receipts = items.stream().map(item -> {
-            try { return (ObjectNode) mapper.readTree(item.receiptBytes()); }
-            catch (Exception failure) { throw new IllegalStateException(failure); }
-        }).sorted(java.util.Comparator.comparing(value -> String.join("\n",
-                value.path("bindingId").asText(), value.path("callerWorkloadId").asText(),
-                value.path("ownerWorkloadId").asText(), value.path("bindingPurpose").asText(),
-                value.path("attestingServiceRole").asText(),
-                value.path("serviceWorkloadId").asText(),
-                value.path("evidenceSha256").asText()))).toList();
-        ArrayNode evidence = mapper.createArrayNode();
-        receipts.forEach(value -> evidence.add(value.path("evidenceSha256").asText()));
-        return Hrm013WorkloadProofV1.sha256(
-                HrisServiceGrantRotationReadinessVerifier.canonicalBytes(evidence));
-    }
-
-    private static KeyPair rsaKeyPair() throws Exception {
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-        generator.initialize(2_048); return generator.generateKeyPair();
-    }
-
-    private static HrisServiceGrantAuthorityV1.RsaPublicJwk jwk(
-            KeyPair pair, String keyId) {
-        RSAPublicKey key = (RSAPublicKey) pair.getPublic();
-        return new HrisServiceGrantAuthorityV1.RsaPublicJwk("RS256",
-                encode(unsigned(key.getPublicExponent().toByteArray())), keyId, "RSA",
-                encode(unsigned(key.getModulus().toByteArray())), "sig");
-    }
-
-    private static byte[] unsigned(byte[] value) {
-        return value.length > 1 && value[0] == 0
-                ? Arrays.copyOfRange(value, 1, value.length) : value;
-    }
-
-    private static String encode(byte[] value) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(value);
-    }
-
-    private static String jwkJson(String keyId) {
-        return jwkJson(jwk(keyId));
-    }
-
-    private static String jwkJson(HrisServiceGrantAuthorityV1.RsaPublicJwk value) {
-        return """
-                {"alg":"RS256","e":"AQAB","kid":"%s","kty":"RSA","n":"%s","use":"sig"}
-                """.formatted(value.kid(), value.n()).strip();
-    }
 }

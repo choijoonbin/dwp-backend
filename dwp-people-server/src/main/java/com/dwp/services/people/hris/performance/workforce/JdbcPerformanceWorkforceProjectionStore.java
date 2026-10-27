@@ -1,18 +1,18 @@
 package com.dwp.services.people.hris.performance.workforce;
 
+import static com.dwp.services.people.hris.performance.workforce.PerformanceWorkforceProjectionJournal.*;
+import com.dwp.services.people.hris.performance.workforce.PerformanceWorkforceProjectionJournal.*;
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotProjection;
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotQuery;
 
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -32,12 +32,14 @@ class JdbcPerformanceWorkforceProjectionStore
             WorkforceSnapshotProjection.PERFORMANCE_V1.name();
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final PerformanceWorkforceProjectionJournal journal;
     private final TransactionTemplate transactions;
 
     JdbcPerformanceWorkforceProjectionStore(
             NamedParameterJdbcTemplate jdbc,
             PlatformTransactionManager transactionManager) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc must not be null");
+        this.journal = new PerformanceWorkforceProjectionJournal(jdbc);
         this.transactions = new TransactionTemplate(Objects.requireNonNull(
                 transactionManager, "transactionManager must not be null"));
     }
@@ -85,12 +87,12 @@ class JdbcPerformanceWorkforceProjectionStore
         if (replayFence != null && replayFence.tenantId() != snapshot.tenantId()) {
             throw replayNotPending("The replay fence belongs to another tenant.");
         }
-        if (replayFence == null && hasPendingReplay(snapshot.tenantId())) {
+        if (replayFence == null && journal.hasPendingReplay(snapshot.tenantId())) {
             throw replayNotPending(
                     "Pending invalidations require an event-bound owner replay.");
         }
         if (replayFence != null) {
-            ReceiptRow replay = receiptByEvent(
+            ReceiptRow replay = journal.receiptByEvent(
                     snapshot.tenantId(), replayFence.replayEventId())
                     .orElseThrow(() -> replayNotPending(
                             "The requested invalidation event is not pending replay."));
@@ -110,13 +112,13 @@ class JdbcPerformanceWorkforceProjectionStore
         Long replayOfLocalRevision = replayFence != null && current.localRevision() > 0
                 ? current.localRevision()
                 : null;
-        insertRevision(
+        journal.insertRevision(
                 current.projectionHeadId(),
                 projectionRevisionId,
                 nextLocalRevision,
                 snapshot,
                 replayOfLocalRevision);
-        insertMembers(
+        journal.insertMembers(
                 current.projectionHeadId(),
                 nextLocalRevision,
                 snapshot.tenantId(),
@@ -141,7 +143,7 @@ class JdbcPerformanceWorkforceProjectionStore
             }
         }
 
-        PendingProjection pending = pendingProjection(snapshot.tenantId());
+        PendingProjection pending = journal.pendingProjection(snapshot.tenantId());
         if (replayFence != null) {
             int finalized = jdbc.update("""
                     UPDATE hris_performance.prf_workforce_projection_inbox
@@ -203,7 +205,7 @@ class JdbcPerformanceWorkforceProjectionStore
                     PerformanceWorkforceProjectionException.Code.PROJECTION_QUARANTINED,
                     "The PER workforce projection is quarantined and cannot be replayed.");
         }
-        ReceiptRow requested = receiptByEvent(tenantId, replayEventId)
+        ReceiptRow requested = journal.receiptByEvent(tenantId, replayEventId)
                 .orElseThrow(() -> replayNotPending(
                         "The requested invalidation event is not pending replay."));
         if (!"REPLAY_REQUIRED".equals(requested.processingState())
@@ -225,12 +227,12 @@ class JdbcPerformanceWorkforceProjectionStore
 
     private InvalidationResult invalidateInTransaction(InvalidationEvent event) {
         HeadRow current = ensureAndLockHead(event.tenantId());
-        Optional<ReceiptRow> receiptForEvent = receiptByEvent(
+        Optional<ReceiptRow> receiptForEvent = journal.receiptByEvent(
                 event.tenantId(), event.eventId());
         if (receiptForEvent.isPresent()) {
             ReceiptRow stored = receiptForEvent.get();
             if (stored.payloadHash().equals(event.payloadHash())) {
-                return resultForReceipt(event.eventId(), stored, true, current);
+                return journal.resultForReceipt(event.eventId(), stored, true, current);
             }
             return quarantineConflict(event, stored, true);
         }
@@ -241,7 +243,7 @@ class JdbcPerformanceWorkforceProjectionStore
         }
 
         if (event.aggregateRevision() != null) {
-            long watermark = aggregateWatermark(event);
+            long watermark = journal.aggregateWatermark(event);
             if (event.aggregateRevision() <= watermark) {
                 return ignoreOlderRevision(event, current);
             }
@@ -256,7 +258,7 @@ class JdbcPerformanceWorkforceProjectionStore
     private InvalidationResult ignoreOlderRevision(
             InvalidationEvent event,
             HeadRow current) {
-        insertReceipt(
+        journal.insertReceipt(
                 event,
                 "IGNORED",
                 InvalidationOutcome.IGNORED_OLDER_REVISION,
@@ -297,7 +299,7 @@ class JdbcPerformanceWorkforceProjectionStore
                     .addValue("observed", event.aggregateRevision()));
             requireSingleRow(updated, "PER workforce dependency-gap block");
         }
-        insertReceipt(
+        journal.insertReceipt(
                 event,
                 "REPLAY_REQUIRED",
                 InvalidationOutcome.BLOCKED_DEPENDENCY_GAP,
@@ -337,7 +339,7 @@ class JdbcPerformanceWorkforceProjectionStore
                     .addValue("event", event.eventId()));
             requireSingleRow(updated, "PER workforce projection invalidation");
         }
-        insertReceipt(
+        journal.insertReceipt(
                 event,
                 "REPLAY_REQUIRED",
                 InvalidationOutcome.STALE,
@@ -391,295 +393,6 @@ class JdbcPerformanceWorkforceProjectionStore
                 PerformanceWorkforceProjection.State.QUARANTINED,
                 null,
                 null);
-    }
-
-    private void insertRevision(
-            UUID projectionHeadId,
-            UUID projectionRevisionId,
-            long localRevision,
-            PerformanceWorkforceProjection.Snapshot snapshot,
-            Long replayOfLocalRevision) {
-        int inserted = jdbc.update("""
-                INSERT INTO hris_performance.prf_workforce_projection_revisions (
-                    projection_revision_id,
-                    tenant_id,
-                    projection_head_id,
-                    local_revision,
-                    owner_revision,
-                    snapshot_as_of,
-                    purpose_code,
-                    projection_code,
-                    owner_page_digest,
-                    content_hash,
-                    member_count,
-                    replay_of_local_revision)
-                VALUES (
-                    :revision,
-                    :tenant,
-                    :head,
-                    :localRevision,
-                    :ownerRevision,
-                    :asOf,
-                    :purpose,
-                    :projection,
-                    :pageDigest,
-                    :contentHash,
-                    :memberCount,
-                    :replayOf)
-                """, tenantParameters(snapshot.tenantId())
-                .addValue("revision", projectionRevisionId)
-                .addValue("head", projectionHeadId)
-                .addValue("localRevision", localRevision)
-                .addValue("ownerRevision", snapshot.ownerRevision())
-                .addValue("asOf", Timestamp.from(snapshot.asOf()))
-                .addValue("purpose", snapshot.purposeCode())
-                .addValue("projection", snapshot.projection().name())
-                .addValue("pageDigest", snapshot.pageSetDigest())
-                .addValue("contentHash", snapshot.contentHash())
-                .addValue("memberCount", snapshot.members().size())
-                .addValue("replayOf", replayOfLocalRevision));
-        requireSingleRow(inserted, "PER workforce projection revision insert");
-    }
-
-    private void insertMembers(
-            UUID projectionHeadId,
-            long localRevision,
-            long tenantId,
-            List<PerformanceWorkforceProjection.Member> members) {
-        if (members.isEmpty()) {
-            return;
-        }
-        SqlParameterSource[] batches = members.stream()
-                .map(member -> tenantParameters(tenantId)
-                        .addValue("head", projectionHeadId)
-                        .addValue("localRevision", localRevision)
-                        .addValue("worker", member.workerPublicId())
-                        .addValue("assignment", member.assignmentPublicId())
-                        .addValue("status", member.status())
-                        .addValue("organization", member.organizationPublicId())
-                        .addValue("manager", member.managerAssignmentPublicId())
-                        .addValue("jobProfile", member.jobProfilePublicId())
-                        .addValue("grade", member.gradePublicId()))
-                .toArray(SqlParameterSource[]::new);
-        int[] inserted = jdbc.batchUpdate("""
-                INSERT INTO hris_performance.prf_workforce_projection_members (
-                    tenant_id,
-                    projection_head_id,
-                    local_revision,
-                    worker_public_id,
-                    assignment_public_id,
-                    workforce_status,
-                    organization_public_id,
-                    manager_assignment_public_id,
-                    job_profile_public_id,
-                    grade_public_id)
-                VALUES (
-                    :tenant,
-                    :head,
-                    :localRevision,
-                    :worker,
-                    :assignment,
-                    :status,
-                    :organization,
-                    :manager,
-                    :jobProfile,
-                    :grade)
-                """, batches);
-        if (inserted.length != members.size()) {
-            throw new IllegalStateException(
-                    "PER workforce projection member batch was incomplete.");
-        }
-        for (int result : inserted) {
-            if (result == 0 || result == Statement.EXECUTE_FAILED) {
-                throw new IllegalStateException(
-                        "PER workforce projection member insert failed.");
-            }
-        }
-    }
-
-    private void insertReceipt(
-            InvalidationEvent event,
-            String processingState,
-            InvalidationOutcome outcome,
-            PerformanceWorkforceProjection.State resultingState,
-            boolean processed) {
-        UUID organizationRevision = event.subjectType() == SubjectType.ORGANIZATION
-                ? event.subjectPublicId()
-                : null;
-        int inserted = jdbc.update("""
-                INSERT INTO hris_performance.prf_workforce_projection_inbox (
-                    tenant_id,
-                    event_id,
-                    event_type,
-                    aggregate_type,
-                    aggregate_public_id,
-                    aggregate_revision,
-                    organization_revision_public_id,
-                    effective_date,
-                    payload_hash,
-                    processing_state,
-                    outcome_code,
-                    resulting_projection_state,
-                    processed_at)
-                VALUES (
-                    :tenant,
-                    :event,
-                    :eventType,
-                    :aggregateType,
-                    :aggregate,
-                    :aggregateRevision,
-                    :organizationRevision,
-                    :effectiveDate,
-                    :payloadHash,
-                    :processingState,
-                    :outcome,
-                    :resultingState,
-                    :processedAt)
-                """, tenantParameters(event.tenantId())
-                .addValue("event", event.eventId())
-                .addValue("eventType", event.eventType())
-                .addValue("aggregateType", event.subjectType().name())
-                .addValue("aggregate", event.subjectPublicId())
-                .addValue("aggregateRevision", event.aggregateRevision())
-                .addValue("organizationRevision", organizationRevision)
-                .addValue("effectiveDate", event.effectiveDate())
-                .addValue("payloadHash", event.payloadHash())
-                .addValue("processingState", processingState)
-                .addValue("outcome", outcome.name())
-                .addValue("resultingState", resultingState.name())
-                .addValue("processedAt", processed ? Timestamp.from(Instant.now()) : null));
-        requireSingleRow(inserted, "PER workforce inbox insert");
-    }
-
-    private Optional<ReceiptRow> receiptByEvent(long tenantId, UUID eventId) {
-        return jdbc.query("""
-                SELECT inbox_receipt_id,
-                       tenant_id,
-                       event_id,
-                       aggregate_type,
-                       aggregate_public_id,
-                       aggregate_revision,
-                       payload_hash,
-                       processing_state,
-                       outcome_code,
-                       resulting_projection_state
-                  FROM hris_performance.prf_workforce_projection_inbox
-                 WHERE tenant_id = :tenant
-                   AND event_id = :event
-                 FOR UPDATE
-                """, tenantParameters(tenantId).addValue("event", eventId),
-                this::receiptRow).stream().findFirst();
-    }
-
-    private boolean hasPendingReplay(long tenantId) {
-        Integer count = jdbc.queryForObject("""
-                SELECT COUNT(*)
-                  FROM hris_performance.prf_workforce_projection_inbox
-                 WHERE tenant_id = :tenant
-                   AND processing_state = 'REPLAY_REQUIRED'
-                """, tenantParameters(tenantId), Integer.class);
-        return count != null && count > 0;
-    }
-
-    private PendingProjection pendingProjection(long tenantId) {
-        List<ReceiptRow> pending = jdbc.query("""
-                SELECT inbox_receipt_id,
-                       tenant_id,
-                       event_id,
-                       aggregate_type,
-                       aggregate_public_id,
-                       aggregate_revision,
-                       payload_hash,
-                       processing_state,
-                       outcome_code,
-                       resulting_projection_state
-                  FROM hris_performance.prf_workforce_projection_inbox
-                 WHERE tenant_id = :tenant
-                   AND processing_state = 'REPLAY_REQUIRED'
-                 ORDER BY CASE
-                              WHEN outcome_code = 'BLOCKED_DEPENDENCY_GAP' THEN 0
-                              ELSE 1
-                          END,
-                          first_received_at,
-                          event_id
-                 LIMIT 1
-                """, tenantParameters(tenantId), this::receiptRow);
-        if (pending.isEmpty()) {
-            return new PendingProjection(
-                    PerformanceWorkforceProjection.State.READY, null, null, null);
-        }
-        ReceiptRow first = pending.getFirst();
-        if (InvalidationOutcome.BLOCKED_DEPENDENCY_GAP.name()
-                .equals(first.outcomeCode())) {
-            return new PendingProjection(
-                    PerformanceWorkforceProjection.State.BLOCKED_DEPENDENCY_GAP,
-                    first.eventId(),
-                    expectedBeforeGap(first),
-                    first.aggregateRevision());
-        }
-        return new PendingProjection(
-                PerformanceWorkforceProjection.State.STALE,
-                first.eventId(),
-                null,
-                null);
-    }
-
-    private long aggregateWatermark(InvalidationEvent event) {
-        Long value = jdbc.queryForObject("""
-                SELECT COALESCE(MAX(aggregate_revision), 0)
-                  FROM hris_performance.prf_workforce_projection_inbox
-                 WHERE tenant_id = :tenant
-                   AND aggregate_type = :aggregateType
-                   AND aggregate_public_id = :aggregate
-                """, tenantParameters(event.tenantId())
-                .addValue("aggregateType", event.subjectType().name())
-                .addValue("aggregate", event.subjectPublicId()), Long.class);
-        return value == null ? 0 : value;
-    }
-
-    private InvalidationResult resultForReceipt(
-            UUID requestedEventId,
-            ReceiptRow receipt,
-            boolean duplicate,
-            HeadRow current) {
-        InvalidationOutcome outcome = InvalidationOutcome.valueOf(receipt.outcomeCode());
-        Long expected = null;
-        Long observed = null;
-        if (outcome == InvalidationOutcome.BLOCKED_DEPENDENCY_GAP) {
-            observed = receipt.aggregateRevision();
-            if (current.state()
-                    == PerformanceWorkforceProjection.State.BLOCKED_DEPENDENCY_GAP
-                    && current.blockedExpectedRevision() != null
-                    && Objects.equals(current.staleEventId(), receipt.eventId())) {
-                expected = current.blockedExpectedRevision();
-                observed = current.blockedObservedRevision();
-            } else {
-                expected = expectedBeforeGap(receipt);
-            }
-        }
-        return new InvalidationResult(
-                requestedEventId,
-                outcome,
-                duplicate,
-                current.state(),
-                expected,
-                observed);
-    }
-
-    private long expectedBeforeGap(ReceiptRow receipt) {
-        Long value = jdbc.queryForObject("""
-                SELECT COALESCE(MAX(aggregate_revision), 0) + 1
-                  FROM hris_performance.prf_workforce_projection_inbox
-                 WHERE tenant_id = :tenant
-                   AND aggregate_type = :aggregateType
-                   AND aggregate_public_id = :aggregate
-                   AND aggregate_revision < :observed
-                   AND outcome_code <> 'IGNORED_OLDER_REVISION'
-                """, tenantParameters(receipt.tenantId())
-                .addValue("aggregateType", receipt.aggregateType())
-                .addValue("aggregate", receipt.aggregatePublicId())
-                .addValue("observed", receipt.aggregateRevision()), Long.class);
-        return value == null ? 1 : value;
     }
 
     private HeadRow ensureAndLockHead(long tenantId) {
@@ -843,20 +556,6 @@ class JdbcPerformanceWorkforceProjectionStore
                 nullableLong(result, "blocked_observed_revision"));
     }
 
-    private ReceiptRow receiptRow(ResultSet result, int ignored) throws SQLException {
-        return new ReceiptRow(
-                result.getObject("inbox_receipt_id", UUID.class),
-                result.getLong("tenant_id"),
-                result.getObject("event_id", UUID.class),
-                result.getString("aggregate_type"),
-                result.getObject("aggregate_public_id", UUID.class),
-                nullableLong(result, "aggregate_revision"),
-                result.getString("payload_hash"),
-                result.getString("processing_state"),
-                result.getString("outcome_code"),
-                result.getString("resulting_projection_state"));
-    }
-
     private RevisionRow revisionRow(ResultSet result, int ignored) throws SQLException {
         return new RevisionRow(
                 result.getObject("projection_revision_id", UUID.class),
@@ -881,24 +580,9 @@ class JdbcPerformanceWorkforceProjectionStore
                 result.getObject("grade_public_id", UUID.class));
     }
 
-    private static Long nullableLong(ResultSet result, String column) throws SQLException {
-        long value = result.getLong(column);
-        return result.wasNull() ? null : value;
-    }
-
-    private static MapSqlParameterSource tenantParameters(long tenantId) {
-        return new MapSqlParameterSource("tenant", tenantId);
-    }
-
     private static void requireTenant(long tenantId) {
         if (tenantId <= 0) {
             throw new IllegalArgumentException("tenantId must be positive");
-        }
-    }
-
-    private static void requireSingleRow(int rows, String operation) {
-        if (rows != 1) {
-            throw new IllegalStateException(operation + " affected " + rows + " rows.");
         }
     }
 
@@ -915,29 +599,6 @@ class JdbcPerformanceWorkforceProjectionStore
         return new PerformanceWorkforceProjectionException(code, message);
     }
 
-    private record HeadRow(
-            UUID projectionHeadId,
-            long tenantId,
-            PerformanceWorkforceProjection.State state,
-            long localRevision,
-            UUID staleEventId,
-            Long blockedExpectedRevision,
-            Long blockedObservedRevision) {
-    }
-
-    private record ReceiptRow(
-            UUID inboxReceiptId,
-            long tenantId,
-            UUID eventId,
-            String aggregateType,
-            UUID aggregatePublicId,
-            Long aggregateRevision,
-            String payloadHash,
-            String processingState,
-            String outcomeCode,
-            String resultingState) {
-    }
-
     private record RevisionRow(
             UUID projectionRevisionId,
             long ownerRevision,
@@ -948,10 +609,4 @@ class JdbcPerformanceWorkforceProjectionStore
             String contentHash) {
     }
 
-    private record PendingProjection(
-            PerformanceWorkforceProjection.State state,
-            UUID eventId,
-            Long requiredAggregateRevision,
-            Long observedAggregateRevision) {
-    }
 }

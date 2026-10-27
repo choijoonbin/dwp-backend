@@ -1,5 +1,7 @@
 package com.dwp.services.payroll.preparation;
 
+import static com.dwp.services.payroll.preparation.PayrollPreparationValidation.*;
+
 import com.dwp.services.payroll.security.PayrollStepUpEvidence;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -56,27 +58,14 @@ final class PayrollPreparationModels {
 
     record AggregateFilter(Long minimumItemCount, Long maximumItemCount) {
         AggregateFilter {
-            if ((minimumItemCount != null && minimumItemCount < 0)
-                    || (maximumItemCount != null && maximumItemCount < 0)
-                    || (minimumItemCount != null && maximumItemCount != null
-                    && minimumItemCount > maximumItemCount)) {
-                throw new IllegalArgumentException("payrollPopulation filter is invalid");
-            }
+            PayrollPreparationValidation.aggregateFilterFields(minimumItemCount, maximumItemCount);
         }
     }
 
     record MetadataFilter(List<String> keys, List<String> versions) {
         MetadataFilter {
             keys = keys == null ? List.of() : List.copyOf(keys);
-            versions = versions == null ? List.of() : List.copyOf(versions);
-            if (keys.size() > 50 || versions.size() > 50
-                    || keys.stream().distinct().count() != keys.size()
-                    || versions.stream().distinct().count() != versions.size()
-                    || java.util.stream.Stream.concat(keys.stream(), versions.stream())
-                    .anyMatch(value -> value == null
-                            || !value.matches("[A-Za-z0-9._:-]{1,128}"))) {
-                throw new IllegalArgumentException("projectionVersion filter is invalid");
-            }
+            versions = PayrollPreparationValidation.metadataFilterVersions(keys, versions);
         }
     }
 
@@ -96,32 +85,9 @@ final class PayrollPreparationModels {
             String timeZone,
             UUID correlationId) {
 
-        private static final Set<String> SORTS = Set.of(
-                "payrollPopulation:ASC", "projectionVersion:ASC",
-                "payrollPopulation:DESC", "projectionVersion:DESC",
-                "itemPublicId:ASC", "itemPublicId:DESC");
-
         EntryQuery {
-            if (cursor != null && !cursor.matches("[A-Za-z0-9_-]{16,1024}")) {
-                throw new IllegalArgumentException("cursor is invalid");
-            }
-            Objects.requireNonNull(filter, "filter");
-            if (limit < 1 || limit > 100) {
-                throw new IllegalArgumentException("limit must be between 1 and 100");
-            }
-            if (locale == null || locale.length() < 2 || locale.length() > 35) {
-                throw new IllegalArgumentException("locale length is invalid");
-            }
-            sort = List.copyOf(sort);
-            if (sort.isEmpty() || sort.size() > 3
-                    || sort.stream().distinct().count() != sort.size()
-                    || !SORTS.containsAll(sort)) {
-                throw new IllegalArgumentException("sort is invalid");
-            }
-            if (timeZone == null || timeZone.isEmpty() || timeZone.length() > 255) {
-                throw new IllegalArgumentException("timeZone length is invalid");
-            }
-            Objects.requireNonNull(correlationId, "correlationId");
+            PayrollPreparationValidation.entryQueryFields(cursor, filter, limit, locale);
+            sort = PayrollPreparationValidation.entryQuerySort2(sort, timeZone, correlationId);
         }
     }
 
@@ -153,20 +119,7 @@ final class PayrollPreparationModels {
             String maskedDisplayKey) {
 
         FieldDecision {
-            if (!Set.of("VIEW", "MASK").contains(decision)) {
-                throw new IllegalArgumentException("field decision is invalid");
-            }
-            if ("VIEW".equals(decision)) {
-                Objects.requireNonNull(value, "value");
-                if (maskReason != null || maskedDisplayKey != null) {
-                    throw new IllegalArgumentException("view decision cannot mask");
-                }
-            } else if (value != null || maskReason == null
-                    || !maskReason.matches("[A-Z][A-Z0-9_]{1,63}")
-                    || maskedDisplayKey == null
-                    || !maskedDisplayKey.matches("[a-z][a-z0-9._-]{1,127}")) {
-                throw new IllegalArgumentException("mask decision is incomplete");
-            }
+            PayrollPreparationValidation.fieldDecisionFields(decision, value, maskReason, maskedDisplayKey);
         }
 
         static FieldDecision view(Object value) {
@@ -176,11 +129,7 @@ final class PayrollPreparationModels {
 
     record DeepLink(String route, String resourcePublicId) {
         DeepLink {
-            if (!"/hr/operations/payroll/population".equals(route)
-                    || resourcePublicId == null
-                    || !resourcePublicId.matches("[A-Za-z0-9._:-]{1,128}")) {
-                throw new IllegalArgumentException("payroll deep link is invalid");
-            }
+            PayrollPreparationValidation.deepLinkFields(route, resourcePublicId);
         }
     }
 
@@ -191,13 +140,7 @@ final class PayrollPreparationModels {
             String idempotencyPolicy,
             String stepUpPolicy) {
         AvailableAction {
-            if (!"hris.action.pay.run.prepare".equals(actionKey)
-                    || !"POST".equals(method)
-                    || !"/api/payroll/v1/runs".equals(hrefTemplate)
-                    || !"REQUIRED_IDEMPOTENCY_KEY".equals(idempotencyPolicy)
-                    || !"OWNER_PEP_RISK_POLICY_DECISION_REQUIRED".equals(stepUpPolicy)) {
-                throw new IllegalArgumentException("prepare action is invalid");
-            }
+            PayrollPreparationValidation.availableActionFields(actionKey, method, hrefTemplate, idempotencyPolicy, stepUpPolicy);
         }
     }
 
@@ -213,17 +156,7 @@ final class PayrollPreparationModels {
             List<AvailableAction> availableActions) {
 
         EntryItem {
-            if (itemPublicId == null
-                    || !itemPublicId.matches("[A-Za-z0-9._:-]{1,128}")) {
-                throw new IllegalArgumentException("itemPublicId is invalid");
-            }
-            if (title == null || title.isBlank() || title.length() > 512) {
-                throw new IllegalArgumentException("title is invalid");
-            }
-            if (statusCode == null
-                    || !statusCode.matches("[A-Z][A-Z0-9_]{1,63}")) {
-                throw new IllegalArgumentException("statusCode is invalid");
-            }
+            PayrollPreparationValidation.entryItemFields(itemPublicId, title, statusCode);
             fieldGroups = Map.copyOf(new LinkedHashMap<>(fieldGroups));
             if (fieldGroups.isEmpty()
                     || !Set.of("PAYROLL_POPULATION", "PROJECTION_VERSION")
@@ -252,13 +185,7 @@ final class PayrollPreparationModels {
             UUID correlationId,
             boolean retryable) {
         PartialFailure {
-            if (componentKey == null
-                    || !componentKey.matches("[a-z][a-z0-9._-]{0,127}")
-                    || errorCode == null
-                    || !errorCode.matches("[A-Z][A-Z0-9_]{1,63}")) {
-                throw new IllegalArgumentException("partial failure is invalid");
-            }
-            Objects.requireNonNull(correlationId, "correlationId");
+            PayrollPreparationValidation.partialFailureFields(componentKey, errorCode, correlationId);
         }
     }
 
@@ -267,12 +194,7 @@ final class PayrollPreparationModels {
             String invalidationEvent,
             int maxAgeSeconds) {
         CachePolicy {
-            token(authorizationDecisionRevision, 128,
-                    "authorizationDecisionRevision");
-            if (!"dwp.hris.access.assignment.changed.v1".equals(invalidationEvent)
-                    || maxAgeSeconds < 0 || maxAgeSeconds > 300) {
-                throw new IllegalArgumentException("cache policy is invalid");
-            }
+            PayrollPreparationValidation.cachePolicyFields(authorizationDecisionRevision, invalidationEvent, maxAgeSeconds);
         }
     }
 
@@ -289,18 +211,7 @@ final class PayrollPreparationModels {
             UUID correlationId,
             CachePolicy cachePolicy) {
         QueryState {
-            if (!Set.of("COMPLETE", "EMPTY", "PARTIAL", "UNAVAILABLE")
-                    .contains(state)
-                    || !Set.of("CURRENT", "STALE", "UNAVAILABLE")
-                    .contains(freshness)) {
-                throw new IllegalArgumentException("query state is invalid");
-            }
-            token(scopeDecisionRevision, 128, "scopeDecisionRevision");
-            if (nextCursor != null
-                    && !nextCursor.matches("[A-Za-z0-9_-]{16,1024}")) {
-                throw new IllegalArgumentException("nextCursor is invalid");
-            }
-            Objects.requireNonNull(fieldDecisionSummary, "fieldDecisionSummary");
+            PayrollPreparationValidation.queryStateFields(state, scopeDecisionRevision, freshness, nextCursor, fieldDecisionSummary);
             partialFailures = List.copyOf(partialFailures);
             if (partialFailures.size() > 32
                     || ("PARTIAL".equals(state) && partialFailures.isEmpty())
@@ -324,11 +235,7 @@ final class PayrollPreparationModels {
             QueryState queryState,
             List<EntryItem> items) {
         EntryQueryResponse {
-            if (!"1".equals(projectionVersion) || !"POPULATION".equals(variantKey)) {
-                throw new IllegalArgumentException("IAQ-014 projection identity is invalid");
-            }
-            Objects.requireNonNull(asOf, "asOf");
-            Objects.requireNonNull(queryState, "queryState");
+            PayrollPreparationValidation.entryQueryResponseFields(projectionVersion, asOf, variantKey, queryState);
             items = List.copyOf(items);
             if (items.size() > 500
                     || (("EMPTY".equals(queryState.state())
@@ -349,18 +256,8 @@ final class PayrollPreparationModels {
             UUID namedPopulationId) {
 
         PopulationSelection {
-            Objects.requireNonNull(legalEntityId, "legalEntityId");
-            Objects.requireNonNull(payrollGroupId, "payrollGroupId");
-            Objects.requireNonNull(payPeriodId, "payPeriodId");
-            if (!List.of("LEGAL_ENTITY", "PAY_GROUP", "NAMED_POPULATION")
-                    .contains(populationKind)) {
-                throw new IllegalArgumentException("populationKind is invalid");
-            }
-            if (!"NAMED_POPULATION".equals(populationKind)
-                    && namedPopulationId != null) {
-                throw new IllegalArgumentException(
-                        "namedPopulationId is only valid for NAMED_POPULATION");
-            }
+            PayrollPreparationValidation.populationSelectionFields(
+                    legalEntityId, payrollGroupId, payPeriodId, populationKind, namedPopulationId);
         }
     }
 
@@ -373,16 +270,7 @@ final class PayrollPreparationModels {
             int limit) {
 
         PopulationQuery {
-            Objects.requireNonNull(legalEntityId, "legalEntityId");
-            Objects.requireNonNull(payrollGroupId, "payrollGroupId");
-            Objects.requireNonNull(payPeriodId, "payPeriodId");
-            if (limit < 1 || limit > 200) {
-                throw new IllegalArgumentException("limit must be between 1 and 200");
-            }
-            if (cursor != null && (cursor.isBlank() || cursor.length() > 2048
-                    || !cursor.equals(cursor.strip()))) {
-                throw new IllegalArgumentException("cursor is invalid");
-            }
+            PayrollPreparationValidation.populationQueryFields(legalEntityId, payrollGroupId, payPeriodId, cursor, limit);
         }
 
         PopulationSelection selection(String populationKind) {
@@ -407,16 +295,9 @@ final class PayrollPreparationModels {
             SourceStatus status) {
 
         SourceRevision {
-            Objects.requireNonNull(sourceType, "sourceType");
-            Objects.requireNonNull(sourceId, "sourceId");
-            if (revision < 1) throw new IllegalArgumentException("revision must be positive");
-            digest(payloadDigest, "payloadDigest");
-            Objects.requireNonNull(status, "status");
-            if ((approvalReceiptId == null) != (approvalRevision == null)
-                    || (approvalRevision != null && approvalRevision < 1)
-                    || (lineCount != null && lineCount < 1)) {
-                throw new IllegalArgumentException("source approval/cardinality is invalid");
-            }
+            PayrollPreparationValidation.sourceRevisionFields(
+                    sourceType, sourceId, revision, payloadDigest, approvalReceiptId, approvalRevision, lineCount,
+                    status);
         }
 
         SourceIdentity identity() {
@@ -452,14 +333,7 @@ final class PayrollPreparationModels {
             String evidenceDigest) {
 
         PreflightDecision {
-            token(code, 100, "code");
-            Objects.requireNonNull(status, "status");
-            if ((sourceType == null) != (sourceId == null)
-                    || (sourceType == null) != (revision == null)
-                    || (revision != null && revision < 1)) {
-                throw new IllegalArgumentException("preflight source binding is invalid");
-            }
-            digest(evidenceDigest, "evidenceDigest");
+            PayrollPreparationValidation.preflightDecisionFields(code, status, sourceType, sourceId, revision, evidenceDigest);
         }
     }
 
@@ -506,11 +380,8 @@ final class PayrollPreparationModels {
             PopulationPage page) {
 
         PopulationResponse {
-            token(populationRevision, 200, "populationRevision");
-            digest(targetPopulationDigest, "targetPopulationDigest");
-            token(scopeRevision, 200, "scopeRevision");
-            digest(scopeDigest, "scopeDigest");
-            Objects.requireNonNull(selection, "selection");
+            PayrollPreparationValidation.populationResponseFields(
+                    populationRevision, targetPopulationDigest, scopeRevision, scopeDigest, selection);
             sources = List.copyOf(sources);
             Objects.requireNonNull(preflight, "preflight");
             Objects.requireNonNull(page, "page");
@@ -539,13 +410,8 @@ final class PayrollPreparationModels {
             String inputSnapshotDigest) {
 
         PrepareCommand {
-            Objects.requireNonNull(preparationId, "preparationId");
-            Objects.requireNonNull(runType, "runType");
-            Objects.requireNonNull(payrollEntityId, "payrollEntityId");
-            Objects.requireNonNull(payGroupId, "payGroupId");
-            Objects.requireNonNull(payPeriodId, "payPeriodId");
-            Objects.requireNonNull(asOf, "asOf");
-            digest(inputSnapshotDigest, "inputSnapshotDigest");
+            PayrollPreparationValidation.prepareCommandFields(
+                    preparationId, runType, payrollEntityId, payGroupId, payPeriodId, asOf, inputSnapshotDigest);
         }
 
         PopulationSelection selection(String populationKind) {
@@ -651,31 +517,10 @@ final class PayrollPreparationModels {
             String resultRef) {
 
         PayrollCommandReceipt {
-            Objects.requireNonNull(receiptId, "receiptId");
-            if (!"RUN_PREPARE".equals(commandType)
-                    || !"PAY_RUN_PREPARE".equals(originatingAction)) {
-                throw new IllegalArgumentException("prepare receipt identity is invalid");
-            }
-            Objects.requireNonNull(subjectPrincipalPublicId,
-                    "subjectPrincipalPublicId");
-            digest(populationScopeDigest, "populationScopeDigest");
-            if (fieldPolicyRevision < 1 || authorizationRevision < 1) {
-                throw new IllegalArgumentException("receipt revisions must be positive");
-            }
-            if (!"PAYROLL_PROCESSING".equals(purposeCode)) {
-                throw new IllegalArgumentException("prepare receipt purpose is invalid");
-            }
-            Objects.requireNonNull(status, "status");
-            Objects.requireNonNull(correlationId, "correlationId");
-            digest(requestDigest, "requestDigest");
-            Objects.requireNonNull(createdAt, "createdAt");
-            if (aggregateVersion != null && aggregateVersion < 0) {
-                throw new IllegalArgumentException("aggregateVersion must be nonnegative");
-            }
-            if (resultRef != null && (resultRef.isBlank()
-                    || resultRef.length() > 240)) {
-                throw new IllegalArgumentException("resultRef is invalid");
-            }
+            PayrollPreparationValidation.payrollCommandReceiptFields(
+                    receiptId, commandType, originatingAction, subjectPrincipalPublicId, populationScopeDigest,
+                    fieldPolicyRevision, purposeCode, authorizationRevision, status, correlationId, requestDigest,
+                    createdAt, aggregateVersion, resultRef);
         }
     }
 
@@ -707,11 +552,10 @@ final class PayrollPreparationModels {
             String payloadDigest) {
 
         SourceLine {
-            validateSourceLine(
-                    sourceInputId, sourcePublicId, sourceEventId, snapshotId,
-                    snapshotRevision, snapshotPayloadDigest, planId, cycleId,
-                    lineSequence, workerId, assignmentId, componentCode, currency,
-                    approvedAmount, effectiveFrom, payloadDigest);
+            PayrollPreparationValidation.sourceLineFields(
+                    sourceInputId, sourcePublicId, sourceEventId, snapshotId, snapshotRevision, snapshotPayloadDigest,
+                    planId, cycleId, lineSequence, workerId, assignmentId, componentCode, currency, approvedAmount,
+                    effectiveFrom, payloadDigest);
         }
     }
 
@@ -737,15 +581,10 @@ final class PayrollPreparationModels {
             String semanticBindingDigest) {
 
         PreparedLine {
-            validateSourceLine(
-                    sourceInputId, sourcePublicId, sourceEventId, snapshotId,
-                    snapshotRevision, snapshotPayloadDigest, planId, cycleId,
-                    lineSequence, workerId, assignmentId, componentCode, currency,
-                    approvedAmount, effectiveFrom, payloadDigest);
-            if (semanticBindingJson == null || semanticBindingJson.isBlank()) {
-                throw new IllegalArgumentException("semanticBindingJson is required");
-            }
-            digest(semanticBindingDigest, "semanticBindingDigest");
+            PayrollPreparationValidation.preparedLineFields(
+                    sourceInputId, sourcePublicId, sourceEventId, snapshotId, snapshotRevision, snapshotPayloadDigest,
+                    planId, cycleId, lineSequence, workerId, assignmentId, componentCode, currency, approvedAmount,
+                    effectiveFrom, payloadDigest, semanticBindingJson, semanticBindingDigest);
         }
     }
 
@@ -762,18 +601,9 @@ final class PayrollPreparationModels {
             List<PreparedLine> lines) {
 
         FrozenMaterial {
-            Objects.requireNonNull(sourceSnapshotId, "sourceSnapshotId");
-            if (sourceSnapshotRevision < 1) {
-                throw new IllegalArgumentException("sourceSnapshotRevision is invalid");
-            }
-            digest(sourcePayloadDigest, "sourcePayloadDigest");
-            digest(formulaSetDigest, "formulaSetDigest");
-            digest(compensationInputDigest, "compensationInputDigest");
-            digest(semanticBindingDigest, "semanticBindingDigest");
-            token(functionSetVersion, 64, "functionSetVersion");
-            if (currency == null || !currency.matches("[A-Z]{3}")) {
-                throw new IllegalArgumentException("currency is invalid");
-            }
+            PayrollPreparationValidation.frozenMaterialFields(
+                    sourceSnapshotId, sourceSnapshotRevision, sourcePayloadDigest, formulaSetDigest,
+                    compensationInputDigest, semanticBindingDigest, functionSetVersion, currency);
             formulas = List.copyOf(formulas);
             lines = List.copyOf(lines);
             if (formulas.isEmpty() || lines.isEmpty()) {
@@ -841,53 +671,11 @@ final class PayrollPreparationModels {
     }
 
     static void digest(String value, String field) {
-        if (value == null || !value.matches("[0-9a-f]{64}")) {
-            throw new IllegalArgumentException(field + " must be canonical SHA-256");
-        }
+        PayrollPreparationValidation.digest(value, field);
     }
 
     static void token(String value, int maximum, String field) {
-        if (value == null || value.isBlank() || value.length() > maximum
-                || !value.equals(value.strip())
-                || !value.matches("[A-Za-z0-9][A-Za-z0-9._:/-]*")) {
-            throw new IllegalArgumentException(field + " is invalid");
-        }
+        PayrollPreparationValidation.token(value, maximum, field);
     }
 
-    private static void validateSourceLine(
-            long sourceInputId,
-            UUID sourcePublicId,
-            UUID sourceEventId,
-            UUID snapshotId,
-            long snapshotRevision,
-            String snapshotPayloadDigest,
-            UUID planId,
-            UUID cycleId,
-            int lineSequence,
-            UUID workerId,
-            UUID assignmentId,
-            String componentCode,
-            String currency,
-            BigDecimal approvedAmount,
-            LocalDate effectiveFrom,
-            String payloadDigest) {
-        if (sourceInputId < 1 || snapshotRevision < 1 || lineSequence < 1) {
-            throw new IllegalArgumentException("prepared line positive fields are invalid");
-        }
-        Objects.requireNonNull(sourcePublicId, "sourcePublicId");
-        Objects.requireNonNull(sourceEventId, "sourceEventId");
-        Objects.requireNonNull(snapshotId, "snapshotId");
-        Objects.requireNonNull(planId, "planId");
-        Objects.requireNonNull(cycleId, "cycleId");
-        Objects.requireNonNull(workerId, "workerId");
-        Objects.requireNonNull(assignmentId, "assignmentId");
-        token(componentCode, 80, "componentCode");
-        if (currency == null || !currency.matches("[A-Z]{3}")) {
-            throw new IllegalArgumentException("currency is invalid");
-        }
-        Objects.requireNonNull(approvedAmount, "approvedAmount");
-        Objects.requireNonNull(effectiveFrom, "effectiveFrom");
-        digest(snapshotPayloadDigest, "snapshotPayloadDigest");
-        digest(payloadDigest, "payloadDigest");
-    }
 }

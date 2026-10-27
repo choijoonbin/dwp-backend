@@ -57,7 +57,8 @@ final class EmploymentAbsenceProjectionMigrationDatabase {
         Flyway throughV13 = flyway(upgradeMigration, MigrationVersion.fromVersion("13"));
         throughV13.migrate();
         normalizeRoutineExecution(upgradeSuperuserDataSource, false);
-        upgradeFlyway = flyway(upgradeMigration, null);
+        // The clean path covers latest; this path proves the historical V13-to-V14 upgrade.
+        upgradeFlyway = flyway(upgradeMigration, MigrationVersion.fromVersion("14"));
     }
 
     static EmploymentAbsenceProjectionMigrationDatabase instance() {

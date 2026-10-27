@@ -6,8 +6,11 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -186,13 +189,42 @@ class MessagingQueryRepository {
                    AND (? = '' OR LOWER(display_name) LIKE ?
                         OR LOWER(email_address) LIKE ?
                         OR LOWER(COALESCE(job_title, '')) LIKE ?)
-                 ORDER BY CASE presence_state
-                              WHEN 'AVAILABLE' THEN 0 WHEN 'FOCUS' THEN 1
-                              WHEN 'BUSY' THEN 2 WHEN 'AWAY' THEN 3 ELSE 4 END,
-                          display_name, user_id
+                 ORDER BY display_name, user_id
                  LIMIT ?
                 """, (result, ignored) -> person(result),
                 tenantId, userId, query, pattern(query), pattern(query), pattern(query), limit);
+    }
+
+    List<MessagingDtos.PersonSummary> peopleByUserIds(
+            long tenantId,
+            long viewerUserId,
+            Set<Long> userIds,
+            int limit) {
+        List<Long> resolvedUserIds = userIds.stream()
+                .filter(userId -> userId != null && userId > 0 && userId != viewerUserId)
+                .distinct()
+                .sorted()
+                .toList();
+        if (resolvedUserIds.isEmpty()) return List.of();
+
+        String placeholders = String.join(",", Collections.nCopies(resolvedUserIds.size(), "?"));
+        String sql = """
+                SELECT user_id, person_public_id, email_address, display_name,
+                       job_title, organization_name, presence_state
+                  FROM msg_people_snapshot
+                 WHERE tenant_id = ?
+                   AND lifecycle_state = 'ACTIVE'
+                   AND user_id <> ?
+                   AND user_id IN (%s)
+                 ORDER BY display_name, user_id
+                 LIMIT ?
+                """.formatted(placeholders);
+        List<Object> parameters = new ArrayList<>(resolvedUserIds.size() + 3);
+        parameters.add(tenantId);
+        parameters.add(viewerUserId);
+        parameters.addAll(resolvedUserIds);
+        parameters.add(Math.max(1, limit));
+        return jdbc.query(sql, (result, ignored) -> person(result), parameters.toArray());
     }
 
     MessagingDtos.HomeMetrics metrics(long tenantId, long userId) {

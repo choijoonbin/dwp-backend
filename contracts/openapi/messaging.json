@@ -1605,6 +1605,9 @@
             },
             "type": "array"
           },
+          "presence": {
+            "$ref": "#/components/schemas/PresenceMetadata"
+          },
           "priority": {
             "items": {
               "$ref": "#/components/schemas/ConversationSummary"
@@ -1953,6 +1956,26 @@
             "type": "string"
           },
           "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PresenceMetadata": {
+        "properties": {
+          "authority": {
+            "type": "string"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "leaseTtlSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "refreshAfterSeconds": {
             "format": "int64",
             "type": "integer"
           }
@@ -4671,6 +4694,45 @@
         },
         "tags": [
           "messaging-controller"
+        ]
+      }
+    },
+    "/v1/presence/heartbeat": {
+      "put": {
+        "operationId": "heartbeat",
+        "responses": {
+          "204": {
+            "description": "Presence lease renewed",
+            "headers": {
+              "X-DWP-Presence-Lease-TTL-Seconds": {
+                "description": "Authoritative renewed lease lifetime in whole seconds",
+                "schema": {
+                  "example": 75,
+                  "format": "int64",
+                  "maximum": 300,
+                  "minimum": 30,
+                  "type": "integer"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Presence-Refresh-After-Seconds": {
+                "description": "Server-recommended delay before the next heartbeat in whole seconds",
+                "schema": {
+                  "example": 20,
+                  "format": "int64",
+                  "minimum": 5,
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "503": {
+            "description": "Presence authority unavailable"
+          }
+        },
+        "tags": [
+          "messaging-presence-controller"
         ]
       }
     },

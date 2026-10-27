@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -193,6 +194,34 @@ public class WorkplaceExperienceCollaborationRepository {
                 .stream().findFirst().orElse(new ConnectorStatus(kind, null, ConnectionState.NOT_CONFIGURED, null, null, 0));
     }
 
+    Optional<ConnectorRuntimeEvidence> connectorRuntime(long tenantId, ConnectorKind kind) {
+        return jdbc.query("""
+                SELECT configuration.provider AS configured_provider,
+                       configuration.enabled,
+                       configuration.version AS configuration_version,
+                       runtime.provider AS observed_provider,
+                       runtime.configuration_version AS observed_configuration_version,
+                       runtime.reported_state,
+                       runtime.source_observed_at,
+                       runtime.received_at
+                  FROM wp_experience_connector_configurations configuration
+                  LEFT JOIN wp_connector_runtime_truth runtime
+                    ON runtime.tenant_id = configuration.tenant_id
+                   AND runtime.connector_kind = configuration.connector_kind
+                 WHERE configuration.tenant_id = ?
+                   AND configuration.connector_kind = ?
+                """, (row, ignored) -> new ConnectorRuntimeEvidence(
+                        row.getString("configured_provider"),
+                        row.getBoolean("enabled"),
+                        row.getLong("configuration_version"),
+                        row.getString("observed_provider"),
+                        (Long) row.getObject("observed_configuration_version"),
+                        row.getString("reported_state"),
+                        row.getObject("source_observed_at", OffsetDateTime.class),
+                        row.getObject("received_at", OffsetDateTime.class)),
+                tenantId, kind.name()).stream().findFirst();
+    }
+
     void ensureConnector(long tenantId, ConnectorKind kind) {
         jdbc.update("INSERT INTO wp_experience_connector_configurations (tenant_id, connector_kind) VALUES (?, ?) ON CONFLICT DO NOTHING",
                 tenantId, kind.name());
@@ -284,6 +313,15 @@ public class WorkplaceExperienceCollaborationRepository {
     }
 
     record SharedCandidate(WorkPlan plan, long userId, Visibility preferenceVisibility) {}
+    record ConnectorRuntimeEvidence(
+            String configuredProvider,
+            boolean enabled,
+            long configurationVersion,
+            String observedProvider,
+            Long observedConfigurationVersion,
+            String reportedState,
+            OffsetDateTime sourceObservedAt,
+            OffsetDateTime receivedAt) { }
     record PhotoRow(UUID resourceId, String storageKey, String altText, String contentType,
                     long sizeBytes, String sha256, long version) {}
 }

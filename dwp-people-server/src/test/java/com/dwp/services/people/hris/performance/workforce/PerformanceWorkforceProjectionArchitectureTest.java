@@ -27,6 +27,7 @@ class PerformanceWorkforceProjectionArchitectureTest {
             throws IOException {
         Path main = repositoryRoot().resolve(
                 "dwp-people-server/src/main/java/com/dwp/services/people/hris/performance");
+        Path workforce = main.resolve("workforce");
         try (var sources = Files.walk(main)) {
             for (Path source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {
                 String text = Files.readString(source);
@@ -42,11 +43,19 @@ class PerformanceWorkforceProjectionArchitectureTest {
                         .doesNotContain("WorkforceSnapshotQueryPorts")
                         .doesNotContain("org.springframework.web.client")
                         .doesNotContain("org.springframework.web.reactive.function.client")
-                        .doesNotContain("java.net.http")
                         .doesNotContain("ppl_")
                         .doesNotContain("hrm_")
                         .doesNotContain("prf_population_freezes")
                         .doesNotContain("prf_population_freeze_members");
+                // The workforce projection and every direct workforce-contract consumer must
+                // use the in-process port. PER-004's signed Platform transport is a separate
+                // owner boundary; the persistence restrictions above still cover all PER code.
+                if (source.startsWith(workforce)
+                        || text.contains("com.dwp.services.people.hris.contracts.workforce.v1.")) {
+                    assertThat(text)
+                            .as("workforce consumer transport in %s", source)
+                            .doesNotContain("java.net.http");
+                }
                 text.lines()
                         .filter(line -> line.startsWith(
                                 "import com.dwp.services.people.hris.contracts.workforce.v1."))

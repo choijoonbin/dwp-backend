@@ -816,7 +816,7 @@ class AuthSessionVerifierTest extends AuthSessionVerifierTestSupport {
     }
 
     @Test
-    void requestsSeparatedRoomsApplicationAndAdministrationAuthorities() {
+    void requestsRoomAndWorkplaceAuthoritiesForGovernedRoomDependencies() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
             captured.set(request);
@@ -825,7 +825,8 @@ class AuthSessionVerifierTest extends AuthSessionVerifierTestSupport {
                     .body("""
                             {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["WORKSPACE_MEMBER"],"permissions":[
-                              {"resourceKey":"APP.ROOMS","permissionCode":"VIEW","effect":"ALLOW"}
+                              {"resourceKey":"APP.ROOMS","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"APP.WORKPLACE","permissionCode":"VIEW","effect":"ALLOW"}
                             ]}}
                             """)
                     .build());
@@ -838,7 +839,7 @@ class AuthSessionVerifierTest extends AuthSessionVerifierTestSupport {
                 .build()).block();
 
         assertThat(captured.get().url().getQuery())
-                .isEqualTo("permissionPrefix=APP.ROOMS");
+                .isEqualTo("permissionPrefix=APP.ROOMS,APP.WORKPLACE");
         assertThat(runtime).isNotNull();
 
         VerifiedIdentity admin = verifier.verify(MockServerHttpRequest

@@ -1,6 +1,8 @@
 package com.dwp.services.platform.security;
 
 import com.dwp.core.security.ProductSurfaceScopeKey;
+import com.dwp.services.platform.calendar.RoomService;
+import com.dwp.services.platform.calendar.RoomsController;
 import com.dwp.services.platform.workplace.WorkplaceController;
 import com.dwp.services.platform.workplace.WorkplaceDtos;
 import com.dwp.services.platform.workplace.WorkplaceOperationsController;
@@ -85,13 +87,14 @@ class WorkplaceProductSurfacePepContractTest {
             mock(WorkplaceOperationsService.class);
     private final WorkplaceConnectorOpsService connectorOps =
             mock(WorkplaceConnectorOpsService.class);
+    private final RoomService rooms = mock(RoomService.class);
     private final PlatformWorkplaceProductPepRegistry registry =
             new PlatformWorkplaceProductPepRegistry(objectMapper);
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
-        reset(service, operations, connectorOps);
+        reset(service, operations, connectorOps, rooms);
         PlatformSecurityFilter platformSecurity = new PlatformSecurityFilter(
                 "trusted", "runtime", objectMapper);
         PlatformWorkplaceProductPepFilter workplacePep =
@@ -99,7 +102,8 @@ class WorkplaceProductSurfacePepContractTest {
         mvc = MockMvcBuilders.standaloneSetup(
                         new WorkplaceController(service),
                         new WorkplaceOperationsController(operations),
-                        new WorkplaceConnectorOpsController(connectorOps))
+                        new WorkplaceConnectorOpsController(connectorOps),
+                        new RoomsController(rooms))
                 .addFilters(platformSecurity, workplacePep)
                 .build();
     }
@@ -782,6 +786,33 @@ class WorkplaceProductSurfacePepContractTest {
         verify(service, never()).explore(
                 anyLong(), anyLong(), any(), any(), any(), any(), any(), any());
         verifyNoInteractions(operations);
+    }
+
+    @Test
+    void canonicalRoomReadContractsPassBothPlatformSecurityLayers()
+            throws Exception {
+        mvc.perform(exact(
+                        get("/v1/rooms/policy"),
+                        "route.workplace.work.room-policy-get.data",
+                        "APP.WORKPLACE:VIEW"))
+                .andExpect(status().isOk());
+        verify(rooms).policy(TENANT);
+
+        mvc.perform(exact(
+                        get("/v1/rooms/availability")
+                                .param("from", "2026-08-28T09:00:00+09:00")
+                                .param("to", "2026-08-28T10:00:00+09:00"),
+                        "route.workplace.work.room-availability-get.data",
+                        "APP.WORKPLACE:VIEW"))
+                .andExpect(status().isOk());
+
+        mvc.perform(exact(
+                        get("/v1/rooms/bookings")
+                                .param("from", "2026-08-28T09:00:00+09:00")
+                                .param("to", "2026-08-28T10:00:00+09:00"),
+                        "route.workplace.work.reservations.page",
+                        "APP.WORKPLACE:VIEW"))
+                .andExpect(status().isOk());
     }
 
     private JsonNode contract(String name) throws Exception {

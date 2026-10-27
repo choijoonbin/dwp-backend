@@ -128,6 +128,10 @@ class PayrollCalculationService {
                 || !current.sourcePayloadDigest().equals(snapshot.sourcePayloadDigest())) {
             throw notFound();
         }
+        // Recheck the prepared semantics before accepting any calculation facts.
+        for (PayrollCalculationModels.SourceInput input : snapshot.inputs()) {
+            semanticBinder.evaluate(snapshot, input);
+        }
         long runRevision = current.revision() + 1;
         UUID receiptId = UUID.randomUUID();
         UUID correlation = correlationId == null ? UUID.randomUUID() : correlationId;

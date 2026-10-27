@@ -68,7 +68,7 @@ public final class HrisHomeMaterializationDigestV1 {
         if (value.isObject()) {
             ObjectNode result = JsonNodeFactory.instance.objectNode();
             TreeMap<String, JsonNode> fields = new TreeMap<>();
-            value.fields().forEachRemaining(entry -> fields.put(
+            value.properties().forEach(entry -> fields.put(
                     entry.getKey(), canonical(entry.getValue())));
             fields.forEach(result::set);
             return result;

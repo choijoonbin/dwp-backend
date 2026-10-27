@@ -8,6 +8,8 @@ import com.dwp.services.space.security.SpaceRequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -21,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -189,6 +192,150 @@ class SpaceServiceTest {
         verify(ownerRecovery, never()).recover(any(), any(), any());
     }
 
+    @Test
+    void accessRequestRequiresTheDedicatedMembershipPermission() {
+        SpaceRequestContext.set(subject(Set.of("APP.SPACES:VIEW")));
+
+        assertThatThrownBy(() -> service().requestAccess("governed-space", accessRequest(), "corr-access"))
+                .isInstanceOfSatisfying(BaseException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(com.dwp.core.common.ErrorCode.FORBIDDEN));
+
+        verify(queries, never()).space(any(), any());
+        verify(commands, never()).createAccessRequest(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PRIVATE", "HIDDEN"})
+    void restrictedSpacesDoNotAcceptSelfServiceMembershipRequests(String visibility) {
+        SpaceRequestContext.set(subject(Set.of("ACTION.SPACE_MEMBERSHIP:CREATE")));
+        when(queries.space(SpaceRequestContext.get(), "governed-space"))
+                .thenReturn(summary(UUID.randomUUID(), visibility, null));
+
+        assertThatThrownBy(() -> service().requestAccess("governed-space", accessRequest(), "corr-access"))
+                .isInstanceOfSatisfying(BaseException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(com.dwp.core.common.ErrorCode.FORBIDDEN));
+
+        verify(commands, never()).createAccessRequest(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ARCHIVED", "SUSPENDED", "DELETED"})
+    void inactiveSpacesDoNotAcceptMembershipRequests(String lifecycleState) {
+        SpaceRequestContext.set(subject(Set.of("ACTION.SPACE_MEMBERSHIP:CREATE")));
+        when(queries.space(SpaceRequestContext.get(), "governed-space"))
+                .thenReturn(summary(UUID.randomUUID(), "REQUEST", null, lifecycleState));
+
+        assertThatThrownBy(() -> service().requestAccess("governed-space", accessRequest(), "corr-access"))
+                .isInstanceOfSatisfying(BaseException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(com.dwp.core.common.ErrorCode.FORBIDDEN));
+
+        verify(commands, never()).createAccessRequest(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"VIEWER", "CONTRIBUTOR", "EDITOR", "MODERATOR", "OWNER", "GUEST"})
+    void existingEffectiveRolesCannotCreateDuplicateMembershipRequests(String role) {
+        SpaceRequestContext.set(subject(Set.of("ACTION.SPACE_MEMBERSHIP:CREATE")));
+        when(queries.space(SpaceRequestContext.get(), "governed-space"))
+                .thenReturn(summary(UUID.randomUUID(), "REQUEST", role));
+
+        assertThatThrownBy(() -> service().requestAccess("governed-space", accessRequest(), "corr-access"))
+                .isInstanceOfSatisfying(BaseException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(com.dwp.core.common.ErrorCode.RESOURCE_CONFLICT));
+
+        verify(commands, never()).createAccessRequest(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"OPEN", "REQUEST"})
+    void eligibleNonmembersCanRequestAccessToActiveDiscoverableSpaces(String visibility) {
+        SpaceRequestContext.Subject actor = subject(Set.of("ACTION.SPACE_MEMBERSHIP:CREATE"));
+        SpaceRequestContext.set(actor);
+        UUID spaceId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        SpaceDtos.CreateAccessRequest input = accessRequest();
+        SpaceDtos.AccessRequestSummary created = new SpaceDtos.AccessRequestSummary(
+                requestId, spaceId, "governed-space", "Space", "Space", actor.userId(),
+                actor.displayName(), "VIEWER", input.justification(), "OWNER_REVIEW",
+                "PENDING", null, Instant.now(), null, 0L);
+        when(queries.space(actor, "governed-space")).thenReturn(summary(spaceId, visibility, null));
+        when(commands.createAccessRequest(actor, spaceId, input)).thenReturn(requestId);
+        when(queries.accessRequests(actor.tenantId(), null, null, "ALL")).thenReturn(List.of(created));
+
+        assertThat(service().requestAccess("governed-space", input, "corr-access")).isEqualTo(created);
+
+        verify(commands).createAccessRequest(actor, spaceId, input);
+    }
+
+    @Test
+    void openSpaceNonmemberReceivesForbiddenInsteadOfNullRoleFailureWhenCreatingContent() {
+        SpaceRequestContext.set(subject(Set.of("APP.SPACES:VIEW", "ACTION.SPACE_CONTENT:CREATE")));
+        when(queries.space(SpaceRequestContext.get(), "governed-space"))
+                .thenReturn(summary(UUID.randomUUID(), "OPEN", null));
+        SpaceDtos.CreateContentRequest input = new SpaceDtos.CreateContentRequest(
+                "POST", "New content", "Summary", "INTERNAL", Map.of("body", "Test"));
+
+        assertThatThrownBy(() -> service().createContent("governed-space", input, "corr-content"))
+                .isInstanceOfSatisfying(BaseException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(com.dwp.core.common.ErrorCode.FORBIDDEN));
+
+        verify(commands, never()).createContent(any(), any(), any());
+    }
+
+    @Test
+    void archivedSpaceMembersCannotContribute() {
+        SpaceRequestContext.set(subject(Set.of("APP.SPACES:VIEW")));
+        UUID spaceId = UUID.randomUUID();
+        when(queries.space(SpaceRequestContext.get(), "governed-space"))
+                .thenReturn(summary(spaceId, "OPEN", "CONTRIBUTOR", "ARCHIVED"));
+        when(queries.policies(1L, spaceId)).thenReturn(policies());
+
+        assertThat(service().space("governed-space").canContribute()).isFalse();
+    }
+
+    @Test
+    void managerWritesRecheckAuthorityAfterAcquiringTheSpaceLock() {
+        SpaceRequestContext.Subject actor = subject(Set.of("APP.SPACES:VIEW"));
+        SpaceRequestContext.set(actor);
+        UUID spaceId = UUID.randomUUID();
+        when(queries.space(actor, "governed-space"))
+                .thenReturn(summary(spaceId, "OPEN", "OWNER"), summary(spaceId, "OPEN", null));
+
+        assertThatThrownBy(() -> service().saveMember("governed-space",
+                new SpaceDtos.SaveMemberRequest("USER", "42", "VIEWER", null), "corr-member"))
+                .isInstanceOfSatisfying(BaseException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(com.dwp.core.common.ErrorCode.FORBIDDEN));
+
+        var order = inOrder(queries, commands);
+        order.verify(queries).space(actor, "governed-space");
+        order.verify(commands).lockMembershipScope(actor, spaceId);
+        order.verify(queries).space(actor, "governed-space");
+        order.verify(queries).canManage(actor, spaceId);
+        verify(commands, never()).saveMember(any(), any(), any());
+    }
+
+    @Test
+    void contentWritesUseTheRoleRefreshedAfterTheSpaceLock() {
+        SpaceRequestContext.Subject actor = subject(Set.of("APP.SPACES:VIEW"));
+        SpaceRequestContext.set(actor);
+        UUID spaceId = UUID.randomUUID();
+        when(queries.space(actor, "governed-space"))
+                .thenReturn(summary(spaceId, "OPEN", "CONTRIBUTOR"), summary(spaceId, "OPEN", "VIEWER"));
+        SpaceDtos.CreateContentRequest input = new SpaceDtos.CreateContentRequest(
+                "POST", "New content", "Summary", "INTERNAL", Map.of("body", "Test"));
+
+        assertThatThrownBy(() -> service().createContent("governed-space", input, "corr-content"))
+                .isInstanceOfSatisfying(BaseException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(com.dwp.core.common.ErrorCode.FORBIDDEN));
+
+        verify(commands).lockMembershipScope(actor, spaceId);
+        verify(commands, never()).createContent(any(), any(), any());
+    }
+
+    private SpaceDtos.CreateAccessRequest accessRequest() {
+        return new SpaceDtos.CreateAccessRequest("VIEWER", "Need access for project collaboration.");
+    }
+
     private SpaceService service() {
         return new SpaceService(
                 queries, commands, templateCommands, ownerRecovery, audit, operations, entitlements);
@@ -206,6 +353,10 @@ class SpaceServiceTest {
     }
 
     private SpaceDtos.SpaceSummary summary(UUID id, String visibility, String role) {
+        return summary(id, visibility, role, "ACTIVE");
+    }
+
+    private SpaceDtos.SpaceSummary summary(UUID id, String visibility, String role, String lifecycleState) {
         return new SpaceDtos.SpaceSummary(
                 id,
                 "governed-space",
@@ -223,7 +374,7 @@ class SpaceServiceTest {
                 "layers-3",
                 "indigo",
                 null,
-                "ACTIVE",
+                lifecycleState,
                 Instant.now(),
                 0L);
     }

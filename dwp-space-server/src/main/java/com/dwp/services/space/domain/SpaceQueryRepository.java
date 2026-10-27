@@ -32,7 +32,8 @@ public class SpaceQueryRepository {
                    AND membership.valid_from <= CURRENT_TIMESTAMP
                    AND (membership.valid_until IS NULL OR membership.valid_until > CURRENT_TIMESTAMP)
                    AND ((membership.principal_type = 'USER' AND membership.principal_ref IN (:userRefs))
-                        OR (membership.principal_type = 'GROUP' AND membership.principal_ref IN (:groups)))
+                        OR (:hasGroups AND membership.principal_type = 'GROUP'
+                            AND membership.principal_ref IN (:groups)))
                  ORDER BY CASE membership.member_role
                     WHEN 'OWNER' THEN 6 WHEN 'MODERATOR' THEN 5 WHEN 'EDITOR' THEN 4
                     WHEN 'CONTRIBUTOR' THEN 3 WHEN 'VIEWER' THEN 2 ELSE 1 END DESC
@@ -51,6 +52,9 @@ public class SpaceQueryRepository {
                         WHERE member_count.tenant_id = space.tenant_id
                           AND member_count.space_id = space.space_id
                           AND member_count.lifecycle_state = 'ACTIVE'
+                          AND member_count.valid_from <= CURRENT_TIMESTAMP
+                          AND (member_count.valid_until IS NULL
+                               OR member_count.valid_until > CURRENT_TIMESTAMP)
                    ), 0) AS member_count,
                    (SELECT COUNT(*)::INTEGER FROM spc_content_items content
                      WHERE content.tenant_id = space.tenant_id
@@ -87,7 +91,8 @@ public class SpaceQueryRepository {
                        (SELECT COUNT(*)::INTEGER FROM spc_publication_reviews review
                          WHERE review.tenant_id = :tenantId
                            AND review.status = 'PENDING') AS review_queue,
-                       COALESCE(SUM(unread_count), 0)::INTEGER AS unread_signals
+                       COALESCE(SUM(unread_count) FILTER (
+                           WHERE effective_role IS NOT NULL), 0)::INTEGER AS unread_signals
                   FROM (
                        SELECT space.visibility,
                               %s AS effective_role,
@@ -489,7 +494,9 @@ public class SpaceQueryRepository {
                        (SELECT COUNT(*)::INTEGER FROM spc_lifecycle_reviews
                          WHERE tenant_id = :tenantId AND status = 'OVERDUE') AS overdue_reviews,
                        (SELECT COUNT(*)::INTEGER FROM spc_memberships
-                         WHERE tenant_id = :tenantId AND lifecycle_state = 'ACTIVE') AS active_memberships
+                         WHERE tenant_id = :tenantId AND lifecycle_state = 'ACTIVE'
+                           AND valid_from <= CURRENT_TIMESTAMP
+                           AND (valid_until IS NULL OR valid_until > CURRENT_TIMESTAMP)) AS active_memberships
                   FROM spc_spaces
                  WHERE tenant_id = :tenantId
                 """, new MapSqlParameterSource("tenantId", tenantId), (resultSet, rowNumber) ->
@@ -520,9 +527,12 @@ public class SpaceQueryRepository {
                  WHERE membership.tenant_id = :tenantId
                    AND membership.space_id = :spaceId
                    AND membership.lifecycle_state = 'ACTIVE'
+                   AND membership.valid_from <= CURRENT_TIMESTAMP
+                   AND (membership.valid_until IS NULL OR membership.valid_until > CURRENT_TIMESTAMP)
                    AND membership.member_role IN (:roles)
                    AND ((membership.principal_type = 'USER' AND membership.principal_ref IN (:userRefs))
-                        OR (membership.principal_type = 'GROUP' AND membership.principal_ref IN (:groups)))
+                        OR (:hasGroups AND membership.principal_type = 'GROUP'
+                            AND membership.principal_ref IN (:groups)))
                 """, subjectParams(subject)
                 .addValue("spaceId", spaceId)
                 .addValue("roles", roles), Integer.class);
@@ -539,6 +549,7 @@ public class SpaceQueryRepository {
                 .addValue("tenantId", subject.tenantId())
                 .addValue("userId", subject.userId())
                 .addValue("userRefs", userRefs)
+                .addValue("hasGroups", !subject.groupRefs().isEmpty())
                 .addValue("groups", groups);
     }
 

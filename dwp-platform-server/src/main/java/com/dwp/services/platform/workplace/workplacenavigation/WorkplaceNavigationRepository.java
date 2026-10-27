@@ -204,11 +204,13 @@ public class WorkplaceNavigationRepository {
 
     public List<NodeRow> nodes(long tenantId, UUID graphId) {
         return jdbc.query("""
-                SELECT node_id, floor_id, node_kind, accessible, restricted_zone_id
+                SELECT node_id, floor_id, node_kind, position_x, position_y,
+                       accessible, restricted_zone_id
                   FROM wp_navigation_nodes
                  WHERE tenant_id=? AND graph_revision_id=?
                 """, (rs, row) -> new NodeRow(rs.getObject("node_id", UUID.class),
                 rs.getObject("floor_id", UUID.class), NodeKind.valueOf(rs.getString("node_kind")),
+                rs.getBigDecimal("position_x"), rs.getBigDecimal("position_y"),
                 rs.getBoolean("accessible"), rs.getObject("restricted_zone_id", UUID.class)),
                 tenantId, graphId);
     }

@@ -1,27 +1,17 @@
 package com.dwp.services.platform.hrisconfiguration.navigationpolicy;
 
-import com.dwp.core.common.ErrorCode;
-import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.hrisconfiguration.explorer.HrisExplorerAuthoritySeals;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -32,6 +22,9 @@ import static com.dwp.services.platform.hrisconfiguration.navigationpolicy.Navig
 
 @Service
 public class NavigationPolicyService {
+    final NavigationPolicyDocuments documents;
+
+
 
     static final String PURPOSE = "HRIS_SYSTEM_ADMIN";
     static final String VIEW_PERMISSION = "CONFIG.HRIS_NAVIGATION_POLICY:VIEW";
@@ -74,6 +67,7 @@ public class NavigationPolicyService {
         this.stepUpVerifier = stepUpVerifier;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.documents = new NavigationPolicyDocuments(repository, objectMapper, clock);
     }
 
     @Transactional(readOnly = true)
@@ -83,7 +77,7 @@ public class NavigationPolicyService {
             ScopeKind scopeKind,
             UUID scopePublicId) {
         requireViewer(access);
-        requireWorkbench(workbenchId);
+        documents.requireWorkbench(workbenchId);
         UUID legalEntity = resolveScope(access, scopeKind, scopePublicId);
         return new WorkspaceResponse(
                 workbenchId, scopeKind, legalEntity,
@@ -96,41 +90,41 @@ public class NavigationPolicyService {
     public CommandReceipt createDraft(
             AccessContext access, CommandContext command, DraftCommand body) {
         requireAuthor(access);
-        requireClientDigest(body.requestDigest());
-        if (body.expectedVersion() != 0) throw conflict("HRIS_NAV_POLICY_CREATE_VERSION_CONFLICT");
+        documents.requireClientDigest(body.requestDigest());
+        if (body.expectedVersion() != 0) throw documents.conflict("HRIS_NAV_POLICY_CREATE_VERSION_CONFLICT");
         PolicyDocument policy = body.policy();
         verifyPolicyScope(access, policy, body.scopePublicId());
-        validateForScope(access.tenantId(), policy);
-        String payloadDigest = digest(policy);
+        documents.validateForScope(access.tenantId(), policy);
+        String payloadDigest = documents.digest(policy);
         return execute(access, command, "CREATE_DRAFT", body.requestDigest(), body,
                 ignored -> repository.createDraft(
                         access.tenantId(), UUID.randomUUID(), UUID.randomUUID(),
-                        access.subjectId(), policy, payloadDigest, now()));
+                        access.subjectId(), policy, payloadDigest, documents.now()));
     }
 
     @Transactional
     public CommandReceipt updateDraft(
             AccessContext access, CommandContext command, UUID revisionId, DraftCommand body) {
         requireAuthor(access);
-        requireClientDigest(body.requestDigest());
-        RevisionView current = required(access.tenantId(), revisionId);
+        documents.requireClientDigest(body.requestDigest());
+        RevisionView current = documents.required(access.tenantId(), revisionId);
         PolicyDocument policy = body.policy();
         verifyPolicyScope(access, policy, body.scopePublicId());
         if (current.lifecycleState() != LifecycleState.DRAFT
                 || current.policy().scopeKind() != policy.scopeKind()
                 || !java.util.Objects.equals(
                         current.policy().legalEntityPublicId(), policy.legalEntityPublicId())) {
-            throw conflict("HRIS_NAV_POLICY_DRAFT_IMMUTABLE_OR_SCOPE_MISMATCH");
+            throw documents.conflict("HRIS_NAV_POLICY_DRAFT_IMMUTABLE_OR_SCOPE_MISMATCH");
         }
-        validateForScope(access.tenantId(), policy);
+        documents.validateForScope(access.tenantId(), policy);
         return execute(access, command, "UPDATE_DRAFT", body.requestDigest(), body,
                 ignored -> {
                     if (!repository.updateDraft(
                             access.tenantId(), revisionId, body.expectedVersion(), policy,
-                            digest(policy), now())) {
-                        throw conflict("HRIS_NAV_POLICY_OBJECT_VERSION_CONFLICT");
+                            documents.digest(policy), documents.now())) {
+                        throw documents.conflict("HRIS_NAV_POLICY_OBJECT_VERSION_CONFLICT");
                     }
-                    return required(access.tenantId(), revisionId);
+                    return documents.required(access.tenantId(), revisionId);
                 });
     }
 
@@ -139,8 +133,8 @@ public class NavigationPolicyService {
             AccessContext access, CommandContext command,
             UUID revisionId, LifecycleCommand body) {
         requireAuthor(access);
-        RevisionView current = required(access.tenantId(), revisionId);
-        validateForScope(access.tenantId(), current.policy());
+        RevisionView current = documents.required(access.tenantId(), revisionId);
+        documents.validateForScope(access.tenantId(), current.policy());
         return transition(access, command, revisionId, body, "VALIDATE",
                 LifecycleState.DRAFT, LifecycleState.VALIDATED);
     }
@@ -159,15 +153,15 @@ public class NavigationPolicyService {
             AccessContext access, CommandContext command,
             UUID revisionId, LifecycleCommand body) {
         requirePublisher(access);
-        requireReason(body.reason());
+        documents.requireReason(body.reason());
         return transition(access, command, revisionId, body, "APPROVE",
                 LifecycleState.PENDING_APPROVAL, LifecycleState.APPROVED,
                 () -> {
                     requireStepUp(access, command, "APPROVE", revisionId,
                             body.expectedVersion(), body);
-                    RevisionView current = required(access.tenantId(), revisionId);
+                    RevisionView current = documents.required(access.tenantId(), revisionId);
                     if (current.authoredBy() == access.subjectId()) {
-                        throw forbidden("HRIS_NAV_POLICY_MAKER_CANNOT_APPROVE");
+                        throw documents.forbidden("HRIS_NAV_POLICY_MAKER_CANNOT_APPROVE");
                     }
                 });
     }
@@ -177,27 +171,27 @@ public class NavigationPolicyService {
             AccessContext access, CommandContext command,
             UUID revisionId, LifecycleCommand body) {
         requirePublisher(access);
-        requireReason(body.reason());
+        documents.requireReason(body.reason());
         return execute(access, command, "PUBLISH", body.requestDigest(), body,
                 () -> {
                     requireStepUp(access, command, "PUBLISH", revisionId,
                             body.expectedVersion(), body);
-                    RevisionView current = required(access.tenantId(), revisionId);
+                    RevisionView current = documents.required(access.tenantId(), revisionId);
                     if (current.authoredBy() == access.subjectId()) {
-                        throw forbidden("HRIS_NAV_POLICY_MAKER_CANNOT_PUBLISH");
+                        throw documents.forbidden("HRIS_NAV_POLICY_MAKER_CANNOT_PUBLISH");
                     }
-                    validateForScope(access.tenantId(), current.policy());
+                    documents.validateForScope(access.tenantId(), current.policy());
                 },
                 ignored -> {
                     if (!repository.publish(
                             access.tenantId(), revisionId, body.expectedVersion(),
-                            access.subjectId(), evidenceDigest(body), now())) {
-                        throw conflict("HRIS_NAV_POLICY_OBJECT_VERSION_CONFLICT");
+                            access.subjectId(), documents.evidenceDigest(body), documents.now())) {
+                        throw documents.conflict("HRIS_NAV_POLICY_OBJECT_VERSION_CONFLICT");
                     }
-                    RevisionView published = required(access.tenantId(), revisionId);
-                    repository.activate(access.tenantId(), published, now());
+                    RevisionView published = documents.required(access.tenantId(), revisionId);
+                    repository.activate(access.tenantId(), published, documents.now());
                     repository.appendOutbox(
-                            access.tenantId(), published, publishedEvent(published), now());
+                            access.tenantId(), published, documents.publishedEvent(published), documents.now());
                     return published;
                 });
     }
@@ -207,32 +201,32 @@ public class NavigationPolicyService {
             AccessContext access, CommandContext command,
             UUID sourceRevisionId, RestoreCommand body) {
         requirePublisher(access);
-        requireReason(body.reason());
-        requireClientDigest(body.requestDigest());
+        documents.requireReason(body.reason());
+        documents.requireClientDigest(body.requestDigest());
         return execute(access, command, "RESTORE", body.requestDigest(), body,
                 () -> {
                     requireStepUp(access, command, "RESTORE", sourceRevisionId,
                             body.expectedVersion(), body);
-                    RevisionView source = required(access.tenantId(), sourceRevisionId);
+                    RevisionView source = documents.required(access.tenantId(), sourceRevisionId);
                     if (source.authoredBy() == access.subjectId()) {
-                        throw forbidden("HRIS_NAV_POLICY_MAKER_CANNOT_RESTORE");
+                        throw documents.forbidden("HRIS_NAV_POLICY_MAKER_CANNOT_RESTORE");
                     }
-                    validateForScope(access.tenantId(), source.policy());
+                    documents.validateForScope(access.tenantId(), source.policy());
                 },
                 ignored -> {
-                    RevisionView source = required(access.tenantId(), sourceRevisionId);
+                    RevisionView source = documents.required(access.tenantId(), sourceRevisionId);
                     RevisionView restored;
                     try {
                         restored = repository.restore(
                                 access.tenantId(), source.revisionId(), UUID.randomUUID(),
                                 body.expectedVersion(), access.subjectId(),
-                                evidenceDigest(body), now());
+                                documents.evidenceDigest(body), documents.now());
                     } catch (IllegalStateException exception) {
-                        throw conflict(exception.getMessage());
+                        throw documents.conflict(exception.getMessage());
                     }
-                    repository.activate(access.tenantId(), restored, now());
+                    repository.activate(access.tenantId(), restored, documents.now());
                     repository.appendOutbox(
-                            access.tenantId(), restored, publishedEvent(restored), now());
+                            access.tenantId(), restored, documents.publishedEvent(restored), documents.now());
                     return restored;
                 });
     }
@@ -241,7 +235,7 @@ public class NavigationPolicyService {
     public EffectiveProjection projection(
             RuntimeContext context,
             String workbenchId) {
-        requireWorkbench(workbenchId);
+        documents.requireWorkbench(workbenchId);
         requireRuntime(context);
         UUID legalEntity = context.requestedLegalEntityPublicId() == null
                 ? null
@@ -252,7 +246,7 @@ public class NavigationPolicyService {
                         context.contextScopeKey(), context.requestedLegalEntityPublicId()));
         Set<String> installedNodeIds = eligibilityProvider.installedNodeIds(context.tenantId());
         Set<String> pageAuthorizedNodeIds = eligibilityProvider.pageAuthorizedNodeIds(
-                permissions(context.permissions()));
+                documents.permissions(context.permissions()));
         NavigationPolicyRolloutProvider.RuntimeEnrollment enrollment =
                 rolloutProvider.enrollment(context.tenantId());
         RolloutMode enrolledMode = enrollment.mode();
@@ -262,7 +256,7 @@ public class NavigationPolicyService {
                     enrollment.enrolled() ? EnforcementState.OFF : EnforcementState.NOT_ENROLLED,
                     installedNodeIds, pageAuthorizedNodeIds);
         }
-        if (!context.revalidateAt().isAfter(now())) {
+        if (!context.revalidateAt().isAfter(documents.now())) {
             if (enrolledMode == RolloutMode.ENFORCED) {
                 return denied(workbenchId, EnforcementState.DENIED_STALE_CONTEXT,
                         "TRUSTED_CONTEXT_STALE");
@@ -292,7 +286,7 @@ public class NavigationPolicyService {
                     workbenchId, result.enforcementState(), false,
                     tenant.policyId(), tenant.revisionNumber(),
                     overlay == null ? null : overlay.revisionNumber(),
-                    revisionPin(tenant, overlay), result.groups(), null, now());
+                    documents.revisionPin(tenant, overlay), result.groups(), null, documents.now());
         }
         if (tenant.rolloutMode() != RolloutMode.ENFORCED) {
             return denied(workbenchId, EnforcementState.DENIED_MISSING_POLICY,
@@ -306,10 +300,10 @@ public class NavigationPolicyService {
                 workbenchId, EnforcementState.ENFORCED, true,
                 tenant.policyId(), tenant.revisionNumber(),
                 overlay == null ? null : overlay.revisionNumber(),
-                revisionPin(tenant, overlay),
+                documents.revisionPin(tenant, overlay),
                 effectiveGroups(tenant.policy(), overlay == null ? null : overlay.policy(),
                         installedNodeIds, pageAuthorizedNodeIds),
-                null, now());
+                null, documents.now());
     }
 
     private CommandReceipt transition(
@@ -325,16 +319,16 @@ public class NavigationPolicyService {
             LifecycleCommand body, String action,
             LifecycleState expected, LifecycleState target,
             Runnable newMutationGuard) {
-        requireClientDigest(body.requestDigest());
+        documents.requireClientDigest(body.requestDigest());
         return execute(access, command, action, body.requestDigest(), body,
                 newMutationGuard,
                 ignored -> {
                     if (!repository.transition(
                             access.tenantId(), revisionId, body.expectedVersion(), expected,
-                            target, access.subjectId(), evidenceDigest(body), now())) {
-                        throw conflict("HRIS_NAV_POLICY_OBJECT_VERSION_CONFLICT");
+                            target, access.subjectId(), documents.evidenceDigest(body), documents.now())) {
+                        throw documents.conflict("HRIS_NAV_POLICY_OBJECT_VERSION_CONFLICT");
                     }
-                    return required(access.tenantId(), revisionId);
+                    return documents.required(access.tenantId(), revisionId);
                 });
     }
 
@@ -357,18 +351,18 @@ public class NavigationPolicyService {
         digestMaterial.put("body", body);
         digestMaterial.put("subjectPrincipalPublicId", access.subjectPublicId());
         digestMaterial.put("contextScopeKey", access.contextScopeKey());
-        digestMaterial.put("clientRequestDigest", normalizeDigest(clientRequestDigest));
+        digestMaterial.put("clientRequestDigest", documents.normalizeDigest(clientRequestDigest));
         digestMaterial.put("decisionRevision", command.expectedDecisionRevision() == null
                 ? "<none>" : command.expectedDecisionRevision());
         digestMaterial.put("fieldPolicyRevision", command.fieldPolicyRevision());
         digestMaterial.put("authorizationRevision", command.authorizationRevision());
-        String serverDigest = digest(digestMaterial);
-        String legacyServerDigest = digest(Map.of(
+        String serverDigest = documents.digest(digestMaterial);
+        String legacyServerDigest = documents.digest(Map.of(
                 "action", action,
                 "body", body,
                 "subjectPrincipalPublicId", access.subjectPublicId(),
                 "contextScopeKey", access.contextScopeKey(),
-                "clientRequestDigest", normalizeDigest(clientRequestDigest),
+                "clientRequestDigest", documents.normalizeDigest(clientRequestDigest),
                 "decisionRevision", command.expectedDecisionRevision() == null
                         ? "<none>" : command.expectedDecisionRevision()));
         repository.lockIdempotency(
@@ -382,7 +376,7 @@ public class NavigationPolicyService {
                     access.tenantId(), access.subjectPublicId(),
                     prior.get().receipt().receiptId());
             if (!exactReplay && !historicalReplay) {
-                throw conflict("HRIS_NAV_POLICY_IDEMPOTENCY_PAYLOAD_MISMATCH");
+                throw documents.conflict("HRIS_NAV_POLICY_IDEMPOTENCY_PAYLOAD_MISMATCH");
             }
             return prior.get().receipt();
         }
@@ -393,7 +387,7 @@ public class NavigationPolicyService {
         newMutationGuard.run();
         UUID receiptId = UUID.randomUUID();
         RevisionView result = mutation.apply(receiptId);
-        OffsetDateTime createdAt = now();
+        OffsetDateTime createdAt = documents.now();
         long publicFieldPolicyRevision = HrisExplorerAuthoritySeals.publicRevision(
                 command.fieldPolicyRevision());
         long publicAuthorizationRevision = HrisExplorerAuthoritySeals.publicRevision(
@@ -401,7 +395,7 @@ public class NavigationPolicyService {
         CommandReceipt receipt = new CommandReceipt(
                 receiptId, action, result.policyId(), result.revisionId(),
                 result.revisionNumber(), result.lifecycleState(), result.objectVersion(),
-                normalizeDigest(clientRequestDigest), command.correlationId(), createdAt);
+                documents.normalizeDigest(clientRequestDigest), command.correlationId(), createdAt);
         repository.saveReceipt(
                 access.tenantId(), access.subjectId(), action, command.idempotencyKey(),
                 serverDigest, receipt);
@@ -424,26 +418,11 @@ public class NavigationPolicyService {
         return receipt;
     }
 
-    private void validateForScope(long tenantId, PolicyDocument policy) {
-        try {
-            NavigationPolicyCanonical.validate(policy);
-            if (policy.scopeKind() == ScopeKind.LEGAL_ENTITY) {
-                RevisionView tenant = repository.findPublished(
-                                tenantId, ScopeKind.TENANT, null)
-                        .orElseThrow(() -> new IllegalArgumentException(
-                                "HRIS_NAV_POLICY_TENANT_BASELINE_REQUIRED"));
-                NavigationPolicyCanonical.validateRestrictiveOverlay(tenant.policy(), policy);
-            }
-        } catch (IllegalArgumentException exception) {
-            throw invalid(exception.getMessage());
-        }
-    }
-
     private void verifyPolicyScope(
             AccessContext access, PolicyDocument policy, UUID scopePublicId) {
         if (policy.scopeKind() == ScopeKind.TENANT) {
             if (scopePublicId != null || policy.legalEntityPublicId() != null) {
-                throw forbidden("HRIS_NAV_POLICY_TENANT_SCOPE_MISMATCH");
+                throw documents.forbidden("HRIS_NAV_POLICY_TENANT_SCOPE_MISMATCH");
             }
             return;
         }
@@ -454,14 +433,14 @@ public class NavigationPolicyService {
                 access.contextScopeKey(), scopePublicId));
         if (!verified.equals(scopePublicId)
                 || !verified.equals(policy.legalEntityPublicId())) {
-            throw forbidden("HRIS_NAV_POLICY_LEGAL_ENTITY_SCOPE_MISMATCH");
+            throw documents.forbidden("HRIS_NAV_POLICY_LEGAL_ENTITY_SCOPE_MISMATCH");
         }
     }
 
     private UUID resolveScope(
             AccessContext access, ScopeKind scopeKind, UUID scopePublicId) {
         if (scopeKind == ScopeKind.TENANT) {
-            if (scopePublicId != null) throw forbidden("HRIS_NAV_POLICY_TENANT_SCOPE_MISMATCH");
+            if (scopePublicId != null) throw documents.forbidden("HRIS_NAV_POLICY_TENANT_SCOPE_MISMATCH");
             return null;
         }
         UUID verified = legalEntityResolver.resolve(ownerRequest(
@@ -470,7 +449,7 @@ public class NavigationPolicyService {
                 LegalEntityContextResolver.ContextSurface.MANAGEMENT,
                 access.contextScopeKey(), scopePublicId));
         if (!verified.equals(scopePublicId)) {
-            throw forbidden("HRIS_NAV_POLICY_LEGAL_ENTITY_SCOPE_MISMATCH");
+            throw documents.forbidden("HRIS_NAV_POLICY_LEGAL_ENTITY_SCOPE_MISMATCH");
         }
         return verified;
     }
@@ -532,34 +511,34 @@ public class NavigationPolicyService {
         }
         return new EffectiveProjection(
                 workbenchId, state, false, null, null, null, null,
-                groups, null, now());
+                groups, null, documents.now());
     }
 
     private EffectiveProjection denied(
             String workbenchId, EnforcementState state, String reason) {
         return new EffectiveProjection(
                 workbenchId, state, true, null, null, null, null,
-                List.of(), reason, now());
+                List.of(), reason, documents.now());
     }
 
     private void requireViewer(AccessContext access) {
         validateAccess(access);
-        if (!permissions(access.permissions()).contains(VIEW_PERMISSION)) {
-            throw forbidden("HRIS_NAV_POLICY_VIEW_DENIED");
+        if (!documents.permissions(access.permissions()).contains(VIEW_PERMISSION)) {
+            throw documents.forbidden("HRIS_NAV_POLICY_VIEW_DENIED");
         }
     }
 
     private void requireAuthor(AccessContext access) {
         validateAccess(access);
-        if (!permissions(access.permissions()).contains(UPDATE_PERMISSION)) {
-            throw forbidden("HRIS_NAV_POLICY_UPDATE_DENIED");
+        if (!documents.permissions(access.permissions()).contains(UPDATE_PERMISSION)) {
+            throw documents.forbidden("HRIS_NAV_POLICY_UPDATE_DENIED");
         }
     }
 
     private void requirePublisher(AccessContext access) {
         validateAccess(access);
-        if (!permissions(access.permissions()).contains(PUBLISH_PERMISSION)) {
-            throw forbidden("HRIS_NAV_POLICY_PUBLISH_DENIED");
+        if (!documents.permissions(access.permissions()).contains(PUBLISH_PERMISSION)) {
+            throw documents.forbidden("HRIS_NAV_POLICY_PUBLISH_DENIED");
         }
     }
 
@@ -570,16 +549,16 @@ public class NavigationPolicyService {
                 || access.contextScopeKey() == null
                 || !access.contextScopeKey().matches("^hcm-scope-[a-f0-9]{40}$")
                 || access.decisionRevision() == null || access.decisionRevision().isBlank()
-                || access.revalidateAt() == null || !access.revalidateAt().isAfter(now())
+                || access.revalidateAt() == null || !access.revalidateAt().isAfter(documents.now())
                 || !PURPOSE.equals(access.purposeCode())) {
-            throw forbidden("HRIS_NAV_POLICY_TRUSTED_CONTEXT_REQUIRED");
+            throw documents.forbidden("HRIS_NAV_POLICY_TRUSTED_CONTEXT_REQUIRED");
         }
-        Set<String> grants = permissions(access.permissions());
+        Set<String> grants = documents.permissions(access.permissions());
         if (!grants.contains("APP.HCM:VIEW") && !grants.contains("APP.HRIS:VIEW")) {
-            throw forbidden("HRIS_NAV_POLICY_ENTITLEMENT_REQUIRED");
+            throw documents.forbidden("HRIS_NAV_POLICY_ENTITLEMENT_REQUIRED");
         }
-        if (permissions(access.roles()).stream().anyMatch(role -> role.startsWith("PROVIDER"))) {
-            throw forbidden("HRIS_NAV_POLICY_PROVIDER_IDENTITY_DENIED");
+        if (documents.permissions(access.roles()).stream().anyMatch(role -> role.startsWith("PROVIDER"))) {
+            throw documents.forbidden("HRIS_NAV_POLICY_PROVIDER_IDENTITY_DENIED");
         }
     }
 
@@ -589,9 +568,9 @@ public class NavigationPolicyService {
                 || context.contextScopeKey() == null
                 || !context.contextScopeKey().matches("^hcm-scope-[a-f0-9]{40}$")
                 || context.revalidateAt() == null
-                || (!permissions(context.permissions()).contains("APP.HCM:VIEW")
-                && !permissions(context.permissions()).contains("APP.HRIS:VIEW"))) {
-            throw forbidden("HRIS_NAV_POLICY_RUNTIME_CONTEXT_INVALID");
+                || (!documents.permissions(context.permissions()).contains("APP.HCM:VIEW")
+                && !documents.permissions(context.permissions()).contains("APP.HRIS:VIEW"))) {
+            throw documents.forbidden("HRIS_NAV_POLICY_RUNTIME_CONTEXT_INVALID");
         }
     }
 
@@ -600,7 +579,7 @@ public class NavigationPolicyService {
                 || command.idempotencyKey().length() < 16
                 || command.idempotencyKey().length() > 128
                 || command.correlationId() == null) {
-            throw invalid("HRIS_NAV_POLICY_COMMAND_CONTEXT_INVALID");
+            throw documents.invalid("HRIS_NAV_POLICY_COMMAND_CONTEXT_INVALID");
         }
     }
 
@@ -617,7 +596,7 @@ public class NavigationPolicyService {
                 || command.requestAuthority() == null
                 || !command.originRouteContractKey().equals(
                 command.requestAuthority().routeContractKey())) {
-            throw invalid("HRIS_NAV_POLICY_COMMAND_CONTEXT_INVALID");
+            throw documents.invalid("HRIS_NAV_POLICY_COMMAND_CONTEXT_INVALID");
         }
     }
 
@@ -658,81 +637,8 @@ public class NavigationPolicyService {
                         command.commandPath(), canonicalPayload,
                         command.expectedDecisionRevision(), command.stepUpProof(),
                         command.requestAuthority()))) {
-            throw forbidden("HRIS_NAV_POLICY_FRESH_STEP_UP_REQUIRED");
+            throw documents.forbidden("HRIS_NAV_POLICY_FRESH_STEP_UP_REQUIRED");
         }
-    }
-
-    private void requireReason(String reason) {
-        if (reason == null || reason.isBlank() || !reason.equals(reason.strip())) {
-            throw invalid("HRIS_NAV_POLICY_HIGH_RISK_REASON_REQUIRED");
-        }
-    }
-
-    private void requireWorkbench(String value) {
-        if (!NavigationPolicyCanonical.WORKBENCH_ID.equals(value)) {
-            throw invalid("HRIS_NAV_POLICY_WORKBENCH_INVALID");
-        }
-    }
-
-    private void requireClientDigest(String value) {
-        if (value == null || !normalizeDigest(value).matches("^[a-f0-9]{64}$")) {
-            throw invalid("HRIS_NAV_POLICY_REQUEST_DIGEST_INVALID");
-        }
-    }
-
-    private RevisionView required(long tenantId, UUID revisionId) {
-        return repository.findByRevisionId(tenantId, revisionId)
-                .orElseThrow(() -> new BaseException(
-                        ErrorCode.RESOURCE_NOT_AVAILABLE, "HRIS_NAV_POLICY_REVISION_NOT_FOUND"));
-    }
-
-    private String evidenceDigest(Object body) {
-        return digest(body);
-    }
-
-    private String revisionPin(RevisionView tenant, RevisionView overlay) {
-        Map<String, Object> pin = new LinkedHashMap<>();
-        pin.put("tenantRevisionId", tenant.revisionId());
-        pin.put("tenantDigest", tenant.payloadDigest());
-        if (overlay != null) {
-            pin.put("legalEntityRevisionId", overlay.revisionId());
-            pin.put("legalEntityDigest", overlay.payloadDigest());
-        }
-        return "nav-" + digest(pin).substring(0, 40);
-    }
-
-    private String publishedEvent(RevisionView revision) {
-        Map<String, Object> event = new LinkedHashMap<>();
-        event.put("policyId", revision.policyId());
-        event.put("revision", revision.revisionNumber());
-        event.put("scopeKind", revision.policy().scopeKind());
-        event.put("legalEntityPublicId", revision.policy().legalEntityPublicId());
-        event.put("rolloutMode", revision.rolloutMode());
-        event.put("payloadDigest", revision.payloadDigest());
-        event.put("publishedAt", now());
-        event.put("eventSequence", revision.revisionNumber());
-        return json(event);
-    }
-
-    private Set<String> permissions(String value) {
-        if (value == null || value.isBlank() || value.length() > 32_000
-                || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) return Set.of();
-        LinkedHashSet<String> result = new LinkedHashSet<>();
-        for (String token : value.split(",", -1)) {
-            if (token.isBlank() || !token.equals(token.trim())) return Set.of();
-            result.add(token.toUpperCase(Locale.ROOT));
-        }
-        return Set.copyOf(result);
-    }
-
-    private String normalizeDigest(String value) {
-        return value != null && value.startsWith("sha256:")
-                ? value.substring(7).toLowerCase(Locale.ROOT)
-                : value == null ? "" : value.toLowerCase(Locale.ROOT);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 
     private LegalEntityContextResolver.OwnerRequest ownerRequest(
@@ -747,42 +653,6 @@ public class NavigationPolicyService {
         return new LegalEntityContextResolver.OwnerRequest(
                 tenantId, actorId, personPublicId, roles, permissions, surface,
                 contextScopeKey, requestedLegalEmployerPublicId);
-    }
-
-    private String digest(Object value) {
-        byte[] bytes;
-        try {
-            bytes = value instanceof String string
-                    ? string.getBytes(StandardCharsets.UTF_8)
-                    : objectMapper.writeValueAsBytes(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("HRIS_NAV_POLICY_DIGEST_FAILED", exception);
-        }
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 unavailable", exception);
-        }
-    }
-
-    private String json(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("HRIS_NAV_POLICY_EVENT_SERIALIZATION_FAILED", exception);
-        }
-    }
-
-    private BaseException invalid(String message) {
-        return new BaseException(ErrorCode.INVALID_INPUT_VALUE, message);
-    }
-
-    private BaseException forbidden(String message) {
-        return new BaseException(ErrorCode.FORBIDDEN, message);
-    }
-
-    private BaseException conflict(String message) {
-        return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
     }
 
     public record AccessContext(
