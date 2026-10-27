@@ -1,5 +1,6 @@
 package com.dwp.services.auth.service;
 
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.entity.AuthPolicy;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.entity.UserAccount;
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -87,5 +89,70 @@ class IdentityAccountServiceTest {
         assertThat(account.getIssuerUri()).isEqualTo("https://issuer.example.com");
         assertThat(account.getPrincipal()).isEqualTo("subject-1");
         assertThat(account.getPasswordHash()).isNull();
+    }
+
+    @Test
+    void retiredLocalAccountIsNeverRevivedByManagedSync() {
+        User user = User.builder().userId(10L).tenantId(1L)
+                .email("employee@example.com").status("ACTIVE").build();
+        UserAccount retired = UserAccount.builder()
+                .tenantId(1L).userId(10L).providerType("LOCAL")
+                .providerId("local").principal("old@example.com")
+                .status("RETIRED").build();
+        when(policies.findByTenantId(1L)).thenReturn(Optional.of(AuthPolicy.builder()
+                .tenantId(1L).allowedLoginTypes("LOCAL")
+                .localLoginEnabled(true).build()));
+        when(policies.findAllowedLoginTypes(1L)).thenReturn(List.of("LOCAL"));
+        when(accounts.findByTenantIdAndUserIdAndProviderTypeAndProviderId(
+                1L, 10L, "LOCAL", "local")).thenReturn(Optional.of(retired));
+
+        service.synchronizeManagedUser(user);
+
+        assertThat(retired.getStatus()).isEqualTo("RETIRED");
+        assertThat(retired.getPrincipal()).isEqualTo("old@example.com");
+        verify(accounts, never()).saveAndFlush(any(UserAccount.class));
+    }
+
+    @Test
+    void retiredOidcAccountCannotBeRelinkedOrReactivated() {
+        User user = User.builder().userId(10L).tenantId(1L)
+                .status("ACTIVE").build();
+        UserAccount retired = UserAccount.builder()
+                .tenantId(1L).userId(10L).providerType("OIDC")
+                .providerId("entra").status("RETIRED").build();
+        when(accounts.findByTenantIdAndProviderTypeAndIssuerUriAndPrincipal(
+                1L, "OIDC", "https://issuer.example.com", "subject-1"))
+                .thenReturn(Optional.empty());
+        when(accounts.findByTenantIdAndUserIdAndProviderTypeAndProviderId(
+                1L, 10L, "OIDC", "entra")).thenReturn(Optional.of(retired));
+
+        assertThatThrownBy(() -> service.linkOidcAccount(
+                user, "entra", "https://issuer.example.com", "subject-1"))
+                .isInstanceOf(BaseException.class);
+
+        assertThat(retired.getStatus()).isEqualTo("RETIRED");
+        assertThat(retired.getIssuerUri()).isNull();
+        assertThat(retired.getPrincipal()).isNull();
+        verify(accounts, never()).saveAndFlush(any(UserAccount.class));
+    }
+
+    @Test
+    void exactIssuerSubjectLookupCannotReviveRetiredOidcAccount() {
+        User user = User.builder().userId(10L).tenantId(1L)
+                .status("ACTIVE").build();
+        UserAccount retired = UserAccount.builder()
+                .tenantId(1L).userId(10L).providerType("OIDC")
+                .providerId("entra").issuerUri("https://issuer.example.com")
+                .principal("subject-1").status("RETIRED").build();
+        when(accounts.findByTenantIdAndProviderTypeAndIssuerUriAndPrincipal(
+                1L, "OIDC", "https://issuer.example.com", "subject-1"))
+                .thenReturn(Optional.of(retired));
+
+        assertThatThrownBy(() -> service.linkOidcAccount(
+                user, "entra", "https://issuer.example.com", "subject-1"))
+                .isInstanceOf(BaseException.class);
+
+        assertThat(retired.getStatus()).isEqualTo("RETIRED");
+        verify(accounts, never()).saveAndFlush(any(UserAccount.class));
     }
 }

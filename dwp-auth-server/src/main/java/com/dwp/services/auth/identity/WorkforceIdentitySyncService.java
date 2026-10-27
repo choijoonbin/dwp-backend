@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -27,6 +28,7 @@ import java.util.Objects;
 public class WorkforceIdentitySyncService {
 
     private static final String HRIS = "HRIS";
+    private static final String REVOCATION_REJECTED = "REJECTED_REVOKED";
 
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
@@ -55,22 +57,42 @@ public class WorkforceIdentitySyncService {
             WorkforceIdentityDtos.WorkforceIdentityEvent event) {
         Tenant tenant = tenantRepository.findByPublicId(event.providerTenantId())
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (received(event, tenant.getTenantId())) {
+        Long tenantId = tenant.getTenantId();
+        setHrm013Tenant(tenantId);
+        lockPerson(tenantId, event.personPublicId());
+        boolean replayed = received(event, tenantId);
+        UUID revocationDispatch = revocationDispatch(
+                tenantId, event.personPublicId());
+        if (revocationDispatch != null && activatesAccess(event.workerStatus())) {
+            quarantineRevokedSync(event, tenantId, revocationDispatch);
             Long userId = userRepository
-                    .findByTenantIdAndPersonPublicId(tenant.getTenantId(), event.personPublicId())
+                    .findByTenantIdAndPersonPublicId(tenantId, event.personPublicId())
+                    .map(User::getUserId)
+                    .orElse(null);
+            auditService.denied(
+                    tenantId, null, "identity.lifecycle.revocation-watermark",
+                    "USER", event.personPublicId().toString(),
+                    event.eventId().toString(), "REVOCATION_WATERMARK",
+                    rejectedSnapshot(event, revocationDispatch));
+            return new WorkforceIdentityDtos.SyncResult(
+                    event.eventId(), tenantId, userId, REVOCATION_REJECTED, replayed);
+        }
+        if (replayed) {
+            Long userId = userRepository
+                    .findByTenantIdAndPersonPublicId(tenantId, event.personPublicId())
                     .map(User::getUserId)
                     .orElse(null);
             return new WorkforceIdentityDtos.SyncResult(
-                    event.eventId(), tenant.getTenantId(), userId, "UNCHANGED", true);
+                    event.eventId(), tenantId, userId, "UNCHANGED", true);
         }
 
-        User user = locateUser(tenant.getTenantId(), event);
+        User user = locateUser(tenantId, event);
         boolean created = user == null;
         PreviousIdentity previous = created ? null : PreviousIdentity.from(user);
         if (created) {
             user = User.builder()
                     .publicId(UUID.randomUUID())
-                    .tenantId(tenant.getTenantId())
+                    .tenantId(tenantId)
                     .personPublicId(event.personPublicId())
                     .sourceType(HRIS)
                     .mfaEnabled(false)
@@ -100,10 +122,10 @@ public class WorkforceIdentitySyncService {
         identityAccountService.synchronizeManagedUser(user);
         String lifecycleType = lifecycleType(created, previous, user);
         LifecycleControls controls = applyLifecycleControls(
-                tenant.getTenantId(), user.getUserId(), user.getStatus());
-        recordLifecycleEvent(event, tenant.getTenantId(), user, previous, lifecycleType, controls);
+                tenantId, user.getUserId(), user.getStatus());
+        recordLifecycleEvent(event, tenantId, user, previous, lifecycleType, controls);
         auditService.success(
-                tenant.getTenantId(), null, "identity.lifecycle.applied", "USER",
+                tenantId, null, "identity.lifecycle.applied", "USER",
                 user.getUserId().toString(), event.eventId().toString(),
                 previous == null ? null : previous.auditSnapshot(),
                 Map.of(
@@ -114,8 +136,69 @@ public class WorkforceIdentitySyncService {
                         "groupMembershipsRemoved", controls.groupMembershipsRemoved()));
 
         return new WorkforceIdentityDtos.SyncResult(
-                event.eventId(), tenant.getTenantId(), user.getUserId(),
+                event.eventId(), tenantId, user.getUserId(),
                 created ? "CREATED" : "UPDATED", false);
+    }
+
+    private void setHrm013Tenant(Long tenantId) {
+        jdbc.queryForObject(
+                "SELECT set_config('dwp.auth.hrm013.tenant', ?, true)",
+                String.class, tenantId.toString());
+    }
+
+    private void lockPerson(Long tenantId, UUID personPublicId) {
+        jdbc.queryForObject("""
+                SELECT 1
+                  FROM (SELECT pg_advisory_xact_lock(hashtextextended(
+                      'DWP_AUTH_HRM013_IDENTITY_V1:' || ?::text
+                      || ':person:' || ?::text, 0))) locked
+                """, Integer.class, tenantId, personPublicId);
+    }
+
+    private UUID revocationDispatch(Long tenantId, UUID personPublicId) {
+        List<UUID> rows = jdbc.queryForList("""
+                SELECT dispatch_event_id
+                  FROM auth_hrm013_identity_revocation_watermarks
+                 WHERE tenant_id = ? AND person_public_id = ?
+                """, UUID.class, tenantId, personPublicId);
+        if (rows == null || rows.isEmpty()) return null;
+        if (rows.size() != 1) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
+                    "The workforce identity revocation watermark is ambiguous.");
+        }
+        return rows.getFirst();
+    }
+
+    private void quarantineRevokedSync(
+            WorkforceIdentityDtos.WorkforceIdentityEvent event,
+            Long tenantId,
+            UUID revocationDispatch) {
+        UUID quarantineId = UUID.nameUUIDFromBytes((
+                "DWP-HRM013-REVOKED-WORKFORCE-SYNC\n" + tenantId + "\n"
+                        + event.eventId()).getBytes(StandardCharsets.UTF_8));
+        jdbc.update("""
+                INSERT INTO auth_hrm013_identity_sync_quarantine(
+                    quarantine_id, tenant_id, event_id, person_public_id,
+                    worker_status, source_version, reason_code)
+                VALUES (?, ?, ?, ?, ?, ?, 'REVOCATION_WATERMARK')
+                ON CONFLICT (tenant_id, event_id) DO NOTHING
+                """, quarantineId, tenantId, event.eventId(), event.personPublicId(),
+                event.workerStatus(), trimToNull(event.sourceVersion()));
+    }
+
+    private static boolean activatesAccess(String workerStatus) {
+        return "ACTIVE".equals(workerStatus) || "PENDING".equals(workerStatus);
+    }
+
+    private static Map<String, Object> rejectedSnapshot(
+            WorkforceIdentityDtos.WorkforceIdentityEvent event,
+            UUID revocationDispatch) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("workerStatus", event.workerStatus());
+        snapshot.put("sourceVersion", trimToNull(event.sourceVersion()));
+        snapshot.put("revocationDispatchEventId", revocationDispatch.toString());
+        snapshot.put("decision", REVOCATION_REJECTED);
+        return snapshot;
     }
 
     private boolean received(

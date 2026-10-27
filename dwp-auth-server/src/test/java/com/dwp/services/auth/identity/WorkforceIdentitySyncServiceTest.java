@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,7 +19,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -104,6 +107,76 @@ class WorkforceIdentitySyncServiceTest {
                 contains("INSERT INTO sys_identity_lifecycle_events"), any(Object[].class));
         assertThat(existing.getStatus()).isEqualTo("INACTIVE");
         assertThat(existing.getAccessRevision()).isEqualTo(4L);
+    }
+
+    @Test
+    void revocationWatermarkRejectsDelayedActiveForAbsentIdentity() {
+        UUID tenantPublicId = UUID.randomUUID();
+        UUID personPublicId = UUID.randomUUID();
+        UUID dispatchEventId = UUID.randomUUID();
+        WorkforceIdentityDtos.WorkforceIdentityEvent event = event(
+                tenantPublicId, personPublicId);
+        when(tenants.findByPublicId(tenantPublicId)).thenReturn(Optional.of(
+                Tenant.builder().tenantId(1L).publicId(tenantPublicId)
+                        .code("default").name("Default").build()));
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+        when(jdbc.queryForList(contains("revocation_watermarks"),
+                eq(UUID.class), eq(1L), eq(personPublicId)))
+                .thenReturn(java.util.List.of(dispatchEventId));
+        when(users.findByTenantIdAndPersonPublicId(1L, personPublicId))
+                .thenReturn(Optional.empty());
+
+        WorkforceIdentityDtos.SyncResult result = service.synchronize(event);
+
+        assertThat(result.lifecycleState()).isEqualTo("REJECTED_REVOKED");
+        assertThat(result.userId()).isNull();
+        assertThat(result.replayed()).isFalse();
+        verify(jdbc).queryForObject(contains("pg_advisory_xact_lock"),
+                eq(Integer.class), eq(1L), eq(personPublicId));
+        verify(jdbc).update(contains("identity_sync_quarantine"),
+                any(Object[].class));
+        verify(audit).denied(eq(1L), isNull(),
+                eq("identity.lifecycle.revocation-watermark"), eq("USER"),
+                eq(personPublicId.toString()), eq(event.eventId().toString()),
+                eq("REVOCATION_WATERMARK"),
+                org.mockito.ArgumentMatchers.<Map<String, Object>>any());
+        verify(users, never()).saveAndFlush(any(User.class));
+        verify(accounts, never()).synchronizeManagedUser(any(User.class));
+    }
+
+    @Test
+    void revocationWatermarkRejectsDelayedPendingForExistingIdentity() {
+        UUID tenantPublicId = UUID.randomUUID();
+        UUID personPublicId = UUID.randomUUID();
+        UUID dispatchEventId = UUID.randomUUID();
+        WorkforceIdentityDtos.WorkforceIdentityEvent event =
+                new WorkforceIdentityDtos.WorkforceIdentityEvent(
+                        UUID.randomUUID(), tenantPublicId, personPublicId,
+                        "worker-1", "EMP-88219", "Employee", "Em", "Ployee",
+                        "employee@example.com", "Engineer", "ko-KR",
+                        "PENDING", "delayed-v1");
+        User existing = User.builder().userId(10L).tenantId(1L)
+                .publicId(UUID.randomUUID()).personPublicId(personPublicId)
+                .sourceType("HRIS").externalId("worker-1")
+                .displayName("Employee").status("INACTIVE")
+                .accessRevision(4L).build();
+        when(tenants.findByPublicId(tenantPublicId)).thenReturn(Optional.of(
+                Tenant.builder().tenantId(1L).publicId(tenantPublicId)
+                        .code("default").name("Default").build()));
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+        when(jdbc.queryForList(contains("revocation_watermarks"),
+                eq(UUID.class), eq(1L), eq(personPublicId)))
+                .thenReturn(java.util.List.of(dispatchEventId));
+        when(users.findByTenantIdAndPersonPublicId(1L, personPublicId))
+                .thenReturn(Optional.of(existing));
+
+        WorkforceIdentityDtos.SyncResult result = service.synchronize(event);
+
+        assertThat(result.lifecycleState()).isEqualTo("REJECTED_REVOKED");
+        assertThat(result.userId()).isEqualTo(10L);
+        assertThat(existing.getStatus()).isEqualTo("INACTIVE");
+        verify(users, never()).saveAndFlush(any(User.class));
+        verify(accounts, never()).synchronizeManagedUser(any(User.class));
     }
 
     private WorkforceIdentityDtos.WorkforceIdentityEvent event(

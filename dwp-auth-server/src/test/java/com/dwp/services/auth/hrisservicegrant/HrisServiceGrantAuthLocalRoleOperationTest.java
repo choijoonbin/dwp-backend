@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.dwp.platform.contracts.hris.separation.v1.HrisServiceGrantAuthorityV1;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013SafeErrorV1;
@@ -138,6 +139,34 @@ class HrisServiceGrantAuthLocalRoleOperationTest {
                 .isInstanceOf(Hrm013SafeErrorV1.Failure.class)
                 .extracting(value -> ((Hrm013SafeErrorV1.Failure) value).errorCode())
                 .isEqualTo(Hrm013SafeErrorV1.ErrorCode.AUTHORITY_DENIED);
+    }
+
+    @Test
+    void prepareAuthorizeAndRecheckUseOnlyTheBoundedLocalParityContract() {
+        var local = request(HrisServiceGrantQuiesceService.IDENTITY_DISPATCH
+                        .ownerWorkloadId(),
+                HrisServiceGrantQuiesceService.IDENTITY_DISPATCH);
+        var preparation = mock(HrisServiceGrantQuiesceService
+                .LocalVerification.class);
+        var admission = mock(HrisServiceGrantQuiesceService.LocalAdmission.class);
+        when(preparation.request()).thenReturn(local);
+        when(admission.preparation()).thenReturn(preparation);
+        when(repository.prepareLocalVerification(local)).thenReturn(preparation);
+        when(repository.authorizeLocalVerified(preparation, "d".repeat(64)))
+                .thenReturn(admission);
+
+        assertThat(service.prepareLocalVerification(local)).isSameAs(preparation);
+        assertThat(service.authorizeLocalVerified(preparation, "d".repeat(64)))
+                .isSameAs(admission);
+        service.recheckLocal(preparation);
+        service.recheckLocal(admission);
+
+        verify(repository).prepareLocalVerification(local);
+        verify(repository).authorizeLocalVerified(preparation, "d".repeat(64));
+        verify(repository).recheckLocal(preparation);
+        verify(repository).recheckLocal(admission);
+        verify(repository, never()).resolveLocal(any(), anyString());
+        verify(repository, never()).resolve(any(), any(), anyString());
     }
 
     private static HrisServiceGrantAuthorityV1.ResolveRequest request(String requester,

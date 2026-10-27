@@ -53,6 +53,9 @@ public class IdentityAccountService {
                 .findByTenantIdAndUserIdAndProviderTypeAndProviderId(
                         user.getTenantId(), user.getUserId(), LOCAL, "local")
                 .orElse(null);
+        if (local != null && "RETIRED".equals(local.getStatus())) {
+            return;
+        }
         if (email == null) {
             if (local != null && !"RETIRED".equals(local.getStatus())) {
                 local.setStatus("SUSPENDED");
@@ -92,6 +95,9 @@ public class IdentityAccountService {
             if (!existing.getUserId().equals(user.getUserId())) {
                 throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
             }
+            if ("RETIRED".equals(existing.getStatus())) {
+                throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+            }
             return existing;
         }
 
@@ -99,6 +105,9 @@ public class IdentityAccountService {
                 .findByTenantIdAndUserIdAndProviderTypeAndProviderId(
                         user.getTenantId(), user.getUserId(), OIDC, providerKey)
                 .orElse(null);
+        if (providerAccount != null && "RETIRED".equals(providerAccount.getStatus())) {
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
         UserAccount account = providerAccount == null
                 ? UserAccount.builder()
                         .tenantId(user.getTenantId())

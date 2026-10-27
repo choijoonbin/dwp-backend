@@ -115,6 +115,47 @@ public final class HrisServiceGrantQuiesceService {
         return repository.resolveLocal(request, proofSha256);
     }
 
+    /**
+     * Acquires the V271 tuple lock and returns the immutable material needed to
+     * verify one Auth-local request.  This operation deliberately does not
+     * append a drain activity and therefore is not an admission decision.
+     * The returned preparation can only be consumed in the same database
+     * transaction by {@link #authorizeLocalVerified(LocalVerification, String)}.
+     */
+    public LocalVerification prepareLocalVerification(ResolveRequest request) {
+        Objects.requireNonNull(request, "request");
+        if (request.resolutionMode()
+                != HrisServiceGrantAuthorityV1.ResolutionMode.NEW_WORK
+                && request.resolutionMode()
+                != HrisServiceGrantAuthorityV1.ResolutionMode.DRAIN_EXISTING) {
+            throw Hrm013SafeErrorV1.authorityDenied();
+        }
+        requireAuthLocal(request);
+        return repository.prepareLocalVerification(request);
+    }
+
+    /** Consumes one same-transaction preparation after proof verification. */
+    public LocalAdmission authorizeLocalVerified(
+            LocalVerification preparation, String proofSha256) {
+        Objects.requireNonNull(preparation, "preparation");
+        requireAuthLocal(preparation.request());
+        return repository.authorizeLocalVerified(preparation, proofSha256);
+    }
+
+    /** Rechecks the exact frozen authority/fence without appending activity. */
+    public void recheckLocal(LocalAdmission admission) {
+        Objects.requireNonNull(admission, "admission");
+        requireAuthLocal(admission.preparation().request());
+        repository.recheckLocal(admission);
+    }
+
+    /** Rechecks a read-only preparation before persisting deferred work. */
+    public void recheckLocal(LocalVerification preparation) {
+        Objects.requireNonNull(preparation, "preparation");
+        requireAuthLocal(preparation.request());
+        repository.recheckLocal(preparation);
+    }
+
     public ResolveResponse observeLocalReadiness(ResolveRequest request,
             Hrm013WorkloadProofV1.ReplayReservation replay, String proofSha256) {
         requireMode(request, HrisServiceGrantAuthorityV1.ResolutionMode.READINESS_OBSERVE);
@@ -310,6 +351,90 @@ public final class HrisServiceGrantQuiesceService {
     public record Fence(UUID id, UUID oldGrantSetId, long revision, String state,
             Instant effectiveAt) {
         boolean quiescing() { return "QUIESCING".equals(state); }
+    }
+
+    /**
+     * Read-only, transaction-bound verification snapshot.  The digest binds
+     * the signed selectors, credential lease identity, local service role and
+     * current quiesce fence; callers cannot turn it into an admission by
+     * constructing a look-alike value because the repository recomputes it
+     * under the same transaction and tuple lock.
+     */
+    public record LocalVerification(
+            ResolveRequest request,
+            HrisServiceGrantAuthorityV1.GrantAuthority authority,
+            HrisServiceGrantAuthorityV1.ServiceRole attestingServiceRole,
+            Fence authorityFence,
+            long transactionId,
+            String preparationSha256) {
+        public LocalVerification {
+            Objects.requireNonNull(request, "request");
+            Objects.requireNonNull(authority, "authority");
+            Objects.requireNonNull(attestingServiceRole, "attestingServiceRole");
+            requirePositive(transactionId, "transactionId");
+            requireDigest(preparationSha256);
+            boolean drain = request.resolutionMode()
+                    == HrisServiceGrantAuthorityV1.ResolutionMode.DRAIN_EXISTING;
+            if (drain != (authorityFence != null)
+                    || drain != (request.drainFields() != null)) {
+                throw Hrm013SafeErrorV1.authorityDenied();
+            }
+        }
+    }
+
+    /** The exact preparation plus the single admission produced from it. */
+    public record LocalAdmission(
+            LocalVerification preparation,
+            ResolveResponse response,
+            String proofSha256) {
+        public LocalAdmission {
+            Objects.requireNonNull(preparation, "preparation");
+            Objects.requireNonNull(response, "response");
+            requireDigest(proofSha256);
+            if (response.status() != HrisServiceGrantAuthorityV1.Status.ADMIT
+                    || !preparation.authority().equals(response.grantAuthority())
+                    || !preparation.request().correlationId()
+                            .equals(response.correlationId())) {
+                throw Hrm013SafeErrorV1.authorityDenied();
+            }
+            boolean drain = preparation.request().resolutionMode()
+                    == HrisServiceGrantAuthorityV1.ResolutionMode.DRAIN_EXISTING;
+            if (drain != (response.drainAdmission() != null)) {
+                throw Hrm013SafeErrorV1.authorityDenied();
+            }
+        }
+    }
+
+    static String localPreparationDigest(ResolveRequest request,
+            HrisServiceGrantAuthorityV1.GrantAuthority authority,
+            HrisServiceGrantAuthorityV1.ServiceRole role, Fence fence,
+            long transactionId) {
+        List<String> values = new ArrayList<>(List.of(
+                Long.toString(request.tenantId()), request.requestingWorkloadId(),
+                request.targetBindingId(), request.targetCallerWorkloadId(),
+                request.targetOwnerWorkloadId(), request.targetPurpose(),
+                request.resolutionMode().name(),
+                Long.toString(request.signedTenantGrantRevision()),
+                Long.toString(request.signedAuthorizationRevision()),
+                request.correlationId().toString(), authority.grantSetId().toString(),
+                Long.toString(authority.grantRevision()), authority.grantDigest(),
+                role.name(), Long.toString(transactionId)));
+        HrisServiceGrantAuthorityV1.DrainFields drain = request.drainFields();
+        if (drain != null) {
+            values.add(drain.drainRootWorkItemId().toString());
+            values.add(drain.drainRootCreatedAt().toString());
+            values.add(drain.drainRootPayloadSha256());
+            values.add(drain.drainContinuationKind().name());
+            values.add(drain.drainContinuationEventId().toString());
+            values.add(Long.toString(drain.drainContinuationRevision()));
+            values.add(drain.drainContinuationPayloadSha256());
+            values.add(fence.id().toString());
+            values.add(fence.oldGrantSetId().toString());
+            values.add(Long.toString(fence.revision()));
+            values.add(fence.state());
+            values.add(fence.effectiveAt().toString());
+        }
+        return digestLines(values);
     }
 
     static ResolveResponse opaque(HrisServiceGrantAuthorityV1.Status status,

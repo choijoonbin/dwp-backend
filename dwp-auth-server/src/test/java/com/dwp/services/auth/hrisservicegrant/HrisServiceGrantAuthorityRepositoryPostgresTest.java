@@ -40,6 +40,7 @@ import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -239,6 +240,66 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
     }
 
     @Test
+    void localPreparationIsReadOnlyAndSameTransactionAuthorizationAppendsOnce()
+            throws Exception {
+        long tenantId = 7_113L;
+        PGSimpleDataSource admin = adminSource();
+        createTenant(admin, tenantId);
+        List<GrantBinding> bindings = List.of(
+                binding(HrisServiceGrantQuiesceService.IDENTITY_DISPATCH,
+                        "people-id", "auth-id"),
+                binding(HrisServiceGrantQuiesceService.IDENTITY_RECEIPT,
+                        "auth-receipt", "people-receipt"));
+        UUID grantSet = seedGrant(admin, tenantId, 1, 121, 131,
+                "7".repeat(64), bindings);
+        PGSimpleDataSource runtime = runtimeSource(admin, tenantId, true);
+        var repository = repository(runtime);
+        var service = new HrisServiceGrantQuiesceService(repository);
+        var batch = service.beginQuiesce(tenantId,
+                List.of(HrisServiceGrantQuiesceService.IDENTITY_DISPATCH),
+                UUID.randomUUID());
+        var request = grantRequest(tenantId,
+                HrisServiceGrantQuiesceService.IDENTITY_DISPATCH,
+                HrisServiceGrantQuiesceService.IDENTITY_DISPATCH.ownerWorkloadId(),
+                HrisServiceGrantAuthorityV1.ResolutionMode.DRAIN_EXISTING,
+                121, 131, batch.effectiveAt());
+        JdbcTemplate adminJdbc = new JdbcTemplate(admin);
+        JdbcTemplate runtimeJdbc = new JdbcTemplate(runtime);
+        var tx = new TransactionTemplate(new DataSourceTransactionManager(runtime));
+
+        var admission = tx.execute(status -> {
+            var preparation = service.prepareLocalVerification(request);
+            assertThat(runtimeJdbc.queryForObject("""
+                    SELECT count(*) FROM auth_hris_service_grant_drain_activities
+                     WHERE tenant_id=? AND old_grant_set_id=?
+                    """, Integer.class, tenantId, grantSet)).isZero();
+            var admitted = service.authorizeLocalVerified(
+                    preparation, "d".repeat(64));
+            service.recheckLocal(admitted);
+            assertThat(runtimeJdbc.queryForObject("""
+                    SELECT count(*) FROM auth_hris_service_grant_drain_activities
+                     WHERE tenant_id=? AND old_grant_set_id=?
+                    """, Integer.class, tenantId, grantSet)).isOne();
+            return admitted;
+        });
+        assertThat(admission.response().drainAdmission().attestingServiceRole())
+                .isEqualTo(HrisServiceGrantAuthorityV1.ServiceRole.OWNER);
+        assertThat(adminJdbc.queryForObject("""
+                SELECT count(*) FROM auth_hris_service_grant_drain_activities
+                 WHERE tenant_id=? AND old_grant_set_id=?
+                """, Integer.class, tenantId, grantSet)).isOne();
+
+        var stale = tx.execute(status -> service.prepareLocalVerification(request));
+        assertThatThrownBy(() -> service.authorizeLocalVerified(
+                stale, "e".repeat(64)))
+                .isInstanceOf(Hrm013SafeErrorV1.Failure.class);
+        assertThat(adminJdbc.queryForObject("""
+                SELECT count(*) FROM auth_hris_service_grant_drain_activities
+                 WHERE tenant_id=? AND old_grant_set_id=?
+                """, Integer.class, tenantId, grantSet)).isOne();
+    }
+
+    @Test
     void oldQuiescingGrantIsStaleAfterAConnectedAdmitSuccessor() throws Exception {
         long tenantId = 7_106L;
         PGSimpleDataSource admin = adminSource();
@@ -348,6 +409,57 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
                 SELECT count(*) FROM auth_hris_service_grant_bindings
                  WHERE tenant_id = ? AND grant_set_id = ?
                 """, Integer.class, tenantId, revoked.grantSetId())).isOne();
+    }
+
+    @Test
+    void cutoverRejectsExpiredReadinessAgainstWallClockInsideLongTransaction() throws Exception {
+        long tenantId = 7_111L;
+        PGSimpleDataSource admin = adminSource();
+        createTenant(admin, tenantId);
+        KeyPair callerKey = rsaKeyPair(); KeyPair ownerKey = rsaKeyPair();
+        GrantBinding oldBinding = binding(TARGET, "people-v1", callerKey,
+                "auth-v1", ownerKey);
+        UUID oldGrant = seedGrant(admin, tenantId, 1, 31, 41,
+                "4".repeat(64), List.of(oldBinding));
+        Instant effectiveAt = Instant.now().minusSeconds(70).truncatedTo(ChronoUnit.MICROS);
+        UUID fenceId = seedFence(admin, tenantId, oldGrant, effectiveAt);
+        PGSimpleDataSource runtime = runtimeSource(admin, tenantId, true);
+        var verifier = new HrisServiceGrantRotationReadinessVerifier(new ObjectMapper());
+        List<HrisServiceGrantAuthorityV1.ReadinessObservation> observations = List.of(
+                observation(tenantId, oldGrant, fenceId, effectiveAt,
+                        HrisServiceGrantAuthorityV1.ServiceRole.CALLER, 31, 41),
+                observation(tenantId, oldGrant, fenceId, effectiveAt,
+                        HrisServiceGrantAuthorityV1.ServiceRole.OWNER, 31, 41));
+        Instant observedAt = new JdbcTemplate(admin).queryForObject(
+                "SELECT clock_timestamp()", (rs, row) -> rs.getTimestamp(1).toInstant())
+                .truncatedTo(ChronoUnit.SECONDS);
+        List<ReadinessItem> expiringItems = signedReadinessItems(
+                tenantId, oldGrant, fenceId, effectiveAt,
+                observations, callerKey, ownerKey, oldBinding, observedAt, 1, 5);
+        String expiringDigest = readinessDigest(expiringItems);
+        var transactionManager = new DataSourceTransactionManager(runtime);
+        var transactionalRepository = new HrisServiceGrantAuthorityRepository(
+                new JdbcTemplate(runtime), transactionManager, new ObjectMapper());
+
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager).execute(status -> {
+            Instant transactionStart = new JdbcTemplate(runtime).queryForObject(
+                    "SELECT transaction_timestamp()",
+                    (rs, row) -> rs.getTimestamp(1).toInstant());
+            assertThat(transactionStart).isBefore(observedAt.plusSeconds(5));
+            new JdbcTemplate(runtime).execute("SELECT pg_sleep(6.2)");
+            return transactionalRepository.cutover(tenantId, List.of(TARGET),
+                    expiringItems,
+                    new SuccessorGrant(UUID.randomUUID(), 32, 42,
+                            "5".repeat(64), expiringDigest,
+                            List.of(binding("people-v2-expired", "auth-v2-expired"))),
+                    UUID.randomUUID(), verifier);
+        })).isInstanceOf(Hrm013SafeErrorV1.Failure.class)
+                .extracting(value -> ((Hrm013SafeErrorV1.Failure) value).errorCode())
+                .isEqualTo(Hrm013SafeErrorV1.ErrorCode.INVALID_STATE);
+        assertThat(new JdbcTemplate(admin).queryForObject("""
+                SELECT count(*) FROM auth_hris_service_grant_sets
+                 WHERE tenant_id = ?
+                """, Integer.class, tenantId)).isOne();
     }
 
     @Test
@@ -833,6 +945,17 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
             List<HrisServiceGrantAuthorityV1.ReadinessObservation> observations,
             KeyPair callerKey, KeyPair ownerKey, GrantBinding binding,
             Instant observedAt, long issueDelaySeconds) {
+        return signedReadinessItems(tenantId, grantSetId, fenceId, effectiveAt,
+                observations, callerKey, ownerKey, binding, observedAt,
+                issueDelaySeconds, 180);
+    }
+
+    private static List<ReadinessItem> signedReadinessItems(long tenantId, UUID grantSetId,
+            UUID fenceId, Instant effectiveAt,
+            List<HrisServiceGrantAuthorityV1.ReadinessObservation> observations,
+            KeyPair callerKey, KeyPair ownerKey, GrantBinding binding,
+            Instant observedAt, long issueDelaySeconds,
+            long receiptLifetimeSeconds) {
         return observations.stream().map(observation -> {
             var role = observation.attestingServiceRole();
             return signedReadinessItem(tenantId, grantSetId, fenceId, effectiveAt,
@@ -840,19 +963,21 @@ class HrisServiceGrantAuthorityRepositoryPostgresTest {
                             ? callerKey : ownerKey,
                     role == HrisServiceGrantAuthorityV1.ServiceRole.CALLER
                             ? binding.callerSigningKeyId() : binding.ownerSigningKeyId(),
-                    observedAt, issueDelaySeconds);
+                    observedAt, issueDelaySeconds, receiptLifetimeSeconds);
         }).toList();
     }
 
     private static ReadinessItem signedReadinessItem(long tenantId, UUID grantSetId,
             UUID fenceId, Instant effectiveAt,
             HrisServiceGrantAuthorityV1.ReadinessObservation observation,
-            KeyPair signer, String keyId, Instant observedAt, long issueDelaySeconds) {
+            KeyPair signer, String keyId, Instant observedAt, long issueDelaySeconds,
+            long receiptLifetimeSeconds) {
         try {
             var role = observation.attestingServiceRole();
             String workload = role == HrisServiceGrantAuthorityV1.ServiceRole.CALLER
                     ? observation.callerWorkloadId() : observation.ownerWorkloadId();
-            Instant expiresAt = observedAt.plusSeconds(180); UUID correlation = UUID.randomUUID();
+            Instant expiresAt = observedAt.plusSeconds(receiptLifetimeSeconds);
+            UUID correlation = UUID.randomUUID();
             ObjectNode receipt = new ObjectMapper().createObjectNode();
             receipt.put("schemaName", HrisServiceGrantRotationReadinessVerifier.SCHEMA);
             receipt.put("schemaVersion", 1); receipt.put("tenantId", tenantId);

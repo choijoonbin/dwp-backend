@@ -65,6 +65,10 @@ dwp:
       enabled: ${DWP_AUTH_HRM013_REQUESTER_AUTHORITY_ENABLED:false}
     hrm013-identity-task-dispatch:
       enabled: ${DWP_AUTH_HRM013_IDENTITY_TASK_DISPATCH_ENABLED:false}
+      receipt-relay-enabled: ${DWP_AUTH_HRM013_IDENTITY_RECEIPT_RELAY_ENABLED:false}
+      people-base-url: ${DWP_AUTH_HRM013_IDENTITY_PEOPLE_BASE_URL:}
+      executor-poll-delay-ms: ${DWP_AUTH_HRM013_IDENTITY_EXECUTOR_POLL_DELAY_MS:5000}
+      receipt-poll-delay-ms: ${DWP_AUTH_HRM013_IDENTITY_RECEIPT_POLL_DELAY_MS:5000}
     hrm013-mtls:
       client-auth: ${DWP_AUTH_HRM013_MTLS_CLIENT_AUTH:}
       trust-store-location: ${DWP_AUTH_HRM013_MTLS_TRUST_STORE_LOCATION:}
