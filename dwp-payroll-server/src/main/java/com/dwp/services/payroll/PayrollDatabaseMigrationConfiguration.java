@@ -304,6 +304,18 @@ public class PayrollDatabaseMigrationConfiguration {
                 privilege(publisher, "RELATION", "public",
                         "public.pay_social_insurance_result_f_"
                                 + "social_insurance_fact_interna_seq",
+                        "SELECT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_tax_result_facts", "SELECT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_tax_result_facts", "INSERT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_tax_result_facts_"
+                                + "tax_result_fact_internal_id_seq",
+                        "USAGE"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_tax_result_facts_"
+                                + "tax_result_fact_internal_id_seq",
                         "SELECT"));
         return new TrustedPublisherPolicy(
                 publisher, allowed, requireSteadyState ? allowed : Set.of());

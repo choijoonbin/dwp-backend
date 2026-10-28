@@ -191,24 +191,64 @@ class JdbcPay003Store implements Pay003Store {
     }
 
     @Override
-    public Pay003Models.SourcePage<Pay003Models.SocialInsuranceFact> socialInsurance(
+    public Pay003Models.SourcePage<Pay003Models.TaxSocialInsuranceFact> socialInsurance(
             Pay003Authority.Actor actor,
             Pay003Models.QueryRequest query,
             Instant asOf) {
-        if (query.filter().keySet().stream()
-                .anyMatch(key -> key.startsWith("filter[taxResult]"))) {
-            return Pay003Models.SourcePage.unavailable();
-        }
         try {
             bindTenant(actor.subject().tenantId());
-            List<Pay003Models.SocialInsuranceFact> rows = jdbc.query("""
+            List<TaxSocialInsuranceQueryRow> queried = jdbc.query("""
+                    WITH tax AS (
+                        SELECT * FROM pay_tax_result_facts
+                         WHERE tenant_id = :tenantId
+                           AND recorded_at <= :asOf
+                    ), social AS (
+                        SELECT * FROM pay_social_insurance_result_facts
+                         WHERE tenant_id = :tenantId
+                           AND recorded_at <= :asOf
+                    ), combined AS (
+                        SELECT COALESCE(tax.tenant_id, social.tenant_id) tenant_id,
+                               COALESCE(tax.run_id, social.run_id) run_id,
+                               COALESCE(tax.attempt_no, social.attempt_no) attempt_no,
+                               COALESCE(tax.worker_result_id,
+                                        social.worker_result_id) worker_result_id,
+                               tax.tax_result_fact_id,
+                               social.social_insurance_fact_id,
+                               tax.amount tax_amount,
+                               tax.currency tax_currency,
+                               social.amount social_amount,
+                               social.currency social_currency,
+                               COALESCE(tax.pack_id, social.pack_id) pack_id,
+                               COALESCE(tax.activation_revision,
+                                        social.activation_revision)
+                                   activation_revision,
+                               COALESCE(tax.policy_version,
+                                        social.policy_version) policy_version,
+                               tax.tax_result_fact_id IS NOT NULL
+                                   AND social.social_insurance_fact_id IS NOT NULL
+                                   AND (tax.currency IS DISTINCT FROM social.currency
+                                        OR tax.pack_id IS DISTINCT FROM social.pack_id
+                                        OR tax.activation_revision IS DISTINCT FROM
+                                           social.activation_revision
+                                        OR tax.policy_version IS DISTINCT FROM
+                                           social.policy_version) lineage_mismatch
+                          FROM tax
+                          FULL OUTER JOIN social
+                            ON social.tenant_id = tax.tenant_id
+                           AND social.run_id = tax.run_id
+                           AND social.attempt_no = tax.attempt_no
+                           AND social.worker_result_id = tax.worker_result_id
+                    )
                     SELECT fact.tenant_id, fact.worker_result_id,
+                           fact.tax_result_fact_id,
                            fact.social_insurance_fact_id,
-                           worker.worker_id, fact.amount, fact.currency,
-                           fact.result_digest, fact.policy_version,
+                           worker.worker_id, fact.tax_amount,
+                           fact.tax_currency, fact.social_amount,
+                           fact.social_currency, fact.policy_version,
                            snapshot.pack_version, fact.activation_revision,
-                           activation.effective_from, activation.effective_to
-                      FROM pay_social_insurance_result_facts fact
+                           activation.effective_from, activation.effective_to,
+                           fact.lineage_mismatch
+                      FROM combined fact
                       JOIN pay_worker_results worker
                         ON worker.tenant_id = fact.tenant_id
                        AND worker.run_id = fact.run_id
@@ -224,28 +264,40 @@ class JdbcPay003Store implements Pay003Store {
                      WHERE fact.tenant_id = :tenantId
                        AND snapshot.legal_entity_id = :legalEntityId
                        AND snapshot.payroll_group_id = :payrollGroupId
-                       AND fact.recorded_at <= :asOf
                        AND snapshot.recorded_at <= :asOf
                        AND activation.occurred_at <= :asOf
-                    """, scope(actor, asOf), (result, row) ->
-                    new Pay003Models.SocialInsuranceFact(
+                    """, scope(actor, asOf), (result, row) -> {
+                boolean mismatch = result.getBoolean("lineage_mismatch");
+                if (mismatch) {
+                    return new TaxSocialInsuranceQueryRow(true, null);
+                }
+                return new TaxSocialInsuranceQueryRow(false,
+                        new Pay003Models.TaxSocialInsuranceFact(
                             result.getLong("tenant_id"),
                             result.getObject("worker_result_id", UUID.class),
+                            result.getObject("tax_result_fact_id", UUID.class),
                             result.getObject(
                                     "social_insurance_fact_id", UUID.class),
                             "Worker " + result.getObject(
                                     "worker_id", UUID.class),
-                            new Pay003Models.PostedMoney(
-                                    result.getBigDecimal("amount"),
-                                    result.getString("currency")),
-                            result.getString("result_digest"),
+                            money(result.getBigDecimal("tax_amount"),
+                                    result.getString("tax_currency")),
+                            money(result.getBigDecimal("social_amount"),
+                                    result.getString("social_currency")),
                             result.getString("policy_version"),
                             result.getString("pack_version"),
                             result.getLong("activation_revision"),
                             result.getObject("effective_from", Date.class)
                                     .toLocalDate(),
                             optionalDate(result.getObject(
-                                    "effective_to", Date.class)))).stream()
+                                    "effective_to", Date.class))));
+            });
+            if (queried.stream().anyMatch(
+                    TaxSocialInsuranceQueryRow::lineageMismatch)) {
+                return Pay003Models.SourcePage.unavailable();
+            }
+            List<Pay003Models.TaxSocialInsuranceFact> rows = queried.stream()
+                    .map(TaxSocialInsuranceQueryRow::fact)
                     .filter(fact -> matchesFact(fact, query))
                     .toList();
             return new Pay003Models.SourcePage<>(
@@ -458,24 +510,39 @@ class JdbcPay003Store implements Pay003Store {
     }
 
     private boolean matchesFact(
-            Pay003Models.SocialInsuranceFact row,
+            Pay003Models.TaxSocialInsuranceFact row,
             Pay003Models.QueryRequest query) {
         Map<String, List<String>> filter = query.filter();
-        String currency = single(filter,
+        String taxCurrency = single(filter, "filter[taxResult][currency]");
+        if (taxCurrency != null && (row.taxResult() == null
+                || !taxCurrency.equals(row.taxResult().currency()))) return false;
+        String socialCurrency = single(filter,
                 "filter[socialInsurance][currency]");
-        if (currency != null && !currency.equals(row.amount().currency())) return false;
+        if (socialCurrency != null && (row.socialInsurance() == null
+                || !socialCurrency.equals(
+                row.socialInsurance().currency()))) return false;
         if (!filter.getOrDefault(
                 "filter[policyVersion][policyKeys]", List.of()).isEmpty()
                 && !filter.get("filter[policyVersion][policyKeys]")
                 .contains(canonical.policyKey(row.policyVersion()))) return false;
-        String minimum = single(filter,
+        String taxMinimum = single(filter, "filter[taxResult][minimumAmount]");
+        String taxMaximum = single(filter, "filter[taxResult][maximumAmount]");
+        if (taxMinimum != null && (row.taxResult() == null
+                || row.taxResult().amount().compareTo(
+                new BigDecimal(taxMinimum)) < 0)) return false;
+        if (taxMaximum != null && (row.taxResult() == null
+                || row.taxResult().amount().compareTo(
+                new BigDecimal(taxMaximum)) > 0)) return false;
+        String socialMinimum = single(filter,
                 "filter[socialInsurance][minimumAmount]");
-        String maximum = single(filter,
+        String socialMaximum = single(filter,
                 "filter[socialInsurance][maximumAmount]");
-        if (minimum != null && row.amount().amount()
-                .compareTo(new BigDecimal(minimum)) < 0) return false;
-        if (maximum != null && row.amount().amount()
-                .compareTo(new BigDecimal(maximum)) > 0) return false;
+        if (socialMinimum != null && (row.socialInsurance() == null
+                || row.socialInsurance().amount().compareTo(
+                new BigDecimal(socialMinimum)) < 0)) return false;
+        if (socialMaximum != null && (row.socialInsurance() == null
+                || row.socialInsurance().amount().compareTo(
+                new BigDecimal(socialMaximum)) > 0)) return false;
         return minimumRevision(filter,
                 "filter[policyVersion][minimumRevision]",
                 row.activationRevision())
@@ -507,6 +574,12 @@ class JdbcPay003Store implements Pay003Store {
         return value == null ? null : value.toLocalDate();
     }
 
+    private Pay003Models.PostedMoney money(
+            BigDecimal amount, String currency) {
+        return amount == null ? null
+                : new Pay003Models.PostedMoney(amount, currency);
+    }
+
     private Timestamp timestamp(Instant value) {
         return Timestamp.from(value);
     }
@@ -517,5 +590,10 @@ class JdbcPay003Store implements Pay003Store {
         } catch (Exception exception) {
             throw new IllegalStateException("PAY-003 JSON encoding failed", exception);
         }
+    }
+
+    private record TaxSocialInsuranceQueryRow(
+            boolean lineageMismatch,
+            Pay003Models.TaxSocialInsuranceFact fact) {
     }
 }

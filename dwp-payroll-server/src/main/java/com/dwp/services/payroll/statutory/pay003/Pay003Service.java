@@ -6,11 +6,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -77,7 +79,7 @@ class Pay003Service {
                 actor, query, "STATUTORY", "2", Pay003Models.STATUTORY_GROUPS,
                 asOf -> store.statutory(actor, query, asOf),
                 (snapshot, frozen) -> statutoryItem(actor, snapshot, frozen),
-                this::packComparator, false);
+                this::packComparator, ignored -> List.of());
     }
 
     @Transactional(readOnly = true)
@@ -89,7 +91,7 @@ class Pay003Service {
                 Pay003Models.RESULT_GROUPS,
                 asOf -> store.socialInsurance(actor, query, asOf),
                 this::resultItem,
-                this::resultComparator, true);
+                this::resultComparator, this::resultMissingComponents);
     }
 
     @Transactional
@@ -188,7 +190,7 @@ class Pay003Service {
                     T, Map<String, Pay003Models.Decision>,
                     Pay003Models.EntryItem> mapper,
             java.util.function.BiFunction<List<String>, List<T>, List<T>> sorter,
-            boolean taxUnavailable) {
+            Function<List<T>, List<String>> missingComponents) {
         requireCurrent(actor);
         if (!variant.equals(query.variantKey())) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
@@ -227,9 +229,10 @@ class Pay003Service {
         }
 
         List<T> sorted = sorter.apply(query.sort(), page.rows());
-        List<Pay003Models.EntryItem> disclosed = sorted.stream()
-                .map(row -> mapper.apply(row, decisions))
-                .filter(java.util.Objects::nonNull)
+        List<DisclosedRow<T>> disclosed = sorted.stream()
+                .map(row -> new DisclosedRow<>(
+                        row, mapper.apply(row, decisions)))
+                .filter(row -> row.item() != null)
                 .toList();
         int offset = cursor == null ? 0 : cursor.offset();
         if (offset > disclosed.size()) {
@@ -237,8 +240,10 @@ class Pay003Service {
                     "Cursor is beyond the PAY-003 projection.");
         }
         int end = Math.min(offset + query.limit(), disclosed.size());
-        List<Pay003Models.EntryItem> items =
+        List<DisclosedRow<T>> currentPage =
                 List.copyOf(disclosed.subList(offset, end));
+        List<Pay003Models.EntryItem> items =
+                currentPage.stream().map(DisclosedRow::item).toList();
         String next = end < disclosed.size()
                 ? canonical.cursor(end, bindingDigest, asOf) : null;
         Pay003Models.FieldDecisionSummary summary = summary(items, groups.size());
@@ -248,13 +253,17 @@ class Pay003Service {
                     Pay003Models.QueryState.EMPTY, "CURRENT", items, null,
                     summary, List.of(), actor, query);
         }
-        if (taxUnavailable) {
+        List<String> missing = missingComponents.apply(currentPage.stream()
+                .map(DisclosedRow::source).toList());
+        if (!missing.isEmpty()) {
             return response(
                     projectionVersion, variant, asOf,
                     Pay003Models.QueryState.PARTIAL, "CURRENT", items, next,
-                    summary, List.of(new Pay003Models.PartialFailure(
-                            "tax.result", "PRODUCER_UNAVAILABLE",
-                            query.correlationId(), true)), actor, query);
+                    summary, missing.stream().map(component ->
+                            new Pay003Models.PartialFailure(
+                                    component, "PRODUCER_UNAVAILABLE",
+                                    query.correlationId(), true)).toList(),
+                    actor, query);
         }
         return response(
                 projectionVersion, variant, asOf,
@@ -331,12 +340,18 @@ class Pay003Service {
     }
 
     private Pay003Models.EntryItem resultItem(
-            Pay003Models.SocialInsuranceFact fact,
+            Pay003Models.TaxSocialInsuranceFact fact,
             Map<String, Pay003Models.Decision> decisions) {
         LinkedHashMap<String, Pay003Models.FieldDecision> fields =
                 new LinkedHashMap<>();
-        field(fields, "SOCIAL_INSURANCE", decisions,
-                Pay003Models.MoneyValue.from(fact.amount()));
+        if (fact.taxResult() != null) {
+            field(fields, "TAX_RESULT", decisions,
+                    Pay003Models.MoneyValue.from(fact.taxResult()));
+        }
+        if (fact.socialInsurance() != null) {
+            field(fields, "SOCIAL_INSURANCE", decisions,
+                    Pay003Models.MoneyValue.from(fact.socialInsurance()));
+        }
         field(fields, "POLICY_VERSION", decisions,
                 new Pay003Models.PolicyValue(
                         canonical.policyKey(fact.policyVersion()),
@@ -413,28 +428,67 @@ class Pay003Service {
         return List.copyOf(sorted);
     }
 
-    private List<Pay003Models.SocialInsuranceFact> resultComparator(
-            List<String> sorts, List<Pay003Models.SocialInsuranceFact> source) {
-        Comparator<Pay003Models.SocialInsuranceFact> comparator = null;
+    private List<Pay003Models.TaxSocialInsuranceFact> resultComparator(
+            List<String> sorts,
+            List<Pay003Models.TaxSocialInsuranceFact> source) {
+        Comparator<Pay003Models.TaxSocialInsuranceFact> comparator = null;
         for (String sort : sorts) {
             boolean descending = sort.endsWith(":DESC");
             String field = sort.substring(0, sort.indexOf(':'));
-            Comparator<Pay003Models.SocialInsuranceFact> part = switch (field) {
-                case "socialInsurance" -> Comparator.comparing(fact ->
-                        fact.amount().amount());
+            Comparator<Pay003Models.TaxSocialInsuranceFact> part = switch (field) {
+                case "socialInsurance" -> moneyComparator(
+                        Pay003Models.TaxSocialInsuranceFact::socialInsurance,
+                        descending);
                 case "policyVersion" -> Comparator.comparing(
-                        Pay003Models.SocialInsuranceFact::policyVersion);
-                case "taxResult" -> Comparator.comparing(fact -> "");
+                        Pay003Models.TaxSocialInsuranceFact::policyVersion);
+                case "taxResult" -> moneyComparator(
+                        Pay003Models.TaxSocialInsuranceFact::taxResult,
+                        descending);
                 default -> Comparator.comparing(fact ->
                         fact.workerResultId().toString());
             };
-            if (descending) part = part.reversed();
+            if (descending && !Set.of(
+                    "taxResult", "socialInsurance").contains(field)) {
+                part = part.reversed();
+            }
             comparator = comparator == null ? part : comparator.thenComparing(part);
         }
-        ArrayList<Pay003Models.SocialInsuranceFact> sorted =
+        Comparator<Pay003Models.TaxSocialInsuranceFact> workerResultTieBreak =
+                Comparator.comparing(fact -> fact.workerResultId().toString());
+        comparator = comparator == null
+                ? workerResultTieBreak
+                : comparator.thenComparing(workerResultTieBreak);
+        ArrayList<Pay003Models.TaxSocialInsuranceFact> sorted =
                 new ArrayList<>(source);
         sorted.sort(comparator);
         return List.copyOf(sorted);
+    }
+
+    private Comparator<Pay003Models.TaxSocialInsuranceFact> moneyComparator(
+            Function<Pay003Models.TaxSocialInsuranceFact,
+                    Pay003Models.PostedMoney> extractor,
+            boolean descending) {
+        Comparator<BigDecimal> values = descending
+                ? Comparator.reverseOrder() : Comparator.naturalOrder();
+        return Comparator.comparing(
+                fact -> {
+                    Pay003Models.PostedMoney money = extractor.apply(fact);
+                    return money == null ? null : money.amount();
+                }, Comparator.nullsLast(values));
+    }
+
+    private List<String> resultMissingComponents(
+            List<Pay003Models.TaxSocialInsuranceFact> source) {
+        LinkedHashSet<String> missing = new LinkedHashSet<>();
+        if (source.stream().anyMatch(
+                Pay003Models.TaxSocialInsuranceFact::taxMissing)) {
+            missing.add("tax.result");
+        }
+        if (source.stream().anyMatch(
+                Pay003Models.TaxSocialInsuranceFact::socialInsuranceMissing)) {
+            missing.add("social.insurance");
+        }
+        return List.copyOf(missing);
     }
 
     private void requireCurrent(Pay003Authority.Actor actor) {
@@ -517,5 +571,8 @@ class Pay003Service {
 
     private BaseException conflict(String message) {
         return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
+    }
+
+    private record DisclosedRow<T>(T source, Pay003Models.EntryItem item) {
     }
 }

@@ -24,7 +24,7 @@ interface Pay003Store {
             Pay003Models.QueryRequest query,
             Instant asOf);
 
-    Pay003Models.SourcePage<Pay003Models.SocialInsuranceFact> socialInsurance(
+    Pay003Models.SourcePage<Pay003Models.TaxSocialInsuranceFact> socialInsurance(
             Pay003Authority.Actor actor,
             Pay003Models.QueryRequest query,
             Instant asOf);
