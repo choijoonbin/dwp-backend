@@ -126,14 +126,15 @@ class Pay003ServiceTest {
                 Pay003Route.TAX_SOCIAL_INSURANCE);
         when(projections.decisions(actor, "TAX_SOCIAL_INSURANCE"))
                 .thenReturn(Map.of(
+                        "TAX_RESULT", Pay003Models.Decision.VIEW,
                         "SOCIAL_INSURANCE", Pay003Models.Decision.VIEW,
                         "POLICY_VERSION", Pay003Models.Decision.VIEW));
-        Pay003Models.SocialInsuranceFact fact =
-                new Pay003Models.SocialInsuranceFact(
-                        1, UUID.randomUUID(), UUID.randomUUID(), "Worker 7",
-                        new Pay003Models.PostedMoney(
+        Pay003Models.TaxSocialInsuranceFact fact =
+                new Pay003Models.TaxSocialInsuranceFact(
+                        1, UUID.randomUUID(), null, UUID.randomUUID(),
+                        "Worker 7", null, new Pay003Models.PostedMoney(
                                 new BigDecimal("12.3400"), "GBP"),
-                        Pay003TestFixtures.DIGEST_B, "policy-v1", "2026.10",
+                        "policy-v1", "2026.10",
                         4, LocalDate.parse("2026-10-01"), null);
         when(store.socialInsurance(eq(actor), any(), eq(NOW))).thenReturn(
                 new Pay003Models.SourcePage<>(
@@ -154,6 +155,159 @@ class Pay003ServiceTest {
         Pay003Models.MoneyValue money = (Pay003Models.MoneyValue) response.items()
                 .getFirst().fieldGroups().get("SOCIAL_INSURANCE").value();
         assertThat(money.amount()).isEqualTo("12.3400");
+    }
+
+    @Test
+    void iaq048CompleteKeepsTypedZeroTaxAndStableWorkerIdentity() {
+        Pay003Authority.Actor actor = Pay003TestFixtures.actor(
+                Pay003Route.TAX_SOCIAL_INSURANCE);
+        when(projections.decisions(actor, "TAX_SOCIAL_INSURANCE"))
+                .thenReturn(Map.of(
+                        "TAX_RESULT", Pay003Models.Decision.VIEW,
+                        "SOCIAL_INSURANCE", Pay003Models.Decision.VIEW,
+                        "POLICY_VERSION", Pay003Models.Decision.VIEW));
+        UUID workerResultId = UUID.randomUUID();
+        Pay003Models.TaxSocialInsuranceFact fact =
+                new Pay003Models.TaxSocialInsuranceFact(
+                        1, workerResultId, UUID.randomUUID(), UUID.randomUUID(),
+                        "Worker 8",
+                        new Pay003Models.PostedMoney(
+                                new BigDecimal("0.0000"), "GBP"),
+                        new Pay003Models.PostedMoney(
+                                new BigDecimal("12.3400"), "GBP"),
+                        "policy-v1", "2026.10", 4,
+                        LocalDate.parse("2026-10-01"), null);
+        when(store.socialInsurance(eq(actor), any(), eq(NOW))).thenReturn(
+                new Pay003Models.SourcePage<>(
+                        Pay003Models.Availability.AVAILABLE, List.of(fact)));
+
+        Pay003Models.EntryQueryResponse response = service.socialInsurance(
+                actor, Pay003TestFixtures.query("TAX_SOCIAL_INSURANCE"));
+
+        assertThat(response.queryState().state())
+                .isEqualTo(Pay003Models.QueryState.COMPLETE);
+        assertThat(response.queryState().partialFailures()).isEmpty();
+        assertThat(response.items().getFirst().itemPublicId())
+                .isEqualTo(workerResultId.toString());
+        assertThat(response.items().getFirst().availableActions()).isEmpty();
+        Pay003Models.MoneyValue tax = (Pay003Models.MoneyValue) response.items()
+                .getFirst().fieldGroups().get("TAX_RESULT").value();
+        assertThat(tax.amount()).isEqualTo("0.0000");
+        assertThat(response.queryState().fieldDecisionSummary())
+                .isEqualTo(new Pay003Models.FieldDecisionSummary(3, 0, 0));
+    }
+
+    @Test
+    void iaq048HiddenIncompleteRowsDoNotLeakPartialCompleteness() {
+        Pay003Authority.Actor actor = Pay003TestFixtures.actor(
+                Pay003Route.TAX_SOCIAL_INSURANCE);
+        when(projections.decisions(actor, "TAX_SOCIAL_INSURANCE"))
+                .thenReturn(Map.of(
+                        "TAX_RESULT", Pay003Models.Decision.VIEW,
+                        "SOCIAL_INSURANCE", Pay003Models.Decision.OMIT,
+                        "POLICY_VERSION", Pay003Models.Decision.OMIT));
+        Pay003Models.TaxSocialInsuranceFact hiddenIncomplete = resultFact(
+                UUID.fromString("00000000-0000-0000-0000-000000000001"), null);
+        Pay003Models.TaxSocialInsuranceFact disclosedComplete = resultFact(
+                UUID.fromString("00000000-0000-0000-0000-000000000002"),
+                new BigDecimal("10.0000"));
+        when(store.socialInsurance(eq(actor), any(), eq(NOW))).thenReturn(
+                new Pay003Models.SourcePage<>(
+                        Pay003Models.Availability.AVAILABLE,
+                        List.of(hiddenIncomplete, disclosedComplete)));
+
+        Pay003Models.EntryQueryResponse response = service.socialInsurance(
+                actor, resultQuery(null, 25,
+                        List.of("itemPublicId:ASC")));
+
+        assertThat(response.queryState().state())
+                .isEqualTo(Pay003Models.QueryState.COMPLETE);
+        assertThat(response.queryState().partialFailures()).isEmpty();
+        assertThat(response.items()).singleElement().satisfies(item ->
+                assertThat(item.itemPublicId()).isEqualTo(
+                        disclosedComplete.workerResultId().toString()));
+    }
+
+    @Test
+    void iaq048CompletenessUsesOnlyTheCurrentDisclosedPage() {
+        Pay003Authority.Actor actor = Pay003TestFixtures.actor(
+                Pay003Route.TAX_SOCIAL_INSURANCE);
+        when(projections.decisions(actor, "TAX_SOCIAL_INSURANCE"))
+                .thenReturn(resultDecisions(Pay003Models.Decision.VIEW));
+        Pay003Models.TaxSocialInsuranceFact complete = resultFact(
+                UUID.fromString("00000000-0000-0000-0000-000000000011"),
+                new BigDecimal("10.0000"));
+        Pay003Models.TaxSocialInsuranceFact laterIncomplete = resultFact(
+                UUID.fromString("00000000-0000-0000-0000-000000000012"), null);
+        when(store.socialInsurance(eq(actor), any(), eq(NOW))).thenReturn(
+                new Pay003Models.SourcePage<>(
+                        Pay003Models.Availability.AVAILABLE,
+                        List.of(laterIncomplete, complete)));
+
+        Pay003Models.EntryQueryResponse first = service.socialInsurance(
+                actor, resultQuery(null, 1,
+                        List.of("itemPublicId:ASC")));
+        assertThat(first.queryState().state())
+                .isEqualTo(Pay003Models.QueryState.COMPLETE);
+        assertThat(first.queryState().nextCursor()).isNotNull();
+        assertThat(first.items()).extracting(
+                Pay003Models.EntryItem::itemPublicId)
+                .containsExactly(complete.workerResultId().toString());
+
+        Pay003Models.EntryQueryResponse second = service.socialInsurance(
+                actor, resultQuery(first.queryState().nextCursor(), 1,
+                        List.of("itemPublicId:ASC")));
+        assertThat(second.queryState().state())
+                .isEqualTo(Pay003Models.QueryState.PARTIAL);
+        assertThat(second.queryState().partialFailures())
+                .extracting(Pay003Models.PartialFailure::componentKey)
+                .containsExactly("tax.result");
+        assertThat(second.items()).extracting(
+                Pay003Models.EntryItem::itemPublicId)
+                .containsExactly(laterIncomplete.workerResultId().toString());
+    }
+
+    @Test
+    void iaq048TaxSortKeepsNullLastAndWorkerIdentityTieBreak() {
+        Pay003Authority.Actor actor = Pay003TestFixtures.actor(
+                Pay003Route.TAX_SOCIAL_INSURANCE);
+        when(projections.decisions(actor, "TAX_SOCIAL_INSURANCE"))
+                .thenReturn(resultDecisions(Pay003Models.Decision.VIEW));
+        Pay003Models.TaxSocialInsuranceFact tenA = resultFact(
+                UUID.fromString("00000000-0000-0000-0000-000000000021"),
+                new BigDecimal("10.0000"));
+        Pay003Models.TaxSocialInsuranceFact tenB = resultFact(
+                UUID.fromString("00000000-0000-0000-0000-000000000022"),
+                new BigDecimal("10.0000"));
+        Pay003Models.TaxSocialInsuranceFact missing = resultFact(
+                UUID.fromString("00000000-0000-0000-0000-000000000023"), null);
+        Pay003Models.TaxSocialInsuranceFact five = resultFact(
+                UUID.fromString("00000000-0000-0000-0000-000000000024"),
+                new BigDecimal("5.0000"));
+        when(store.socialInsurance(eq(actor), any(), eq(NOW))).thenReturn(
+                new Pay003Models.SourcePage<>(
+                        Pay003Models.Availability.AVAILABLE,
+                        List.of(tenB, missing, five, tenA)));
+
+        Pay003Models.EntryQueryResponse ascending = service.socialInsurance(
+                actor, resultQuery(null, 25,
+                        List.of("taxResult:ASC", "itemPublicId:ASC")));
+        assertThat(ascending.items()).extracting(
+                Pay003Models.EntryItem::itemPublicId).containsExactly(
+                five.workerResultId().toString(),
+                tenA.workerResultId().toString(),
+                tenB.workerResultId().toString(),
+                missing.workerResultId().toString());
+
+        Pay003Models.EntryQueryResponse descending = service.socialInsurance(
+                actor, resultQuery(null, 25,
+                        List.of("taxResult:DESC", "itemPublicId:ASC")));
+        assertThat(descending.items()).extracting(
+                Pay003Models.EntryItem::itemPublicId).containsExactly(
+                tenA.workerResultId().toString(),
+                tenB.workerResultId().toString(),
+                five.workerResultId().toString(),
+                missing.workerResultId().toString());
     }
 
     @Test
@@ -421,6 +575,37 @@ class Pay003ServiceTest {
                 "COUNTRY_PACK_METADATA", decision,
                 "STATUTORY_RULE", decision,
                 "ACTIVATION_STATUS", decision);
+    }
+
+    private Map<String, Pay003Models.Decision> resultDecisions(
+            Pay003Models.Decision decision) {
+        return Map.of(
+                "TAX_RESULT", decision,
+                "SOCIAL_INSURANCE", decision,
+                "POLICY_VERSION", decision);
+    }
+
+    private Pay003Models.TaxSocialInsuranceFact resultFact(
+            UUID workerResultId, BigDecimal taxAmount) {
+        return new Pay003Models.TaxSocialInsuranceFact(
+                1, workerResultId,
+                taxAmount == null ? null : UUID.randomUUID(),
+                UUID.randomUUID(), "Worker " + workerResultId,
+                taxAmount == null ? null : new Pay003Models.PostedMoney(
+                        taxAmount, "GBP"),
+                new Pay003Models.PostedMoney(
+                        new BigDecimal("3.0000"), "GBP"),
+                "policy-v1", "2026.10", 4,
+                LocalDate.parse("2026-10-01"), null);
+    }
+
+    private Pay003Models.QueryRequest resultQuery(
+            String cursor, int limit, List<String> sort) {
+        return new Pay003Models.QueryRequest(
+                "TAX_SOCIAL_INSURANCE", null, cursor, Map.of(), limit,
+                "en-GB", sort, "Europe/London",
+                Pay003TestFixtures.query("TAX_SOCIAL_INSURANCE")
+                        .correlationId());
     }
 
     private Pay003Models.QueryRequest query(

@@ -434,6 +434,74 @@ class Pay003PostgresContractTest {
     }
 
     @Test
+    void taxAndSocialSourcesAreIndependentlyFilteredBeforeAsOfUnion() {
+        UUID pack = UUID.randomUUID();
+        approved(pack, "GB.AS.OF", "v1", LocalDate.parse("2026-10-01"));
+        activate(adminDataSource, pack, 3, 4,
+                LocalDate.parse("2026-10-01"), null, "as-of");
+        V50Facts socialCurrent = v50Facts();
+        V50Facts taxCurrent = v50Facts();
+        seedV50Facts(socialCurrent);
+        seedV50Facts(taxCurrent);
+        insertUncheckedSocialFact(socialCurrent, pack, "policy-v1", "GBP",
+                new BigDecimal("3.0000"), RECORDED.plusSeconds(100));
+        insertUncheckedTaxFact(socialCurrent, pack, "policy-v1", "GBP",
+                new BigDecimal("4.0000"), RECORDED.plusSeconds(200));
+        insertUncheckedTaxFact(taxCurrent, pack, "policy-v1", "GBP",
+                new BigDecimal("5.0000"), RECORDED.plusSeconds(100));
+        insertUncheckedSocialFact(taxCurrent, pack, "policy-v1", "GBP",
+                new BigDecimal("6.0000"), RECORDED.plusSeconds(200));
+
+        Instant asOf = RECORDED.plusSeconds(150);
+        JdbcPay003Store store = new JdbcPay003Store(
+                new NamedParameterJdbcTemplate(adminDataSource), MAPPER,
+                new Pay003Canonical(
+                        MAPPER, Pay003TestFixtures.CURSOR_SECRET));
+        Pay003Models.SourcePage<Pay003Models.TaxSocialInsuranceFact> page =
+                store.socialInsurance(resultActor(), resultQuery(asOf), asOf);
+
+        assertThat(page.availability())
+                .isEqualTo(Pay003Models.Availability.AVAILABLE);
+        assertThat(page.rows()).hasSize(2);
+        assertThat(page.rows()).filteredOn(row -> row.workerResultId().equals(
+                socialCurrent.workerResult())).singleElement().satisfies(row -> {
+                    assertThat(row.taxResult()).isNull();
+                    assertThat(row.socialInsurance()).isNotNull();
+                });
+        assertThat(page.rows()).filteredOn(row -> row.workerResultId().equals(
+                taxCurrent.workerResult())).singleElement().satisfies(row -> {
+                    assertThat(row.taxResult()).isNotNull();
+                    assertThat(row.socialInsurance()).isNull();
+                });
+    }
+
+    @Test
+    void taxSocialLineageMismatchReturnsUnavailableInsteadOfEmpty() {
+        UUID pack = UUID.randomUUID();
+        approved(pack, "GB.MISMATCH", "v1", LocalDate.parse("2026-10-01"));
+        activate(adminDataSource, pack, 3, 4,
+                LocalDate.parse("2026-10-01"), null, "mismatch");
+        V50Facts facts = v50Facts();
+        seedV50Facts(facts);
+        insertUncheckedTaxFact(facts, pack, "policy-v1", "GBP",
+                new BigDecimal("4.0000"), RECORDED.plusSeconds(100));
+        insertUncheckedSocialFact(facts, pack, "policy-v2", "GBP",
+                new BigDecimal("6.0000"), RECORDED.plusSeconds(100));
+
+        Instant asOf = RECORDED.plusSeconds(150);
+        JdbcPay003Store store = new JdbcPay003Store(
+                new NamedParameterJdbcTemplate(adminDataSource), MAPPER,
+                new Pay003Canonical(
+                        MAPPER, Pay003TestFixtures.CURSOR_SECRET));
+        Pay003Models.SourcePage<Pay003Models.TaxSocialInsuranceFact> page =
+                store.socialInsurance(resultActor(), resultQuery(asOf), asOf);
+
+        assertThat(page.availability())
+                .isEqualTo(Pay003Models.Availability.UNAVAILABLE);
+        assertThat(page.rows()).isEmpty();
+    }
+
+    @Test
     void runtimeCommandRollbackReplayAndAllFiveTenantPolicies() {
         UUID pack = UUID.randomUUID();
         approved(pack, "GB.RUNTIME", "v1", LocalDate.parse("2026-10-01"));
@@ -871,6 +939,75 @@ class Pay003PostgresContractTest {
                                 amounts.get(line), "GBP"),
                                 "TYPED_COUNTRY_RULE_OUTPUT")).toList(),
                 C, RECORDED.plusSeconds(100));
+    }
+
+    private Pay003Authority.Actor resultActor() {
+        Pay003Authority.Actor fixture = Pay003TestFixtures.actor(
+                Pay003Route.TAX_SOCIAL_INSURANCE);
+        return new Pay003Authority.Actor(fixture.subject(),
+                new Pay003Authority.Scope(
+                        LEGAL_ENTITY, PAY_GROUP, "scope-result", A));
+    }
+
+    private Pay003Models.QueryRequest resultQuery(Instant asOf) {
+        return new Pay003Models.QueryRequest(
+                "TAX_SOCIAL_INSURANCE", asOf, null, Map.of(), 25,
+                "en-GB", List.of("itemPublicId:ASC"), "Europe/London",
+                UUID.randomUUID());
+    }
+
+    private void insertUncheckedTaxFact(
+            V50Facts facts,
+            UUID pack,
+            String policy,
+            String currency,
+            BigDecimal amount,
+            Instant recordedAt) {
+        inTransaction(adminDataSource, jdbc -> {
+            jdbc.execute("SET LOCAL session_replication_role = replica");
+            jdbc.update("""
+                    INSERT INTO pay_tax_result_facts (
+                        tenant_id, tax_result_fact_id, run_id, attempt_no,
+                        worker_result_id, pack_id, activation_revision,
+                        policy_version, provider_result_type,
+                        provider_source_semantics, provider_outcome_digest,
+                        amount, currency, source_result_line_ids,
+                        source_line_set_digest, result_digest, recorded_at)
+                    VALUES (1, ?, ?, 1, ?, ?, 4, ?, 'TAX_RESULT',
+                        'TYPED_COUNTRY_RULE_OUTPUT', ?, ?, ?, ARRAY[?::UUID],
+                        ?, ?, ?)
+                    """, UUID.randomUUID(), facts.run(), facts.workerResult(),
+                    pack, policy, A, amount, currency,
+                    facts.lowLine().toString(), B, C,
+                    Timestamp.from(recordedAt));
+        });
+    }
+
+    private void insertUncheckedSocialFact(
+            V50Facts facts,
+            UUID pack,
+            String policy,
+            String currency,
+            BigDecimal amount,
+            Instant recordedAt) {
+        inTransaction(adminDataSource, jdbc -> {
+            jdbc.execute("SET LOCAL session_replication_role = replica");
+            jdbc.update("""
+                    INSERT INTO pay_social_insurance_result_facts (
+                        tenant_id, social_insurance_fact_id, run_id, attempt_no,
+                        worker_result_id, pack_id, activation_revision,
+                        policy_version, provider_result_type,
+                        provider_source_semantics, provider_outcome_digest,
+                        amount, currency, source_result_line_ids,
+                        source_line_set_digest, result_digest, recorded_at)
+                    VALUES (1, ?, ?, 1, ?, ?, 4, ?, 'SOCIAL_INSURANCE',
+                        'TYPED_COUNTRY_RULE_OUTPUT', ?, ?, ?, ARRAY[?::UUID],
+                        ?, ?, ?)
+                    """, UUID.randomUUID(), facts.run(), facts.workerResult(),
+                    pack, policy, A, amount, currency,
+                    facts.highLine().toString(), B, C,
+                    Timestamp.from(recordedAt));
+        });
     }
 
     private void insertFact(

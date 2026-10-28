@@ -164,7 +164,13 @@ class PayrollServerApplicationContextTest {
                         "RELATION:public.pay_social_insurance_result_f_"
                                 + "social_insurance_fact_interna_seq:USAGE",
                         "RELATION:public.pay_social_insurance_result_f_"
-                                + "social_insurance_fact_interna_seq:SELECT");
+                                + "social_insurance_fact_interna_seq:SELECT",
+                        "RELATION:public.pay_tax_result_facts:SELECT",
+                        "RELATION:public.pay_tax_result_facts:INSERT",
+                        "RELATION:public.pay_tax_result_facts_"
+                                + "tax_result_fact_internal_id_seq:USAGE",
+                        "RELATION:public.pay_tax_result_facts_"
+                                + "tax_result_fact_internal_id_seq:SELECT");
         assertThat(policy.requiredAclPrivileges())
                 .isEqualTo(policy.allowedAclPrivileges());
         assertThat(policy.allowedAclPrivileges()).doesNotContain(

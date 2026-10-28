@@ -33,7 +33,7 @@ final class Pay003Models {
     static final List<String> STATUTORY_GROUPS = List.of(
             "COUNTRY_PACK_METADATA", "STATUTORY_RULE", "ACTIVATION_STATUS");
     static final List<String> RESULT_GROUPS = List.of(
-            "SOCIAL_INSURANCE", "POLICY_VERSION");
+            "TAX_RESULT", "SOCIAL_INSURANCE", "POLICY_VERSION");
 
     private Pay003Models() {
     }
@@ -539,18 +539,49 @@ final class Pay003Models {
         }
     }
 
-    record SocialInsuranceFact(
+    record TaxSocialInsuranceFact(
             long tenantId,
             UUID workerResultId,
+            UUID taxResultFactId,
             UUID socialInsuranceFactId,
             String workerTitle,
-            PostedMoney amount,
-            String resultDigest,
+            PostedMoney taxResult,
+            PostedMoney socialInsurance,
             String policyVersion,
             String packVersion,
             long activationRevision,
             LocalDate effectiveFrom,
             LocalDate effectiveTo) {
+        TaxSocialInsuranceFact {
+            if (tenantId < 1 || workerResultId == null
+                    || (taxResult == null && socialInsurance == null)
+                    || (taxResult != null && taxResultFactId == null)
+                    || (socialInsurance != null
+                    && socialInsuranceFactId == null)
+                    || (taxResult != null && socialInsurance != null
+                    && !taxResult.currency().equals(
+                    socialInsurance.currency()))) {
+                throw new IllegalArgumentException(
+                        "tax and social-insurance projection lineage is invalid");
+            }
+            token(workerTitle, 512, "workerTitle");
+            token(policyVersion, 64, "policyVersion");
+            token(packVersion, 64, "packVersion");
+            if (activationRevision < 1 || effectiveFrom == null
+                    || (effectiveTo != null
+                    && !effectiveTo.isAfter(effectiveFrom))) {
+                throw new IllegalArgumentException(
+                        "statutory projection period is invalid");
+            }
+        }
+
+        boolean taxMissing() {
+            return taxResult == null;
+        }
+
+        boolean socialInsuranceMissing() {
+            return socialInsurance == null;
+        }
     }
 
     record ProviderSourceLine(
