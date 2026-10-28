@@ -8,9 +8,28 @@ plugins {
 allprojects {
     group = 'com.dwp'
     version = '1.0.0'
+
+    def devRuntimeBuildRoot = providers.gradleProperty('dwpDevRuntimeBuildRoot').orNull
+    if (devRuntimeBuildRoot != null) {
+        if (devRuntimeBuildRoot.trim().isEmpty()) {
+            throw new GradleException('dwpDevRuntimeBuildRoot must not be blank')
+        }
+        def projectPathKey = project.path
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8)
+                .encodeHex()
+                .toString()
+        layout.buildDirectory.set(
+                new File(rootProject.file(devRuntimeBuildRoot), projectPathKey)
+        )
+    }
     
     repositories {
         mavenCentral()
+    }
+
+    tasks.withType(org.gradle.api.tasks.bundling.Jar).configureEach {
+        preserveFileTimestamps = false
+        reproducibleFileOrder = true
     }
 }
 

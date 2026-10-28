@@ -8,6 +8,7 @@ import base64
 import fcntl
 import hashlib
 import http.client
+import io
 import json
 import math
 import os
@@ -23,6 +24,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -39,6 +41,10 @@ RUNTIME_ROOT = BACKEND_ROOT / ".dev-runtime"
 LOG_ROOT = RUNTIME_ROOT / "logs"
 STATE_FILE = RUNTIME_ROOT / "processes.json"
 STATE_LOCK_FILE = RUNTIME_ROOT / "devctl.lock"
+RUNTIME_IMAGE_BUILD_LOCK_FILE = RUNTIME_ROOT / "runtime-image-build.lock"
+RUNTIME_WATCH_LOCK_FILE = RUNTIME_ROOT / "runtime-watch.lock"
+RUNTIME_IMAGE_BUILD_ROOT = RUNTIME_ROOT / "image-build"
+RUNTIME_IMAGE_ROOT = RUNTIME_ROOT / "images" / "sha256"
 LOCAL_APPROVAL_KEYS_ROOT = RUNTIME_ROOT / "keys"
 LOCAL_APPROVAL_KEYS_FILE = LOCAL_APPROVAL_KEYS_ROOT / "approval-runtime-jwks.json"
 LOCAL_JWK_GENERATOR = BACKEND_ROOT / "scripts" / "DevRuntimeJwkGenerator.java"
@@ -69,6 +75,7 @@ MAX_FRONTEND_NODE_MAJOR = 25
 DEFAULT_FRONTEND_NODE_OPTIONS = "--max-old-space-size=8192"
 ENVIRONMENT_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 CANONICAL_POSITIVE_INTEGER = re.compile(r"^[1-9][0-9]*$")
+SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 SERVICE_STARTUP_TIMEOUT_ENVIRONMENT = "DWP_DEVCTL_STARTUP_TIMEOUT_SECONDS"
 SPRING_READINESS_PATH = "/actuator/health/readiness"
 DEFAULT_SERVICE_STARTUP_TIMEOUT_SECONDS = 300
@@ -82,6 +89,14 @@ NEW_PROCESS_KILL_TIMEOUT_SECONDS = 3.0
 PROCESS_GROUP_POLL_INTERVAL_SECONDS = 0.05
 PORT_RELEASE_TIMEOUT_SECONDS = 10.0
 PORT_RELEASE_POLL_INTERVAL_SECONDS = 0.1
+RUNTIME_IMAGE_SCHEMA_VERSION = 1
+RUNTIME_IMAGE_MODE = 0o400
+RUNTIME_DIRECTORY_MODE = 0o700
+RUNTIME_IMAGE_MAX_NESTED_ZIP_DEPTH = 3
+RUNTIME_IMAGE_MAX_ZIP_ENTRIES = 250_000
+RUNTIME_IMAGE_MAX_UNCOMPRESSED_ZIP_BYTES = 4 * 1024 * 1024 * 1024
+WATCH_POLL_INTERVAL_SECONDS = 1.0
+WATCH_DEBOUNCE_SECONDS = 1.0
 LEGACY_IDENTITY_CONFIRMATION_INTERVAL_SECONDS = 0.1
 MEETING_READINESS_MAXIMUM_RESPONSE_BYTES = 1024 * 1024
 MEETING_READINESS_MAXIMUM_METRIC_VALUE = (1 << 63) - 1
@@ -109,6 +124,20 @@ class Service:
     command: tuple[str, ...]
     port: int
     health_path: str
+
+
+class PreparedRuntimeImages(dict[str, dict[str, object]]):
+    """Immutable-image mapping bound to the exact source generation it built."""
+
+    def __init__(
+        self,
+        images: dict[str, dict[str, object]],
+        source_digest: str,
+    ) -> None:
+        super().__init__(images)
+        if not SHA256_HEX.fullmatch(source_digest):
+            raise RuntimeError("Prepared runtime source digest is not canonical.")
+        self.source_digest = source_digest
 
 
 class MissingRuntimeArtifactError(RuntimeError):
@@ -369,6 +398,28 @@ SERVICES = {
     ),
 }
 
+JAVA_SERVICE_MODULES = {
+    "auth": "dwp-auth-server",
+    "platform": "dwp-platform-server",
+    "people": "dwp-people-server",
+    "provider": "dwp-provider-server",
+    "approval": "dwp-approval-server",
+    "space": "dwp-space-server",
+    "messaging": "dwp-messaging-server",
+    "notification": "dwp-notification-server",
+    "meeting": "dwp-meeting-server",
+    "time": "dwp-time-server",
+    "payroll": "dwp-payroll-server",
+    "gateway": "dwp-gateway",
+}
+JAVA_SERVICE_NAMES = frozenset(JAVA_SERVICE_MODULES)
+WATCH_SHARED_MODULES = (
+    "dwp-core",
+    "dwp-audit",
+    "dwp-observability",
+    "dwp-platform-contracts",
+)
+
 SHARED_RUNTIME_ARTIFACT_DIRECTORIES = {
     "dwp-core": BACKEND_ROOT / "dwp-core" / "build" / "libs",
     "dwp-audit": BACKEND_ROOT / "dwp-audit" / "build" / "libs",
@@ -477,6 +528,39 @@ def _valid_state_integer(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
+def _runtime_image_relative_path(service_name: str, digest: str) -> str:
+    return (
+        RUNTIME_IMAGE_ROOT.relative_to(BACKEND_ROOT) / digest / f"{service_name}.jar"
+    ).as_posix()
+
+
+def _valid_runtime_image_envelope(service_name: str, value: object) -> bool:
+    if not isinstance(value, dict) or set(value) != {
+        "version",
+        "service",
+        "module",
+        "path",
+        "sha256",
+        "size",
+        "migrationDigest",
+    }:
+        return False
+    digest = value.get("sha256")
+    migration_digest = value.get("migrationDigest")
+    return bool(
+        value.get("version") == RUNTIME_IMAGE_SCHEMA_VERSION
+        and not isinstance(value.get("version"), bool)
+        and value.get("service") == service_name
+        and value.get("module") == JAVA_SERVICE_MODULES.get(service_name)
+        and isinstance(digest, str)
+        and SHA256_HEX.fullmatch(digest)
+        and isinstance(migration_digest, str)
+        and SHA256_HEX.fullmatch(migration_digest)
+        and _valid_state_integer(value.get("size"))
+        and value.get("path") == _runtime_image_relative_path(service_name, digest)
+    )
+
+
 def _validate_state(value: object) -> dict[str, dict[str, object]]:
     if not isinstance(value, dict):
         raise RuntimeError(f"Managed process state must be a JSON object: {STATE_FILE}")
@@ -499,6 +583,23 @@ def _validate_state(value: object) -> dict[str, dict[str, object]]:
             or not log_path
         ):
             raise RuntimeError(f"Invalid managed process state entry: {name}")
+        runtime_image = process_state.get("runtimeImage")
+        if runtime_image is not None and not _valid_runtime_image_envelope(
+            name, runtime_image
+        ):
+            raise RuntimeError(f"Invalid managed runtime image state entry: {name}")
+        if runtime_image is not None and name not in JAVA_SERVICE_NAMES:
+            raise RuntimeError(f"Non-Java service has a managed runtime image: {name}")
+        if runtime_image is not None:
+            expected_command = [
+                "java",
+                "-jar",
+                str(BACKEND_ROOT / str(runtime_image["path"])),
+            ]
+            if command != expected_command:
+                raise RuntimeError(
+                    f"Managed runtime image command is not canonical: {name}"
+                )
         state[name] = process_state
     return state
 
@@ -615,6 +716,68 @@ def state_change_lock() -> Iterator[None]:
                 fcntl.flock(descriptor, fcntl.LOCK_UN)
         finally:
             os.close(descriptor)
+
+
+def _ensure_owner_directory(path: Path) -> None:
+    if path != RUNTIME_ROOT:
+        _ensure_owner_directory(path.parent)
+    created = False
+    try:
+        path.mkdir(mode=RUNTIME_DIRECTORY_MODE)
+        created = True
+    except FileExistsError:
+        pass
+    metadata = path.lstat()
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+    ):
+        raise RuntimeError(f"Runtime path must be an owner-controlled directory: {path}")
+    if stat.S_IMODE(metadata.st_mode) != RUNTIME_DIRECTORY_MODE:
+        os.chmod(path, RUNTIME_DIRECTORY_MODE)
+    if created:
+        _fsync_directory(path.parent)
+
+
+@contextmanager
+def _runtime_file_lock(path: Path, *, nonblocking: bool = False) -> Iterator[None]:
+    _ensure_owner_directory(RUNTIME_ROOT)
+    flags = os.O_CREAT | os.O_RDWR
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except OSError as error:
+        raise RuntimeError(f"Unable to open runtime lock: {path}") from error
+    locked = False
+    try:
+        os.fchmod(descriptor, 0o600)
+        operation = fcntl.LOCK_EX | (fcntl.LOCK_NB if nonblocking else 0)
+        try:
+            fcntl.flock(descriptor, operation)
+        except BlockingIOError as error:
+            raise RuntimeError(f"Runtime lock is already held: {path}") from error
+        except OSError as error:
+            raise RuntimeError(f"Unable to acquire runtime lock: {path}") from error
+        locked = True
+        yield
+    finally:
+        try:
+            if locked:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
+
+
+def runtime_image_build_lock() -> Iterator[None]:
+    return _runtime_file_lock(RUNTIME_IMAGE_BUILD_LOCK_FILE)
+
+
+def runtime_watch_lock() -> Iterator[None]:
+    return _runtime_file_lock(RUNTIME_WATCH_LOCK_FILE, nonblocking=True)
 
 
 def _strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -1159,6 +1322,557 @@ def _stable_artifact_fingerprint(module: str, path: Path) -> dict[str, object]:
     raise RuntimeError(last_error)
 
 
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _gradle_project_build_directory(module: str) -> Path:
+    project_path_key = f":{module}".encode("utf-8").hex()
+    return RUNTIME_IMAGE_BUILD_ROOT / project_path_key
+
+
+def _runtime_image_path(envelope: dict[str, object]) -> Path:
+    path = BACKEND_ROOT / str(envelope["path"])
+    expected = RUNTIME_IMAGE_ROOT / str(envelope["sha256"]) / (
+        f"{envelope['service']}.jar"
+    )
+    if path != expected:
+        raise RuntimeError("Runtime image path is not canonical.")
+    return path
+
+
+def _database_resource_entry(name: str) -> bool:
+    return name.startswith("db/") or name.startswith("BOOT-INF/classes/db/")
+
+
+def _regular_zip_entry(info: zipfile.ZipInfo) -> bool:
+    mode = (info.external_attr >> 16) & 0xFFFF
+    return not info.is_dir() and stat.S_IFMT(mode) in {0, stat.S_IFREG}
+
+
+def _collect_database_resources(
+    archive: zipfile.ZipFile,
+    container_path: str,
+    depth: int,
+    budget: dict[str, int],
+    resources: list[tuple[str, str, bytes]],
+) -> None:
+    entries = archive.infolist()
+    names = [entry.filename for entry in entries]
+    if len(names) != len(set(names)):
+        raise RuntimeError(
+            f"Runtime image archive has duplicate entries: {container_path}"
+        )
+    budget["entries"] += len(entries)
+    budget["bytes"] += sum(entry.file_size for entry in entries)
+    if budget["entries"] > RUNTIME_IMAGE_MAX_ZIP_ENTRIES:
+        raise RuntimeError("Runtime image nested archive entry limit was exceeded.")
+    if budget["bytes"] > RUNTIME_IMAGE_MAX_UNCOMPRESSED_ZIP_BYTES:
+        raise RuntimeError("Runtime image nested archive size limit was exceeded.")
+    try:
+        corrupt_entry = archive.testzip()
+    except (OSError, RuntimeError, zipfile.BadZipFile) as error:
+        raise RuntimeError(
+            f"Runtime image nested archive is corrupt: {container_path}"
+        ) from error
+    if corrupt_entry is not None:
+        raise RuntimeError(
+            f"Runtime image archive contains a corrupt entry {corrupt_entry}: "
+            f"{container_path}"
+        )
+
+    for entry in sorted(entries, key=lambda candidate: candidate.filename):
+        if entry.is_dir():
+            continue
+        if _database_resource_entry(entry.filename):
+            if not _regular_zip_entry(entry):
+                raise RuntimeError(
+                    f"Database resource is not a regular archive entry: "
+                    f"{container_path}!/{entry.filename}"
+                )
+            try:
+                content = archive.read(entry)
+            except (OSError, RuntimeError, zipfile.BadZipFile) as error:
+                raise RuntimeError(
+                    f"Database resource is unreadable: "
+                    f"{container_path}!/{entry.filename}"
+                ) from error
+            resources.append((container_path, entry.filename, content))
+
+        if (
+            entry.filename.startswith("BOOT-INF/lib/")
+            and entry.filename.endswith(".jar")
+        ):
+            if not _regular_zip_entry(entry):
+                raise RuntimeError(
+                    f"Nested runtime library is not a regular archive entry: "
+                    f"{container_path}!/{entry.filename}"
+                )
+            if depth >= RUNTIME_IMAGE_MAX_NESTED_ZIP_DEPTH:
+                raise RuntimeError("Runtime image nested archive depth limit was exceeded.")
+            try:
+                nested_content = archive.read(entry)
+                with zipfile.ZipFile(io.BytesIO(nested_content)) as nested_archive:
+                    _collect_database_resources(
+                        nested_archive,
+                        f"{container_path}!/{entry.filename}",
+                        depth + 1,
+                        budget,
+                        resources,
+                    )
+            except RuntimeError:
+                raise
+            except (OSError, EOFError, zipfile.BadZipFile) as error:
+                raise RuntimeError(
+                    f"Nested runtime library is not a valid archive: "
+                    f"{container_path}!/{entry.filename}"
+                ) from error
+
+
+def _database_resource_digest(archive: zipfile.ZipFile) -> str:
+    resources: list[tuple[str, str, bytes]] = []
+    _collect_database_resources(
+        archive,
+        "application.jar",
+        0,
+        {"entries": 0, "bytes": 0},
+        resources,
+    )
+    digest = hashlib.sha256()
+    for container_path, entry_path, content in sorted(resources):
+        for value in (
+            container_path.encode("utf-8"),
+            entry_path.encode("utf-8"),
+            content,
+        ):
+            digest.update(len(value).to_bytes(8, "big"))
+            digest.update(value)
+    return digest.hexdigest()
+
+
+def _boot_jar_metadata(path: Path) -> tuple[dict[str, object], str]:
+    before = _stable_artifact_fingerprint("runtime-image", path)
+    try:
+        with zipfile.ZipFile(path) as archive:
+            names = archive.namelist()
+            if len(names) != len(set(names)):
+                raise RuntimeError(f"Executable bootJar has duplicate entries: {path}")
+            if "META-INF/MANIFEST.MF" not in names:
+                raise RuntimeError(f"Executable bootJar has no manifest: {path}")
+            manifest = archive.read("META-INF/MANIFEST.MF")
+            if (
+                b"Main-Class: org.springframework.boot.loader.launch.JarLauncher"
+                not in manifest
+                or not re.search(rb"(?:^|\r?\n)Start-Class: [^\r\n]+", manifest)
+            ):
+                raise RuntimeError(f"Executable bootJar manifest is incomplete: {path}")
+            if (
+                not any(name.startswith("BOOT-INF/classes/") for name in names)
+                or not any(name.startswith("BOOT-INF/lib/") for name in names)
+            ):
+                raise RuntimeError(f"Executable bootJar layout is incomplete: {path}")
+            migration_digest = _database_resource_digest(archive)
+    except RuntimeError:
+        raise
+    except (OSError, zipfile.BadZipFile) as error:
+        raise RuntimeError(f"Executable bootJar is unreadable: {path}") from error
+    after = _stable_artifact_fingerprint("runtime-image", path)
+    if before != after:
+        raise RuntimeError(f"Executable bootJar changed during validation: {path}")
+    return before, migration_digest
+
+
+def _validate_isolated_output_directory(path: Path, *, missing_ok: bool) -> bool:
+    try:
+        relative_parts = path.relative_to(RUNTIME_IMAGE_BUILD_ROOT).parts
+    except ValueError as error:
+        raise RuntimeError(
+            f"Isolated Gradle output escaped its build root: {path}"
+        ) from error
+    try:
+        root_metadata = RUNTIME_IMAGE_BUILD_ROOT.lstat()
+    except OSError as error:
+        if missing_ok:
+            return False
+        raise RuntimeError(
+            f"Isolated Gradle build root is missing: {RUNTIME_IMAGE_BUILD_ROOT}"
+        ) from error
+    if (
+        stat.S_ISLNK(root_metadata.st_mode)
+        or not stat.S_ISDIR(root_metadata.st_mode)
+        or root_metadata.st_uid != os.getuid()
+        or stat.S_IMODE(root_metadata.st_mode) != RUNTIME_DIRECTORY_MODE
+    ):
+        raise RuntimeError(
+            f"Isolated Gradle build root must be owner-only and non-symlink: "
+            f"{RUNTIME_IMAGE_BUILD_ROOT}"
+        )
+    current = RUNTIME_IMAGE_BUILD_ROOT
+    for part in relative_parts:
+        current = current / part
+        try:
+            metadata = current.lstat()
+        except OSError as error:
+            if missing_ok:
+                return False
+            raise RuntimeError(
+                f"Isolated Gradle output directory is missing: {current}"
+            ) from error
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+        ):
+            raise RuntimeError(
+                f"Isolated Gradle output must stay in owner-controlled directories: "
+                f"{current}"
+            )
+    return True
+
+
+def _prepare_isolated_boot_jar_outputs(services: Iterable[Service]) -> None:
+    for service in services:
+        module = JAVA_SERVICE_MODULES[service.name]
+        artifact_directory = _gradle_project_build_directory(module) / "libs"
+        if not _validate_isolated_output_directory(
+            artifact_directory, missing_ok=True
+        ):
+            continue
+        for path in artifact_directory.glob("*.jar"):
+            if path.name.endswith("-plain.jar"):
+                continue
+            metadata = path.lstat()
+            if (
+                stat.S_ISLNK(metadata.st_mode)
+                or not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.getuid()
+            ):
+                raise RuntimeError(
+                    f"Refusing to replace unsafe isolated bootJar output: {path}"
+                )
+            path.unlink()
+        _fsync_directory(artifact_directory)
+
+
+def _discover_built_boot_jar(service_name: str) -> Path:
+    module = JAVA_SERVICE_MODULES[service_name]
+    artifact_directory = _gradle_project_build_directory(module) / "libs"
+    _validate_isolated_output_directory(artifact_directory, missing_ok=False)
+    candidates = sorted(
+        path
+        for path in artifact_directory.glob("*.jar")
+        if not path.name.endswith("-plain.jar")
+    )
+    if len(candidates) != 1:
+        raise RuntimeError(
+            f"Expected exactly one isolated executable bootJar for {service_name}, "
+            f"found {len(candidates)} in {artifact_directory}."
+        )
+    return candidates[0]
+
+
+def _runtime_image_envelope(
+    service_name: str,
+    fingerprint: dict[str, object],
+    migration_digest: str,
+) -> dict[str, object]:
+    digest = str(fingerprint["sha256"])
+    return {
+        "version": RUNTIME_IMAGE_SCHEMA_VERSION,
+        "service": service_name,
+        "module": JAVA_SERVICE_MODULES[service_name],
+        "path": _runtime_image_relative_path(service_name, digest),
+        "sha256": digest,
+        "size": int(fingerprint["size"]),
+        "migrationDigest": migration_digest,
+    }
+
+
+def validate_published_runtime_image(
+    service: Service, envelope: object
+) -> Path:
+    if not _valid_runtime_image_envelope(service.name, envelope):
+        raise RuntimeError(f"Invalid runtime image metadata for {service.name}.")
+    assert isinstance(envelope, dict)
+    path = _runtime_image_path(envelope)
+    for parent in (
+        RUNTIME_ROOT,
+        RUNTIME_ROOT / "images",
+        RUNTIME_IMAGE_ROOT,
+        path.parent,
+    ):
+        try:
+            parent_metadata = parent.lstat()
+        except OSError as error:
+            raise RuntimeError(f"Runtime image directory is missing: {parent}") from error
+        if (
+            stat.S_ISLNK(parent_metadata.st_mode)
+            or not stat.S_ISDIR(parent_metadata.st_mode)
+            or parent_metadata.st_uid != os.getuid()
+            or stat.S_IMODE(parent_metadata.st_mode) != RUNTIME_DIRECTORY_MODE
+        ):
+            raise RuntimeError(
+                f"Runtime image directory must be owner-only and non-symlink: {parent}"
+            )
+    try:
+        metadata = path.lstat()
+    except OSError as error:
+        raise RuntimeError(f"Runtime image is missing for {service.name}: {path}") from error
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or stat.S_IMODE(metadata.st_mode) != RUNTIME_IMAGE_MODE
+    ):
+        raise RuntimeError(
+            f"Runtime image must be an owner-only read-only regular file: {path}"
+        )
+    fingerprint, migration_digest = _boot_jar_metadata(path)
+    if (
+        fingerprint["sha256"] != envelope["sha256"]
+        or fingerprint["size"] != envelope["size"]
+        or migration_digest != envelope["migrationDigest"]
+    ):
+        raise RuntimeError(f"Runtime image integrity check failed for {service.name}.")
+    return path
+
+
+def _publish_runtime_image(
+    service: Service,
+    source: Path,
+    fingerprint: dict[str, object],
+    migration_digest: str,
+) -> dict[str, object]:
+    envelope = _runtime_image_envelope(service.name, fingerprint, migration_digest)
+    _ensure_owner_directory(RUNTIME_IMAGE_ROOT)
+    destination_directory = RUNTIME_IMAGE_ROOT / str(envelope["sha256"])
+    _ensure_owner_directory(destination_directory)
+    destination = _runtime_image_path(envelope)
+    if destination.exists() or destination.is_symlink():
+        validate_published_runtime_image(service, envelope)
+        return envelope
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{service.name}.", suffix=".jar.tmp", dir=destination_directory
+    )
+    temporary_path = Path(temporary_name)
+    source_flags = os.O_RDONLY
+    if hasattr(os, "O_CLOEXEC"):
+        source_flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        source_flags |= os.O_NOFOLLOW
+    source_descriptor = -1
+    try:
+        os.fchmod(descriptor, 0o600)
+        source_descriptor = os.open(source, source_flags)
+        before = os.fstat(source_descriptor)
+        digest = hashlib.sha256()
+        with os.fdopen(descriptor, "wb") as target:
+            descriptor = -1
+            while True:
+                chunk = os.read(source_descriptor, ARTIFACT_FINGERPRINT_CHUNK_BYTES)
+                if not chunk:
+                    break
+                digest.update(chunk)
+                target.write(chunk)
+            target.flush()
+            os.fsync(target.fileno())
+        after = os.fstat(source_descriptor)
+        final_source = source.lstat()
+        if (
+            _artifact_stat_signature(before) != _artifact_stat_signature(after)
+            or _artifact_stat_signature(before) != _artifact_stat_signature(final_source)
+            or digest.hexdigest() != envelope["sha256"]
+        ):
+            raise RuntimeError(
+                f"Executable bootJar changed while publishing {service.name}."
+            )
+        copied_fingerprint, copied_migration_digest = _boot_jar_metadata(temporary_path)
+        if (
+            copied_fingerprint["sha256"] != envelope["sha256"]
+            or copied_fingerprint["size"] != envelope["size"]
+            or copied_migration_digest != migration_digest
+        ):
+            raise RuntimeError(f"Published runtime image changed for {service.name}.")
+        os.chmod(temporary_path, RUNTIME_IMAGE_MODE)
+        try:
+            os.link(temporary_path, destination, follow_symlinks=False)
+        except FileExistsError:
+            validate_published_runtime_image(service, envelope)
+        _fsync_directory(destination_directory)
+    finally:
+        if source_descriptor >= 0:
+            os.close(source_descriptor)
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary_path.unlink(missing_ok=True)
+    validate_published_runtime_image(service, envelope)
+    return envelope
+
+
+def _runtime_source_files(services: Iterable[Service]) -> tuple[Path, ...]:
+    module_names = set(WATCH_SHARED_MODULES)
+    module_names.update(
+        JAVA_SERVICE_MODULES[service.name]
+        for service in services
+        if service.name in JAVA_SERVICE_NAMES
+    )
+    files: set[Path] = set()
+
+    def add_tree(root: Path) -> None:
+        if not root.exists() and not root.is_symlink():
+            return
+        root_metadata = root.lstat()
+        if stat.S_ISLNK(root_metadata.st_mode) or not stat.S_ISDIR(
+            root_metadata.st_mode
+        ):
+            raise RuntimeError(
+                f"Runtime build source tree must be a regular directory: {root}"
+            )
+        for directory, directory_names, file_names in os.walk(root):
+            directory_path = Path(directory)
+            metadata = directory_path.lstat()
+            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+                raise RuntimeError(
+                    f"Runtime build source directory is not a regular directory: "
+                    f"{directory_path}"
+                )
+            directory_names.sort()
+            file_names.sort()
+            for directory_name in directory_names:
+                child_directory = directory_path / directory_name
+                if stat.S_ISLNK(child_directory.lstat().st_mode):
+                    raise RuntimeError(
+                        f"Runtime build source must not contain a symlink directory: "
+                        f"{child_directory}"
+                    )
+            for file_name in file_names:
+                path = directory_path / file_name
+                path_metadata = path.lstat()
+                if stat.S_ISLNK(path_metadata.st_mode):
+                    raise RuntimeError(
+                        f"Runtime build source must not be a symlink: {path}"
+                    )
+                if stat.S_ISREG(path_metadata.st_mode):
+                    files.add(path)
+
+    for name in (
+        "build.gradle",
+        "build.gradle.kts",
+        "settings.gradle",
+        "settings.gradle.kts",
+        "gradle.properties",
+        "gradlew",
+    ):
+        candidate = BACKEND_ROOT / name
+        if candidate.is_file():
+            files.add(candidate)
+    add_tree(BACKEND_ROOT / "gradle")
+    build_src_root = BACKEND_ROOT / "buildSrc"
+    for name in (
+        "build.gradle",
+        "build.gradle.kts",
+        "settings.gradle",
+        "settings.gradle.kts",
+        "gradle.properties",
+    ):
+        candidate = build_src_root / name
+        if candidate.is_file():
+            files.add(candidate)
+    add_tree(build_src_root / "src")
+    for module in sorted(module_names):
+        module_root = BACKEND_ROOT / module
+        for build_name in ("build.gradle", "build.gradle.kts"):
+            build_file = module_root / build_name
+            if build_file.is_file():
+                files.add(build_file)
+        add_tree(module_root / "src")
+    return tuple(sorted(files))
+
+
+def capture_runtime_source_digest(services: Iterable[Service]) -> str:
+    selected = list(services)
+    digest = hashlib.sha256()
+    for path in _runtime_source_files(selected):
+        fingerprint = _stable_artifact_fingerprint("runtime-source", path)
+        relative = path.relative_to(BACKEND_ROOT).as_posix().encode("utf-8")
+        content_digest = str(fingerprint["sha256"]).encode("ascii")
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(content_digest)
+    return digest.hexdigest()
+
+
+def stage_runtime_images(
+    services: Iterable[Service],
+) -> PreparedRuntimeImages:
+    selected = [service for service in services if service.name in JAVA_SERVICE_NAMES]
+    if not selected:
+        return PreparedRuntimeImages({}, hashlib.sha256(b"").hexdigest())
+    selected_by_name = {service.name: service for service in selected}
+    ordered = [
+        selected_by_name[name] for name in START_ORDER if name in selected_by_name
+    ]
+    with runtime_image_build_lock():
+        _ensure_owner_directory(RUNTIME_IMAGE_BUILD_ROOT)
+        tasks = [
+            f":{JAVA_SERVICE_MODULES[service.name]}:bootJar" for service in ordered
+        ]
+        for attempt in range(ARTIFACT_SCAN_ATTEMPTS):
+            source_before = capture_runtime_source_digest(ordered)
+            _prepare_isolated_boot_jar_outputs(ordered)
+            subprocess.run(
+                (
+                    "./gradlew",
+                    "--no-daemon",
+                    "--console=plain",
+                    f"-PdwpDevRuntimeBuildRoot={RUNTIME_IMAGE_BUILD_ROOT}",
+                    *tasks,
+                ),
+                cwd=BACKEND_ROOT,
+                check=True,
+            )
+
+            candidates: dict[str, tuple[Path, dict[str, object], str]] = {}
+            for service in ordered:
+                source = _discover_built_boot_jar(service.name)
+                fingerprint, migration_digest = _boot_jar_metadata(source)
+                candidates[service.name] = (source, fingerprint, migration_digest)
+            if source_before != capture_runtime_source_digest(ordered):
+                if attempt + 1 < ARTIFACT_SCAN_ATTEMPTS:
+                    continue
+                raise RuntimeError(
+                    "Runtime sources changed throughout the isolated image build; "
+                    "no managed process was signalled."
+                )
+
+            images: dict[str, dict[str, object]] = {}
+            for service in ordered:
+                source, fingerprint, migration_digest = candidates[service.name]
+                images[service.name] = _publish_runtime_image(
+                    service, source, fingerprint, migration_digest
+                )
+            if source_before == capture_runtime_source_digest(ordered):
+                return PreparedRuntimeImages(images, source_before)
+            if attempt + 1 >= ARTIFACT_SCAN_ATTEMPTS:
+                raise RuntimeError(
+                    "Runtime sources changed while publishing immutable images; "
+                    "no managed process was signalled."
+                )
+        raise RuntimeError("Runtime image build exceeded its bounded retry count.")
+
+
+def runtime_image_launch_command(
+    service: Service, envelope: dict[str, object]
+) -> tuple[str, ...]:
+    path = validate_published_runtime_image(service, envelope)
+    return ("java", "-jar", str(path))
+
+
 def capture_service_runtime_artifacts(
     service: Service,
     cache: dict[str, dict[str, object]] | None = None,
@@ -1245,6 +1959,31 @@ def service_artifact_staleness(
         if recorded.get(module) != current[module]:
             return True, f"{module} changed"
     return False, ""
+
+
+def service_runtime_staleness(
+    service: Service,
+    process_state: dict[str, object],
+    cache: ArtifactSnapshot | None = None,
+    desired_image: dict[str, object] | None = None,
+) -> tuple[bool, str]:
+    recorded_image = process_state.get("runtimeImage")
+    if service.name in JAVA_SERVICE_NAMES and (
+        desired_image is not None or recorded_image is not None
+    ):
+        if not isinstance(recorded_image, dict):
+            return True, "legacy mutable runtime"
+        try:
+            image_path = validate_published_runtime_image(service, recorded_image)
+        except RuntimeError as error:
+            return True, str(error)
+        expected_command = ["java", "-jar", str(image_path)]
+        if process_state.get("command") != expected_command:
+            return True, "runtime image launch command changed"
+        if desired_image is not None and recorded_image != desired_image:
+            return True, "runtime image generation changed"
+        return False, ""
+    return service_artifact_staleness(service, process_state, cache)
 
 
 def load_agent_local_environment(path: Path | None = None) -> dict[str, str]:
@@ -2843,6 +3582,7 @@ def start_service(
     state: dict[str, dict[str, object]],
     *,
     reject_external_owner: bool = False,
+    prepared_images: dict[str, dict[str, object]] | None = None,
 ) -> bool:
     current = state.get(service.name)
     if current and process_alive(int(current["pid"])):
@@ -2874,11 +3614,23 @@ def start_service(
             f"Port {service.port} for {service.name} is occupied by an unhealthy process."
         )
 
+    runtime_image: dict[str, object] | None = None
+    if prepared_images is not None and service.name in JAVA_SERVICE_NAMES:
+        prepared_image = prepared_images.get(service.name)
+        if prepared_image is None:
+            raise RuntimeError(
+                f"No prepared immutable runtime image exists for {service.name}."
+            )
+        runtime_image = dict(prepared_image)
+        launch_command = runtime_image_launch_command(service, runtime_image)
+    else:
+        launch_command = service.command
+
     LOG_ROOT.mkdir(parents=True, exist_ok=True)
     log_path = LOG_ROOT / f"{service.name}.log"
     with log_path.open("ab", buffering=0) as log_file:
         process = subprocess.Popen(
-            service.command,
+            launch_command,
             cwd=service.cwd,
             env=service_environment(service.name),
             stdin=subprocess.DEVNULL,
@@ -2894,7 +3646,7 @@ def start_service(
         for _ in range(20):
             try:
                 identity = capture_process_identity(
-                    process.pid, service.name, service.command
+                    process.pid, service.name, launch_command
                 )
                 break
             except RuntimeError as error:
@@ -2907,13 +3659,16 @@ def start_service(
                 f"Unable to establish ownership of the new {service.name} process."
             ) from identity_error
 
-        state[service.name] = {
+        process_state: dict[str, object] = {
             "pid": process.pid,
             "port": service.port,
-            "command": list(service.command),
+            "command": list(launch_command),
             "log": str(log_path),
             "processIdentity": identity,
         }
+        if runtime_image is not None:
+            process_state["runtimeImage"] = runtime_image
+        state[service.name] = process_state
         state_recorded = True
         save_state(state)
     except BaseException as start_error:
@@ -3021,7 +3776,11 @@ def wait_for_services(
                     # If baseline capture fails, future devctl runs can still
                     # authenticate and safely reconcile the untracked process.
                     save_state(state)
-                    if name in SERVICE_SHARED_RUNTIME_ARTIFACTS:
+                    if process_state.get("runtimeImage") is not None:
+                        validate_published_runtime_image(
+                            service, process_state["runtimeImage"]
+                        )
+                    elif name in SERVICE_SHARED_RUNTIME_ARTIFACTS:
                         process_state["runtimeArtifacts"] = (
                             capture_service_runtime_artifacts(service)
                         )
@@ -3227,7 +3986,9 @@ def stop_service(
 
 
 def reconcile_stale_services(
-    services: Iterable[Service], state: dict[str, dict[str, object]]
+    services: Iterable[Service],
+    state: dict[str, dict[str, object]],
+    prepared_images: dict[str, dict[str, object]] | None = None,
 ) -> set[str]:
     selected = list(services)
     for service in selected:
@@ -3241,8 +4002,13 @@ def reconcile_stale_services(
             process_state = state.get(service.name)
             if process_state is None or not process_alive(int(process_state["pid"])):
                 continue
-            stale, reason = service_artifact_staleness(
-                service, process_state, snapshot
+            desired_image = (
+                prepared_images.get(service.name)
+                if prepared_images is not None
+                else None
+            )
+            stale, reason = service_runtime_staleness(
+                service, process_state, snapshot, desired_image
             )
             if service.name == "meeting":
                 if stale:
@@ -3254,7 +4020,11 @@ def reconcile_stale_services(
                 candidates.append((service, reason))
         return candidates
 
-    candidates = stable_artifact_candidate_scan(selected, scan)
+    candidates = (
+        scan({})
+        if prepared_images is not None
+        else stable_artifact_candidate_scan(selected, scan)
+    )
 
     restarted = {service.name for service, _ in candidates}
     for service, reason in reversed(candidates):
@@ -3318,6 +4088,7 @@ def start_and_wait_services_in_phases(
     services: Iterable[Service],
     state: dict[str, dict[str, object]],
     require_owned_start_names: set[str] | None = None,
+    prepared_images: dict[str, dict[str, object]] | None = None,
 ) -> set[str]:
     selected = {service.name: service for service in services}
     require_owned_start_names = require_owned_start_names or set()
@@ -3330,11 +4101,24 @@ def start_and_wait_services_in_phases(
             phase_started: set[str] = set()
             for service in phase:
                 if service.name in require_owned_start_names:
-                    was_started = start_service(
-                        service, state, reject_external_owner=True
-                    )
+                    if prepared_images is None:
+                        was_started = start_service(
+                            service, state, reject_external_owner=True
+                        )
+                    else:
+                        was_started = start_service(
+                            service,
+                            state,
+                            reject_external_owner=True,
+                            prepared_images=prepared_images,
+                        )
                 else:
-                    was_started = start_service(service, state)
+                    if prepared_images is None:
+                        was_started = start_service(service, state)
+                    else:
+                        was_started = start_service(
+                            service, state, prepared_images=prepared_images
+                        )
                 if was_started:
                     phase_started.add(service.name)
                     started.add(service.name)
@@ -3357,7 +4141,9 @@ def start_and_wait_services_in_phases(
 
 
 def managed_runtime_drift(
-    services: Iterable[Service], state: dict[str, dict[str, object]]
+    services: Iterable[Service],
+    state: dict[str, dict[str, object]],
+    prepared_images: dict[str, dict[str, object]] | None = None,
 ) -> list[tuple[Service, str]]:
     """Inspect all selected managed services before any convergence signal."""
     selected = list(services)
@@ -3376,8 +4162,13 @@ def managed_runtime_drift(
                 candidates.append((service, "managed process exited"))
                 continue
             verify_managed_process(service, process_state)
-            stale, reason = service_artifact_staleness(
-                service, process_state, snapshot
+            desired_image = (
+                prepared_images.get(service.name)
+                if prepared_images is not None
+                else None
+            )
+            stale, reason = service_runtime_staleness(
+                service, process_state, snapshot, desired_image
             )
             if stale:
                 candidates.append((service, reason))
@@ -3390,6 +4181,8 @@ def managed_runtime_drift(
                 )
         return candidates
 
+    if prepared_images is not None:
+        return scan({})
     return stable_artifact_candidate_scan(selected, scan)
 
 
@@ -3397,11 +4190,12 @@ def converge_managed_services(
     services: Iterable[Service],
     state: dict[str, dict[str, object]],
     restarted_names: set[str],
+    prepared_images: dict[str, dict[str, object]] | None = None,
 ) -> None:
     selected = list(services)
     maximum_passes = len(selected) + 1
     for _ in range(maximum_passes):
-        candidates = managed_runtime_drift(selected, state)
+        candidates = managed_runtime_drift(selected, state, prepared_images)
         if not candidates:
             return
         exhausted = sorted(
@@ -3427,8 +4221,308 @@ def converge_managed_services(
             (service for service in selected if service.name in candidate_names),
             state,
             candidate_names,
+            prepared_images,
         )
     raise RuntimeError("Runtime artifact/readiness convergence exceeded its bound.")
+
+
+def _managed_watch_snapshot(
+    services: Iterable[Service],
+) -> dict[str, dict[str, object]]:
+    state = load_state()
+    snapshot: dict[str, dict[str, object]] = {}
+    for service in services:
+        process_state = state.get(service.name)
+        if process_state is None or not process_alive(int(process_state["pid"])):
+            continue
+        identity = verify_managed_process(service, process_state)
+        runtime_image = process_state.get("runtimeImage")
+        if not isinstance(runtime_image, dict):
+            raise RuntimeError(
+                f"Managed {service.name} still uses the legacy mutable runtime; "
+                f"run './dev up {service.name}' before watching it."
+            )
+        validate_published_runtime_image(service, runtime_image)
+        snapshot[service.name] = identity
+    return snapshot
+
+
+def _rollback_runtime_generation(
+    services: list[Service],
+    state: dict[str, dict[str, object]],
+    previous_images: dict[str, dict[str, object]],
+    previous_identities: dict[str, dict[str, object]],
+) -> None:
+    restore: list[Service] = []
+    for service in reversed(services):
+        process_state = state.get(service.name)
+        if process_state is None:
+            restore.append(service)
+            continue
+        if process_alive(int(process_state["pid"])):
+            current_identity = verify_managed_process(service, process_state)
+            if (
+                current_identity == previous_identities[service.name]
+                and process_state.get("runtimeImage")
+                == previous_images[service.name]
+            ):
+                continue
+            stop_service(service, state)
+            restore.append(service)
+        else:
+            _ensure_dead_state_has_no_live_group(service, process_state)
+            state.pop(service.name, None)
+            save_state(state)
+            wait_for_service_port_release(service)
+            restore.append(service)
+    if restore:
+        restore.reverse()
+        restore_names = {service.name for service in restore}
+        start_and_wait_services_in_phases(
+            restore,
+            state,
+            restore_names,
+            previous_images,
+        )
+
+
+def apply_watched_runtime_images(
+    services: Iterable[Service],
+    state: dict[str, dict[str, object]],
+    prepared_images: dict[str, dict[str, object]],
+) -> None:
+    selected = list(services)
+    previous_images: dict[str, dict[str, object]] = {}
+    previous_identities: dict[str, dict[str, object]] = {}
+    changed: list[Service] = []
+    for service in selected:
+        process_state = state.get(service.name)
+        if process_state is None or not process_alive(int(process_state["pid"])):
+            continue
+        recorded = process_state.get("runtimeImage")
+        desired = prepared_images.get(service.name)
+        if not isinstance(recorded, dict) or desired is None:
+            raise RuntimeError(
+                f"Watcher runtime image state is incomplete for {service.name}."
+            )
+        validate_published_runtime_image(service, recorded)
+        validate_published_runtime_image(service, desired)
+        previous_images[service.name] = dict(recorded)
+        if recorded != desired:
+            if recorded.get("migrationDigest") != desired.get("migrationDigest"):
+                raise RuntimeError(
+                    f"Database migration content changed for {service.name}; watcher "
+                    "left the current generation running. Apply it explicitly with "
+                    f"'./dev up {service.name}'."
+                )
+            previous_identities[service.name] = verify_managed_process(
+                service, process_state
+            )
+            changed.append(service)
+    if not changed:
+        return
+
+    changed_names = {service.name for service in changed}
+    changed_images = {
+        name: prepared_images[name]
+        for name in changed_names
+    }
+    previous_changed_images = {
+        name: previous_images[name]
+        for name in changed_names
+    }
+    previous_changed_identities = {
+        name: previous_identities[name]
+        for name in changed_names
+    }
+    try:
+        restarted = reconcile_stale_services(changed, state, changed_images)
+        start_and_wait_services_in_phases(
+            changed, state, restarted, changed_images
+        )
+        converge_managed_services(changed, state, restarted, changed_images)
+    except BaseException as generation_error:
+        try:
+            _rollback_runtime_generation(
+                changed,
+                state,
+                previous_changed_images,
+                previous_changed_identities,
+            )
+        except BaseException as rollback_error:
+            raise RuntimeError(
+                "Watched runtime generation failed and rollback was incomplete: "
+                f"{rollback_error}"
+            ) from generation_error
+        raise RuntimeError(
+            "Watched runtime generation failed; the previous immutable generation "
+            "was restored."
+        ) from generation_error
+
+
+def watch_runtime_services(profile_names: Iterable[str]) -> None:
+    resolved = resolve_services(profile_names)
+    selected = [service for service in resolved if service.name in JAVA_SERVICE_NAMES]
+    if not selected:
+        raise RuntimeError("The selected profiles contain no Java services to watch.")
+    doctor(selected)
+
+    stop_requested = False
+
+    def request_stop(_signum: int, _frame: object) -> None:
+        nonlocal stop_requested
+        stop_requested = True
+
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGINT, request_stop)
+    signal.signal(signal.SIGTERM, request_stop)
+    try:
+        with runtime_watch_lock():
+            with state_change_lock():
+                active_snapshot = _managed_watch_snapshot(selected)
+            if not active_snapshot:
+                raise RuntimeError(
+                    "No selected immutable managed services are running; run './dev up' "
+                    "for the desired profile first."
+                )
+            active_names = set(active_snapshot)
+            selected_by_name = {service.name: service for service in selected}
+            observed_digest = capture_runtime_source_digest(
+                selected_by_name[name]
+                for name in START_ORDER
+                if name in active_names
+            )
+            pending_since: float | None = None
+            pending_digest: str | None = None
+            failed_digest: str | None = None
+            print(
+                "watching immutable runtime sources for: "
+                + ", ".join(sorted(active_names))
+            )
+
+            while not stop_requested and active_names:
+                time.sleep(WATCH_POLL_INTERVAL_SECONDS)
+                if stop_requested:
+                    break
+                current_state = load_state()
+                active_names = {
+                    name
+                    for name in active_names
+                    if name in current_state
+                    and process_alive(int(current_state[name]["pid"]))
+                }
+                if not active_names:
+                    break
+                active_services = [
+                    selected_by_name[name]
+                    for name in START_ORDER
+                    if name in active_names
+                ]
+                current_digest = capture_runtime_source_digest(active_services)
+                if current_digest == observed_digest:
+                    pending_since = None
+                    pending_digest = None
+                    continue
+                if current_digest == failed_digest:
+                    continue
+                now = time.monotonic()
+                if pending_since is None or pending_digest != current_digest:
+                    pending_since = now
+                    pending_digest = current_digest
+                    continue
+                if now - pending_since < WATCH_DEBOUNCE_SECONDS:
+                    continue
+
+                with state_change_lock():
+                    build_snapshot = _managed_watch_snapshot(active_services)
+                build_names = active_names & set(build_snapshot)
+                if not build_names:
+                    active_names.clear()
+                    break
+                build_services = [
+                    selected_by_name[name]
+                    for name in START_ORDER
+                    if name in build_names
+                ]
+                try:
+                    prepared_images = stage_runtime_images(build_services)
+                except (RuntimeError, subprocess.CalledProcessError) as error:
+                    failed_digest = current_digest
+                    pending_since = None
+                    pending_digest = None
+                    print(f"watch build failed: {error}", file=sys.stderr)
+                    continue
+                if stop_requested:
+                    break
+                built_source_digest = (
+                    prepared_images.source_digest
+                    if isinstance(prepared_images, PreparedRuntimeImages)
+                    else current_digest
+                )
+                if (
+                    capture_runtime_source_digest(build_services)
+                    != built_source_digest
+                ):
+                    pending_since = None
+                    pending_digest = None
+                    continue
+
+                generation_applied = False
+                with state_change_lock():
+                    state = load_state()
+                    stable_services: list[Service] = []
+                    for service in build_services:
+                        process_state = state.get(service.name)
+                        if (
+                            process_state is None
+                            or not process_alive(int(process_state["pid"]))
+                        ):
+                            active_names.discard(service.name)
+                            continue
+                        try:
+                            current_identity = verify_managed_process(
+                                service, process_state
+                            )
+                        except RuntimeError:
+                            active_names.discard(service.name)
+                            continue
+                        if current_identity != build_snapshot.get(service.name):
+                            active_names.discard(service.name)
+                            continue
+                        stable_services.append(service)
+                    if {service.name for service in stable_services} == build_names:
+                        pre_apply_digest = capture_runtime_source_digest(
+                            stable_services
+                        )
+                        if pre_apply_digest == built_source_digest:
+                            try:
+                                apply_watched_runtime_images(
+                                    stable_services, state, prepared_images
+                                )
+                            except RuntimeError as error:
+                                failed_digest = built_source_digest
+                                print(
+                                    f"watch generation failed: {error}",
+                                    file=sys.stderr,
+                                )
+                            else:
+                                failed_digest = None
+                                generation_applied = True
+                pending_since = None
+                pending_digest = None
+                post_generation_digest = capture_runtime_source_digest(
+                    selected_by_name[name]
+                    for name in START_ORDER
+                    if name in active_names
+                )
+                if generation_applied and post_generation_digest == built_source_digest:
+                    observed_digest = built_source_digest
+                    print("watch generation applied")
+    finally:
+        signal.signal(signal.SIGINT, previous_sigint)
+        signal.signal(signal.SIGTERM, previous_sigterm)
+    print("runtime watcher stopped; managed services were left running")
 
 
 def stop_services() -> None:
@@ -3472,7 +4566,7 @@ def print_status() -> None:
         detail = ""
         if managed:
             try:
-                stale, detail = service_artifact_staleness(
+                stale, detail = service_runtime_staleness(
                     service, process_state  # type: ignore[arg-type]
                 )
             except RuntimeError as error:
@@ -3498,6 +4592,12 @@ def print_status() -> None:
         else:
             status = "stopped"
         suffix = f" pid={pid}" if managed else ""
+        if managed and isinstance(process_state, dict):
+            runtime_image = process_state.get("runtimeImage")
+            if isinstance(runtime_image, dict) and isinstance(
+                runtime_image.get("sha256"), str
+            ):
+                suffix += f" image={runtime_image['sha256'][:12]}"
         if detail and status in {"stale", "degraded"}:
             suffix += f" ({detail})"
         print(f"{name:10} {status:10} port={port}{suffix}")
@@ -3519,6 +4619,7 @@ def show_logs(service_name: str | None, follow: bool) -> None:
 
 
 def reset_database(confirmed: bool) -> None:
+    """Reset runtime data while caller holds build, watch, then state locks."""
     if not confirmed:
         raise RuntimeError("Database reset requires --yes because it deletes the Docker volume.")
     stop_services()
@@ -3528,7 +4629,11 @@ def reset_database(confirmed: bool) -> None:
     )
     if RUNTIME_ROOT.exists():
         for runtime_entry in RUNTIME_ROOT.iterdir():
-            if runtime_entry == STATE_LOCK_FILE:
+            if runtime_entry in {
+                STATE_LOCK_FILE,
+                RUNTIME_IMAGE_BUILD_LOCK_FILE,
+                RUNTIME_WATCH_LOCK_FILE,
+            }:
                 continue
             if runtime_entry.is_dir() and not runtime_entry.is_symlink():
                 shutil.rmtree(runtime_entry)
@@ -3554,6 +4659,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     up_parser = commands.add_parser("up", help="start infrastructure and services")
     up_parser.add_argument("profiles", nargs="*", default=["full"])
+
+    watch_parser = commands.add_parser(
+        "watch",
+        help="watch source changes and replace running immutable Java images",
+    )
+    watch_parser.add_argument("profiles", nargs="*", default=["full"])
 
     commands.add_parser("stop", help="stop managed application processes")
     commands.add_parser("down", help="stop applications and PostgreSQL")
@@ -3592,6 +4703,7 @@ def main() -> None:
     elif args.command == "up":
         services = resolve_services(args.profiles)
         doctor(services)
+        prepared_images = stage_runtime_images(services)
         with state_change_lock():
             start_infrastructure(
                 include_events=any(
@@ -3605,13 +4717,19 @@ def main() -> None:
                 include_payroll=any(service.name == "payroll" for service in services),
             )
             state = load_state()
-            restarted_names = reconcile_stale_services(services, state)
+            restarted_names = reconcile_stale_services(
+                services, state, prepared_images
+            )
             tracked_before_start = set(state)
             started_names = start_and_wait_services_in_phases(
-                services, state, restarted_names
+                services, state, restarted_names, prepared_images
             )
             restarted_names.update(started_names & tracked_before_start)
-            converge_managed_services(services, state, restarted_names)
+            converge_managed_services(
+                services, state, restarted_names, prepared_images
+            )
+    elif args.command == "watch":
+        watch_runtime_services(args.profiles)
     elif args.command == "stop":
         with state_change_lock():
             stop_services()
@@ -3630,8 +4748,10 @@ def main() -> None:
     elif args.command == "logs":
         show_logs(args.service, args.follow)
     elif args.command == "reset":
-        with state_change_lock():
-            reset_database(args.yes)
+        with runtime_image_build_lock():
+            with runtime_watch_lock():
+                with state_change_lock():
+                    reset_database(args.yes)
     elif args.command == "bootstrap-hris-authority":
         bootstrap_hris_authority(args.yes)
 
