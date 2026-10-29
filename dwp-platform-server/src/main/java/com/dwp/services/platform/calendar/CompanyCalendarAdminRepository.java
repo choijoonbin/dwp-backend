@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -88,7 +89,8 @@ class CompanyCalendarAdminRepository {
             event.event_type, event.starts_at, event.ends_at, event.time_zone,
             event.all_day, event.location, event.conference_url, event.status,
             event.visibility, event.recurrence_pattern, event.recurrence_interval,
-            event.recurrence_until, event.response_required, event.importance,
+            event.recurrence_until, event.recurrence_days, event.recurrence_count,
+            event.response_required, event.importance,
             event.deleted_at, event.purge_after, event.legal_hold, event.version,
             EXISTS (
                 SELECT 1 FROM cal_resource_bookings booking
@@ -136,7 +138,8 @@ class CompanyCalendarAdminRepository {
                SET title = ?, description = ?, event_type = ?, starts_at = ?, ends_at = ?,
                    time_zone = ?, all_day = ?, location = ?, conference_url = ?,
                    visibility = ?, recurrence_pattern = ?, recurrence_interval = ?,
-                   recurrence_until = ?, response_required = ?, importance = ?,
+                   recurrence_until = ?, recurrence_days = ?, recurrence_count = ?,
+                   response_required = ?, importance = ?,
                    version = version + 1,
                    updated_at = CURRENT_TIMESTAMP, updated_by = ?
              WHERE event.tenant_id = ? AND event.calendar_id = ? AND event.event_id = ?
@@ -260,6 +263,7 @@ class CompanyCalendarAdminRepository {
                 blankToNull(request.location()), blankToNull(request.conferenceUrl()),
                 request.visibility().name(), request.recurrence().name(),
                 request.recurrenceInterval(), request.recurrenceUntil(),
+                recurrenceDays(request.recurrenceDays()), request.recurrenceCount(),
                 request.responseRequired(), importance(request.importance()).name(), actorId,
                 tenantId, calendarId, eventId, request.version());
     }
@@ -292,6 +296,7 @@ class CompanyCalendarAdminRepository {
                 RecurrencePattern.valueOf(result.getString("recurrence_pattern")),
                 result.getInt("recurrence_interval"),
                 result.getObject("recurrence_until", LocalDate.class),
+                recurrenceDays(result), nullableInteger(result, "recurrence_count"),
                 result.getBoolean("response_required"),
                 EventImportance.valueOf(result.getString("importance")),
                 result.getObject("deleted_at", OffsetDateTime.class),
@@ -306,6 +311,25 @@ class CompanyCalendarAdminRepository {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private Integer[] recurrenceDays(List<DayOfWeek> values) {
+        if (values == null || values.isEmpty()) return null;
+        return values.stream().distinct().sorted()
+                .map(DayOfWeek::getValue).toArray(Integer[]::new);
+    }
+
+    private List<DayOfWeek> recurrenceDays(ResultSet result) throws SQLException {
+        java.sql.Array array = result.getArray("recurrence_days");
+        if (array == null) return List.of();
+        return java.util.Arrays.stream((Object[]) array.getArray())
+                .map(value -> DayOfWeek.of(((Number) value).intValue()))
+                .distinct().sorted().toList();
+    }
+
+    private Integer nullableInteger(ResultSet result, String column) throws SQLException {
+        int value = result.getInt(column);
+        return result.wasNull() ? null : value;
     }
 
     record CompanyCalendarRow(
@@ -323,7 +347,9 @@ class CompanyCalendarAdminRepository {
             EventType type, OffsetDateTime startsAt, OffsetDateTime endsAt,
             String timeZone, boolean allDay, String location, String conferenceUrl,
             EventStatus status, EventVisibility visibility, RecurrencePattern recurrence,
-            int recurrenceInterval, LocalDate recurrenceUntil, boolean responseRequired,
+            int recurrenceInterval, LocalDate recurrenceUntil,
+            List<DayOfWeek> recurrenceDays, Integer recurrenceCount,
+            boolean responseRequired,
             EventImportance importance, OffsetDateTime deletedAt, OffsetDateTime purgeAfter,
             boolean legalHold, boolean hasResource, long version) {
     }

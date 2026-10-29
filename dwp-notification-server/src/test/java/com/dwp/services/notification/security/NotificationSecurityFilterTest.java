@@ -206,6 +206,27 @@ class NotificationSecurityFilterTest {
         assertThat(execute(gatewayToken).getStatus()).isEqualTo(403);
     }
 
+    @Test
+    void acceptsLegacyAndKeyedProducerTokensDuringZeroDowntimeRotation() throws Exception {
+        String nextToken = "approval-next-secret-token-at-least-24";
+        NotificationSecurityFilter rotating = new NotificationSecurityFilter(
+                GATEWAY_TOKEN,
+                "dwp-gateway",
+                "dwp-approval-server",
+                "dwp-approval-server=" + APPROVAL_TOKEN,
+                "dwp-approval-server=next-2026:" + nextToken,
+                new ObjectMapper().findAndRegisterModules());
+        MockHttpServletRequest legacy = internal("dwp-approval-server", APPROVAL_TOKEN);
+        MockHttpServletRequest next = internal("dwp-approval-server", nextToken);
+        next.addHeader(NotificationSecurityFilter.SERVICE_KEY_ID_HEADER, "next-2026");
+        MockHttpServletRequest unknownKey = internal("dwp-approval-server", nextToken);
+        unknownKey.addHeader(NotificationSecurityFilter.SERVICE_KEY_ID_HEADER, "unknown");
+
+        assertThat(execute(rotating, legacy).getStatus()).isEqualTo(200);
+        assertThat(execute(rotating, next).getStatus()).isEqualTo(200);
+        assertThat(execute(rotating, unknownKey).getStatus()).isEqualTo(403);
+    }
+
     private MockHttpServletRequest request(String method, String path, String permissions) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.addHeader(NotificationSecurityFilter.SERVICE_TOKEN_HEADER, GATEWAY_TOKEN);
@@ -226,8 +247,14 @@ class NotificationSecurityFilterTest {
     }
 
     private MockHttpServletResponse execute(MockHttpServletRequest request) throws Exception {
+        return execute(filter, request);
+    }
+
+    private MockHttpServletResponse execute(
+            NotificationSecurityFilter candidate,
+            MockHttpServletRequest request) throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
-        filter.doFilter(request, response, new MockFilterChain());
+        candidate.doFilter(request, response, new MockFilterChain());
         return response;
     }
 }

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -67,7 +68,8 @@ class CalendarOccurrenceCommandServiceTest {
         when(repository.event(1L, 7L, null, eventId, false))
                 .thenReturn(Optional.of(before), Optional.of(updated), Optional.of(updated));
         when(occurrenceRepository.receipt(1L, 7L, key)).thenReturn(Optional.empty());
-        when(occurrenceRepository.advanceEventVersion(1L, eventId, 4L, 7L)).thenReturn(1);
+        when(occurrenceRepository.advanceEventVersion(
+                1L, eventId, 4L, 7L, null, null)).thenReturn(1);
         when(occurrenceRepository.upsertModified(1L, 7L, eventId, original, request))
                 .thenReturn(0L);
         when(occurrenceRepository.override(1L, eventId, original))
@@ -92,7 +94,7 @@ class CalendarOccurrenceCommandServiceTest {
 
         assertThat(replay.title()).isEqualTo("Only this review");
         verify(occurrenceRepository, times(1))
-                .advanceEventVersion(1L, eventId, 4L, 7L);
+                .advanceEventVersion(1L, eventId, 4L, 7L, null, null);
         verify(occurrenceRepository, times(1))
                 .upsertModified(1L, 7L, eventId, original, request);
     }
@@ -120,7 +122,8 @@ class CalendarOccurrenceCommandServiceTest {
                 request(first.plusDays(1), UUID.randomUUID(), resource.resourceId())))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("series");
-        verify(occurrenceRepository, never()).advanceEventVersion(anyLong(), any(), anyLong(), anyLong());
+        verify(occurrenceRepository, never()).advanceEventVersion(
+                anyLong(), any(), anyLong(), anyLong(), any(), any());
     }
 
     @Test
@@ -130,6 +133,55 @@ class CalendarOccurrenceCommandServiceTest {
         assertThat(service.discardOverridesAfterSeriesScheduleChange(1L, eventId)).isEqualTo(2);
 
         verify(occurrenceRepository).deleteOverrides(1L, eventId);
+    }
+
+    @Test
+    void occurrenceMembershipUsesWeeklyByDayAndCountBounds() {
+        CalendarRepository.EventRow weekly = recurrence(
+                before, RecurrencePattern.WEEKLY,
+                List.of(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY), 4);
+
+        service.requireOccurrence(weekly, first.plusDays(2));
+        service.requireOccurrence(weekly, first.plusWeeks(1));
+
+        assertThatThrownBy(() -> service.requireOccurrence(weekly, first.plusDays(1)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("does not belong");
+        assertThatThrownBy(() -> service.requireOccurrence(weekly, first.plusWeeks(2)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("does not belong");
+    }
+
+    @Test
+    void occurrenceMembershipFastForwardsLegacyDailySeriesPastFourThousandOccurrences() {
+        OffsetDateTime oldAnchor = OffsetDateTime.parse("2010-01-01T09:00:00+09:00");
+        CalendarRepository.EventRow oldSeries = recurrence(
+                CalendarOccurrenceProjectorTest.event(eventId, oldAnchor, 4L),
+                RecurrencePattern.DAILY, List.of(), null);
+
+        service.requireOccurrence(
+                oldSeries, OffsetDateTime.parse("2026-10-28T09:00:00+09:00"));
+
+        assertThatThrownBy(() -> service.requireOccurrence(
+                oldSeries, OffsetDateTime.parse("2026-10-28T09:30:00+09:00")))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("does not belong");
+    }
+
+    private CalendarRepository.EventRow recurrence(
+            CalendarRepository.EventRow source,
+            RecurrencePattern pattern,
+            List<DayOfWeek> days,
+            Integer count) {
+        return new CalendarRepository.EventRow(
+                source.eventId(), source.calendarId(), source.calendarName(), source.calendarColor(),
+                source.organizerUserId(), source.organizerPersonPublicId(), source.organizerName(),
+                source.organizerEmail(), source.title(), source.description(), source.type(),
+                source.startsAt(), source.endsAt(), source.timeZone(), source.allDay(),
+                source.location(), source.conferenceUrl(), source.status(), source.visibility(),
+                pattern, 1, null, source.responseRequired(), source.myResponse(), source.resource(),
+                source.importance(), source.detailLevel(), source.starred(), source.preferenceVersion(),
+                source.accessLevel(), source.version(), days, count);
     }
 
     private CalendarDtos.UpdateEventRequest request(

@@ -302,9 +302,11 @@ class WorkplaceOperationsServiceTest {
                 .thenReturn(1);
         when(operations.adminBooking(1L, bookingId, false))
                 .thenReturn(Optional.of(cancelled));
+        when(operations.audit(eq(1L), eq(99L), any(), eq(bookingId),
+                eq("corr-admin"), anyMap())).thenReturn(UUID.randomUUID());
 
         WorkplaceOperationsDtos.AdminBooking result = service.forceCancel(
-                1L, 99L, bookingId, "en-US", "corr-admin",
+                1L, 99L, bookingId, "en-US", "corr-admin", "force-cancel-key",
                 new WorkplaceOperationsDtos.ForceCancelBookingRequest(
                         "Building evacuation", 3L));
 
@@ -323,7 +325,7 @@ class WorkplaceOperationsServiceTest {
     @Test
     void forceCancelRejectsBlankReasonBeforeLockingTheBooking() {
         assertThatThrownBy(() -> service.forceCancel(
-                1L, 99L, UUID.randomUUID(), "en-US", "corr-admin",
+                1L, 99L, UUID.randomUUID(), "en-US", "corr-admin", "force-cancel-key",
                 new WorkplaceOperationsDtos.ForceCancelBookingRequest("  ", 1L)))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE))
@@ -350,9 +352,11 @@ class WorkplaceOperationsServiceTest {
                 .thenReturn(Optional.of(current));
         when(operations.updateLegalHold(1L, 99L, bookingId, 4L, true)).thenReturn(1);
         when(operations.adminBooking(1L, bookingId, false)).thenReturn(Optional.of(held));
+        when(operations.audit(eq(1L), eq(99L), any(), eq(bookingId),
+                eq("corr-hold"), anyMap())).thenReturn(UUID.randomUUID());
 
         WorkplaceOperationsDtos.AdminBooking result = service.updateLegalHold(
-                1L, 99L, bookingId, "en-US", "corr-hold",
+                1L, 99L, bookingId, "en-US", "corr-hold", "legal-hold-key",
                 new WorkplaceOperationsDtos.LegalHoldRequest(
                         true, "Active investigation", 4L));
 
@@ -360,6 +364,31 @@ class WorkplaceOperationsServiceTest {
         verify(operations).audit(
                 eq(1L), eq(99L), eq("workplace.booking.legal_hold.applied"),
                 eq(bookingId), eq("corr-hold"), anyMap());
+    }
+
+    @Test
+    void administratorCommandReplayReturnsTheDurableSnapshotWithoutMutatingAgain() {
+        UUID bookingId = UUID.randomUUID();
+        WorkplaceOperationsDtos.AdminBooking cancelled = adminBookingDto(
+                adminBooking(bookingId, BookingStatus.CANCELLED, 4L));
+        String fingerprint = WorkplaceBookingCommandCoordinator.fingerprint(
+                "FORCE_CANCEL", bookingId, List.of("Building evacuation", 3L));
+        WorkplaceOperationsRepository.AdminCommandRow receipt =
+                new WorkplaceOperationsRepository.AdminCommandRow(
+                        bookingId, "FORCE_CANCEL", fingerprint, "{}");
+        when(operations.adminCommand(eq(1L), eq(99L), any()))
+                .thenReturn(Optional.of(receipt));
+        when(operations.adminCommandResult(receipt)).thenReturn(cancelled);
+
+        WorkplaceOperationsDtos.AdminBooking result = service.forceCancel(
+                1L, 99L, bookingId, "en-US", "corr-replay", "force-cancel-key",
+                new WorkplaceOperationsDtos.ForceCancelBookingRequest(
+                        "Building evacuation", 3L));
+
+        assertThat(result).isSameAs(cancelled);
+        verify(operations, never()).adminBookingForUpdate(any(), any(), any(Boolean.class));
+        verify(operations, never()).forceCancel(any(), any(), any(), any(), any());
+        verify(domainEvents, never()).bookingChanged(any(), any(), any(), any());
     }
 
     @Test
@@ -450,6 +479,18 @@ class WorkplaceOperationsServiceTest {
                 status == BookingStatus.CANCELLED ? OffsetDateTime.now() : null,
                 false, start.plusDays(365), null,
                 version, OffsetDateTime.now().minusDays(1), OffsetDateTime.now());
+    }
+
+    private WorkplaceOperationsDtos.AdminBooking adminBookingDto(
+            WorkplaceOperationsRepository.AdminBookingRow value) {
+        return new WorkplaceOperationsDtos.AdminBooking(
+                value.bookingId(), value.resourceId(), value.resourceName(), value.resourceType(),
+                value.siteId(), value.siteName(), value.floorId(), value.floorName(),
+                value.userId(), value.personPublicId(), value.bookedForDisplayName(),
+                value.purpose(), value.startsAt(), value.endsAt(), value.status(),
+                value.visibleToColleagues(), value.checkedInAt(), value.releasedAt(),
+                value.cancelledAt(), value.legalHold(), value.personalDataExpiresAt(),
+                value.anonymizedAt(), value.version(), value.createdAt(), value.updatedAt());
     }
 
     private String fingerprint(WorkplaceDtos.BookingRequest request) {

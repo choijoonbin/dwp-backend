@@ -53,6 +53,16 @@ final class LocalAttachmentStorage implements AttachmentStorage {
         }
     }
 
+    @Override
+    public ProviderHealth health() {
+        Path candidate = root;
+        while (candidate != null && !Files.exists(candidate)) candidate = candidate.getParent();
+        if (candidate == null || !Files.isDirectory(candidate) || !Files.isWritable(candidate)) {
+            return ProviderHealth.unavailable("LOCAL_STORAGE_NOT_WRITABLE");
+        }
+        return ProviderHealth.developmentOnly("LOCAL_STORAGE_DEVELOPMENT_ONLY");
+    }
+
     private Path resolve(String objectKey) {
         if (objectKey == null || !objectKey.matches("[a-zA-Z0-9/_-]{1,500}")) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Invalid attachment object key.");

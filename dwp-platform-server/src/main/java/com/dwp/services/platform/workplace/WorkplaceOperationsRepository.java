@@ -230,6 +230,78 @@ class WorkplaceOperationsRepository {
                 (result, ignored) -> adminBooking(result)).stream().findFirst();
     }
 
+    void lockAdminBookingCommand(
+            Long tenantId, Long actorId, String scopedIdempotencyKey) {
+        jdbc.getJdbcTemplate().query(
+                "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+                statement -> statement.setString(1,
+                        "workplace-admin-booking-command:" + tenantId + ":" + actorId
+                                + ":" + scopedIdempotencyKey),
+                result -> null);
+    }
+
+    Optional<AdminCommandRow> adminCommand(
+            Long tenantId, Long actorId, String scopedIdempotencyKey) {
+        return jdbc.query("""
+                SELECT booking_id,command_type,request_fingerprint,
+                       result_snapshot::text AS result_snapshot
+                  FROM wp_booking_commands
+                 WHERE tenant_id=:tenantId AND actor_user_id=:actorId
+                   AND idempotency_key=:idempotencyKey
+                """, new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("actorId", actorId)
+                        .addValue("idempotencyKey", scopedIdempotencyKey),
+                (result, ignored) -> new AdminCommandRow(
+                        result.getObject("booking_id", UUID.class),
+                        result.getString("command_type"),
+                        result.getString("request_fingerprint"),
+                        result.getString("result_snapshot"))).stream().findFirst();
+    }
+
+    WorkplaceOperationsDtos.AdminBooking adminCommandResult(AdminCommandRow row) {
+        try {
+            return mapper.readValue(
+                    row.resultSnapshot(), WorkplaceOperationsDtos.AdminBooking.class);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException(
+                    "Invalid Workplace administrator booking command snapshot", exception);
+        }
+    }
+
+    void completeAdminCommand(
+            Long tenantId,
+            Long actorId,
+            UUID bookingId,
+            String commandType,
+            String scopedIdempotencyKey,
+            String requestFingerprint,
+            WorkplaceOperationsDtos.AdminBooking result,
+            UUID auditEventId,
+            String correlationId,
+            OffsetDateTime completedAt) {
+        jdbc.update("""
+                INSERT INTO wp_booking_commands(
+                    command_id,tenant_id,actor_user_id,booking_id,command_type,
+                    idempotency_key,request_fingerprint,result_snapshot,audit_event_id,
+                    correlation_id,completed_at)
+                VALUES (:commandId,:tenantId,:actorId,:bookingId,:commandType,
+                        :idempotencyKey,:requestFingerprint,CAST(:resultSnapshot AS jsonb),
+                        :auditEventId,:correlationId,:completedAt)
+                """, new MapSqlParameterSource()
+                        .addValue("commandId", UUID.randomUUID())
+                        .addValue("tenantId", tenantId)
+                        .addValue("actorId", actorId)
+                        .addValue("bookingId", bookingId)
+                        .addValue("commandType", commandType)
+                        .addValue("idempotencyKey", scopedIdempotencyKey)
+                        .addValue("requestFingerprint", requestFingerprint)
+                        .addValue("resultSnapshot", json(result))
+                        .addValue("auditEventId", auditEventId)
+                        .addValue("correlationId", blank(correlationId))
+                        .addValue("completedAt", completedAt));
+    }
+
     int forceCancel(
             Long tenantId,
             Long actorId,
@@ -322,26 +394,29 @@ class WorkplaceOperationsRepository {
         return new AuditPageRows(content, total == null ? 0L : total);
     }
 
-    void audit(
+    UUID audit(
             Long tenantId,
             Long actorId,
             String action,
             UUID aggregateId,
             String correlationId,
             Map<String, ?> snapshot) {
+        UUID auditEventId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO wp_audit_events (
-                    tenant_id, action, aggregate_type, aggregate_id, actor_user_id,
+                    audit_event_id,tenant_id, action, aggregate_type, aggregate_id, actor_user_id,
                     correlation_id, snapshot)
-                VALUES (:tenantId, :action, 'BOOKING', :aggregateId, :actorId,
+                VALUES (:auditEventId,:tenantId, :action, 'BOOKING', :aggregateId, :actorId,
                         :correlationId, CAST(:snapshot AS jsonb))
                 """, new MapSqlParameterSource()
+                        .addValue("auditEventId", auditEventId)
                         .addValue("tenantId", tenantId)
                         .addValue("actorId", actorId)
                         .addValue("action", action)
                         .addValue("aggregateId", aggregateId)
                         .addValue("correlationId", blank(correlationId))
                         .addValue("snapshot", json(snapshot)));
+        return auditEventId;
     }
 
     private void appendTextFilter(
@@ -398,7 +473,7 @@ class WorkplaceOperationsRepository {
         }
     }
 
-    private String json(Map<String, ?> value) {
+    private String json(Object value) {
         try {
             return mapper.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
@@ -411,6 +486,10 @@ class WorkplaceOperationsRepository {
     }
 
     record IdempotencyRow(UUID bookingId, String requestFingerprint) {
+    }
+
+    record AdminCommandRow(UUID bookingId, String commandType, String requestFingerprint,
+                           String resultSnapshot) {
     }
 
     record AdminBookingPageRows(List<AdminBookingRow> content, long totalElements) {

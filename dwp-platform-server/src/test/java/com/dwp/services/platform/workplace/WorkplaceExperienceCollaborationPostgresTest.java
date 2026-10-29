@@ -137,6 +137,10 @@ class WorkplaceExperienceCollaborationPostgresTest {
         write(() -> service.savePlan(f.tenant(), OWNER, null, null,
                 new WorkPlanRequest(oldDate, PlanMode.REMOTE, null, null, null, null, Visibility.PRIVATE, null)));
         assertThat(repository.ownPlanOnDate(f.tenant(), OWNER, oldDate)).isPresent();
+        assertThat(repository.retentionBacklog()).satisfies(backlog -> {
+            assertThat(backlog.workPlans()).isGreaterThanOrEqualTo(1);
+            assertThat(backlog.oldestWorkPlanExpiredAt()).isNotNull();
+        });
         assertThat(write(() -> repository.deleteExpiredWorkPlans(500))).isEqualTo(1);
         assertThat(repository.ownPlanOnDate(f.tenant(), OWNER, oldDate)).isEmpty();
     }

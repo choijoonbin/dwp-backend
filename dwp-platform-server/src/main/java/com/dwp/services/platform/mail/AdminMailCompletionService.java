@@ -4,6 +4,7 @@ import com.dwp.platform.contract.ExecutionContext;
 import com.dwp.platform.contract.MailConnectorPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,8 +33,31 @@ import static com.dwp.services.platform.mail.MailWorkspaceDtos.*;
 @Service
 public class AdminMailCompletionService extends AdminMailCompletionPolicySupport {
 
+    private final MailSyncJobRepository syncJobs;
+    private final MailAttachmentSecurityReadiness attachmentSecurity;
+    private final int syncMaximumAttempts;
+
     @Autowired
     public AdminMailCompletionService(
+            AdminMailCompletionRepository repository,
+            MailConnectorRegistry connectorRegistry,
+            ObjectMapper objectMapper,
+            MailExternalSyncMaterializer syncMaterializer,
+            AdminMailOperationDurability operationDurability,
+            AdminMailPurgeTransactions purgeTransactions,
+            MailMemberDirectory memberDirectory,
+            MailSyncJobRepository syncJobs,
+            MailAttachmentSecurityReadiness attachmentSecurity,
+            @Value("${dwp.platform.mail.sync-worker.maximum-attempts:5}")
+            int syncMaximumAttempts) {
+        super(repository, connectorRegistry, objectMapper, syncMaterializer,
+                operationDurability, purgeTransactions, memberDirectory);
+        this.syncJobs = syncJobs;
+        this.attachmentSecurity = attachmentSecurity;
+        this.syncMaximumAttempts = positive(syncMaximumAttempts, "syncMaximumAttempts");
+    }
+
+    AdminMailCompletionService(
             AdminMailCompletionRepository repository,
             MailConnectorRegistry connectorRegistry,
             ObjectMapper objectMapper,
@@ -43,6 +67,25 @@ public class AdminMailCompletionService extends AdminMailCompletionPolicySupport
             MailMemberDirectory memberDirectory) {
         super(repository, connectorRegistry, objectMapper, syncMaterializer,
                 operationDurability, purgeTransactions, memberDirectory);
+        this.syncJobs = null;
+        this.attachmentSecurity = null;
+        this.syncMaximumAttempts = 5;
+    }
+
+    AdminMailCompletionService(
+            AdminMailCompletionRepository repository,
+            MailConnectorRegistry connectorRegistry,
+            ObjectMapper objectMapper,
+            MailExternalSyncMaterializer syncMaterializer,
+            AdminMailOperationDurability operationDurability,
+            AdminMailPurgeTransactions purgeTransactions,
+            MailMemberDirectory memberDirectory,
+            MailSyncJobRepository syncJobs) {
+        super(repository, connectorRegistry, objectMapper, syncMaterializer,
+                operationDurability, purgeTransactions, memberDirectory);
+        this.syncJobs = syncJobs;
+        this.attachmentSecurity = null;
+        this.syncMaximumAttempts = 5;
     }
 
     AdminMailCompletionService(
@@ -158,6 +201,17 @@ public class AdminMailCompletionService extends AdminMailCompletionPolicySupport
             }
             return connectionOperation(winner, true);
         }
+        if ("SYNC".equals(kind)) {
+            if (syncJobs == null) {
+                throw new IllegalStateException("SYNC_JOB_RUNTIME_UNAVAILABLE");
+            }
+            syncJobs.enqueue(
+                    tenantId, operationId, connectionId, actorId,
+                    connection.version(), "MANUAL", syncMaximumAttempts);
+            return connectionOperation(repository.connectionOperation(
+                    tenantId, actorId, request.idempotencyKey())
+                    .orElseThrow(this::conflict), false);
+        }
         OffsetDateTime evidenceAt = now();
         String state = "SUCCEEDED";
         String errorCode = null;
@@ -270,46 +324,6 @@ public class AdminMailCompletionService extends AdminMailCompletionPolicySupport
         List<AdminMailCompletionRepository.AccountRow> accounts =
                 repository.connectionAccounts(tenantId, connection.id());
         if (accounts.isEmpty()) throw failure("NO_ACTIVE_ACCOUNT");
-        if ("SYNC".equals(kind)) {
-            if (syncMaterializer == null) {
-                throw failure("SYNC_MATERIALIZER_UNAVAILABLE");
-            }
-            for (var account : accounts) {
-                AdminMailCompletionRepository.AccountRow pageAccount = account;
-                boolean complete = false;
-                for (int page = 0; page < MAX_SYNC_PAGES_PER_ACCOUNT; page++) {
-                    MailConnectorPort.SyncBatch batch = connector.synchronize(
-                            new MailConnectorPort.SyncRequest(
-                                    context, pageAccount.providerAccountRef(),
-                                    pageAccount.cursor(), 500));
-                    try {
-                        syncMaterializer.materialize(
-                                tenantId, actorId, pageAccount, batch);
-                    } catch (MailExternalSyncMaterializer.SyncFailure syncFailure) {
-                        throw failure(syncFailure.code());
-                    }
-                    if (!batch.partial()) {
-                        complete = true;
-                        break;
-                    }
-                    if (Objects.equals(pageAccount.cursor(), batch.nextCursor())) {
-                        throw failure("SYNC_CURSOR_DID_NOT_ADVANCE");
-                    }
-                    pageAccount = new AdminMailCompletionRepository.AccountRow(
-                            pageAccount.id(), pageAccount.email(),
-                            pageAccount.providerAccountRef(), batch.nextCursor());
-                }
-                if (!complete) {
-                    throw failure("SYNC_PAGE_LIMIT_REACHED");
-                }
-            }
-            if (repository.markConnectionSynchronized(
-                    tenantId, connection.id(), connection.version(), actorId) != 1) {
-                conflict("CONNECTION_VERSION_CONFLICT");
-            }
-            return;
-        }
-
         if (!Boolean.TRUE.equals(request.confirmedExternalImpact())) {
             throw badRequest("TEST_SEND_REQUIRES_EXTERNAL_IMPACT_CONFIRMATION");
         }
@@ -321,6 +335,40 @@ public class AdminMailCompletionService extends AdminMailCompletionPolicySupport
                 context, account.providerAccountRef(), operationId,
                 List.of(request.recipient().trim()), "DWP Mail connection test",
                 "This test message verifies the configured DWP Mail connection.", null));
+    }
+
+    private static int positive(int value, String name) {
+        if (value <= 0) throw new IllegalArgumentException(name + " must be positive");
+        return value;
+    }
+
+    @Override
+    PolicyEvidenceRow attachmentScannerPolicyRow() {
+        return attachmentSecurityRow(
+                "attachmentScannerReadiness", "ATTACHMENT", "SCANNER");
+    }
+
+    @Override
+    PolicyEvidenceRow dlpPolicyRow() {
+        return attachmentSecurityRow("dlpReadiness", "CONTENT", "DLP");
+    }
+
+    private PolicyEvidenceRow attachmentSecurityRow(
+            String key, String domain, String contentKind) {
+        if (attachmentSecurity == null) {
+            return "SCANNER".equals(contentKind)
+                    ? super.attachmentScannerPolicyRow() : super.dlpPolicyRow();
+        }
+        MailAttachmentSecurityReadiness.Snapshot snapshot = attachmentSecurity.snapshot();
+        return new PolicyEvidenceRow(
+                key, Boolean.toString(snapshot.enabled()),
+                Boolean.toString(snapshot.ready()),
+                snapshot.ready() ? "ENFORCED" : "UNAVAILABLE", "TENANT",
+                snapshot.owner(),
+                OffsetDateTime.ofInstant(snapshot.checkedAt(), ZoneOffset.UTC),
+                snapshot.errorCode(), domain, contentKind, "TENANT_DIRECT", false,
+                null, null, "UNAVAILABLE", List.of(), List.of(),
+                "UNAVAILABLE", "UNAVAILABLE");
     }
 
     @Transactional(readOnly = true)

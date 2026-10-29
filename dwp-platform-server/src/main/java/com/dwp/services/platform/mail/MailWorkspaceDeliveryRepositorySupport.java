@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.mail.MailWorkspaceDtos.*;
@@ -135,6 +136,7 @@ class MailWorkspaceDeliveryRepositorySupport {
                 UPDATE mail_delivery_outbox delivery
                    SET delivery_status = 'QUEUED', attempt_count = 0,
                        next_attempt_at = CURRENT_TIMESTAMP, last_error_code = NULL,
+                       reconciliation_state = 'NOT_REQUIRED',
                        lease_owner = NULL, lease_expires_at = NULL,
                        version = delivery.version + 1, updated_at = CURRENT_TIMESTAMP
                   FROM mail_threads thread, mail_accounts account,
@@ -148,7 +150,7 @@ class MailWorkspaceDeliveryRepositorySupport {
                        (delivery.delivery_status = 'LEASED'
                         AND delivery.lease_expires_at < CURRENT_TIMESTAMP)
                        OR
-                       (delivery.delivery_status = 'FAILED'
+                       (delivery.delivery_status IN ('FAILED', 'RESULT_UNKNOWN')
                         AND delivery.last_error_code = 'MAIL_PROVIDER_RESULT_UNKNOWN'
                         AND delivery.lease_owner IS NULL
                         AND delivery.lease_expires_at IS NULL)
@@ -233,10 +235,12 @@ class MailWorkspaceDeliveryRepositorySupport {
         return switch (bucket) {
             case "SCHEDULED" -> "delivery.delivery_status IN ('QUEUED','RETRY_WAIT') "
                     + "AND delivery.next_attempt_at > CURRENT_TIMESTAMP";
-            case "PROCESSING" -> "delivery.delivery_status IN ('QUEUED','RETRY_WAIT','LEASED') "
+            case "PROCESSING" -> "delivery.delivery_status IN "
+                    + "('QUEUED','RETRY_WAIT','LEASED','PROVIDER_ACCEPTED') "
                     + "AND delivery.next_attempt_at <= CURRENT_TIMESTAMP";
             case "COMPLETED" -> "delivery.delivery_status = 'DELIVERED'";
-            case "ATTENTION" -> "delivery.delivery_status IN ('FAILED','CANCELLED')";
+            case "ATTENTION" -> "delivery.delivery_status IN "
+                    + "('FAILED','CANCELLED','RESULT_UNKNOWN')";
             default -> "TRUE";
         };
     }
@@ -381,18 +385,17 @@ class MailWorkspaceDeliveryRepositorySupport {
         OffsetDateTime scheduledAt = result.getObject("scheduled_at", OffsetDateTime.class);
         OffsetDateTime leaseExpiresAt = result.getObject(
                 "lease_expires_at", OffsetDateTime.class);
-        if ("MAIL_PROVIDER_RESULT_UNKNOWN".equals(result.getString("last_error_code"))) {
-            return "UNKNOWN";
-        }
         if ("LEASED".equals(status) && leaseExpiresAt != null
                 && leaseExpiresAt.isBefore(OffsetDateTime.now())) {
-            return "UNKNOWN";
+            return "RESULT_UNKNOWN";
         }
         return switch (status) {
             case "QUEUED", "RETRY_WAIT" -> scheduledAt != null
                     && scheduledAt.isAfter(OffsetDateTime.now()) ? "SCHEDULED" : "QUEUED";
             case "LEASED" -> "SENDING";
-            case "DELIVERED" -> "ACCEPTED";
+            case "PROVIDER_ACCEPTED" -> "PROVIDER_ACCEPTED";
+            case "RESULT_UNKNOWN" -> "RESULT_UNKNOWN";
+            case "DELIVERED" -> "DELIVERED";
             case "FAILED" -> "FAILED";
             case "CANCELLED" -> "CANCELLED";
             default -> "UNKNOWN";
@@ -400,7 +403,7 @@ class MailWorkspaceDeliveryRepositorySupport {
     }
 
     static String deliveryAttentionState(String summaryState) {
-        return "UNKNOWN".equals(summaryState) ? "UNKNOWN" : "FAILED";
+        return "RESULT_UNKNOWN".equals(summaryState) ? "RESULT_UNKNOWN" : "FAILED";
     }
 
     boolean reschedulable(ResultSet result) throws SQLException {
@@ -423,7 +426,7 @@ class MailWorkspaceDeliveryRepositorySupport {
                 "lease_expires_at", OffsetDateTime.class);
         return ("LEASED".equals(status) && leaseExpiresAt != null
                     && leaseExpiresAt.isBefore(OffsetDateTime.now()))
-                || ("FAILED".equals(status)
+                || (Set.of("FAILED", "RESULT_UNKNOWN").contains(status)
                     && "MAIL_PROVIDER_RESULT_UNKNOWN".equals(
                             result.getString("last_error_code"))
                     && result.getString("lease_owner") == null

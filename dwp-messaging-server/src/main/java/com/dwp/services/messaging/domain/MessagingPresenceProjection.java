@@ -51,6 +51,51 @@ final class MessagingPresenceProjection {
         return presence.resolvePeople(subject.tenantId(), directory);
     }
 
+    static MessagingDtos.PersonPage peoplePage(
+            MessagingQueryRepository queries,
+            MessagingPresenceService presence,
+            MessagingRequestContext.Subject subject,
+            String query,
+            String organization,
+            String jobTitle,
+            String presenceFilter,
+            MessagingPeopleCursor.Cursor cursor,
+            int offset,
+            int limit) {
+        MessagingQueryRepository.PeoplePage directory = queries.peoplePage(
+                subject.tenantId(),
+                subject.userId(),
+                query,
+                organization,
+                jobTitle,
+                cursor,
+                offset,
+                limit);
+        MessagingPresenceService.PresenceSnapshot snapshot = presence.snapshot(
+                subject.tenantId(),
+                directory.items().stream().map(MessagingDtos.PersonSummary::userId).toList());
+        List<MessagingDtos.PersonSummary> resolved = presence.resolvePeople(
+                snapshot, directory.items());
+        List<MessagingDtos.PersonSummary> filtered = "ALL".equals(presenceFilter)
+                ? resolved
+                : resolved.stream()
+                        .filter(person -> presenceFilter.equals(person.presenceState()))
+                        .toList();
+        String nextCursor = directory.hasMore() && !directory.items().isEmpty()
+                ? MessagingPeopleCursor.encode(
+                        directory.items().get(directory.items().size() - 1),
+                        subject.tenantId(), subject.userId(), query, organization, jobTitle,
+                        presenceFilter)
+                : null;
+        return new MessagingDtos.PersonPage(
+                filtered,
+                directory.total(),
+                directory.hasMore(),
+                nextCursor,
+                cursor == null && directory.hasMore() ? offset + limit : null,
+                presence.metadata(snapshot));
+    }
+
     static MessagingDtos.ConversationDetail detail(
             MessagingQueryRepository queries,
             MessagingPresenceService presence,

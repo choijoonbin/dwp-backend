@@ -21,6 +21,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,7 +44,8 @@ class RoomServiceTest {
         RoomBookingPolicyService roomBookingPolicy = new RoomBookingPolicyService(
                 calendarRepository,
                 new CalendarSchedulingHorizon(Clock.fixed(
-                        Instant.parse("2026-08-18T00:00:00Z"), ZoneOffset.UTC)));
+                        Instant.parse("2026-08-18T00:00:00Z"), ZoneOffset.UTC)),
+                mock(WorkplaceRoomRecurrencePolicy.class));
         service = new RoomService(
                 calendarService, calendarRepository, roomRepository, roomBookingPolicy);
     }

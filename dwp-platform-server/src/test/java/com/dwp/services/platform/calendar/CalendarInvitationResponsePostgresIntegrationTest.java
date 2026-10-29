@@ -35,10 +35,13 @@ class CalendarInvitationResponsePostgresIntegrationTest {
     private static final long TENANT_ID = 9_295_001L;
     private static final long ACTOR_ID = 9_295_101L;
     private static final long ORGANIZER_ID = 9_295_102L;
+    private static final long DELEGATOR_ID = 9_295_103L;
     private static final UUID ACTOR_PERSON_ID =
             UUID.fromString("92950000-0000-4000-8000-000000000001");
     private static final UUID ORGANIZER_PERSON_ID =
             UUID.fromString("92950000-0000-4000-8000-000000000002");
+    private static final UUID DELEGATOR_PERSON_ID =
+            UUID.fromString("92950000-0000-4000-8000-000000000003");
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -72,6 +75,7 @@ class CalendarInvitationResponsePostgresIntegrationTest {
     void setUp() {
         for (String table : new String[] {
                 "cal_invitation_response_commands",
+                "cal_calendar_delegations",
                 "cal_audit_events",
                 "cal_event_attendees",
                 "cal_events",
@@ -88,7 +92,8 @@ class CalendarInvitationResponsePostgresIntegrationTest {
                 repository,
                 mock(WorkplaceRoomAccessPort.class),
                 horizon,
-                new RoomBookingPolicyService(repository, horizon));
+                new RoomBookingPolicyService(
+                        repository, horizon, new WorkplaceRoomRecurrencePolicy(jdbc)));
     }
 
     @Test
@@ -185,6 +190,60 @@ class CalendarInvitationResponsePostgresIntegrationTest {
         assertThat(auditCount(fixture.eventId())).isZero();
     }
 
+    @Test
+    void activeDelegatedResponseMutatesTheOwnerAttendeeAndExpiryRevocationAndTenantBoundariesFailClosed() {
+        Fixture active = delegatedFixture("delegated-active");
+        delegation(
+                TENANT_ID, DELEGATOR_ID, DELEGATOR_PERSON_ID, ACTOR_PERSON_ID,
+                OffsetDateTime.now().minusHours(1), OffsetDateTime.now().plusHours(1),
+                "ACTIVE");
+        CalendarDtos.EventSummary result = tx(() -> respond(
+                active.eventId(),
+                new CalendarDtos.RespondRequest(ACCEPTED, 0L, UUID.randomUUID())));
+        assertThat(result.myResponse()).isEqualTo(ACCEPTED);
+        assertThat(attendeeState(active.eventId()))
+                .containsEntry("response_status", "ACCEPTED")
+                .containsEntry("response_version", 1L);
+        jdbc.update("""
+                UPDATE cal_calendar_delegations
+                   SET status = 'REVOKED', revoked_at = CURRENT_TIMESTAMP,
+                       revoked_by = ?, version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND owner_person_public_id = ?
+                   AND delegate_person_public_id = ? AND status = 'ACTIVE'
+                """, DELEGATOR_ID, TENANT_ID, DELEGATOR_PERSON_ID, ACTOR_PERSON_ID);
+
+        Fixture expired = delegatedFixture("delegated-expired");
+        delegation(
+                TENANT_ID, DELEGATOR_ID, DELEGATOR_PERSON_ID, ACTOR_PERSON_ID,
+                OffsetDateTime.now().minusHours(2), OffsetDateTime.now().minusHours(1),
+                "ACTIVE");
+        assertNotFound(() -> tx(() -> respond(
+                expired.eventId(),
+                new CalendarDtos.RespondRequest(ACCEPTED, 0L, UUID.randomUUID()))));
+
+        Fixture revoked = delegatedFixture("delegated-revoked");
+        delegation(
+                TENANT_ID, DELEGATOR_ID, DELEGATOR_PERSON_ID, ACTOR_PERSON_ID,
+                OffsetDateTime.now().minusHours(1), OffsetDateTime.now().plusHours(1),
+                "REVOKED");
+        assertNotFound(() -> tx(() -> respond(
+                revoked.eventId(),
+                new CalendarDtos.RespondRequest(ACCEPTED, 0L, UUID.randomUUID()))));
+
+        long otherTenant = TENANT_ID + 10;
+        identity(otherTenant, ACTOR_ID, ACTOR_PERSON_ID);
+        identity(otherTenant, DELEGATOR_ID, DELEGATOR_PERSON_ID);
+        delegation(
+                otherTenant, DELEGATOR_ID, DELEGATOR_PERSON_ID, ACTOR_PERSON_ID,
+                OffsetDateTime.now().minusHours(1), OffsetDateTime.now().plusHours(1),
+                "ACTIVE");
+        Fixture crossTenant = delegatedFixture("delegated-cross-tenant");
+        assertNotFound(() -> tx(() -> respond(
+                crossTenant.eventId(),
+                new CalendarDtos.RespondRequest(ACCEPTED, 0L, UUID.randomUUID()))));
+    }
+
     private CalendarDtos.EventSummary respond(
             UUID eventId,
             CalendarDtos.RespondRequest request) {
@@ -233,6 +292,50 @@ class CalendarInvitationResponsePostgresIntegrationTest {
                         'REQUIRED', 'NEEDS_ACTION')
                 """, TENANT_ID, eventId, ACTOR_ID, ACTOR_PERSON_ID);
         return new Fixture(eventId);
+    }
+
+    private Fixture delegatedFixture(String suffix) {
+        identity(TENANT_ID, DELEGATOR_ID, DELEGATOR_PERSON_ID);
+        Fixture fixture = fixture(suffix);
+        jdbc.update("""
+                UPDATE cal_event_attendees
+                   SET attendee_user_id = ?, attendee_person_public_id = ?,
+                       attendee_email = 'delegator@example.com', attendee_name = 'Delegator',
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND event_id = ?
+                """, DELEGATOR_ID, DELEGATOR_PERSON_ID, TENANT_ID, fixture.eventId());
+        return fixture;
+    }
+
+    private void identity(long tenantId, long userId, UUID personId) {
+        jdbc.update("""
+                INSERT INTO cal_identity_links (tenant_id, user_id, person_public_id)
+                VALUES (?, ?, ?)
+                ON CONFLICT DO NOTHING
+                """, tenantId, userId, personId);
+    }
+
+    private void delegation(
+            long tenantId,
+            long ownerUserId,
+            UUID ownerPersonId,
+            UUID delegatePersonId,
+            OffsetDateTime validFrom,
+            OffsetDateTime validUntil,
+            String status) {
+        boolean revoked = "REVOKED".equals(status);
+        jdbc.update("""
+                INSERT INTO cal_calendar_delegations (
+                    delegation_id, tenant_id, owner_user_id, owner_person_public_id,
+                    delegate_person_public_id, can_respond, can_edit_schedule, can_create,
+                    valid_from, valid_until, status, revoked_at, revoked_by,
+                    created_by, updated_by)
+                VALUES (?, ?, ?, ?, ?, TRUE, FALSE, FALSE, ?, ?, ?, ?, ?, ?, ?)
+                """, UUID.randomUUID(), tenantId, ownerUserId, ownerPersonId,
+                delegatePersonId, validFrom, validUntil, status,
+                revoked ? OffsetDateTime.now() : null,
+                revoked ? ownerUserId : null,
+                ownerUserId, ownerUserId);
     }
 
     private long eventVersion(UUID eventId) {

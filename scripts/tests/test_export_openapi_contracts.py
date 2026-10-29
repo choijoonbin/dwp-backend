@@ -145,6 +145,17 @@ DEVICE_IDENTITY_OPERATIONS = frozenset(
     ("post", "/v1/device/workplace/devices/{deviceId}/access-pass:pair"),
 })
 
+CALENDAR_V2_PLATFORM_OPERATIONS = frozenset({
+    ("get", "/v2/calendar/events"),
+    ("get", "/v2/calendar/events/search"),
+    ("get", "/v2/calendar/external-events"),
+    ("post", "/v2/calendar/scheduling/evaluations"),
+    (
+        "post",
+        "/v2/calendar/scheduling/evaluations/{evaluationId}/hard-recheck",
+    ),
+})
+
 ROOM_HUMAN_OPERATIONS = frozenset(
     tuple(operation.split(" ", 1))
     for operation in """
@@ -2471,6 +2482,57 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             ["components"]["schemas"]["CommandReceiptV1"],
         )
 
+    def test_audit_page_replaces_only_its_pinned_platform_projection(self) -> None:
+        service = next(
+            service for service in EXPORTER["SERVICES"] if service.name == "platform"
+        )
+        reviewed = EXPORTER["load_design_time_overlays"]()["platform"]
+        reviewed_schemas = reviewed["components"]["schemas"]
+        document = json.loads(
+            (ROOT / "contracts/openapi/platform.json").read_text(encoding="utf-8")
+        )
+        document["components"]["schemas"]["HcmAuditEvidencePageV1"] = {
+            "additionalProperties": False,
+            "properties": {
+                "items": {
+                    "items": {
+                        "$ref": "#/components/schemas/HcmAuditEvidenceV1",
+                    },
+                    "type": "array",
+                },
+                "nextCursor": {"type": "string"},
+                "size": {"format": "int32", "type": "integer"},
+                "snapshotAt": {"format": "date-time", "type": "string"},
+            },
+            "type": "object",
+        }
+        runtime_evidence = copy.deepcopy(reviewed_schemas["HcmAuditEvidenceV1"])
+        runtime_evidence.pop("required")
+        for property_schema in runtime_evidence["properties"].values():
+            property_schema.pop("minimum", None)
+            property_schema.pop("pattern", None)
+            if "const" in property_schema:
+                property_schema.pop("const")
+                property_schema["type"] = "string"
+            if isinstance(property_schema.get("type"), list):
+                property_schema["type"] = next(
+                    value for value in property_schema["type"] if value != "null"
+                )
+            if property_schema.get("type") == "integer":
+                property_schema["format"] = "int64"
+        document["components"]["schemas"]["HcmAuditEvidenceV1"] = runtime_evidence
+
+        reconciled = EXPORTER["apply_design_time_overlay"](service, document)
+
+        self.assertEqual(
+            reconciled["components"]["schemas"]["HcmAuditEvidencePageV1"],
+            reviewed_schemas["HcmAuditEvidencePageV1"],
+        )
+        self.assertEqual(
+            reconciled["components"]["schemas"]["HcmAuditEvidenceV1"],
+            reviewed_schemas["HcmAuditEvidenceV1"],
+        )
+
     def test_wave1_hris_reviewed_inventory_matches_controller_annotations(self) -> None:
         contracts = (
             (
@@ -3071,19 +3133,62 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             "/api/platform/v1/admin/widget-policies/123",
         )
 
-    def test_home_v2_is_the_only_exported_platform_v2_surface(self) -> None:
+    def test_home_and_calendar_are_the_only_exported_platform_v2_surfaces(self) -> None:
         platform_path = EXPORTER["platform_path"]
+        self.assertEqual(
+            EXPORTER["PLATFORM_V2_PUBLIC_PATHS"],
+            frozenset({
+                "/v2/home",
+                "/v2/home/shadow-receipts",
+                "/v2/home/widget-actions:execute",
+            }) | frozenset(path for _, path in CALENDAR_V2_PLATFORM_OPERATIONS),
+        )
         self.assertEqual(platform_path("/v2/home"), "/api/platform/v2/home")
         self.assertEqual(
             platform_path("/v2/home/widget-actions:execute"),
             "/api/platform/v2/home/widget-actions:execute",
         )
+        for _, path in CALENDAR_V2_PLATFORM_OPERATIONS:
+            self.assertEqual(platform_path(path), f"/api/platform{path}")
         self.assertIsNone(platform_path("/v2/admin/unsafe"))
         operations = EXPORTER["product_governed_operations"]()
         self.assertFalse(operations[("/api/platform/v2/home", "get")])
         self.assertTrue(operations[(
             "/api/platform/v2/home/widget-actions:execute", "post"
         )])
+
+    def test_calendar_v2_platform_and_gateway_operations_have_exact_parity(self) -> None:
+        platform = json.loads(
+            (ROOT / "contracts/openapi/platform.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        methods = {"get", "post", "put", "patch", "delete"}
+        platform_operations = {
+            (method, path)
+            for path, item in platform["paths"].items()
+            if path.startswith("/v2/calendar/")
+            for method in item
+            if method in methods
+        }
+        gateway_operations = {
+            (method, path)
+            for path, item in gateway["paths"].items()
+            if path.startswith("/api/platform/v2/calendar/")
+            for method in item
+            if method in methods
+        }
+        self.assertEqual(platform_operations, CALENDAR_V2_PLATFORM_OPERATIONS)
+        self.assertEqual(
+            gateway_operations,
+            frozenset(
+                (method, f"/api/platform{path}")
+                for method, path in CALENDAR_V2_PLATFORM_OPERATIONS
+            ),
+        )
 
     def test_mail_release_and_readiness_contracts_are_current(self) -> None:
         platform = json.loads(

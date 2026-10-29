@@ -93,6 +93,9 @@ class SafetyOperationsPostgresTest {
         assertThat(jdbc.queryForObject("""
                 SELECT success FROM flyway_schema_history WHERE version='264'
                 """, Boolean.class)).isTrue();
+        assertThat(jdbc.queryForObject("""
+                SELECT success FROM flyway_schema_history WHERE version='343'
+                """, Boolean.class)).isTrue();
         Fixture fixture = fixture("PRIMARY", true);
         insertUnknownVisitor(fixture);
         txRun(() -> audiences.observePresence(new PresenceObservation(UUID.randomUUID(),
@@ -443,8 +446,28 @@ class SafetyOperationsPostgresTest {
                 SELECT offline_retry_count FROM wp_safety_dispatch_attempts
                  WHERE tenant_id=? AND dispatch_attempt_id=?
                 """, Integer.class, tenantId, app.attemptId())).isEqualTo(3);
+        assertThat(jdbc.queryForMap("""
+                SELECT attempt_state,next_attempt_at
+                  FROM wp_safety_dispatch_attempts
+                 WHERE tenant_id=? AND dispatch_attempt_id=?
+                """, tenantId, app.attemptId()))
+                .containsEntry("attempt_state", "MANUAL_REVIEW_REQUIRED")
+                .containsEntry("next_attempt_at", null);
         assertThat(incidents.queuedDispatches(100)).noneMatch(
                 work -> work.attemptId().equals(app.attemptId()));
+        DispatchSummary manualReview = incidents.dispatches(tenantId, incidentId).stream()
+                .filter(summary -> summary.dispatchBatchId().equals(batchId))
+                .findFirst().orElseThrow();
+        assertThat(manualReview.reviewState())
+                .isEqualTo(DispatchReviewState.MANUAL_REVIEW_REQUIRED);
+        assertThat(manualReview.manualReviewCount()).isEqualTo(1);
+        UUID audienceMemberId = jdbc.queryForObject("""
+                SELECT audience_member_id FROM wp_safety_dispatch_attempts
+                 WHERE tenant_id=? AND dispatch_attempt_id=?
+                """, UUID.class, tenantId, app.attemptId());
+        assertThat(incidents.retryMemberIds(
+                tenantId, incidentId, List.of(AttemptState.OFFLINE_QUEUED)))
+                .contains(audienceMemberId);
 
         ControlledProvider provider = new ControlledProvider();
         SafetyDispatchService dispatch = new SafetyDispatchService(incidents, recovery,

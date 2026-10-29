@@ -23,6 +23,13 @@ public interface MailConnectorPort {
 
     SubscriptionReceipt renewSubscription(SubscriptionRequest request);
 
+    /** Source-compatible provider deletion boundary; unsupported adapters fail explicitly. */
+    default PurgeReceipt purge(PurgeRequest request) {
+        return new PurgeReceipt(
+                PurgeOutcome.NOT_SUPPORTED, 0, null, Instant.now(),
+                "MAIL_PROVIDER_PURGE_NOT_SUPPORTED");
+    }
+
     enum ProviderFamily {
         MICROSOFT_GRAPH,
         GOOGLE_GMAIL,
@@ -64,6 +71,22 @@ public interface MailConnectorPort {
         ACCOUNT,
         SEND_AS,
         SEND_ON_BEHALF
+    }
+
+    enum DeliveryOutcome {
+        /** Deterministic end-to-end delivery, currently available only to the DWP sandbox. */
+        DELIVERED,
+        /** The provider accepted the request; recipient delivery remains unconfirmed. */
+        PROVIDER_ACCEPTED,
+        /** Submission may have reached the provider and must be reconciled, never auto-replayed. */
+        RESULT_UNKNOWN
+    }
+
+    enum PurgeOutcome {
+        PURGED,
+        NOT_SUPPORTED,
+        RECONCILIATION_REQUIRED,
+        FAILED
     }
 
     record Manifest(
@@ -395,19 +418,48 @@ public interface MailConnectorPort {
     record DeliveryReceipt(
             String providerMessageReference,
             String providerThreadReference,
-            Instant acceptedAt) {
+            Instant acceptedAt,
+            DeliveryOutcome outcome) {
+
+        /** Source-compatible constructor for deterministic in-process connectors. */
+        public DeliveryReceipt(
+                String providerMessageReference,
+                String providerThreadReference,
+                Instant acceptedAt) {
+            this(providerMessageReference, providerThreadReference, acceptedAt,
+                    DeliveryOutcome.DELIVERED);
+        }
 
         public DeliveryReceipt {
-            providerMessageReference = ContractChecks.required(
+            if (outcome == null) throw new IllegalArgumentException("outcome is required");
+            providerMessageReference = optional(
                     providerMessageReference, "providerMessageReference");
-            providerThreadReference = ContractChecks.required(
+            providerThreadReference = optional(
                     providerThreadReference, "providerThreadReference");
-            if (acceptedAt == null) throw new IllegalArgumentException("acceptedAt is required");
+            if (outcome == DeliveryOutcome.RESULT_UNKNOWN) {
+                if (acceptedAt != null) {
+                    throw new IllegalArgumentException(
+                            "RESULT_UNKNOWN must not claim provider acceptance");
+                }
+            } else if (acceptedAt == null) {
+                throw new IllegalArgumentException("acceptedAt is required for known outcomes");
+            }
+        }
+
+        private static String optional(String value, String field) {
+            if (value == null || value.isBlank()) return null;
+            String normalized = value.trim();
+            if (normalized.length() > 2_000
+                    || normalized.chars().anyMatch(character -> character < 0x20)) {
+                throw new IllegalArgumentException(field + " is invalid");
+            }
+            return normalized;
         }
     }
 
     record SubscriptionRequest(
             ConnectionContext context,
+            String providerAccountReference,
             URI callback,
             Instant requestedUntil) {
 
@@ -415,6 +467,8 @@ public interface MailConnectorPort {
             if (context == null || callback == null || requestedUntil == null) {
                 throw new IllegalArgumentException("context, callback and requestedUntil are required");
             }
+            providerAccountReference = ContractChecks.required(
+                    providerAccountReference, "providerAccountReference");
             if (!"https".equalsIgnoreCase(callback.getScheme())) {
                 throw new IllegalArgumentException("callback must use HTTPS");
             }
@@ -423,12 +477,97 @@ public interface MailConnectorPort {
 
     record SubscriptionReceipt(
             String providerSubscriptionReference,
-            Instant expiresAt) {
+            Instant expiresAt,
+            String clientStateSha256) {
+
+        public SubscriptionReceipt(
+                String providerSubscriptionReference,
+                Instant expiresAt) {
+            this(providerSubscriptionReference, expiresAt, null);
+        }
 
         public SubscriptionReceipt {
             providerSubscriptionReference = ContractChecks.required(
                     providerSubscriptionReference, "providerSubscriptionReference");
             if (expiresAt == null) throw new IllegalArgumentException("expiresAt is required");
+            if (clientStateSha256 != null
+                    && !clientStateSha256.matches("[0-9a-f]{64}")) {
+                throw new IllegalArgumentException(
+                        "clientStateSha256 must be a lowercase SHA-256 receipt");
+            }
+        }
+    }
+
+    record PurgeRequest(
+            ConnectionContext context,
+            String providerAccountReference,
+            UUID idempotencyKey,
+            List<String> providerMessageReferences,
+            List<String> providerThreadReferences) {
+
+        public PurgeRequest {
+            if (context == null || idempotencyKey == null) {
+                throw new IllegalArgumentException("context and idempotencyKey are required");
+            }
+            providerAccountReference = ContractChecks.required(
+                    providerAccountReference, "providerAccountReference");
+            providerMessageReferences = safeReferences(
+                    providerMessageReferences, "providerMessageReferences");
+            providerThreadReferences = safeReferences(
+                    providerThreadReferences, "providerThreadReferences");
+            if (providerMessageReferences.isEmpty() && providerThreadReferences.isEmpty()) {
+                throw new IllegalArgumentException("at least one provider reference is required");
+            }
+        }
+
+        private static List<String> safeReferences(List<String> values, String field) {
+            List<String> copy = values == null ? List.of() : List.copyOf(values);
+            if (copy.size() > 500) {
+                throw new IllegalArgumentException(field + " exceeds the provider batch limit");
+            }
+            for (String value : copy) {
+                if (value == null || value.isBlank() || value.length() > 2_000
+                        || value.chars().anyMatch(character -> character < 0x20)) {
+                    throw new IllegalArgumentException(field + " contains an invalid reference");
+                }
+            }
+            return copy;
+        }
+    }
+
+    record PurgeReceipt(
+            PurgeOutcome outcome,
+            int purgedItems,
+            String providerReceiptReference,
+            Instant observedAt,
+            String errorCode) {
+
+        public PurgeReceipt {
+            if (outcome == null || observedAt == null || purgedItems < 0) {
+                throw new IllegalArgumentException(
+                        "outcome, observedAt and a nonnegative purgedItems are required");
+            }
+            providerReceiptReference = optional(
+                    providerReceiptReference, "providerReceiptReference");
+            if (errorCode != null && !errorCode.matches("[A-Z0-9_.-]{1,120}")) {
+                throw new IllegalArgumentException("errorCode must be a safe canonical code");
+            }
+            if (outcome == PurgeOutcome.PURGED && errorCode != null) {
+                throw new IllegalArgumentException("a purged receipt must not contain an error");
+            }
+            if (outcome != PurgeOutcome.PURGED && errorCode == null) {
+                throw new IllegalArgumentException("a non-purged receipt requires an error code");
+            }
+        }
+
+        private static String optional(String value, String field) {
+            if (value == null || value.isBlank()) return null;
+            String normalized = value.trim();
+            if (normalized.length() > 2_000
+                    || normalized.chars().anyMatch(character -> character < 0x20)) {
+                throw new IllegalArgumentException(field + " is invalid");
+            }
+            return normalized;
         }
     }
 }

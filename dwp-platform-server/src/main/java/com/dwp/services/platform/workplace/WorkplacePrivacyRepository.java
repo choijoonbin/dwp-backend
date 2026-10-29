@@ -132,4 +132,119 @@ class WorkplacePrivacyRepository {
                  WHERE event.audit_event_id = candidates.audit_event_id
                 """, cutoff, batchSize);
     }
+
+    @Transactional(readOnly = true)
+    RetentionBacklog retentionBacklog(OffsetDateTime now, int auditRetentionDays) {
+        return jdbc.queryForObject("""
+                WITH boundary AS (
+                    SELECT ?::timestamptz AS now, ?::integer AS audit_retention_days
+                )
+                SELECT (SELECT COUNT(*)
+                          FROM wp_bookings booking, boundary
+                         WHERE booking.personal_data_expires_at <= boundary.now
+                           AND booking.legal_hold = FALSE
+                           AND booking.anonymized_at IS NULL
+                           AND booking.booking_status IN (
+                               'COMPLETED', 'NO_SHOW', 'RELEASED', 'CANCELLED'))
+                           AS booking_count,
+                       (SELECT MIN(booking.personal_data_expires_at)
+                          FROM wp_bookings booking, boundary
+                         WHERE booking.personal_data_expires_at <= boundary.now
+                           AND booking.legal_hold = FALSE
+                           AND booking.anonymized_at IS NULL
+                           AND booking.booking_status IN (
+                               'COMPLETED', 'NO_SHOW', 'RELEASED', 'CANCELLED'))
+                           AS oldest_booking_expired_at,
+                       (SELECT COUNT(*)
+                          FROM wp_resource_release_windows release, boundary
+                         WHERE release.personal_data_expires_at <= boundary.now
+                           AND release.legal_hold = FALSE
+                           AND release.anonymized_at IS NULL
+                           AND (release.release_status = 'CANCELLED'
+                                OR release.ends_at <= boundary.now))
+                           AS release_window_count,
+                       (SELECT MIN(release.personal_data_expires_at)
+                          FROM wp_resource_release_windows release, boundary
+                         WHERE release.personal_data_expires_at <= boundary.now
+                           AND release.legal_hold = FALSE
+                           AND release.anonymized_at IS NULL
+                           AND (release.release_status = 'CANCELLED'
+                                OR release.ends_at <= boundary.now))
+                           AS oldest_release_window_expired_at,
+                       (SELECT COUNT(*)
+                          FROM wp_audit_events event, boundary
+                         WHERE event.occurred_at
+                                   < boundary.now
+                                       - make_interval(
+                                           days => boundary.audit_retention_days)
+                           AND NOT EXISTS (
+                               SELECT 1
+                                 FROM wp_bookings booking
+                                WHERE event.aggregate_type = 'BOOKING'
+                                  AND event.aggregate_id = booking.booking_id
+                                  AND booking.tenant_id = event.tenant_id
+                                  AND booking.legal_hold = TRUE)
+                           AND NOT EXISTS (
+                               SELECT 1
+                                 FROM wp_resource_release_windows release
+                                WHERE event.aggregate_type = 'RELEASE_WINDOW'
+                                  AND event.aggregate_id = release.release_window_id
+                                  AND release.tenant_id = event.tenant_id
+                                  AND release.legal_hold = TRUE)
+                           AND NOT EXISTS (
+                               SELECT 1
+                                 FROM wp_booking_commands command
+                                WHERE command.tenant_id = event.tenant_id
+                                  AND command.audit_event_id = event.audit_event_id))
+                           AS audit_replica_count,
+                       (SELECT MIN(event.occurred_at)
+                                   + make_interval(
+                                       days => MAX(boundary.audit_retention_days))
+                          FROM wp_audit_events event, boundary
+                         WHERE event.occurred_at
+                                   < boundary.now
+                                       - make_interval(
+                                           days => boundary.audit_retention_days)
+                           AND NOT EXISTS (
+                               SELECT 1
+                                 FROM wp_bookings booking
+                                WHERE event.aggregate_type = 'BOOKING'
+                                  AND event.aggregate_id = booking.booking_id
+                                  AND booking.tenant_id = event.tenant_id
+                                  AND booking.legal_hold = TRUE)
+                           AND NOT EXISTS (
+                               SELECT 1
+                                 FROM wp_resource_release_windows release
+                                WHERE event.aggregate_type = 'RELEASE_WINDOW'
+                                  AND event.aggregate_id = release.release_window_id
+                                  AND release.tenant_id = event.tenant_id
+                                  AND release.legal_hold = TRUE)
+                           AND NOT EXISTS (
+                               SELECT 1
+                                 FROM wp_booking_commands command
+                                WHERE command.tenant_id = event.tenant_id
+                                  AND command.audit_event_id = event.audit_event_id))
+                           AS oldest_audit_expired_at
+                """, (result, ignored) -> new RetentionBacklog(
+                        result.getLong("booking_count"),
+                        result.getObject("oldest_booking_expired_at", OffsetDateTime.class),
+                        result.getLong("release_window_count"),
+                        result.getObject(
+                                "oldest_release_window_expired_at", OffsetDateTime.class),
+                        result.getLong("audit_replica_count"),
+                        result.getObject("oldest_audit_expired_at", OffsetDateTime.class)),
+                now, auditRetentionDays);
+    }
+
+    record RetentionBacklog(
+            long bookings,
+            OffsetDateTime oldestBookingExpiredAt,
+            long releaseWindows,
+            OffsetDateTime oldestReleaseWindowExpiredAt,
+            long auditReplicas,
+            OffsetDateTime oldestAuditExpiredAt) {
+        long total() {
+            return bookings + releaseWindows + auditReplicas;
+        }
+    }
 }

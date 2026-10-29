@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -73,9 +74,91 @@ class NotificationOutboxRelayServiceTest {
 
         assertThat(result.failed()).isEqualTo(1);
         assertThat(result.dead()).isEqualTo(1);
+        assertThat(result.leaseLost()).isZero();
         verify(transactions).markFailed(
                 eq(7L), eq(event.outboxId()), anyString(), eq(3), eq(3),
                 any(), anyString());
+    }
+
+    @Test
+    void schedulesAFailedSendForRetryWithoutReportingItDeadOrLeaseLost() {
+        NotificationOutboxRelayTransaction transactions =
+                mock(NotificationOutboxRelayTransaction.class);
+        @SuppressWarnings("unchecked")
+        KafkaTemplate<String, String> kafka = mock(KafkaTemplate.class);
+        OutboxEvent event = event(1);
+        when(transactions.lease(eq(7L), anyString(), any(), any(), eq(50)))
+                .thenReturn(List.of(event));
+        when(kafka.send(anyString(), anyString(), anyString()))
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("down")));
+        when(transactions.markFailed(
+                eq(7L), eq(event.outboxId()), anyString(), eq(1), eq(3),
+                any(), anyString()))
+                .thenReturn(true);
+        NotificationOutboxRelayService service = service(
+                transactions, kafka,
+                new ObjectMapper().findAndRegisterModules(), 3);
+
+        var result = service.relayTenant(7, Instant.parse("2026-08-20T09:00:00Z"));
+
+        assertThat(result.failed()).isOne();
+        assertThat(result.dead()).isZero();
+        assertThat(result.leaseLost()).isZero();
+    }
+
+    @Test
+    void reportsLeaseLossWhenAFailedSendCannotMutateAnotherOwnersLease() {
+        NotificationOutboxRelayTransaction transactions =
+                mock(NotificationOutboxRelayTransaction.class);
+        @SuppressWarnings("unchecked")
+        KafkaTemplate<String, String> kafka = mock(KafkaTemplate.class);
+        OutboxEvent event = event(3);
+        when(transactions.lease(eq(7L), anyString(), any(), any(), eq(50)))
+                .thenReturn(List.of(event));
+        when(kafka.send(anyString(), anyString(), anyString()))
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("down")));
+        when(transactions.markFailed(
+                eq(7L), eq(event.outboxId()), anyString(), eq(3), eq(3),
+                any(), anyString()))
+                .thenReturn(false);
+        NotificationOutboxRelayService service = service(
+                transactions, kafka,
+                new ObjectMapper().findAndRegisterModules(), 3);
+
+        var result = service.relayTenant(7, Instant.parse("2026-08-20T09:00:00Z"));
+
+        assertThat(result.failed()).isOne();
+        assertThat(result.dead()).isZero();
+        assertThat(result.leaseLost()).isOne();
+        verify(transactions).markFailed(
+                eq(7L), eq(event.outboxId()), anyString(), eq(3), eq(3),
+                any(), anyString());
+    }
+
+    @Test
+    void reportsLeaseLossSeparatelyWithoutMutatingAnotherOwnersLease() {
+        NotificationOutboxRelayTransaction transactions =
+                mock(NotificationOutboxRelayTransaction.class);
+        @SuppressWarnings("unchecked")
+        KafkaTemplate<String, String> kafka = mock(KafkaTemplate.class);
+        OutboxEvent event = event(1);
+        when(transactions.lease(eq(7L), anyString(), any(), any(), eq(50)))
+                .thenReturn(List.of(event));
+        when(kafka.send(anyString(), anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(transactions.markPublished(eq(7L), eq(event.outboxId()), anyString(), any()))
+                .thenReturn(false);
+        NotificationOutboxRelayService service = service(
+                transactions, kafka, new ObjectMapper().findAndRegisterModules(), 3);
+
+        var result = service.relayTenant(7, Instant.parse("2026-08-20T09:00:00Z"));
+
+        assertThat(result.published()).isZero();
+        assertThat(result.failed()).isOne();
+        assertThat(result.leaseLost()).isOne();
+        verify(transactions, never()).markFailed(
+                eq(7L), eq(event.outboxId()), anyString(), any(Integer.class),
+                any(Integer.class), any(), anyString());
     }
 
     private NotificationOutboxRelayService service(

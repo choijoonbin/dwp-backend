@@ -14,10 +14,17 @@ import java.util.UUID;
 public final class WorkplaceExceptionConsoleDtos {
     private WorkplaceExceptionConsoleDtos() { }
 
-    public enum ExceptionSource { SAFETY, BOOKING, CONNECTOR }
+    public enum ExceptionSource {
+        SAFETY, BOOKING, CONNECTOR, DEVICE_COMMAND, SERVICE_ORDER, SERVICE_PROVIDER,
+        SERVICE_REFUND, VISIT_PROVIDER, ACCESS_PASS
+    }
     public enum ExceptionSeverity { CRITICAL, ERROR, WARNING }
-    public enum ExceptionStatus { ACTIVE, RECOVERING }
-    public enum ExceptionAction { OPEN_SAFETY, REVIEW_BOOKING, REPLAY_CONNECTOR }
+    public enum ExceptionStatus { ACTIVE, RECOVERING, MANUAL_REVIEW, RESOLVED }
+    public enum ExceptionAction {
+        OPEN_SAFETY, REVIEW_BOOKING, REPLAY_CONNECTOR, REVIEW_DEVICE,
+        REVIEW_SERVICE_ORDER, REVIEW_SERVICE_PROVIDER, REVIEW_SERVICE_REFUND,
+        REVIEW_VISIT, REVIEW_ACCESS_PASS
+    }
     public enum GuardrailStatus { HEALTHY, WARNING, BREACHED, UNKNOWN }
 
     public record ExceptionItem(
@@ -35,7 +42,10 @@ public final class WorkplaceExceptionConsoleDtos {
             String actionHref,
             WorkplaceConnectorOpsDtos.ConnectorKind connectorKind,
             Long configurationVersion,
-            Long runtimeVersion) { }
+            Long runtimeVersion,
+            boolean resolved,
+            OffsetDateTime resolvedAt,
+            long ageSeconds) { }
 
     public record ExceptionSummary(
             int active,
@@ -45,7 +55,16 @@ public final class WorkplaceExceptionConsoleDtos {
             long concurrencyConflicts24h,
             long deadLetterQueueDepth,
             BigDecimal automaticRecoveryPercent,
-            BigDecimal slaCompliancePercent) { }
+            BigDecimal slaCompliancePercent,
+            long unresolvedCount,
+            int returnedCount,
+            boolean truncated) { }
+
+    public record ExceptionSourceCoverage(
+            ExceptionSource source,
+            long unresolvedCount,
+            int returnedCount,
+            boolean truncated) { }
 
     public record Guardrail(
             String code,
@@ -61,7 +80,8 @@ public final class WorkplaceExceptionConsoleDtos {
             List<ExceptionItem> exceptions,
             List<Guardrail> guardrails,
             OffsetDateTime generatedAt,
-            String externalTelemetryUrl) { }
+            String externalTelemetryUrl,
+            List<ExceptionSourceCoverage> sourceCoverage) { }
 
     public record RecoveryPreviewRequest(
             @NotNull OffsetDateTime from,

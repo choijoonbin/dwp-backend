@@ -319,7 +319,9 @@ class AdminMailCompletionProjectionSupport extends AdminMailCompletionServiceBas
     }
 
     String deliveryStage(AdminMailCompletionRepository.DeliveryRow row) {
-        if (row.acceptedAt() != null) return "ACCEPTED_BY_PROVIDER";
+        if ("DELIVERED".equals(row.status())) return "DELIVERED_CONFIRMED";
+        if ("PROVIDER_ACCEPTED".equals(row.status())) return "ACCEPTED_BY_PROVIDER";
+        if ("RESULT_UNKNOWN".equals(row.status())) return "RECONCILIATION_REQUIRED";
         if (deliveryBlockedByAccess(row)) return "BLOCKED_BY_ACCESS";
         return switch (row.status()) {
             case "QUEUED", "RETRY_WAIT" -> "OUTBOX";
@@ -332,7 +334,9 @@ class AdminMailCompletionProjectionSupport extends AdminMailCompletionServiceBas
     }
 
     String deliveryState(AdminMailCompletionRepository.DeliveryRow row) {
-        if ("DELIVERED".equals(row.status())) return "ACCEPTED_BY_PROVIDER";
+        if ("DELIVERED".equals(row.status())) return "DELIVERED";
+        if ("PROVIDER_ACCEPTED".equals(row.status())) return "PROVIDER_ACCEPTED";
+        if ("RESULT_UNKNOWN".equals(row.status())) return "RESULT_UNKNOWN";
         if (deliveryBlockedByAccess(row)) return "BLOCKED_BY_ACCESS";
         if ("LEASED".equals(row.status())
                 && row.leaseExpiresAt() != null && row.leaseExpiresAt().isBefore(now())) {
@@ -346,7 +350,7 @@ class AdminMailCompletionProjectionSupport extends AdminMailCompletionServiceBas
     }
 
     String providerDisposition(AdminMailCompletionRepository.DeliveryRow row) {
-        if (row.acceptedAt() != null && row.providerMessageRef() != null) return "ACCEPTED";
+        if (row.acceptedAt() != null) return "ACCEPTED";
         if ("FAILED".equals(row.status()) && row.providerMessageRef() == null
                 && !"MAIL_PROVIDER_RESULT_UNKNOWN".equals(row.errorCode())) {
             return "NOT_ACCEPTED";
@@ -360,6 +364,8 @@ class AdminMailCompletionProjectionSupport extends AdminMailCompletionServiceBas
 
     String timelineState(AdminMailCompletionRepository.DeliveryRow row) {
         if ("DELIVERED".equals(row.status())) return "SUCCEEDED";
+        if ("PROVIDER_ACCEPTED".equals(row.status())) return "PENDING";
+        if ("RESULT_UNKNOWN".equals(row.status())) return "UNKNOWN";
         if (deliveryBlockedByAccess(row)) return "BLOCKED";
         if ("FAILED".equals(row.status())) return "FAILED";
         if ("CANCELLED".equals(row.status())) return "BLOCKED";
@@ -369,7 +375,7 @@ class AdminMailCompletionProjectionSupport extends AdminMailCompletionServiceBas
     }
 
     String deliveryEvidenceState(AdminMailCompletionRepository.DeliveryRow row) {
-        if (row.acceptedAt() != null && row.providerMessageRef() != null) return "VERIFIED";
+        if (row.acceptedAt() != null) return "VERIFIED";
         if ("FAILED".equals(row.status()) && row.providerMessageRef() == null
                 && !"MAIL_PROVIDER_RESULT_UNKNOWN".equals(row.errorCode())) return "VERIFIED";
         if ("LEASED".equals(row.status()) && row.leaseExpiresAt() != null
@@ -468,9 +474,10 @@ class AdminMailCompletionProjectionSupport extends AdminMailCompletionServiceBas
 
     boolean reconcileEligible(AdminMailCompletionRepository.DeliveryRow row) {
         return "DWP_SANDBOX".equals(row.providerType())
-                && "LEASED".equals(row.status())
-                && row.leaseExpiresAt() != null
-                && row.leaseExpiresAt().isBefore(now())
+                && (("LEASED".equals(row.status())
+                    && row.leaseExpiresAt() != null
+                    && row.leaseExpiresAt().isBefore(now()))
+                    || "RESULT_UNKNOWN".equals(row.status()))
                 && row.acceptedAt() == null
                 && row.providerMessageRef() == null;
     }

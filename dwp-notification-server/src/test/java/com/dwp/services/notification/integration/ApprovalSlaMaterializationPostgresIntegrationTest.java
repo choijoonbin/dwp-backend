@@ -93,7 +93,7 @@ class ApprovalSlaMaterializationPostgresIntegrationTest {
                 .placeholders(Map.of("notificationRuntimeRole", "ntf_sla_test_runtime"))
                 .load();
         migration.migrate();
-        assertThat(migration.info().current().getVersion().getVersion()).isEqualTo("33");
+        assertThat(migration.info().current().getVersion().getVersion()).isEqualTo("39");
     }
 
     @BeforeEach

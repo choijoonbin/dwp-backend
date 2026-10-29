@@ -43,6 +43,12 @@ public final class MailProductSurfaceContract {
                     ACCESS_POLICY_KEY,
                     "APP.MAIL:VIEW",
                     true),
+            work("route.mail.work.events.data", RouteKind.DATA, "GET",
+                    "/v1/mail/events", AccessContractType.POLICY,
+                    ACCESS_POLICY_KEY, "APP.MAIL:VIEW", true),
+            work("route.mail.work.events-catch-up.data", RouteKind.DATA, "GET",
+                    "/v1/mail/events/catch-up", AccessContractType.POLICY,
+                    ACCESS_POLICY_KEY, "APP.MAIL:VIEW", true),
             work(
                     MESSAGE_CREATE_ACTION_ROUTE,
                     RouteKind.ACTION,

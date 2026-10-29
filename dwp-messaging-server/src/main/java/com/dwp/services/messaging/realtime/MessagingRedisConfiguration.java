@@ -18,13 +18,15 @@ public class MessagingRedisConfiguration {
             RedisConnectionFactory connectionFactory,
             MessagingRedisChannels channels,
             MessagingRedisSignalSubscriber subscriber,
-            MessagingTypingRedisSubscriber typingSubscriber) {
+            MessagingTypingRedisSubscriber typingSubscriber,
+            MessagingRealtimeFanoutProbe fanoutProbe) {
         RedisMessageListenerContainer container =
                 new MessagingResilientRedisMessageListenerContainer(2_000L);
         container.setConnectionFactory(connectionFactory);
         container.setRecoveryInterval(2_000L);
         container.addMessageListener(subscriber, channels.topics());
         container.addMessageListener(typingSubscriber, channels.typingTopics());
+        container.addMessageListener(fanoutProbe, channels.readinessTopic());
         return container;
     }
 }

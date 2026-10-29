@@ -5,6 +5,7 @@ import com.dwp.services.platform.security.PlatformApprovalsPepRegistry;
 import com.dwp.services.platform.security.PlatformCanaryPepRegistry;
 import com.dwp.services.platform.security.PlatformSecurityFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.StaticMessageSource;
@@ -29,7 +30,8 @@ class ActivityControllerTest {
         ActivityService service = new ActivityService(repository, new ActivityCursor(mapper), false);
         var security = new PlatformSecurityFilter("trusted", "runtime", false, mapper,
                 new PlatformCanaryPepRegistry(mapper), new PlatformApprovalsPepRegistry(mapper));
-        mvc = standaloneSetup(new ActivityController(service))
+        mvc = standaloneSetup(new ActivityController(service,
+                        new ActivityMetrics(new SimpleMeterRegistry(), true)))
                 .setControllerAdvice(new GlobalExceptionHandler(new StaticMessageSource()))
                 .addFilters(security).build();
         when(repository.list(anyLong(), anyLong(), anySet(), anyBoolean(), any(), any(), anyBoolean()))
@@ -57,6 +59,7 @@ class ActivityControllerTest {
         mvc.perform(request("").param("limit", "101")).andExpect(status().isBadRequest());
         mvc.perform(request("").param("cursor", "broken")).andExpect(status().isBadRequest());
         mvc.perform(request("").param("from", "yesterday")).andExpect(status().isBadRequest());
+        mvc.perform(request("").param("query", "ab")).andExpect(status().isBadRequest());
         verifyNoInteractions(repository);
     }
 

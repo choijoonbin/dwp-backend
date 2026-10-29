@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.DayOfWeek;
 import java.util.List;
 import java.util.UUID;
 
@@ -76,7 +77,7 @@ public class CalendarTeamAvailabilityRepository {
         return jdbc.query(AUTHORIZED_MEMBERS + """
                 SELECT member.person_id, event.event_id, event.starts_at, event.ends_at,
                        event.time_zone, event.recurrence_pattern, event.recurrence_interval,
-                       event.recurrence_until,
+                       event.recurrence_until, event.recurrence_days, event.recurrence_count,
                        CASE WHEN event.event_type IN ('FOCUS', 'OUT_OF_OFFICE') AND (
                            calendar.owner_person_public_id = viewer.person_id
                            OR event.organizer_person_public_id = viewer.person_id
@@ -129,6 +130,7 @@ public class CalendarTeamAvailabilityRepository {
                 row.getObject("starts_at", OffsetDateTime.class), row.getObject("ends_at", OffsetDateTime.class),
                 row.getString("time_zone"), row.getString("recurrence_pattern"),
                 row.getInt("recurrence_interval"), row.getObject("recurrence_until", LocalDate.class),
+                recurrenceDays(row), nullableInteger(row, "recurrence_count"),
                 CalendarTeamAvailabilityDtos.Status.valueOf(row.getString("visible_type"))),
                 actor.tenantId(), actor.userId(), actor.personPublicId(), groups(actor), now,
                 memberIds.toArray(UUID[]::new), to, from, to, from, limit);
@@ -151,10 +153,37 @@ public class CalendarTeamAvailabilityRepository {
         return actor.groupRefs().toArray(UUID[]::new);
     }
 
+    private static List<DayOfWeek> recurrenceDays(java.sql.ResultSet row)
+            throws java.sql.SQLException {
+        java.sql.Array array = row.getArray("recurrence_days");
+        if (array == null) return List.of();
+        return java.util.Arrays.stream((Object[]) array.getArray())
+                .map(value -> DayOfWeek.of(((Number) value).intValue()))
+                .distinct().sorted().toList();
+    }
+
+    private static Integer nullableInteger(java.sql.ResultSet row, String column)
+            throws java.sql.SQLException {
+        int value = row.getInt(column);
+        return row.wasNull() ? null : value;
+    }
+
     record MemberRow(UUID personPublicId, String displayName, OffsetDateTime validUntil) { }
     record ScheduleRow(UUID personPublicId, UUID eventId, OffsetDateTime startsAt, OffsetDateTime endsAt,
                        String timeZone, String recurrence, int recurrenceInterval,
-                       LocalDate recurrenceUntil, CalendarTeamAvailabilityDtos.Status visibleType) { }
+                       LocalDate recurrenceUntil, List<DayOfWeek> recurrenceDays,
+                       Integer recurrenceCount,
+                       CalendarTeamAvailabilityDtos.Status visibleType) {
+
+        ScheduleRow(
+                UUID personPublicId, UUID eventId, OffsetDateTime startsAt,
+                OffsetDateTime endsAt, String timeZone, String recurrence,
+                int recurrenceInterval, LocalDate recurrenceUntil,
+                CalendarTeamAvailabilityDtos.Status visibleType) {
+            this(personPublicId, eventId, startsAt, endsAt, timeZone, recurrence,
+                    recurrenceInterval, recurrenceUntil, List.of(), null, visibleType);
+        }
+    }
     record OverrideRow(UUID eventId, OffsetDateTime originalStartsAt, String kind,
                        OffsetDateTime startsAt, OffsetDateTime endsAt) { }
 }

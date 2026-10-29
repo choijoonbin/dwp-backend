@@ -107,7 +107,7 @@ class CalendarRecurringResourceHorizonTest {
 
     @Test
     void roomsCreateRejectsTheNextLocalDate() {
-        CalendarService calendar = serviceAt("2026-10-25T13:00:00Z");
+        CalendarService calendar = serviceAt("2026-10-25T13:00:00Z", false);
         RoomService rooms = new RoomService(
                 calendar, repository, roomRepository, mock(RoomBookingPolicyService.class));
         CalendarDtos.CreateEventRequest request = create(
@@ -124,13 +124,22 @@ class CalendarRecurringResourceHorizonTest {
     }
 
     private CalendarService serviceAt(String instant) {
+        return serviceAt(instant, true);
+    }
+
+    private CalendarService serviceAt(String instant, boolean stubRecurringAccess) {
         CalendarSchedulingHorizon horizon = new CalendarSchedulingHorizon(Clock.fixed(
                 Instant.parse(instant), ZoneOffset.UTC));
+        WorkplaceRoomRecurrencePolicy recurrencePolicy =
+                mock(WorkplaceRoomRecurrencePolicy.class);
+        if (stubRecurringAccess) {
+            when(recurrencePolicy.allowsRecurring(TENANT_ID, ROOM_ID)).thenReturn(true);
+        }
         return new CalendarService(
                 repository,
                 roomAccess,
                 horizon,
-                new RoomBookingPolicyService(repository, horizon));
+                new RoomBookingPolicyService(repository, horizon, recurrencePolicy));
     }
 
     private void stubCreate(CalendarDtos.CreateEventRequest request) {
@@ -140,8 +149,10 @@ class CalendarRecurringResourceHorizonTest {
                 .thenReturn(CALENDAR_ID);
         when(repository.insertEvent(
                 eq(TENANT_ID), eq(USER_ID), eq(PERSON_ID), eq("Owner"), eq(CALENDAR_ID),
-                anyString(), eq(request))).thenReturn(EVENT_ID);
-        when(repository.event(TENANT_ID, USER_ID, PERSON_ID, EVENT_ID, false))
+                anyString(), any(CalendarDtos.CreateEventRequest.class), any(UUID.class)))
+                .thenReturn(EVENT_ID);
+        when(repository.event(
+                eq(TENANT_ID), eq(USER_ID), eq(PERSON_ID), any(UUID.class), eq(false)))
                 .thenReturn(Optional.of(event(
                         request.startsAt(), request.endsAt(), request.recurrenceUntil())));
         when(repository.attendees(TENANT_ID, EVENT_ID)).thenReturn(List.of());

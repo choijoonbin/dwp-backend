@@ -110,7 +110,11 @@ public class NotificationMaterializationTransactions {
         PersistenceResult result = repository.materialize(tenantId, request, contract, content,
                 sourcePayloadHash, correlationId, entitledRecipientUserIds);
         if (!result.result().duplicate() && result.result().notificationId() != null)
-            retentionService.applyDefaultExpiry(tenantId, result.result().notificationId(), admittedAt);
+            retentionService.applyEffectiveExpiry(
+                    tenantId,
+                    result.result().notificationId(),
+                    contract.typeVersionId(),
+                    admittedAt);
         changePublisher.publishAfterCommit(result.signals());
         return result;
     }

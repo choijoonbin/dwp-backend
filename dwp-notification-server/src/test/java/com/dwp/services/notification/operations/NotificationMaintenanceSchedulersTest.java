@@ -5,8 +5,11 @@ import com.dwp.services.notification.operations.NotificationRetentionRepository.
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.LongStream;
+
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -40,11 +43,16 @@ class NotificationMaintenanceSchedulersTest {
         NotificationOutboxRelayService relay = mock(NotificationOutboxRelayService.class);
         when(tenants.activeTenantIdsAfter(Long.MIN_VALUE, 500)).thenReturn(List.of(11L, 12L));
         when(relay.relayTenant(anyLong(), any(Instant.class)))
-                .thenReturn(new RelayResult(0, 0, 0, 0, 0));
+                .thenReturn(new RelayResult(0, 0, 0, 0, 0, 0));
         when(relay.relayTenant(org.mockito.ArgumentMatchers.eq(11L), any(Instant.class)))
                 .thenThrow(new IllegalStateException("tenant unavailable"));
+        when(relay.statusTenant(anyLong()))
+                .thenReturn(new NotificationOutboxRepository.OutboxStatus(0, 0, 0, null));
 
-        new NotificationOutboxRelayScheduler(tenants, relay).run();
+        NotificationOutboxOperationalMonitor monitor = new NotificationOutboxOperationalMonitor(
+                new SimpleMeterRegistry(), true, Duration.ZERO, Duration.ofMinutes(2),
+                Duration.ofMinutes(15), 10_000);
+        new NotificationOutboxRelayScheduler(tenants, relay, monitor).run();
 
         verify(relay).relayTenant(org.mockito.ArgumentMatchers.eq(11L), any(Instant.class));
         verify(relay).relayTenant(org.mockito.ArgumentMatchers.eq(12L), any(Instant.class));

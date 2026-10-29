@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -84,7 +85,9 @@ final class CalendarRowMapper {
                 result.getBoolean("starred"),
                 result.getLong("preference_version"),
                 CalendarAccessLevel.valueOf(result.getString("access_level")),
-                result.getLong("version"));
+                result.getLong("version"),
+                recurrenceDays(result),
+                nullableInteger(result, "recurrence_count"));
     }
 
     <T> T resource(ResultSet result, ResourceFactory<T> factory) throws SQLException {
@@ -150,7 +153,8 @@ final class CalendarRowMapper {
                 int recurrenceInterval, LocalDate recurrenceUntil, boolean responseRequired,
                 ResponseStatus myResponse, R resource, EventImportance importance,
                 EventDetailLevel detailLevel, boolean starred, long preferenceVersion,
-                CalendarAccessLevel accessLevel, long version);
+                CalendarAccessLevel accessLevel, long version,
+                List<DayOfWeek> recurrenceDays, Integer recurrenceCount);
     }
 
     @FunctionalInterface
@@ -175,5 +179,21 @@ final class CalendarRowMapper {
     private static Long nullableLong(ResultSet result, String column) throws SQLException {
         long value = result.getLong(column);
         return result.wasNull() ? null : value;
+    }
+
+    private static Integer nullableInteger(ResultSet result, String column) throws SQLException {
+        int value = result.getInt(column);
+        return result.wasNull() ? null : value;
+    }
+
+    private static List<DayOfWeek> recurrenceDays(ResultSet result) throws SQLException {
+        java.sql.Array array = result.getArray("recurrence_days");
+        if (array == null) return List.of();
+        Object[] values = (Object[]) array.getArray();
+        return java.util.Arrays.stream(values)
+                .map(value -> DayOfWeek.of(((Number) value).intValue()))
+                .distinct()
+                .sorted()
+                .toList();
     }
 }

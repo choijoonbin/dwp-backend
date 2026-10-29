@@ -36,6 +36,10 @@ class WorkplaceExperienceFacilitiesRetentionPostgresTest {
         UUID outside=request(other,"RESOLVED",31);UUID old=request(f,"RESOLVED",31);UUID audit=audit(f,old,"FACILITY_REQUEST","STANDARD");
         tx(() -> {UUID exact=request(f,"CANCELLED",30),open=request(f,"OPEN",100),working=request(f,"IN_PROGRESS",100),recent=request(f,"RESOLVED",29);
             assertThat(collaboration.privacy(f.tenant).facilityRequestEligibleRetentionCount()).isOne();
+            assertThat(retention.retentionBacklog()).satisfies(backlog -> {
+                assertThat(backlog.requests()).isGreaterThanOrEqualTo(1);
+                assertThat(backlog.oldestRequestExpiredAt()).isNotNull();
+            });
             assertThat(retention.purgeTenant(f.tenant,100)).isEqualTo(new WorkplaceExperienceFacilitiesRetention.Purged(1,0));
             assertThat(exists("wp_experience_facility_requests","request_id",old)).isFalse();
             for(UUID id:new UUID[]{exact,open,working,recent,outside}) assertThat(exists("wp_experience_facility_requests","request_id",id)).isTrue();

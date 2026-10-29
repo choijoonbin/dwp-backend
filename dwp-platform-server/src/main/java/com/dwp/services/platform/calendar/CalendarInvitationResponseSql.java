@@ -33,6 +33,29 @@ final class CalendarInvitationResponseSql {
          FOR UPDATE OF event, attendee
         """;
 
+    static final String LOCK_DELEGATED_EVENT_AND_ATTENDEE = """
+        SELECT attendee.attendee_id, attendee.attendee_person_public_id,
+               event.version AS event_version,
+               attendee.response_status, attendee.response_version
+          FROM cal_events event
+          JOIN cal_event_attendees attendee
+            ON attendee.tenant_id = event.tenant_id
+           AND attendee.event_id = event.event_id
+          JOIN cal_calendar_delegations delegation
+            ON delegation.tenant_id = attendee.tenant_id
+           AND delegation.owner_person_public_id = attendee.attendee_person_public_id
+           AND delegation.delegate_person_public_id = ?
+           AND delegation.can_respond
+           AND delegation.status = 'ACTIVE'
+           AND delegation.valid_from <= CURRENT_TIMESTAMP
+           AND delegation.valid_until > CURRENT_TIMESTAMP
+         WHERE event.tenant_id = ? AND event.event_id = ?
+           AND event.status <> 'CANCELLED' AND event.deleted_at IS NULL
+         ORDER BY attendee.attendee_person_public_id, attendee.updated_at DESC
+         LIMIT 2
+         FOR UPDATE OF event, attendee, delegation
+        """;
+
     static final String UPDATE_ATTENDEE = """
         UPDATE cal_event_attendees
            SET response_status = ?, responded_at = CURRENT_TIMESTAMP,

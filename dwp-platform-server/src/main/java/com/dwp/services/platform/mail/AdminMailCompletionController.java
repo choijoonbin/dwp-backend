@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -57,14 +58,15 @@ public class AdminMailCompletionController {
     }
 
     @PostMapping("/connections/{connectionId}/sync")
-    public ApiResponse<ConnectionOperation> synchronize(
+    public ResponseEntity<ApiResponse<ConnectionOperation>> synchronize(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID connectionId,
             @Valid @RequestBody ConnectionOperationRequest request) {
-        return ApiResponse.success(service.connectionOperation(
-                tenantId, actorId, connectionId, "SYNC", correlationId, request));
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(
+                service.connectionOperation(
+                        tenantId, actorId, connectionId, "SYNC", correlationId, request)));
     }
 
     @PostMapping("/connections/{connectionId}/test-send")

@@ -140,13 +140,14 @@ class AdminMailCompletionConnectionSupport extends AdminMailCompletionRetentionS
         return jdbc.query("""
                 SELECT account_id, email_address,
                        COALESCE(provider_account_ref, email_address) provider_account_ref,
-                       synchronization_cursor
+                       synchronization_cursor, synchronization_cursor_generation
                   FROM mail_accounts
                  WHERE tenant_id = ? AND connection_id = ? AND connection_state = 'ACTIVE'
                  ORDER BY account_id
                 """, (rs, ignored) -> new AccountRow(
                 uuid(rs, "account_id"), rs.getString("email_address"),
-                rs.getString("provider_account_ref"), rs.getString("synchronization_cursor")),
+                rs.getString("provider_account_ref"), rs.getString("synchronization_cursor"),
+                rs.getLong("synchronization_cursor_generation")),
                 tenantId, connectionId);
     }
 
@@ -225,7 +226,7 @@ class AdminMailCompletionConnectionSupport extends AdminMailCompletionRetentionS
         return one("""
                 SELECT account.account_id, account.email_address,
                        account.owner_user_id, account.synchronization_cursor,
-                       inbox.shared_inbox_id
+                       inbox.shared_inbox_id, account.synchronization_cursor_generation
                   FROM mail_accounts account
                   LEFT JOIN mail_shared_inboxes inbox
                     ON inbox.tenant_id = account.tenant_id
@@ -238,7 +239,28 @@ class AdminMailCompletionConnectionSupport extends AdminMailCompletionRetentionS
                 uuid(result, "account_id"), result.getString("email_address"),
                 nullableLong(result, "owner_user_id"),
                 result.getString("synchronization_cursor"),
-                uuid(result, "shared_inbox_id")), tenantId, accountId);
+                uuid(result, "shared_inbox_id"),
+                result.getLong("synchronization_cursor_generation")), tenantId, accountId);
+    }
+
+    Optional<SyncAccountRow> syncAccount(long tenantId, UUID accountId) {
+        return one("""
+                SELECT account.account_id, account.email_address,
+                       account.owner_user_id, account.synchronization_cursor,
+                       inbox.shared_inbox_id, account.synchronization_cursor_generation
+                  FROM mail_accounts account
+                  LEFT JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = account.tenant_id
+                   AND inbox.account_id = account.account_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                 WHERE account.tenant_id = ? AND account.account_id = ?
+                   AND account.connection_state = 'ACTIVE'
+                """, (result, ignored) -> new SyncAccountRow(
+                uuid(result, "account_id"), result.getString("email_address"),
+                nullableLong(result, "owner_user_id"),
+                result.getString("synchronization_cursor"),
+                uuid(result, "shared_inbox_id"),
+                result.getLong("synchronization_cursor_generation")), tenantId, accountId);
     }
 
     Optional<UUID> synchronizationFolder(
@@ -368,6 +390,13 @@ class AdminMailCompletionConnectionSupport extends AdminMailCompletionRetentionS
                     attachment.checksumSha256(), attachment.scanState(),
                     attachment.scanEvidence());
         }
+        jdbc.update("""
+                INSERT INTO mail_domain_events (
+                    domain_event_id, tenant_id, aggregate_type, aggregate_id,
+                    event_type, payload)
+                VALUES (?, ?, 'MAIL_THREAD', ?, 'mail.message.received', ?::jsonb)
+                """, UUID.randomUUID(), tenantId, threadId,
+                json(Map.of("threadId", threadId, "messageId", messageId)));
         return new InboundMaterialized(threadId, messageId, true);
     }
 
@@ -375,16 +404,20 @@ class AdminMailCompletionConnectionSupport extends AdminMailCompletionRetentionS
             long tenantId,
             UUID accountId,
             String expectedCursor,
+            long expectedGeneration,
             String nextCursor,
             long actorId) {
         return jdbc.update("""
                 UPDATE mail_accounts
                    SET synchronization_cursor = ?, synchronization_state = 'READY',
+                       synchronization_cursor_generation = synchronization_cursor_generation + 1,
                        version = version + 1, updated_at = CURRENT_TIMESTAMP,
                        updated_by = ?
                  WHERE tenant_id = ? AND account_id = ?
                    AND synchronization_cursor IS NOT DISTINCT FROM ?
-                """, nextCursor, actorId, tenantId, accountId, expectedCursor);
+                   AND synchronization_cursor_generation = ?
+                """, nextCursor, actorId, tenantId, accountId,
+                expectedCursor, expectedGeneration);
     }
 
     Optional<SharedInboxRow> sharedInbox(long tenantId, UUID inboxId) {

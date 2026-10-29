@@ -45,4 +45,25 @@ final class ClamAvAttachmentScanner implements AttachmentScanner {
             return ScanResult.rejected(request.declaredContentType(), "SCANNER_UNAVAILABLE");
         }
     }
+
+    @Override
+    public ProviderHealth health() {
+        try (Socket socket = new Socket()) {
+            int timeout = Math.toIntExact(properties.clamavTimeout().toMillis());
+            socket.connect(new InetSocketAddress(
+                    properties.clamavHost(), properties.clamavPort()), timeout);
+            socket.setSoTimeout(timeout);
+            socket.getOutputStream().write("zPING\0".getBytes(StandardCharsets.US_ASCII));
+            socket.getOutputStream().flush();
+            byte[] response = new byte[32];
+            int length = socket.getInputStream().read(response);
+            String reply = length < 1 ? "" : new String(
+                    response, 0, length, StandardCharsets.US_ASCII).replace("\0", "").trim();
+            return "PONG".equals(reply)
+                    ? ProviderHealth.ready()
+                    : ProviderHealth.unavailable("CLAMAV_UNEXPECTED_REPLY");
+        } catch (IOException | ArithmeticException exception) {
+            return ProviderHealth.unavailable("CLAMAV_UNAVAILABLE");
+        }
+    }
 }

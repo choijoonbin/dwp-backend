@@ -9,6 +9,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockFilterChain;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -442,7 +445,116 @@ class CalendarProductSurfacePepEvidenceTest {
                 anyLong(), anyLong(), any(), any(), any(), any(), any());
         verify(service).create(
                 anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any());
+                any(), any(), any());
+    }
+
+    @Test
+    void v2SchedulingRoutesUseReadOnlyCalendarViewPolicyBindings() {
+        CalendarProductSurfaceContract.Binding evaluation = contract.resolveOwner(
+                "POST", "/v2/calendar/scheduling/evaluations").orElseThrow();
+        CalendarProductSurfaceContract.Binding hardRecheck = contract.resolveOwner(
+                "POST", "/v2/calendar/scheduling/evaluations/"
+                        + "123e4567-e89b-42d3-a456-426614174000/hard-recheck")
+                .orElseThrow();
+
+        assertThat(evaluation.routeContractKey()).isEqualTo(
+                CalendarProductSurfaceContract.SCHEDULING_EVALUATION_DATA_ROUTE);
+        assertThat(evaluation.gatewayPath()).isEqualTo(
+                "/api/platform/v2/calendar/scheduling/evaluations");
+        assertThat(hardRecheck.routeContractKey()).isEqualTo(
+                CalendarProductSurfaceContract.SCHEDULING_HARD_RECHECK_DATA_ROUTE);
+        assertThat(hardRecheck.gatewayPath()).isEqualTo(
+                "/api/platform/v2/calendar/scheduling/evaluations/"
+                        + "{evaluationId}/hard-recheck");
+        assertThat(evaluation.routeKind()).isEqualTo(
+                CalendarProductSurfaceContract.RouteKind.DATA);
+        assertThat(hardRecheck.routeKind()).isEqualTo(
+                CalendarProductSurfaceContract.RouteKind.DATA);
+        assertThat(evaluation.accessContractType()).isEqualTo(
+                CalendarProductSurfaceContract.AccessContractType.POLICY);
+        assertThat(hardRecheck.accessContractType()).isEqualTo(
+                CalendarProductSurfaceContract.AccessContractType.POLICY);
+        assertThat(evaluation.accessContractKey()).isEqualTo(
+                CalendarProductSurfaceContract.ACCESS_POLICY_KEY);
+        assertThat(hardRecheck.accessContractKey()).isEqualTo(
+                CalendarProductSurfaceContract.ACCESS_POLICY_KEY);
+        assertThat(evaluation.resolvedAuthority()).isEqualTo("APP.CALENDAR:VIEW");
+        assertThat(hardRecheck.resolvedAuthority()).isEqualTo("APP.CALENDAR:VIEW");
+        assertThat(evaluation.readOnly()).isTrue();
+        assertThat(hardRecheck.readOnly()).isTrue();
+    }
+
+    @Test
+    void v2SchedulingRoutesExecuteThroughTheCalendarOwnerPep() throws Exception {
+        CalendarProductSurfacePepFilter filter = new CalendarProductSurfacePepFilter(
+                true, contract, new CalendarProductSurfaceAccessPolicy(), objectMapper);
+        String[][] routes = {
+                {
+                        "/v2/calendar/scheduling/evaluations",
+                        CalendarProductSurfaceContract.SCHEDULING_EVALUATION_DATA_ROUTE
+                },
+                {
+                        "/v2/calendar/scheduling/evaluations/"
+                                + "123e4567-e89b-42d3-a456-426614174000/hard-recheck",
+                        CalendarProductSurfaceContract.SCHEDULING_HARD_RECHECK_DATA_ROUTE
+                }
+        };
+
+        for (String[] route : routes) {
+            MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+            filter.doFilter(
+                    v2OwnerRequest(route[0], route[1], "APP.CALENDAR:VIEW"),
+                    allowedResponse,
+                    new MockFilterChain());
+            assertThat(allowedResponse.getStatus()).as(route[0]).isEqualTo(200);
+            assertThat(allowedResponse.getHeader(
+                    CalendarProductSurfacePepFilter.RESPONSE_REVISION_HEADER))
+                    .isEqualTo(CURRENT_REVISION);
+
+            MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+            filter.doFilter(
+                    v2OwnerRequest(route[0], route[1], "APP.CALENDAR:CREATE"),
+                    deniedResponse,
+                    new MockFilterChain());
+            assertThat(deniedResponse.getStatus()).as(route[0]).isEqualTo(403);
+        }
+    }
+
+    @Test
+    void v2HardRecheckRejectsNonCanonicalUuidAndEncodedRouteAliases() throws Exception {
+        CalendarProductSurfacePepFilter filter = new CalendarProductSurfacePepFilter(
+                true, contract, new CalendarProductSurfaceAccessPolicy(), objectMapper);
+        String prefix = "/v2/calendar/scheduling/evaluations/";
+        String suffix = "/hard-recheck";
+        String[] aliases = {
+                prefix + "123E4567-E89B-42D3-A456-426614174000" + suffix,
+                prefix + "%31" + "23e4567-e89b-42d3-a456-426614174000" + suffix,
+                prefix + "123e4567-e89b-42d3-a456-426614174000;source=spoof" + suffix,
+                prefix + "123e4567-e89b-42d3-a456-426614174000/%68ard-recheck",
+                prefix + "not-a-uuid" + suffix,
+                prefix + "{evaluationId}" + suffix,
+                prefix + "123e4567-e89b-42d3-a456-426614174000" + suffix + "/"
+        };
+
+        for (String alias : aliases) {
+            assertThat(contract.ownsOwnerCandidate("POST", alias)).as(alias).isTrue();
+            assertThat(contract.resolveOwner("POST", alias)).as(alias).isEmpty();
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(
+                    v2OwnerRequest(
+                            alias,
+                            CalendarProductSurfaceContract.SCHEDULING_HARD_RECHECK_DATA_ROUTE,
+                            "APP.CALENDAR:VIEW"),
+                    response,
+                    new MockFilterChain());
+            assertThat(response.getStatus()).as(alias).isEqualTo(403);
+        }
+        assertThat(contract.resolveOwner(
+                "GET", prefix + "123e4567-e89b-42d3-a456-426614174000" + suffix))
+                .isEmpty();
+        assertThat(contract.ownsOwnerCandidate(
+                "POST", "/v2/calendarish/scheduling/evaluations"))
+                .isFalse();
     }
 
     @Test
@@ -456,9 +568,12 @@ class CalendarProductSurfacePepEvidenceTest {
         assertThat(bundle.path("checksum").asText()).matches("[a-f0-9]{64}");
 
         Map<String, CalendarProductSurfaceContract.BindingContract> runtime =
-                contract.bindingContracts().stream().collect(Collectors.toUnmodifiableMap(
-                        CalendarProductSurfaceContract.BindingContract::routeContractKey,
-                        Function.identity()));
+                // Keep the immutable attested v4 comparison exact; v2 is verified above.
+                contract.bindingContracts().stream()
+                        .filter(binding -> binding.servicePath().startsWith("/v1/calendar/"))
+                        .collect(Collectors.toUnmodifiableMap(
+                                CalendarProductSurfaceContract.BindingContract::routeContractKey,
+                                Function.identity()));
         Map<String, JsonNode> routes = calendarRoutes(bundle);
         assertThat(routes.keySet()).containsExactlyInAnyOrderElementsOf(runtime.keySet());
         runtime.forEach((routeKey, binding) -> assertRoute(routes.get(routeKey), binding));
@@ -645,6 +760,38 @@ class CalendarProductSurfacePepEvidenceTest {
                         "2099-01-01T00:00:00Z")
                 .header(CalendarProductSurfacePepFilter.CONTEXT_HEADER, CONTEXT_KEY)
                 .header(CalendarProductSurfacePepFilter.SCOPE_HEADER, scope);
+    }
+
+    private MockHttpServletRequest v2OwnerRequest(
+            String path,
+            String routeContractKey,
+            String permissions) {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+        request.addHeader("X-DWP-Tenant-ID", Long.toString(TENANT_ID));
+        request.addHeader("X-DWP-User-ID", Long.toString(ACTOR_ID));
+        request.addHeader("X-DWP-Person-Public-ID", PERSON_ID.toString());
+        request.addHeader("X-DWP-Roles", "WORKSPACE_MEMBER");
+        request.addHeader("X-DWP-Permissions", permissions);
+        request.addHeader(CalendarProductSurfacePepFilter.ROLLOUT_STATE_HEADER, "110");
+        request.addHeader(
+                CalendarProductSurfacePepFilter.ROLLOUT_REVISION_HEADER,
+                ROLLOUT_REVISION);
+        request.addHeader(CalendarProductSurfacePepFilter.ROLLOUT_COHORT_HEADER, "full");
+        request.addHeader(
+                CalendarProductSurfacePepFilter.ROUTE_CONTRACT_HEADER,
+                routeContractKey);
+        request.addHeader(CalendarProductSurfacePepFilter.ACTIVE_ACCESS_MODE_HEADER, "NORMAL");
+        request.addHeader(
+                CalendarProductSurfacePepFilter.CURRENT_REVISION_HEADER,
+                CURRENT_REVISION);
+        request.addHeader(
+                CalendarProductSurfacePepFilter.CURRENT_REVALIDATE_AT_HEADER,
+                "2099-01-01T00:00:00Z");
+        request.addHeader(CalendarProductSurfacePepFilter.CONTEXT_HEADER, CONTEXT_KEY);
+        request.addHeader(
+                CalendarProductSurfacePepFilter.SCOPE_HEADER,
+                scope(TENANT_ID, ACTOR_ID, "SELF"));
+        return request;
     }
 
     private String scope(long tenantId, long actorId, String source) {

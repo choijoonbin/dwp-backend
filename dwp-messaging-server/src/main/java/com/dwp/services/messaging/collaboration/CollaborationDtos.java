@@ -1,6 +1,7 @@
 package com.dwp.services.messaging.collaboration;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -62,6 +63,7 @@ public final class CollaborationDtos {
             boolean idempotentReplay) {
     }
 
+    @Schema(name = "CollaborationConversationSummary")
     public record ConversationSummary(
             UUID conversationId,
             ConversationType type,
@@ -73,6 +75,7 @@ public final class CollaborationDtos {
             List<MemberSummary> members) {
     }
 
+    @Schema(name = "CollaborationMemberSummary")
     public record MemberSummary(
             long userId,
             UUID personPublicId,

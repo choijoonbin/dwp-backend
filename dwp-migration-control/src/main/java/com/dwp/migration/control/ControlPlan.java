@@ -67,6 +67,10 @@ record ControlPlan(
 
     List<RequiredDatabaseExtension> requiredDatabaseExtensions() {
         return switch (service) {
+            case "platform" -> List.of(
+                    new RequiredDatabaseExtension("btree_gist", "public", "1.7"),
+                    new RequiredDatabaseExtension("pgcrypto", "public", "1.3"),
+                    new RequiredDatabaseExtension("pg_trgm", "public", "1.6"));
             case "people" -> List.of(
                     new RequiredDatabaseExtension("btree_gist", "public", "1.7"),
                     new RequiredDatabaseExtension("pgcrypto", "public", "1.3"));

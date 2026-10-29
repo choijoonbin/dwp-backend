@@ -15,7 +15,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
@@ -34,18 +34,22 @@ class CalendarResourceRestoreService {
     private final CalendarRepository calendar;
     private final CalendarRetentionRepository retention;
     private final WorkplaceRoomAccessPort roomAccess;
+    private final RoomBookingPolicyService roomBookingPolicy;
+    private final CalendarRecurrenceEngine recurrence = new CalendarRecurrenceEngine();
 
     CalendarResourceRestoreService(
             CalendarCollaborationRepository collaboration,
             CalendarRestoreRepository restoreRepository,
             CalendarRepository calendar,
             CalendarRetentionRepository retention,
-            WorkplaceRoomAccessPort roomAccess) {
+            WorkplaceRoomAccessPort roomAccess,
+            RoomBookingPolicyService roomBookingPolicy) {
         this.collaboration = collaboration;
         this.restoreRepository = restoreRepository;
         this.calendar = calendar;
         this.retention = retention;
         this.roomAccess = roomAccess;
+        this.roomBookingPolicy = roomBookingPolicy;
     }
 
     @Transactional
@@ -235,6 +239,21 @@ class CalendarResourceRestoreService {
                     false);
         }
 
+        try {
+            roomBookingPolicy.validateRestoreRecurrence(
+                    tenantId,
+                    booking.resourceType(),
+                    cancelledSeries(booking),
+                    currentSeries(booking));
+        } catch (BaseException exception) {
+            if (exception.getErrorCode() != ErrorCode.INVALID_INPUT_VALUE) throw exception;
+            return result(
+                    booking,
+                    CalendarRecoveryDtos.RestoreOutcome.EVENT_ONLY_RESOURCE_UNAVAILABLE,
+                    CalendarRecoveryDtos.RestoreReason.RESOURCE_POLICY_BLOCKED,
+                    false);
+        }
+
         List<BookingWindow> windows;
         try {
             windows = eligibleWindows(tenantId, booking);
@@ -268,6 +287,41 @@ class CalendarResourceRestoreService {
                 CalendarRecoveryDtos.RestoreOutcome.EVENT_ONLY_RESOURCE_REBOOK_REQUIRED,
                 CalendarRecoveryDtos.RestoreReason.EXPLICIT_REBOOK_REQUIRED,
                 true);
+    }
+
+    private WorkplaceRoomRecurrencePolicy.ExistingSeries currentSeries(
+            CalendarRestoreRepository.RestoreBookingRow booking) {
+        return new WorkplaceRoomRecurrencePolicy.ExistingSeries(
+                booking.recurrence(),
+                booking.recurrenceInterval(),
+                booking.recurrenceUntil(),
+                booking.recurrenceDays(),
+                booking.recurrenceCount(),
+                booking.startsAt(),
+                booking.endsAt(),
+                booking.timeZone(),
+                booking.resourceId());
+    }
+
+    private WorkplaceRoomRecurrencePolicy.ExistingSeries cancelledSeries(
+            CalendarRestoreRepository.RestoreBookingRow booking) {
+        if (booking.trashRecurrence() == null
+                || booking.trashRecurrenceInterval() == null
+                || booking.trashStartsAt() == null
+                || booking.trashEndsAt() == null
+                || booking.trashTimeZone() == null) {
+            return null;
+        }
+        return new WorkplaceRoomRecurrencePolicy.ExistingSeries(
+                booking.trashRecurrence(),
+                booking.trashRecurrenceInterval(),
+                booking.trashRecurrenceUntil(),
+                booking.trashRecurrenceDays(),
+                booking.trashRecurrenceCount(),
+                booking.trashStartsAt(),
+                booking.trashEndsAt(),
+                booking.trashTimeZone(),
+                booking.resourceId());
     }
 
     private List<BookingWindow> eligibleWindows(
@@ -314,44 +368,53 @@ class CalendarResourceRestoreService {
     private List<BookingWindow> futureWindows(
             CalendarRestoreRepository.RestoreBookingRow booking,
             ZoneId eventZone) {
-        List<BookingWindow> result = new ArrayList<>();
-        OffsetDateTime current = booking.startsAt();
         Duration duration = Duration.between(booking.startsAt(), booking.endsAt());
-        LocalDate lastDate = booking.recurrenceUntil() == null
-                ? current.atZoneSameInstant(eventZone).toLocalDate()
-                : booking.recurrenceUntil();
-        int guard = 0;
-        while (!current.atZoneSameInstant(eventZone).toLocalDate().isAfter(lastDate)
-                && guard++ < MAX_OCCURRENCES) {
-            OffsetDateTime end = current.plus(duration);
-            if (end.isAfter(OffsetDateTime.now())) {
-                result.add(new BookingWindow(current, end));
-            }
-            if (booking.recurrence() == CalendarTypes.RecurrencePattern.NONE) break;
-            current = increment(
-                    current,
-                    booking.recurrence(),
-                    booking.recurrenceInterval(),
-                    eventZone);
+        if (booking.recurrence() != CalendarTypes.RecurrencePattern.NONE
+                && booking.recurrenceUntil() == null && booking.recurrenceCount() == null) {
+            throw policy(CalendarRecoveryDtos.RestoreReason.RESOURCE_POLICY_BLOCKED);
         }
-        if (guard >= MAX_OCCURRENCES || result.isEmpty()) {
+        CalendarRecurrenceEngine.Rule rule;
+        try {
+            rule = recurrence.rule(
+                    booking.recurrence(), booking.recurrenceInterval(),
+                    booking.recurrenceUntil(), booking.recurrenceCount(),
+                    booking.recurrenceDays() == null || booking.recurrenceDays().isEmpty()
+                            ? EnumSet.noneOf(java.time.DayOfWeek.class)
+                            : EnumSet.copyOf(booking.recurrenceDays()),
+                    eventZone.getId());
+            recurrence.validate(booking.startsAt(), rule);
+        } catch (IllegalArgumentException exception) {
+            throw policy(CalendarRecoveryDtos.RestoreReason.RESOURCE_POLICY_BLOCKED);
+        }
+        OffsetDateTime exclusiveTo;
+        if (booking.recurrenceUntil() != null) {
+            exclusiveTo = booking.recurrenceUntil().plusDays(1)
+                    .atStartOfDay(eventZone).toOffsetDateTime();
+        } else if (booking.recurrenceCount() != null) {
+            OffsetDateTime last = booking.startsAt();
+            for (int ordinal = 1; ordinal < booking.recurrenceCount(); ordinal++) {
+                last = recurrence.next(booking.startsAt(), last, rule);
+            }
+            exclusiveTo = last.plus(duration).plusNanos(1);
+        } else {
+            exclusiveTo = booking.endsAt().plusNanos(1);
+        }
+        List<BookingWindow> result;
+        try {
+            OffsetDateTime now = OffsetDateTime.now();
+            result = recurrence.project(
+                            booking.startsAt(), booking.endsAt(), rule,
+                            now, exclusiveTo, MAX_OCCURRENCES)
+                    .stream()
+                    .map(value -> new BookingWindow(value.startsAt(), value.endsAt()))
+                    .toList();
+        } catch (CalendarRecurrenceEngine.ProjectionLimitExceededException exception) {
+            throw policy(CalendarRecoveryDtos.RestoreReason.RESOURCE_POLICY_BLOCKED);
+        }
+        if (result.isEmpty()) {
             throw policy(CalendarRecoveryDtos.RestoreReason.EVENT_TIME_IS_PAST);
         }
         return result;
-    }
-
-    private OffsetDateTime increment(
-            OffsetDateTime value,
-            CalendarTypes.RecurrencePattern recurrence,
-            int interval,
-            ZoneId zone) {
-        ZonedDateTime local = value.atZoneSameInstant(zone);
-        return switch (recurrence) {
-            case DAILY -> local.plusDays(interval).toOffsetDateTime();
-            case WEEKLY -> local.plusWeeks(interval).toOffsetDateTime();
-            case MONTHLY -> local.plusMonths(interval).toOffsetDateTime();
-            case NONE -> value;
-        };
     }
 
     private RestoreSummary summarize(List<CalendarRecoveryDtos.RestoreResourceResult> resources) {

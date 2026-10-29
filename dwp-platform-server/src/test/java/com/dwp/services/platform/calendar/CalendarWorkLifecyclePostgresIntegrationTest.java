@@ -77,7 +77,7 @@ class CalendarWorkLifecyclePostgresIntegrationTest {
         dataSource.setPassword(POSTGRES.getPassword());
         Flyway flyway = Flyway.configure()
                 .dataSource(dataSource)
-                .target("228")
+                .target("377")
                 .cleanDisabled(false)
                 .load();
         flyway.clean();
@@ -120,12 +120,25 @@ class CalendarWorkLifecyclePostgresIntegrationTest {
                 calendarRepository,
                 roomAccess,
                 horizon,
-                new RoomBookingPolicyService(calendarRepository, horizon));
+                new RoomBookingPolicyService(
+                        calendarRepository, horizon, new WorkplaceRoomRecurrencePolicy(jdbc)));
 
         PlatformAuditService audit = mock(PlatformAuditService.class);
         when(audit.successWithId(
                 anyLong(), anyLong(), any(), any(), any(), any(), any(), any()))
-                .thenAnswer(invocation -> UUID.randomUUID());
+                .thenAnswer(invocation -> {
+                    UUID auditId = UUID.randomUUID();
+                    jdbc.update("""
+                            INSERT INTO sys_platform_audit_events (
+                                audit_event_id, tenant_id, actor_type, actor_id,
+                                action, target_type, target_id, outcome, correlation_id)
+                            VALUES (?, ?, 'USER', ?, ?, ?, ?, 'SUCCESS', ?)
+                            """, auditId,
+                            invocation.getArgument(0), invocation.getArgument(1),
+                            invocation.getArgument(2), invocation.getArgument(3),
+                            invocation.getArgument(4), invocation.getArgument(5));
+                    return auditId;
+                });
         PersonalWorkAccess workAccess = new PersonalWorkAccess();
         personalWorkService = new PersonalWorkService(
                 new PersonalWorkRepository(jdbc), workAccess, List.of(), audit, mapper);

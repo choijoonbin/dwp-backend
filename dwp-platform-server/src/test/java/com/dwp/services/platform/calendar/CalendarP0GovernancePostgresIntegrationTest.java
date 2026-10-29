@@ -76,6 +76,10 @@ class CalendarP0GovernancePostgresIntegrationTest {
                 "cal_resources", "uk_cal_resources_tenant_resource");
 
         flyway("192").migrate();
+        // The class keeps its explicit V192 migration assertions, while the behavioral
+        // repository checks below must run against the schema required by the current
+        // Calendar access and recurrence queries.
+        flyway("377").migrate();
     }
 
     @BeforeEach
@@ -1000,6 +1004,7 @@ class CalendarP0GovernancePostgresIntegrationTest {
             statement.setObject(8, QUERY_FROM);
             statement.setObject(9, QUERY_TO);
             statement.setObject(10, QUERY_FROM);
+            statement.setObject(11, QUERY_FROM);
             return statement;
         }, (result, ignored) -> new EventAccessRow(
                 result.getObject("event_id", UUID.class),

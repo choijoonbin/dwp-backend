@@ -29,15 +29,19 @@ class WorkplaceExceptionConsoleControllerTest {
     void readIsNoStoreAndRequiresView() throws Exception {
         OffsetDateTime now = OffsetDateTime.parse("2026-09-17T03:00:00Z");
         when(service.console(42)).thenReturn(new ExceptionConsole(
-                new ExceptionSummary(0, 0, 0, 0, 0, 0, null, null),
-                List.of(), List.of(), now, null));
+                new ExceptionSummary(0, 0, 0, 0, 0, 0, null, null,
+                        0, 0, false),
+                List.of(), List.of(), now, null, List.of()));
         mvc.perform(get("/v1/admin/workplace/exceptions")
                         .header(WorkplaceExceptionConsoleController.TENANT, 42)
                         .header(WorkplaceExceptionConsoleController.PERMISSIONS,
                                 "ADMIN.WORKPLACE:VIEW"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "private, no-store, max-age=0"))
-                .andExpect(jsonPath("$.data.summary.active").value(0));
+                .andExpect(jsonPath("$.data.summary.active").value(0))
+                .andExpect(jsonPath("$.data.summary.unresolvedCount").value(0))
+                .andExpect(jsonPath("$.data.summary.returnedCount").value(0))
+                .andExpect(jsonPath("$.data.summary.truncated").value(false));
     }
 
     @Test

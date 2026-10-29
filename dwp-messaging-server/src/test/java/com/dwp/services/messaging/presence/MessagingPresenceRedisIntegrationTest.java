@@ -102,6 +102,20 @@ class MessagingPresenceRedisIntegrationTest {
     }
 
     @Test
+    void privacyOptOutRemovesAnExistingRealRedisLeaseAndCannotRenewIt() {
+        assertThat(service.heartbeat()).isTrue();
+        assertThat(service.snapshot(TENANT_ID, Set.of(USER_ID)).state(USER_ID))
+                .isEqualTo("AVAILABLE");
+        service = service(redis, meters, 5_000, (tenantId, userId) -> false);
+
+        assertThat(service.heartbeat()).isTrue();
+
+        assertThat(service.snapshot(TENANT_ID, Set.of(USER_ID)).state(USER_ID))
+                .isEqualTo("OFFLINE");
+        assertThat(redis.opsForZSet().score(key(TENANT_ID), Long.toString(USER_ID))).isNull();
+    }
+
+    @Test
     void expiredScoresAreRemovedBeforeTheyCanReportAvailability() {
         assertThat(service.heartbeat()).isTrue();
         redis.opsForZSet().add(key(TENANT_ID), Long.toString(USER_ID), 0);
@@ -184,6 +198,14 @@ class MessagingPresenceRedisIntegrationTest {
             StringRedisTemplate template,
             SimpleMeterRegistry registry,
             int warningThreshold) {
+        return service(template, registry, warningThreshold, MessagingPresenceSharingPolicy.ALLOW_ALL);
+    }
+
+    private MessagingPresenceService service(
+            StringRedisTemplate template,
+            SimpleMeterRegistry registry,
+            int warningThreshold,
+            MessagingPresenceSharingPolicy sharingPolicy) {
         return new MessagingPresenceService(
                 template,
                 true,
@@ -191,6 +213,7 @@ class MessagingPresenceRedisIntegrationTest {
                 Duration.ofSeconds(20),
                 keyPrefix,
                 warningThreshold,
+                sharingPolicy,
                 registry,
                 Clock.systemUTC());
     }

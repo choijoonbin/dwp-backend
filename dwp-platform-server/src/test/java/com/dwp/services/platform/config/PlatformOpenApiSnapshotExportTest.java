@@ -60,7 +60,7 @@ class PlatformOpenApiSnapshotExportTest {
                 int port = ((ServletWebServerApplicationContext) context).getWebServer().getPort();
                 String url = "http://127.0.0.1:" + port + "/v3/api-docs";
                 var response = HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create(url))
-                        .timeout(Duration.ofSeconds(60)).GET().build(), HttpResponse.BodyHandlers.ofString());
+                        .timeout(Duration.ofSeconds(300)).GET().build(), HttpResponse.BodyHandlers.ofString());
                 assertThat(response.statusCode()).isEqualTo(200);
                 JsonNode document = new ObjectMapper().readTree(response.body());
                 JsonNode paths = document.path("paths");

@@ -2,6 +2,7 @@ package com.dwp.services.notification.operations;
 
 import com.dwp.services.notification.domain.NotificationModels.ChangeSignal;
 import com.dwp.services.notification.operations.NotificationRetentionRepository.PurgeResult;
+import com.dwp.services.notification.operations.NotificationRetentionRepository.RetentionInputs;
 import com.dwp.services.notification.realtime.NotificationChangeCause;
 import com.dwp.services.notification.realtime.NotificationChangePublisher;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
@@ -25,23 +26,74 @@ class NotificationRetentionServiceTest {
     void leavesExpiryUnsetUntilAReleaseRetentionPeriodIsApproved() {
         NotificationRetentionRepository repository = mock(NotificationRetentionRepository.class);
         NotificationRetentionService service = service(repository, Duration.ZERO);
+        UUID typeVersionId = UUID.randomUUID();
+        when(repository.retentionInputs(7, typeVersionId))
+                .thenReturn(new RetentionInputs(null, null));
 
-        service.applyDefaultExpiry(7, UUID.randomUUID(), Instant.now());
+        service.applyEffectiveExpiry(7, UUID.randomUUID(), typeVersionId, Instant.now());
 
-        verify(repository, never()).extendExpiry(any(Long.class), any(), any());
+        verify(repository, never()).applyExpiry(
+                any(Long.class), any(), any(), any(), any(Long.class));
     }
 
     @Test
-    void appliesTheConfiguredDefaultExpiryInsideMaterialization() {
+    void appliesTheConfiguredPlatformFallbackInsideMaterialization() {
         NotificationRetentionRepository repository = mock(NotificationRetentionRepository.class);
         NotificationRetentionService service = service(repository, Duration.ofDays(30));
         UUID notificationId = UUID.randomUUID();
+        UUID typeVersionId = UUID.randomUUID();
         Instant activityAt = Instant.parse("2026-08-20T09:00:00Z");
+        when(repository.retentionInputs(7, typeVersionId))
+                .thenReturn(new RetentionInputs(null, null));
 
-        service.applyDefaultExpiry(7, notificationId, activityAt);
+        service.applyEffectiveExpiry(7, notificationId, typeVersionId, activityAt);
 
-        verify(repository).extendExpiry(
-                7, notificationId, Instant.parse("2026-09-19T09:00:00Z"));
+        verify(repository).applyExpiry(
+                7,
+                notificationId,
+                Instant.parse("2026-09-19T09:00:00Z"),
+                "PLATFORM_DEFAULT",
+                Duration.ofDays(30).toSeconds());
+    }
+
+    @Test
+    void contractOverrideWinsOverTenantDefault() {
+        NotificationRetentionRepository repository = mock(NotificationRetentionRepository.class);
+        NotificationRetentionService service = service(repository, Duration.ofDays(90));
+        UUID notificationId = UUID.randomUUID();
+        UUID typeVersionId = UUID.randomUUID();
+        Instant activityAt = Instant.parse("2026-08-20T09:00:00Z");
+        when(repository.retentionInputs(7, typeVersionId)).thenReturn(new RetentionInputs(
+                Duration.ofDays(60).toSeconds(), Duration.ofDays(30).toSeconds()));
+
+        service.applyEffectiveExpiry(7, notificationId, typeVersionId, activityAt);
+
+        verify(repository).applyExpiry(
+                7,
+                notificationId,
+                Instant.parse("2026-09-19T09:00:00Z"),
+                "CONTRACT_OVERRIDE",
+                Duration.ofDays(30).toSeconds());
+    }
+
+    @Test
+    void tenantDefaultWinsOverPlatformFallbackWhenNoContractOverrideExists() {
+        NotificationRetentionRepository repository = mock(NotificationRetentionRepository.class);
+        NotificationRetentionService service = service(repository, Duration.ofDays(90));
+        UUID notificationId = UUID.randomUUID();
+        UUID typeVersionId = UUID.randomUUID();
+        Instant activityAt = Instant.parse("2026-08-20T09:00:00Z");
+        when(repository.retentionInputs(7, typeVersionId)).thenReturn(new RetentionInputs(
+                Duration.ofDays(60).toSeconds(), null));
+
+        service.applyEffectiveExpiry(7, notificationId, typeVersionId, activityAt);
+
+        verify(repository).applyExpiry(
+                7,
+                notificationId,
+                Instant.parse("2026-10-19T09:00:00Z"),
+                "TENANT_DEFAULT",
+                Duration.ofDays(60).toSeconds());
     }
 
     @Test

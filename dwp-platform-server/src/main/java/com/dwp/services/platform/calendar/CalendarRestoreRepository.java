@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -139,12 +140,40 @@ class CalendarRestoreRepository {
                         result.getString("recurrence_pattern")),
                 result.getInt("recurrence_interval"),
                 result.getObject("recurrence_until", LocalDate.class),
+                recurrenceDays(result, "recurrence_days"),
+                nullableInteger(result, "recurrence_count"),
+                recurrence(result.getString("trash_recurrence_pattern")),
+                result.getObject("trash_recurrence_interval", Integer.class),
+                result.getObject("trash_recurrence_until", LocalDate.class),
+                recurrenceDays(result, "trash_recurrence_days"),
+                nullableInteger(result, "trash_recurrence_count"),
+                result.getObject("trash_event_starts_at", OffsetDateTime.class),
+                result.getObject("trash_event_ends_at", OffsetDateTime.class),
+                result.getString("trash_event_time_zone"),
                 CalendarTypes.ResourceType.valueOf(result.getString("resource_type")),
                 result.getString("resource_time_zone"),
                 result.getBoolean("approval_required"),
                 CalendarTypes.ResourceState.valueOf(result.getString("lifecycle_state")),
                 result.getInt("capacity"),
                 result.getLong("attendee_count"));
+    }
+
+    private CalendarTypes.RecurrencePattern recurrence(String value) {
+        return value == null ? null : CalendarTypes.RecurrencePattern.valueOf(value);
+    }
+
+    private List<DayOfWeek> recurrenceDays(ResultSet result, String column)
+            throws SQLException {
+        java.sql.Array array = result.getArray(column);
+        if (array == null) return List.of();
+        return java.util.Arrays.stream((Object[]) array.getArray())
+                .map(value -> DayOfWeek.of(((Number) value).intValue()))
+                .distinct().sorted().toList();
+    }
+
+    private Integer nullableInteger(ResultSet result, String column) throws SQLException {
+        int value = result.getInt(column);
+        return result.wasNull() ? null : value;
     }
 
     record RestoreBookingRow(
@@ -159,12 +188,54 @@ class CalendarRestoreRepository {
             CalendarTypes.RecurrencePattern recurrence,
             int recurrenceInterval,
             LocalDate recurrenceUntil,
+            List<DayOfWeek> recurrenceDays,
+            Integer recurrenceCount,
+            CalendarTypes.RecurrencePattern trashRecurrence,
+            Integer trashRecurrenceInterval,
+            LocalDate trashRecurrenceUntil,
+            List<DayOfWeek> trashRecurrenceDays,
+            Integer trashRecurrenceCount,
+            OffsetDateTime trashStartsAt,
+            OffsetDateTime trashEndsAt,
+            String trashTimeZone,
             CalendarTypes.ResourceType resourceType,
             String resourceTimeZone,
             boolean approvalRequired,
             CalendarTypes.ResourceState resourceState,
             int capacity,
             long attendeeCount) {
+
+        RestoreBookingRow(
+                UUID resourceId,
+                String bookingStatus,
+                long bookingVersion,
+                OffsetDateTime startsAt,
+                OffsetDateTime endsAt,
+                String timeZone,
+                CalendarTypes.EventType eventType,
+                boolean allDay,
+                CalendarTypes.RecurrencePattern recurrence,
+                int recurrenceInterval,
+                LocalDate recurrenceUntil,
+                CalendarTypes.RecurrencePattern trashRecurrence,
+                Integer trashRecurrenceInterval,
+                LocalDate trashRecurrenceUntil,
+                OffsetDateTime trashStartsAt,
+                OffsetDateTime trashEndsAt,
+                String trashTimeZone,
+                CalendarTypes.ResourceType resourceType,
+                String resourceTimeZone,
+                boolean approvalRequired,
+                CalendarTypes.ResourceState resourceState,
+                int capacity,
+                long attendeeCount) {
+            this(resourceId, bookingStatus, bookingVersion, startsAt, endsAt, timeZone,
+                    eventType, allDay, recurrence, recurrenceInterval, recurrenceUntil,
+                    List.of(), null, trashRecurrence, trashRecurrenceInterval,
+                    trashRecurrenceUntil, List.of(), null, trashStartsAt, trashEndsAt,
+                    trashTimeZone, resourceType, resourceTimeZone, approvalRequired,
+                    resourceState, capacity, attendeeCount);
+        }
     }
 
     record ResourceRebookCommandRow(

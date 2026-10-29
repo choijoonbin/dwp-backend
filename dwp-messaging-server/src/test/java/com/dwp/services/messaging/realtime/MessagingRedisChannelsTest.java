@@ -22,6 +22,7 @@ class MessagingRedisChannelsTest {
                 .startsWith("dwp.messaging.typing.v1.");
         assertThat(channels.topics()).hasSize(8);
         assertThat(channels.typingTopics()).hasSize(8);
+        assertThat(channels.readinessChannel()).isEqualTo("dwp.messaging.signal.v1.readiness");
     }
 
     @Test

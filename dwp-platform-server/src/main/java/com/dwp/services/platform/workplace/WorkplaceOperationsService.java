@@ -26,6 +26,8 @@ public class WorkplaceOperationsService {
 
     private static final Duration MAX_OPERATION_SEARCH_SPAN = Duration.ofDays(400);
     private static final int MAX_PAGE_SIZE = 100;
+    private static final String FORCE_CANCEL = "FORCE_CANCEL";
+    private static final String LEGAL_HOLD = "LEGAL_HOLD";
 
     private final WorkplaceCatalogRepository catalog;
     private final WorkplaceBookingRepository bookings;
@@ -261,10 +263,21 @@ public class WorkplaceOperationsService {
             UUID bookingId,
             String locale,
             String correlationId,
+            String idempotencyKey,
             WorkplaceOperationsDtos.ForceCancelBookingRequest request) {
         String reason = blank(request.reason());
         if (reason == null) {
             throw invalid("A force-cancellation reason is required.");
+        }
+        String key = WorkplaceBookingCommandCoordinator.requireIdempotencyKey(idempotencyKey);
+        String scopedKey = adminCommandKey(FORCE_CANCEL, key);
+        String requestFingerprint = WorkplaceBookingCommandCoordinator.fingerprint(
+                FORCE_CANCEL, bookingId, List.of(reason, request.version()));
+        operations.lockAdminBookingCommand(tenantId, actorId, scopedKey);
+        WorkplaceOperationsRepository.AdminCommandRow duplicate = operations
+                .adminCommand(tenantId, actorId, scopedKey).orElse(null);
+        if (duplicate != null) {
+            return replayAdminCommand(duplicate, bookingId, FORCE_CANCEL, requestFingerprint);
         }
         WorkplaceOperationsRepository.AdminBookingRow current = operations
                 .adminBookingForUpdate(tenantId, bookingId, korean(locale))
@@ -281,7 +294,7 @@ public class WorkplaceOperationsService {
                 tenantId, actorId, bookingId, request.version(), now) != 1) {
             throw conflict("The reservation changed. Refresh and try again.");
         }
-        operations.audit(tenantId, actorId, "workplace.booking.force.cancelled",
+        UUID auditEventId = operations.audit(tenantId, actorId, "workplace.booking.force.cancelled",
                 bookingId, correlationId, Map.of(
                         "reason", reason,
                         "bookingUserId", current.userId(),
@@ -303,9 +316,14 @@ public class WorkplaceOperationsService {
                         current.endsAt(),
                         "ADMIN_FORCE_CANCELLED",
                         current.version() + 1));
-        return operations.adminBooking(tenantId, bookingId, korean(locale))
+        WorkplaceOperationsDtos.AdminBooking result = operations
+                .adminBooking(tenantId, bookingId, korean(locale))
                 .map(this::adminBooking)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        operations.completeAdminCommand(tenantId, actorId, bookingId, FORCE_CANCEL,
+                scopedKey, requestFingerprint, result, auditEventId, correlationId,
+                OffsetDateTime.now());
+        return result;
     }
 
     @Transactional
@@ -315,10 +333,22 @@ public class WorkplaceOperationsService {
             UUID bookingId,
             String locale,
             String correlationId,
+            String idempotencyKey,
             WorkplaceOperationsDtos.LegalHoldRequest request) {
         String reason = blank(request.reason());
         if (reason == null) {
             throw invalid("A legal-hold reason is required.");
+        }
+        String key = WorkplaceBookingCommandCoordinator.requireIdempotencyKey(idempotencyKey);
+        String scopedKey = adminCommandKey(LEGAL_HOLD, key);
+        String requestFingerprint = WorkplaceBookingCommandCoordinator.fingerprint(
+                LEGAL_HOLD, bookingId,
+                List.of(request.legalHold(), reason, request.version()));
+        operations.lockAdminBookingCommand(tenantId, actorId, scopedKey);
+        WorkplaceOperationsRepository.AdminCommandRow duplicate = operations
+                .adminCommand(tenantId, actorId, scopedKey).orElse(null);
+        if (duplicate != null) {
+            return replayAdminCommand(duplicate, bookingId, LEGAL_HOLD, requestFingerprint);
         }
         WorkplaceOperationsRepository.AdminBookingRow current = operations
                 .adminBookingForUpdate(tenantId, bookingId, korean(locale))
@@ -336,7 +366,7 @@ public class WorkplaceOperationsService {
                 tenantId, actorId, bookingId, request.version(), request.legalHold()) != 1) {
             throw conflict("The reservation changed. Refresh and try again.");
         }
-        operations.audit(
+        UUID auditEventId = operations.audit(
                 tenantId,
                 actorId,
                 request.legalHold()
@@ -349,9 +379,14 @@ public class WorkplaceOperationsService {
                         "previousLegalHold", current.legalHold(),
                         "legalHold", request.legalHold(),
                         "personalDataExpiresAt", current.personalDataExpiresAt()));
-        return operations.adminBooking(tenantId, bookingId, korean(locale))
+        WorkplaceOperationsDtos.AdminBooking result = operations
+                .adminBooking(tenantId, bookingId, korean(locale))
                 .map(this::adminBooking)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        operations.completeAdminCommand(tenantId, actorId, bookingId, LEGAL_HOLD,
+                scopedKey, requestFingerprint, result, auditEventId, correlationId,
+                OffsetDateTime.now());
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -395,6 +430,24 @@ public class WorkplaceOperationsService {
                 value.createdAt(), value.updatedAt());
     }
 
+    private WorkplaceOperationsDtos.AdminBooking replayAdminCommand(
+            WorkplaceOperationsRepository.AdminCommandRow command,
+            UUID bookingId,
+            String commandType,
+            String requestFingerprint) {
+        if (!command.bookingId().equals(bookingId)
+                || !command.commandType().equals(commandType)
+                || !command.requestFingerprint().equals(requestFingerprint)) {
+            throw conflict(
+                    "The Idempotency-Key was already used for a different administrator command.");
+        }
+        return operations.adminCommandResult(command);
+    }
+
+    private String adminCommandKey(String commandType, String idempotencyKey) {
+        return commandType + ":" + sha256(idempotencyKey);
+    }
+
     private WorkplaceDtos.Booking bookingById(
             Long tenantId, Long userId, UUID bookingId, String locale) {
         WorkplaceBookingRepository.BookingRow row = bookings
@@ -435,6 +488,15 @@ public class WorkplaceOperationsService {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available", exception);
+        }
+    }
+
+    private String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
         }

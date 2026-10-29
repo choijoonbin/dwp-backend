@@ -2,16 +2,14 @@ package com.dwp.services.platform.mail;
 
 import com.dwp.platform.contract.MailConnectorPort;
 import com.dwp.services.platform.media.TenantMediaStorage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
+import java.time.Duration;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -35,20 +33,60 @@ class MailExternalSyncMaterializer {
     private final TenantMediaStorage storage;
     private final List<MailAttachmentScanner> scanners;
     private final MailInboundMessageService inboundMessages;
+    private final MailMetrics metrics;
+    private final MailExternalSyncTransactions transactions;
+    private final MailProviderPayloadPolicy payloadPolicy;
+
+    @Autowired
+    MailExternalSyncMaterializer(
+            AdminMailCompletionRepository repository,
+            TenantMediaStorage storage,
+            List<MailAttachmentScanner> scanners,
+            MailInboundMessageService inboundMessages,
+            MailMetrics metrics,
+            MailExternalSyncTransactions transactions,
+            MailProviderPayloadPolicy payloadPolicy) {
+        this.repository = repository;
+        this.storage = storage;
+        this.scanners = scanners == null ? List.of() : List.copyOf(scanners);
+        this.inboundMessages = inboundMessages;
+        this.metrics = metrics;
+        this.transactions = transactions;
+        this.payloadPolicy = payloadPolicy;
+    }
 
     MailExternalSyncMaterializer(
             AdminMailCompletionRepository repository,
             TenantMediaStorage storage,
             List<MailAttachmentScanner> scanners,
             MailInboundMessageService inboundMessages) {
-        this.repository = repository;
-        this.storage = storage;
-        this.scanners = scanners == null ? List.of() : List.copyOf(scanners);
-        this.inboundMessages = inboundMessages;
+        this(repository, storage, scanners, inboundMessages, null, null,
+                MailProviderPayloadPolicy.defaults());
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     SyncResult materialize(
+            long tenantId,
+            long actorId,
+            AdminMailCompletionRepository.AccountRow expectedAccount,
+            MailConnectorPort.SyncBatch batch) {
+        long startedAt = System.nanoTime();
+        try {
+            payloadPolicy.validate(batch);
+            SyncResult result = materializeBatch(
+                    tenantId, actorId, expectedAccount, batch);
+            if (metrics != null) {
+                metrics.sync(result, Duration.ofNanos(System.nanoTime() - startedAt));
+            }
+            return result;
+        } catch (RuntimeException failure) {
+            if (metrics != null) {
+                metrics.syncFailure(Duration.ofNanos(System.nanoTime() - startedAt));
+            }
+            throw failure;
+        }
+    }
+
+    private SyncResult materializeBatch(
             long tenantId,
             long actorId,
             AdminMailCompletionRepository.AccountRow expectedAccount,
@@ -56,58 +94,100 @@ class MailExternalSyncMaterializer {
         if (batch.cursorResetRequired()) {
             throw failure("SYNC_CURSOR_RESET_REQUIRED");
         }
-        AdminMailCompletionRepository.SyncAccountRow account = repository
-                .lockSyncAccount(tenantId, expectedAccount.id())
+        AdminMailCompletionRepository.SyncAccountRow snapshot = repository
+                .syncAccount(tenantId, expectedAccount.id())
                 .orElseThrow(() -> failure("SYNC_ACCOUNT_UNAVAILABLE"));
-        if (!Objects.equals(account.cursor(), expectedAccount.cursor())) {
+        if (!Objects.equals(snapshot.cursor(), expectedAccount.cursor())
+                || snapshot.cursorGeneration() != expectedAccount.cursorGeneration()) {
             throw failure("SYNC_CURSOR_CONFLICT");
         }
 
         List<String> storedReferences = new ArrayList<>();
-        registerRollbackCleanup(tenantId, storedReferences);
-        int inserted = 0;
-        int duplicate = 0;
-        int blocked = 0;
+        List<PreparedBatchMessage> preparedMessages = new ArrayList<>();
+        int knownDuplicates = 0;
         try {
             for (MailConnectorPort.ProviderMessage providerMessage : batch.messages()) {
                 if (repository.inboundMessage(
-                        tenantId, account.id(), providerMessage.providerThreadReference(),
+                        tenantId, snapshot.id(), providerMessage.providerThreadReference(),
                         providerMessage.providerMessageReference()).isPresent()) {
-                    duplicate++;
+                    knownDuplicates++;
                     continue;
                 }
-                UUID folderId = repository.synchronizationFolder(
-                        tenantId, account.id(), providerMessage.providerFolderReference())
-                        .orElseThrow(() -> failure("SYNC_FOLDER_UNAVAILABLE"));
                 PreparedMessage prepared = prepareMessage(
-                        tenantId, actorId, account, providerMessage, storedReferences);
-                AdminMailCompletionRepository.InboundMaterialized materialized =
-                        repository.materializeInboundMessage(
-                                tenantId, actorId, account, folderId,
-                                prepared.message(), prepared.attachments());
-                if (!materialized.inserted()) {
-                    cleanup(tenantId, prepared.storedReferences());
-                    storedReferences.removeAll(prepared.storedReferences());
-                    duplicate++;
-                    continue;
-                }
-                inserted++;
-                blocked += prepared.blockedAttachments();
-                inboundMessages.inboundMessageMaterialized(
-                        tenantId, materialized.threadId(), materialized.messageId(),
-                        providerTime(providerMessage));
+                        tenantId, actorId, snapshot, providerMessage, storedReferences);
+                preparedMessages.add(new PreparedBatchMessage(
+                        providerMessage.providerFolderReference(), prepared));
             }
-            if (repository.updateAccountSyncCursor(
-                    tenantId, account.id(), expectedAccount.cursor(),
-                    batch.nextCursor(), actorId) != 1) {
-                throw failure("SYNC_CURSOR_CONFLICT");
-            }
-            return new SyncResult(inserted, duplicate, blocked, batch.partial());
+            int duplicatesBeforeCommit = knownDuplicates;
+            CommitResult committed = inTransaction(() -> commitBatch(
+                    tenantId, actorId, expectedAccount, batch,
+                    preparedMessages, duplicatesBeforeCommit));
+            cleanup(tenantId, committed.orphanedReferences());
+            return new SyncResult(
+                    committed.inserted(), committed.duplicates(),
+                    committed.blockedAttachments(), batch.partial());
         } catch (RuntimeException failure) {
             cleanup(tenantId, storedReferences);
-            storedReferences.clear();
             throw failure;
         }
+    }
+
+    private CommitResult commitBatch(
+            long tenantId,
+            long actorId,
+            AdminMailCompletionRepository.AccountRow expectedAccount,
+            MailConnectorPort.SyncBatch batch,
+            List<PreparedBatchMessage> preparedMessages,
+            int knownDuplicates) {
+        AdminMailCompletionRepository.SyncAccountRow account = repository
+                .lockSyncAccount(tenantId, expectedAccount.id())
+                .orElseThrow(() -> failure("SYNC_ACCOUNT_UNAVAILABLE"));
+        if (!Objects.equals(account.cursor(), expectedAccount.cursor())
+                || account.cursorGeneration() != expectedAccount.cursorGeneration()) {
+            throw failure("SYNC_CURSOR_CONFLICT");
+        }
+        int inserted = 0;
+        int duplicate = knownDuplicates;
+        int blocked = 0;
+        List<String> orphanedReferences = new ArrayList<>();
+        for (PreparedBatchMessage candidate : preparedMessages) {
+            PreparedMessage prepared = candidate.prepared();
+            AdminMailCompletionRepository.InboundMessageRow message = prepared.message();
+            if (repository.inboundMessage(
+                    tenantId, account.id(), message.providerThreadReference(),
+                    message.providerMessageReference()).isPresent()) {
+                orphanedReferences.addAll(prepared.storedReferences());
+                duplicate++;
+                continue;
+            }
+            UUID folderId = repository.synchronizationFolder(
+                    tenantId, account.id(), candidate.providerFolderReference())
+                    .orElseThrow(() -> failure("SYNC_FOLDER_UNAVAILABLE"));
+            AdminMailCompletionRepository.InboundMaterialized materialized =
+                    repository.materializeInboundMessage(
+                            tenantId, actorId, account, folderId,
+                            message, prepared.attachments());
+            if (!materialized.inserted()) {
+                orphanedReferences.addAll(prepared.storedReferences());
+                duplicate++;
+                continue;
+            }
+            inserted++;
+            blocked += prepared.blockedAttachments();
+            inboundMessages.inboundMessageMaterialized(
+                    tenantId, materialized.threadId(), materialized.messageId(),
+                    message.occurredAt());
+        }
+        if (repository.updateAccountSyncCursor(
+                tenantId, account.id(), expectedAccount.cursor(),
+                expectedAccount.cursorGeneration(), batch.nextCursor(), actorId) != 1) {
+            throw failure("SYNC_CURSOR_CONFLICT");
+        }
+        return new CommitResult(inserted, duplicate, blocked, List.copyOf(orphanedReferences));
+    }
+
+    private <T> T inTransaction(java.util.function.Supplier<T> work) {
+        return transactions == null ? work.get() : transactions.commit(work);
     }
 
     private PreparedMessage prepareMessage(
@@ -169,22 +249,35 @@ class MailExternalSyncMaterializer {
         UUID attachmentId = UUID.nameUUIDFromBytes((tenantId + ":" + accountId + ":"
                 + providerMessageReference + ":" + attachment.providerAttachmentReference())
                 .getBytes(StandardCharsets.UTF_8));
-        String checksum = attachment.checksumSha256() == null
-                ? sha256((attachment.providerAttachmentReference() + ':'
-                + blankTo(attachment.contentReference(), "unavailable"))
-                .getBytes(StandardCharsets.UTF_8))
-                : attachment.checksumSha256();
+        String declaredChecksum = attachment.checksumSha256();
+        boolean declaredChecksumValid = declaredChecksum == null
+                || declaredChecksum.matches("[0-9a-fA-F]{64}");
+        if (declaredChecksumValid && declaredChecksum != null) {
+            declaredChecksum = declaredChecksum.toLowerCase(Locale.ROOT);
+        }
         String scanState = "BLOCKED";
         String scanEvidence;
-        String storageReference = "provider-blocked:" + checksum;
         String storedReference = null;
         byte[] content = attachment.content();
-        if (attachment.sizeBytes() > MAX_STORED_ATTACHMENT_BYTES) {
+        String checksum = content == null
+                ? declaredChecksumValid && declaredChecksum != null
+                    ? declaredChecksum
+                    : sha256((attachment.providerAttachmentReference() + ':'
+                            + blankTo(attachment.contentReference(), "unavailable"))
+                            .getBytes(StandardCharsets.UTF_8))
+                : sha256(content);
+        String storageReference = "provider-blocked:" + checksum;
+        if (!declaredChecksumValid) {
+            scanEvidence = "PROVIDER_ATTACHMENT_CHECKSUM_INVALID";
+        } else if (content != null && declaredChecksum != null
+                && !declaredChecksum.equals(checksum)) {
+            scanEvidence = "PROVIDER_ATTACHMENT_CHECKSUM_MISMATCH";
+        } else if (attachment.sizeBytes() > MAX_STORED_ATTACHMENT_BYTES) {
             scanEvidence = "PROVIDER_ATTACHMENT_EXCEEDS_STORAGE_LIMIT";
         } else if (content == null) {
             scanEvidence = attachment.contentReference() == null
                     ? "PROVIDER_CONTENT_UNAVAILABLE"
-                    : "PROVIDER_CONTENT_NOT_FETCHED:" + attachment.contentReference();
+                    : "PROVIDER_CONTENT_NOT_FETCHED";
         } else if (scanners.isEmpty()) {
             scanEvidence = "TRUSTED_ATTACHMENT_SCANNER_UNAVAILABLE";
         } else {
@@ -216,16 +309,21 @@ class MailExternalSyncMaterializer {
                         MAX_STORED_ATTACHMENT_BYTES), checksum, scanState, scanEvidence);
         Map<String, Object> projection = new LinkedHashMap<>();
         projection.put("attachmentId", attachmentId);
-        projection.put("providerAttachmentReference", attachment.providerAttachmentReference());
-        projection.put("contentReference", blankTo(attachment.contentReference(), ""));
+        projection.put("providerAttachmentReferenceHash", sha256(
+                attachment.providerAttachmentReference().getBytes(StandardCharsets.UTF_8)));
+        projection.put("providerContentReferenceAvailable",
+                attachment.contentReference() != null);
+        if (attachment.contentReference() != null) {
+            projection.put("contentReferenceHash", sha256(
+                    attachment.contentReference().getBytes(StandardCharsets.UTF_8)));
+        }
         projection.put("fileName", fileName);
         projection.put("contentType", contentType);
         projection.put("sizeBytes", attachment.sizeBytes());
-        projection.put("checksumSha256", blankTo(attachment.checksumSha256(), ""));
+        projection.put("checksumSha256", checksum);
         projection.put("contentAvailable", "READY".equals(scanState));
         projection.put("scanState", scanState);
         projection.put("scanEvidence", scanEvidence);
-        projection.put("metadata", attachment.metadata());
         return new PreparedAttachment(row, Map.copyOf(projection), storedReference);
     }
 
@@ -340,18 +438,6 @@ class MailExternalSyncMaterializer {
         }
     }
 
-    private void registerRollbackCleanup(long tenantId, List<String> storedReferences) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status != TransactionSynchronization.STATUS_COMMITTED) {
-                    cleanup(tenantId, storedReferences);
-                }
-            }
-        });
-    }
-
     private void cleanup(long tenantId, List<String> references) {
         for (String reference : List.copyOf(references)) {
             try {
@@ -393,4 +479,12 @@ class MailExternalSyncMaterializer {
             List<AdminMailCompletionRepository.InboundAttachmentRow> attachments,
             List<String> storedReferences,
             int blockedAttachments) { }
+    private record PreparedBatchMessage(
+            String providerFolderReference,
+            PreparedMessage prepared) { }
+    private record CommitResult(
+            int inserted,
+            int duplicates,
+            int blockedAttachments,
+            List<String> orphanedReferences) { }
 }

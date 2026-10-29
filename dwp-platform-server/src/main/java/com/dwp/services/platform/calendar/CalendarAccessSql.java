@@ -42,29 +42,48 @@ final class CalendarAccessSql {
           FROM cal_calendars calendar
          CROSS JOIN viewer
           LEFT JOIN LATERAL (
-              SELECT grant_row.access_level, grant_row.principal_type,
-                     grant_row.can_view_private
-                FROM cal_calendar_access_grants grant_row
-               WHERE grant_row.tenant_id = calendar.tenant_id
-                 AND grant_row.calendar_id = calendar.calendar_id
-                 AND grant_row.lifecycle_state = 'ACTIVE'
-                 AND (grant_row.valid_until IS NULL
-                      OR grant_row.valid_until > CURRENT_TIMESTAMP)
-                 AND (
-                     grant_row.principal_type = 'TENANT'
-                     OR (grant_row.principal_type = 'PERSON'
-                         AND grant_row.principal_person_public_id = viewer.person_id)
-                     OR (grant_row.principal_type = 'GROUP'
-                         AND grant_row.principal_group_ref = ANY (viewer.group_refs))
-                 )
-               ORDER BY CASE grant_row.access_level
-                            WHEN 'MANAGE' THEN 4
-                            WHEN 'EDIT' THEN 3
-                            WHEN 'VIEW_DETAILS' THEN 2
-                            ELSE 1
-                        END DESC,
-                        grant_row.updated_at DESC
-               LIMIT 1
+                      SELECT candidate.access_level, candidate.principal_type,
+                             candidate.can_view_private
+                        FROM (
+                            SELECT grant_row.access_level, grant_row.principal_type,
+                                   grant_row.can_view_private, grant_row.updated_at
+                              FROM cal_calendar_access_grants grant_row
+                             WHERE grant_row.tenant_id = calendar.tenant_id
+                               AND grant_row.calendar_id = calendar.calendar_id
+                               AND grant_row.lifecycle_state = 'ACTIVE'
+                               AND (grant_row.valid_until IS NULL
+                                    OR grant_row.valid_until > CURRENT_TIMESTAMP)
+                               AND (
+                                   grant_row.principal_type = 'TENANT'
+                                   OR (grant_row.principal_type = 'PERSON'
+                                       AND grant_row.principal_person_public_id = viewer.person_id)
+                                   OR (grant_row.principal_type = 'GROUP'
+                                       AND grant_row.principal_group_ref = ANY (viewer.group_refs))
+                               )
+                            UNION ALL
+                            SELECT CASE WHEN delegation.can_edit_schedule
+                                        THEN 'EDIT' ELSE 'EVENT_ATTENDEE' END,
+                                   'DELEGATION', delegation.can_edit_schedule,
+                                   delegation.updated_at
+                              FROM cal_calendar_delegations delegation
+                             WHERE delegation.tenant_id = calendar.tenant_id
+                               AND delegation.owner_person_public_id =
+                                   calendar.owner_person_public_id
+                               AND delegation.delegate_person_public_id = viewer.person_id
+                               AND delegation.status = 'ACTIVE'
+                               AND delegation.valid_from <= CURRENT_TIMESTAMP
+                               AND delegation.valid_until > CURRENT_TIMESTAMP
+                               AND (delegation.can_edit_schedule OR delegation.can_create)
+                        ) candidate
+                       ORDER BY CASE candidate.access_level
+                                    WHEN 'MANAGE' THEN 5
+                                    WHEN 'EDIT' THEN 4
+                                    WHEN 'EVENT_ATTENDEE' THEN 3
+                                    WHEN 'VIEW_DETAILS' THEN 2
+                                    ELSE 1
+                                END DESC,
+                                candidate.updated_at DESC
+                       LIMIT 1
           ) access ON TRUE
           LEFT JOIN cal_calendar_subscriptions subscription
             ON subscription.tenant_id = calendar.tenant_id
@@ -106,7 +125,8 @@ final class CalendarAccessSql {
                event.all_day, event.location, event.conference_url, event.status,
                event.visibility, event.importance,
                event.recurrence_pattern, event.recurrence_interval,
-               event.recurrence_until, event.response_required,
+               event.recurrence_until, event.recurrence_days, event.recurrence_count,
+               event.response_required,
                mine.response_status AS my_response, event.version,
                COALESCE(preference.starred, FALSE) AS starred,
                COALESCE(preference.version, 0) AS preference_version,
@@ -154,7 +174,7 @@ final class CalendarAccessSql {
            AND calendar.calendar_id = event.calendar_id
          CROSS JOIN viewer
           LEFT JOIN LATERAL (
-              SELECT attendee.event_id, attendee.response_status
+                      SELECT attendee.event_id, attendee.response_status
                 FROM cal_event_attendees attendee
                WHERE attendee.event_id = event.event_id
                  AND attendee.tenant_id = event.tenant_id
@@ -162,36 +182,69 @@ final class CalendarAccessSql {
                      attendee.attendee_person_public_id = viewer.person_id
                      OR (attendee.attendee_person_public_id IS NULL
                          AND attendee.attendee_user_id = viewer.user_id)
+                             OR (attendee.attendee_person_public_id IS NOT NULL
+                                 AND EXISTS (
+                                     SELECT 1
+                                       FROM cal_calendar_delegations delegation
+                                      WHERE delegation.tenant_id = attendee.tenant_id
+                                        AND delegation.owner_person_public_id =
+                                            attendee.attendee_person_public_id
+                                        AND delegation.delegate_person_public_id = viewer.person_id
+                                        AND delegation.can_respond
+                                        AND delegation.status = 'ACTIVE'
+                                        AND delegation.valid_from <= CURRENT_TIMESTAMP
+                                        AND delegation.valid_until > CURRENT_TIMESTAMP
+                                 ))
                  )
                ORDER BY
                    CASE WHEN attendee.attendee_person_public_id = viewer.person_id
-                       THEN 0 ELSE 1 END,
+                                 OR (attendee.attendee_person_public_id IS NULL
+                                     AND attendee.attendee_user_id = viewer.user_id)
+                               THEN 0 ELSE 1 END,
                    attendee.updated_at DESC
                LIMIT 1
           ) mine ON TRUE
           LEFT JOIN LATERAL (
-              SELECT grant_row.access_level, grant_row.can_view_private
-                FROM cal_calendar_access_grants grant_row
-               WHERE grant_row.tenant_id = calendar.tenant_id
-                 AND grant_row.calendar_id = calendar.calendar_id
-                 AND grant_row.lifecycle_state = 'ACTIVE'
-                 AND (grant_row.valid_until IS NULL
-                      OR grant_row.valid_until > CURRENT_TIMESTAMP)
-                 AND (
-                     grant_row.principal_type = 'TENANT'
-                     OR (grant_row.principal_type = 'PERSON'
-                         AND grant_row.principal_person_public_id = viewer.person_id)
-                     OR (grant_row.principal_type = 'GROUP'
-                         AND grant_row.principal_group_ref = ANY (viewer.group_refs))
-                 )
-               ORDER BY CASE grant_row.access_level
-                            WHEN 'MANAGE' THEN 4
-                            WHEN 'EDIT' THEN 3
-                            WHEN 'VIEW_DETAILS' THEN 2
-                            ELSE 1
-                        END DESC,
-                        grant_row.updated_at DESC
-               LIMIT 1
+                      SELECT candidate.access_level, candidate.can_view_private
+                        FROM (
+                            SELECT grant_row.access_level, grant_row.can_view_private,
+                                   grant_row.updated_at
+                              FROM cal_calendar_access_grants grant_row
+                             WHERE grant_row.tenant_id = calendar.tenant_id
+                               AND grant_row.calendar_id = calendar.calendar_id
+                               AND grant_row.lifecycle_state = 'ACTIVE'
+                               AND (grant_row.valid_until IS NULL
+                                    OR grant_row.valid_until > CURRENT_TIMESTAMP)
+                               AND (
+                                   grant_row.principal_type = 'TENANT'
+                                   OR (grant_row.principal_type = 'PERSON'
+                                       AND grant_row.principal_person_public_id = viewer.person_id)
+                                   OR (grant_row.principal_type = 'GROUP'
+                                       AND grant_row.principal_group_ref = ANY (viewer.group_refs))
+                               )
+                            UNION ALL
+                            SELECT CASE WHEN delegation.can_edit_schedule
+                                        THEN 'EDIT' ELSE 'EVENT_ATTENDEE' END,
+                                   delegation.can_edit_schedule, delegation.updated_at
+                              FROM cal_calendar_delegations delegation
+                             WHERE delegation.tenant_id = calendar.tenant_id
+                               AND delegation.owner_person_public_id =
+                                   calendar.owner_person_public_id
+                               AND delegation.delegate_person_public_id = viewer.person_id
+                               AND delegation.status = 'ACTIVE'
+                               AND delegation.valid_from <= CURRENT_TIMESTAMP
+                               AND delegation.valid_until > CURRENT_TIMESTAMP
+                               AND (delegation.can_edit_schedule OR delegation.can_create)
+                        ) candidate
+                       ORDER BY CASE candidate.access_level
+                                    WHEN 'MANAGE' THEN 5
+                                    WHEN 'EDIT' THEN 4
+                                    WHEN 'EVENT_ATTENDEE' THEN 3
+                                    WHEN 'VIEW_DETAILS' THEN 2
+                                    ELSE 1
+                                END DESC,
+                                candidate.updated_at DESC
+                       LIMIT 1
           ) access ON TRUE
           LEFT JOIN cal_calendar_subscriptions subscription
             ON subscription.tenant_id = calendar.tenant_id
@@ -221,8 +274,27 @@ final class CalendarAccessSql {
                (event.starts_at < ? AND event.ends_at > ?)
                OR (event.recurrence_pattern <> 'NONE'
                    AND event.starts_at < ?
-                   AND (event.recurrence_until IS NULL
-                        OR event.recurrence_until >= CAST(? AS date)))
+                   AND ((event.recurrence_until IS NULL
+                         AND event.recurrence_count IS NULL)
+                        OR event.recurrence_until >= CAST(? AS date)
+                        OR (event.recurrence_count IS NOT NULL
+                            AND CAST(
+                                event.starts_at AT TIME ZONE event.time_zone
+                                + CASE event.recurrence_pattern
+                                    WHEN 'DAILY' THEN make_interval(days =>
+                                        (event.recurrence_count - 1)
+                                        * event.recurrence_interval)
+                                    WHEN 'WEEKLY' THEN make_interval(days =>
+                                        7 * (event.recurrence_count - 1)
+                                        * event.recurrence_interval)
+                                    WHEN 'MONTHLY' THEN make_interval(months =>
+                                        (event.recurrence_count - 1)
+                                        * event.recurrence_interval)
+                                    WHEN 'YEARLY' THEN make_interval(years =>
+                                        (event.recurrence_count - 1)
+                                        * event.recurrence_interval)
+                                    ELSE INTERVAL '0 days'
+                                  END AS date) >= CAST(? AS date))))
            )
            AND (
                (calendar.calendar_type <> 'SYSTEM' AND (
@@ -237,6 +309,36 @@ final class CalendarAccessSql {
            )
          ORDER BY event.starts_at, event.event_id
         """;
+
+    /** Same object-level projection as {@link #VISIBLE_EVENTS}, without a synthetic date scan. */
+    static final String VISIBLE_EVENT_BY_ID = directEventByIdSql();
+
+    static final String VISIBLE_EVENT_CANDIDATES = VISIBLE_EVENTS.replace(
+            """
+         ORDER BY event.starts_at, event.event_id
+            """,
+            """
+           AND (?::timestamptz IS NULL
+                OR event.starts_at > ?::timestamptz
+                OR (event.starts_at = ?::timestamptz
+                    AND event.event_id > ?::uuid))
+         ORDER BY event.starts_at, event.event_id
+         LIMIT ?
+            """);
+
+    private static String directEventByIdSql() {
+        String rangeStart = "   AND (\n       (event.starts_at < ?";
+        String accessStart = "   AND (\n       (calendar.calendar_type <> 'SYSTEM'";
+        int from = VISIBLE_EVENTS.indexOf(rangeStart);
+        int to = VISIBLE_EVENTS.indexOf(accessStart, from + 1);
+        if (from < 0 || to < 0) {
+            throw new IllegalStateException(
+                    "Calendar direct event query could not isolate its range predicate.");
+        }
+        return VISIBLE_EVENTS.substring(0, from)
+                + "   AND event.event_id = ?\n"
+                + VISIBLE_EVENTS.substring(to);
+    }
 
     static final String ACCESS_DECISION = """
         WITH viewer AS (
@@ -257,28 +359,46 @@ final class CalendarAccessSql {
           FROM cal_calendars calendar
          CROSS JOIN viewer
           LEFT JOIN LATERAL (
-              SELECT grant_row.access_level, grant_row.can_view_private
-                FROM cal_calendar_access_grants grant_row
-               WHERE grant_row.tenant_id = calendar.tenant_id
-                 AND grant_row.calendar_id = calendar.calendar_id
-                 AND grant_row.lifecycle_state = 'ACTIVE'
-                 AND (grant_row.valid_until IS NULL
-                      OR grant_row.valid_until > CURRENT_TIMESTAMP)
-                 AND (
-                     grant_row.principal_type = 'TENANT'
-                     OR (grant_row.principal_type = 'PERSON'
-                         AND grant_row.principal_person_public_id = viewer.person_id)
-                     OR (grant_row.principal_type = 'GROUP'
-                         AND grant_row.principal_group_ref = ANY (viewer.group_refs))
-                 )
-               ORDER BY CASE grant_row.access_level
-                            WHEN 'MANAGE' THEN 4
-                            WHEN 'EDIT' THEN 3
-                            WHEN 'VIEW_DETAILS' THEN 2
-                            ELSE 1
-                        END DESC,
-                        grant_row.updated_at DESC
-               LIMIT 1
+                      SELECT candidate.access_level, candidate.can_view_private
+                        FROM (
+                            SELECT grant_row.access_level, grant_row.can_view_private,
+                                   grant_row.updated_at
+                              FROM cal_calendar_access_grants grant_row
+                             WHERE grant_row.tenant_id = calendar.tenant_id
+                               AND grant_row.calendar_id = calendar.calendar_id
+                               AND grant_row.lifecycle_state = 'ACTIVE'
+                               AND (grant_row.valid_until IS NULL
+                                    OR grant_row.valid_until > CURRENT_TIMESTAMP)
+                               AND (
+                                   grant_row.principal_type = 'TENANT'
+                                   OR (grant_row.principal_type = 'PERSON'
+                                       AND grant_row.principal_person_public_id = viewer.person_id)
+                                   OR (grant_row.principal_type = 'GROUP'
+                                       AND grant_row.principal_group_ref = ANY (viewer.group_refs))
+                               )
+                            UNION ALL
+                            SELECT CASE WHEN delegation.can_edit_schedule
+                                        THEN 'EDIT' ELSE 'EVENT_ATTENDEE' END,
+                                   delegation.can_edit_schedule, delegation.updated_at
+                              FROM cal_calendar_delegations delegation
+                             WHERE delegation.tenant_id = calendar.tenant_id
+                               AND delegation.owner_person_public_id =
+                                   calendar.owner_person_public_id
+                               AND delegation.delegate_person_public_id = viewer.person_id
+                               AND delegation.status = 'ACTIVE'
+                               AND delegation.valid_from <= CURRENT_TIMESTAMP
+                               AND delegation.valid_until > CURRENT_TIMESTAMP
+                               AND (delegation.can_edit_schedule OR delegation.can_create)
+                        ) candidate
+                       ORDER BY CASE candidate.access_level
+                                    WHEN 'MANAGE' THEN 5
+                                    WHEN 'EDIT' THEN 4
+                                    WHEN 'EVENT_ATTENDEE' THEN 3
+                                    WHEN 'VIEW_DETAILS' THEN 2
+                                    ELSE 1
+                                END DESC,
+                                candidate.updated_at DESC
+                       LIMIT 1
           ) access ON TRUE
          WHERE calendar.tenant_id = ? AND calendar.calendar_id = ?
            AND calendar.lifecycle_state = 'ACTIVE'

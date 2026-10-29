@@ -38,8 +38,11 @@ public class MessagingController {
             @RequestParam(defaultValue = "ALL") String scope,
             @RequestParam(defaultValue = "") String q,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "30") int pageSize) {
-        return ApiResponse.success(service.conversations(scope, q, page, pageSize));
+            @RequestParam(defaultValue = "30") int pageSize,
+            @RequestParam(required = false) String cursor) {
+        return ApiResponse.success(cursor == null
+                ? service.conversations(scope, q, page, pageSize)
+                : service.conversations(scope, q, page, pageSize, cursor));
     }
 
     @GetMapping("/conversations/{conversationId}")
@@ -169,6 +172,19 @@ public class MessagingController {
             @RequestParam(defaultValue = "") String q,
             @RequestParam(defaultValue = "20") int limit) {
         return ApiResponse.success(service.people(q, limit));
+    }
+
+    @GetMapping("/people/page")
+    public ApiResponse<MessagingDtos.PersonPage> peoplePage(
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "") String organization,
+            @RequestParam(defaultValue = "") String jobTitle,
+            @RequestParam(defaultValue = "ALL") String presence,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "30") int limit) {
+        return ApiResponse.success(service.peoplePage(
+                q, organization, jobTitle, presence, cursor, offset, limit));
     }
 
     @GetMapping("/admin/overview")

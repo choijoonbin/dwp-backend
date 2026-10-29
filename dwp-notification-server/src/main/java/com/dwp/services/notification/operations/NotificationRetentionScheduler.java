@@ -32,7 +32,8 @@ public class NotificationRetentionScheduler {
 
     @Scheduled(
             fixedDelayString = "${dwp.notification.retention.fixed-delay:5m}",
-            initialDelayString = "${dwp.notification.retention.initial-delay:1m}")
+            initialDelayString = "${dwp.notification.retention.initial-delay:1m}",
+            scheduler = "notificationRetentionTaskScheduler")
     public void run() {
         Instant now = Instant.now();
         long cursor = Long.MIN_VALUE;

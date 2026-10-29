@@ -172,13 +172,8 @@ class MailQueryRepository extends MailQueryGovernanceSupport {
                           AND selected_membership.folder_id = ?::uuid
                    ))
                    AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
-                   AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
-                        OR EXISTS (
-                            SELECT 1
-                              FROM jsonb_array_elements(thread.participants) participant(value)
-                             WHERE UPPER(TRIM(COALESCE(participant.value ->> 'type', 'TO')))
-                                   <> 'BCC'
-                               AND LOWER(participant.value::text) LIKE ?))
+                   AND (? = '' OR thread.search_document
+                        @@ websearch_to_tsquery('simple', ?))
                  ORDER BY
                        CASE thread.importance
                            WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1
@@ -192,7 +187,7 @@ class MailQueryRepository extends MailQueryGovernanceSupport {
                 folder, folder,
                 folderId, folderId,
                 sharedOnly,
-                search, pattern(search), pattern(search), pattern(search),
+                search, search,
                 pageSize, page * pageSize);
     }
 
@@ -277,13 +272,8 @@ class MailQueryRepository extends MailQueryGovernanceSupport {
                           AND selected_membership.thread_id = thread.thread_id
                           AND selected_membership.folder_id = ?::uuid))
                    AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
-                   AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
-                        OR EXISTS (
-                            SELECT 1
-                              FROM jsonb_array_elements(thread.participants) participant(value)
-                             WHERE UPPER(TRIM(COALESCE(participant.value ->> 'type', 'TO')))
-                                   <> 'BCC'
-                               AND LOWER(participant.value::text) LIKE ?))
+                   AND (? = '' OR thread.search_document
+                        @@ websearch_to_tsquery('simple', ?))
                    AND (?::uuid IS NULL OR thread.account_id = ?::uuid)
                    AND (? = '' OR account.account_kind = ?)
                    AND (?::uuid IS NULL OR thread.shared_inbox_id = ?::uuid)
@@ -355,7 +345,7 @@ class MailQueryRepository extends MailQueryGovernanceSupport {
                 folder, folder,
                 folderId, folderId,
                 sharedOnly,
-                search, pattern(search), pattern(search), pattern(search),
+                search, search,
                 accountId, accountId,
                 accountKind, accountKind,
                 sharedInboxId, sharedInboxId,
@@ -436,13 +426,8 @@ class MailQueryRepository extends MailQueryGovernanceSupport {
                           AND selected_membership.folder_id = ?::uuid
                    ))
                    AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
-                   AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
-                        OR EXISTS (
-                            SELECT 1
-                              FROM jsonb_array_elements(thread.participants) participant(value)
-                             WHERE UPPER(TRIM(COALESCE(participant.value ->> 'type', 'TO')))
-                                   <> 'BCC'
-                               AND LOWER(participant.value::text) LIKE ?))
+                   AND (? = '' OR thread.search_document
+                        @@ websearch_to_tsquery('simple', ?))
                 """, Long.class,
                 tenantId, userId, userId,
                 lane, lane,
@@ -450,7 +435,7 @@ class MailQueryRepository extends MailQueryGovernanceSupport {
                 folder, folder,
                 folderId, folderId,
                 sharedOnly,
-                search, pattern(search), pattern(search), pattern(search));
+                search, search);
         return value == null ? 0 : value;
     }
 
@@ -474,6 +459,11 @@ class MailQueryRepository extends MailQueryGovernanceSupport {
                            WHEN delivery.delivery_status = 'QUEUED' THEN 'QUEUED'
                            WHEN delivery.delivery_status = 'LEASED' THEN 'SENDING'
                            WHEN delivery.delivery_status = 'RETRY_WAIT' THEN 'RETRYING'
+                           WHEN delivery.delivery_status = 'PROVIDER_ACCEPTED'
+                               THEN 'PROVIDER_ACCEPTED'
+                           WHEN delivery.delivery_status = 'RESULT_UNKNOWN'
+                               THEN 'RESULT_UNKNOWN'
+                           WHEN delivery.delivery_status = 'DELIVERED' THEN 'DELIVERED'
                            WHEN delivery.delivery_status = 'FAILED' THEN 'FAILED'
                            ELSE 'SENT'
                        END AS delivery_state,

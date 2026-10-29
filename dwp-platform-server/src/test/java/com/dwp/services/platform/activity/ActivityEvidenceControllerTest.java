@@ -5,6 +5,7 @@ import com.dwp.services.platform.security.PlatformApprovalsPepRegistry;
 import com.dwp.services.platform.security.PlatformCanaryPepRegistry;
 import com.dwp.services.platform.security.PlatformSecurityFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.StaticMessageSource;
@@ -28,7 +29,9 @@ class ActivityEvidenceControllerTest {
         var mapper = new ObjectMapper().findAndRegisterModules();
         var security = new PlatformSecurityFilter("trusted", "runtime", false, mapper,
                 new PlatformCanaryPepRegistry(mapper), new PlatformApprovalsPepRegistry(mapper));
-        mvc = standaloneSetup(new ActivityEvidenceController(new ActivityEvidenceService(repository, false)))
+        mvc = standaloneSetup(new ActivityEvidenceController(
+                        new ActivityEvidenceService(repository, false),
+                        new ActivityMetrics(new SimpleMeterRegistry(), true)))
                 .setControllerAdvice(new GlobalExceptionHandler(new StaticMessageSource())).addFilters(security).build();
         when(repository.sources(anyLong(), anyLong(), anySet(), any(), anyBoolean()))
                 .thenReturn(List.of());

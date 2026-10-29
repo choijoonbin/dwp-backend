@@ -502,12 +502,24 @@ HRM_CANONICAL_SCHEMA_SHA256 = {
     "CommandReceiptV1": "b464534080642275344bdfdf7d11c6b1dbf864d5c4307b425ad6b805857b58a2",
     "ApprovalDecisionCallbackV1": "1f9d93ba4c5263b19ab0209dec0b301447c149eb85120cdcbf51866cfdc07ec1",
 }
-# Springdoc cannot infer the closed-wire constraints enforced by the canonical
-# CommandReceiptV1 deserializer.  Admit only this exact lossy runtime projection;
-# the reviewed schema hash above remains the published contract.
+# Canonical reviewed schemas outside the employee-change inventory are keyed by
+# owner service so they do not widen the people-only transport closure below.
+HRM_SERVICE_CANONICAL_SCHEMA_SHA256 = {
+    ("platform", "HcmAuditEvidencePageV1"):
+        "799d23cd43c5ed9ff9094712fac90c89daa614ffb3cf8de317c408bc2a758c3c",
+    ("platform", "HcmAuditEvidenceV1"):
+        "61de3d4b76332586823f4ce58b947f642eaef006c117bb911d6d21cc4e5d14d1",
+}
+# Springdoc cannot infer every closed-wire constraint enforced by the canonical
+# schemas. Admit only these exact lossy runtime projections; the reviewed schema
+# hashes above remain the published contracts.
 HRM_RUNTIME_SCHEMA_PROJECTION_SHA256 = {
     ("people", "CommandReceiptV1"):
         "1710749e86f42104b360e82893d184bc43b27da3b3976a678e154139a816233e",
+    ("platform", "HcmAuditEvidencePageV1"):
+        "667f4ff0bb7001a0c3d44268e970098d000768fd47469516d514e33a08fd965a",
+    ("platform", "HcmAuditEvidenceV1"):
+        "d225c08b7789109b797a4eb23cdd61b507d011511e6c5801f578788ae18a08e4",
 }
 HRM_WORKLOAD_PROOF_V2 = {
     "audience": "dwp-people-server",
@@ -599,6 +611,19 @@ SCOPE_SELECTION_PARAMETER = {
         "minLength": 3,
         "maxLength": 200,
         "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+    },
+}
+MAIL_SCOPE_SELECTION_PARAMETER = {
+    **SCOPE_SELECTION_PARAMETER,
+    "description": (
+        "Opaque Mail authority scope. Clients trim it and reject only blank, control-character, "
+        "or oversized values; they do not interpret provider-owned scope syntax."
+    ),
+    "schema": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500,
+        "pattern": "^[^\\u0000-\\u001F\\u007F]+$",
     },
 }
 EXPECTED_DECISION_REVISION_PARAMETER = {
@@ -707,6 +732,11 @@ PLATFORM_V2_PUBLIC_PATHS = frozenset({
     "/v2/home",
     "/v2/home/shadow-receipts",
     "/v2/home/widget-actions:execute",
+    "/v2/calendar/events",
+    "/v2/calendar/events/search",
+    "/v2/calendar/external-events",
+    "/v2/calendar/scheduling/evaluations",
+    "/v2/calendar/scheduling/evaluations/{evaluationId}/hard-recheck",
 })
 
 
@@ -962,7 +992,10 @@ def merge_reviewed_components(
             existing is not None
             and HRM_RUNTIME_SCHEMA_PROJECTION_SHA256.get((service_name, name))
             == canonical_contract_hash(existing)
-            and HRM_CANONICAL_SCHEMA_SHA256.get(name)
+            and (
+                HRM_SERVICE_CANONICAL_SCHEMA_SHA256.get((service_name, name))
+                or HRM_CANONICAL_SCHEMA_SHA256.get(name)
+            )
             == canonical_contract_hash(schema)
         )
         if (
@@ -972,7 +1005,9 @@ def merge_reviewed_components(
             and not exact_runtime_projection
         ):
             raise RuntimeError(
-                f"HRIS reviewed component collision for {service_name}: {name}"
+                f"HRIS reviewed component collision for {service_name}: {name}; "
+                f"runtimeSha256={canonical_contract_hash(existing)}; "
+                f"reviewedSha256={canonical_contract_hash(schema)}"
             )
         target[name] = copy.deepcopy(schema)
 
@@ -1440,6 +1475,7 @@ def gateway_contract(
     if not gateway["paths"]:
         raise RuntimeError("Gateway public contract contains no routes")
     add_product_governance_contract(gateway)
+    add_mail_governance_contract(gateway)
     return prune_unreachable_components(gateway)
 
 
@@ -1534,6 +1570,44 @@ def governed_operation(
             f"{method.upper()} {path}"
         )
     return matches[0] if matches else None
+
+
+def add_mail_governance_contract(document: dict[str, Any]) -> None:
+    """Seal every public Mail call while append-only route carriers converge."""
+    for path, path_item in document.get("paths", {}).items():
+        if not re.match(r"^/api/platform/v1/(?:admin/)?mail(?:/|$)", path):
+            continue
+        for method, operation in path_item.items():
+            if method not in HTTP_METHODS or not isinstance(operation, dict):
+                continue
+            parameters = operation.setdefault("parameters", [])
+            scope_indexes = [index for index, parameter in enumerate(parameters)
+                             if isinstance(parameter, dict)
+                             and parameter.get("in") == "query"
+                             and parameter.get("name") == "contextScopeKey"]
+            if not scope_indexes:
+                parameters.append(copy.deepcopy(MAIL_SCOPE_SELECTION_PARAMETER))
+            elif len(scope_indexes) == 1:
+                parameters[scope_indexes[0]] = copy.deepcopy(
+                    MAIL_SCOPE_SELECTION_PARAMETER
+                )
+            else:
+                raise RuntimeError(
+                    f"Gateway Mail scope contract drift: {method.upper()} {path}"
+                )
+            if method not in {"post", "put", "patch", "delete"}:
+                continue
+            revisions = [parameter for parameter in parameters
+                         if isinstance(parameter, dict)
+                         and str(parameter.get("in", "")).lower() == "header"
+                         and str(parameter.get("name", "")).lower()
+                         == "x-dwp-expected-decision-revision"]
+            if not revisions:
+                parameters.append(copy.deepcopy(EXPECTED_DECISION_REVISION_PARAMETER))
+            elif len(revisions) != 1:
+                raise RuntimeError(
+                    f"Gateway Mail revision contract drift: {method.upper()} {path}"
+                )
 
 
 def add_product_governance_contract(document: dict[str, Any]) -> None:

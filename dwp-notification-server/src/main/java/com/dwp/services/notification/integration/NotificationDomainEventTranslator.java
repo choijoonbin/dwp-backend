@@ -46,6 +46,12 @@ public class NotificationDomainEventTranslator {
             "EmployeeChangeAppliedNotificationRequested.v1";
     private static final String HRIS_EMPLOYEE_CHANGE_TYPE_KEY =
             "HCM.EMPLOYEE_CHANGE_APPLIED";
+    private static final String CALENDAR_SOURCE =
+            "urn:dwp:platform:calendar";
+    private static final String CALENDAR_PRODUCER =
+            "dwp-platform-server";
+    private static final String CALENDAR_REMINDER_DUE_EVENT =
+            "calendar.event-reminder.due.v1";
     private static final Set<String> HRIS_EMPLOYEE_CHANGE_DATA_FIELDS = Set.of(
             "notificationIntents");
     private static final Set<String> HRIS_EMPLOYEE_CHANGE_INTENT_FIELDS = Set.of(
@@ -61,13 +67,17 @@ public class NotificationDomainEventTranslator {
             "actionRequired",
             "variables");
     private static final Set<String> HRIS_EMPLOYEE_CHANGE_VARIABLES = Set.of(
-            "effectiveDate", "requestReference", "targetType");
+            "effectiveDate", "requestPublicId", "requestReference", "targetType");
     private static final Map<String, ExactSourceEventOnboarding>
             RESERVED_EXACT_SOURCE_EVENT_ONBOARDINGS = Map.of(
                     HRIS_EXPERIENCE_SOURCE,
                     new ExactSourceEventOnboarding(
                             HRIS_EXPERIENCE_PRODUCER,
-                            Set.of(HRIS_EMPLOYEE_CHANGE_APPLIED_EVENT)));
+                            Set.of(HRIS_EMPLOYEE_CHANGE_APPLIED_EVENT)),
+                    CALENDAR_SOURCE,
+                    new ExactSourceEventOnboarding(
+                            CALENDAR_PRODUCER,
+                            Set.of(CALENDAR_REMINDER_DUE_EVENT)));
     private static final Pattern TYPE_KEY = Pattern.compile("[A-Z][A-Z0-9_.-]{2,159}");
     private static final Pattern EVENT_TYPE =
             Pattern.compile("[A-Za-z][A-Za-z0-9._-]{0,199}");
@@ -153,7 +163,7 @@ public class NotificationDomainEventTranslator {
                         typeKey,
                         recipients(intent.get("recipientUserIds")),
                         text(intent, "threadKey", 200, false),
-                        defaultText(intent, "locale", "ko-KR", 35),
+                        notificationLocale(event, typeKey, intent),
                         defaultText(intent, "reasonCode", "DIRECT", 200),
                         text(intent, "actorReference", 300, false),
                         text(intent, "subjectReference", 300, false),
@@ -162,7 +172,7 @@ public class NotificationDomainEventTranslator {
                         instant(intent, "dueAt"),
                         booleanValue(intent, "actionRequired"),
                         contexts(intent.get("contexts")),
-                        variables(intent.get("variables")));
+                        notificationVariables(event, typeKey, intent.get("variables")));
                 validateExactNotificationProjection(event, request);
                 translations.add(new Translation(actor, request, event.correlationId()));
             }
@@ -254,6 +264,23 @@ public class NotificationDomainEventTranslator {
             }
         });
         return Collections.unmodifiableMap(variables);
+    }
+
+    private Map<String, Object> notificationVariables(
+            DomainEventEnvelope event,
+            String typeKey,
+            JsonNode node) {
+        boolean exactHrisProjection = HRIS_EXPERIENCE_SOURCE.equals(event.source())
+                && HRIS_EMPLOYEE_CHANGE_APPLIED_EVENT.equals(event.type())
+                && HRIS_EMPLOYEE_CHANGE_TYPE_KEY.equals(typeKey);
+        Map<String, Object> variables = exactHrisProjection
+                && (node == null || node.isNull()) ? Map.of() : variables(node);
+        if (!exactHrisProjection || variables.containsKey("requestPublicId")) {
+            return variables;
+        }
+        Map<String, Object> derived = new LinkedHashMap<>(variables);
+        derived.put("requestPublicId", event.aggregateId());
+        return Collections.unmodifiableMap(derived);
     }
 
     private List<MaterializationContext> contexts(JsonNode node) {
@@ -467,8 +494,12 @@ public class NotificationDomainEventTranslator {
                         "An exact notification source-event onboarding is not reserved.");
             }
             if (!required.equals(onboarding)) {
+                if (HRIS_EXPERIENCE_SOURCE.equals(source)) {
+                    throw new IllegalArgumentException(
+                            "The reserved HRIS notification source requires its exact atomic onboarding.");
+                }
                 throw new IllegalArgumentException(
-                        "The reserved HRIS notification source requires its exact atomic onboarding.");
+                        "The reserved Calendar notification source requires its exact atomic onboarding.");
             }
         });
     }
@@ -493,9 +524,13 @@ public class NotificationDomainEventTranslator {
     private void validateExactSourceEventPair(DomainEventEnvelope event) {
         Set<String> configuredEvents = exactSourceEventTypes.get(event.source());
         if (configuredEvents != null && !configuredEvents.contains(event.type())) {
-            if (RESERVED_EXACT_SOURCE_EVENT_ONBOARDINGS.containsKey(event.source())) {
+            if (HRIS_EXPERIENCE_SOURCE.equals(event.source())) {
                 throw contract(
                         "The reserved HRIS notification source-event pair is not onboarded.");
+            }
+            if (CALENDAR_SOURCE.equals(event.source())) {
+                throw contract(
+                        "The reserved Calendar notification source-event pair is not onboarded.");
             }
             throw contract(
                     "The domain-event source-event pair is not notification-onboarded.");
@@ -513,7 +548,7 @@ public class NotificationDomainEventTranslator {
                 || !HRIS_EMPLOYEE_CHANGE_TYPE_KEY.equals(request.typeKey())
                 || !Objects.equals(
                         "hris:employee-change:" + requestId, request.threadKey())
-                || !canonicalHrisLocale(request.locale())
+                || !("ko-KR".equals(request.locale()) || "en-US".equals(request.locale()))
                 || !"EMPLOYEE_CHANGE_APPLIED".equals(request.reasonCode())
                 || request.actorReference() != null
                 || request.subjectReference() == null
@@ -535,9 +570,15 @@ public class NotificationDomainEventTranslator {
         if (requestReference != null && !requestId.equals(requestReference)) {
             throw contract("The HRIS employee-change requestReference variable is invalid.");
         }
+        Object requestPublicId = request.variables().get("requestPublicId");
+        if (!(requestPublicId instanceof String requestPublicIdValue)
+                || !requestId.equals(requestPublicIdValue)
+                || !canonicalUuid(requestPublicIdValue)) {
+            throw contract("The HRIS employee-change requestPublicId variable is invalid.");
+        }
         Object targetType = request.variables().get("targetType");
-        if (targetType != null && (!(targetType instanceof String value)
-                || !value.matches("[A-Z0-9][A-Z0-9._-]{0,79}"))) {
+        if (targetType != null && (!(targetType instanceof String targetTypeValue)
+                || !targetTypeValue.matches("[A-Z0-9][A-Z0-9._-]{0,79}"))) {
             throw contract("The HRIS employee-change targetType variable is invalid.");
         }
     }
@@ -571,15 +612,35 @@ public class NotificationDomainEventTranslator {
                     "The HRIS employee-change notification intent contains an unsupported field.");
         }
         JsonNode locale = intents.get(0).get("locale");
-        if (locale == null
-                || !locale.isTextual()
+        if (locale != null && !locale.isNull()
+                && (!locale.isTextual()
                 || !locale.textValue().equals(locale.textValue().trim())
-                || !canonicalHrisLocale(locale.textValue())) {
+                || !validHrisLocale(locale.textValue()))) {
             throw contract("The HRIS employee-change notification locale is invalid.");
         }
     }
 
-    private boolean canonicalHrisLocale(String value) {
+    private String notificationLocale(
+            DomainEventEnvelope event,
+            String typeKey,
+            JsonNode intent) {
+        if (!HRIS_EXPERIENCE_SOURCE.equals(event.source())
+                || !HRIS_EMPLOYEE_CHANGE_APPLIED_EVENT.equals(event.type())
+                || !HRIS_EMPLOYEE_CHANGE_TYPE_KEY.equals(typeKey)) {
+            return defaultText(intent, "locale", "ko-KR", 35);
+        }
+        JsonNode locale = intent.get("locale");
+        if (locale == null || locale.isNull()) return "ko-KR";
+        String value = locale.textValue();
+        String language = value.substring(0, 2).toLowerCase(java.util.Locale.ROOT);
+        return switch (language) {
+            case "ko" -> "ko-KR";
+            case "en" -> "en-US";
+            default -> "en-US";
+        };
+    }
+
+    private boolean validHrisLocale(String value) {
         return value != null && HRIS_LOCALE.matcher(value).matches();
     }
 

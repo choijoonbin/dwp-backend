@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -120,7 +121,55 @@ public final class CalendarDtos {
             EventCapabilities capabilities,
             String restrictionReason,
             OffsetDateTime recurrenceId,
-            long version) {
+            long version,
+            List<DayOfWeek> recurrenceDays,
+            Integer recurrenceCount) {
+
+        public EventSummary(
+                UUID eventId,
+                UUID calendarId,
+                String calendarName,
+                String calendarColor,
+                Long organizerUserId,
+                UUID organizerPersonPublicId,
+                String organizerName,
+                String organizerEmail,
+                String title,
+                String description,
+                EventType type,
+                OffsetDateTime startsAt,
+                OffsetDateTime endsAt,
+                String timeZone,
+                boolean allDay,
+                String location,
+                String conferenceUrl,
+                EventStatus status,
+                EventVisibility visibility,
+                RecurrencePattern recurrence,
+                int recurrenceInterval,
+                LocalDate recurrenceUntil,
+                boolean responseRequired,
+                ResponseStatus myResponse,
+                List<Attendee> attendees,
+                ResourceSummary resource,
+                boolean conflict,
+                EventImportance importance,
+                EventDetailLevel detailLevel,
+                boolean redacted,
+                boolean starred,
+                long preferenceVersion,
+                EventCapabilities capabilities,
+                String restrictionReason,
+                OffsetDateTime recurrenceId,
+                long version) {
+            this(eventId, calendarId, calendarName, calendarColor, organizerUserId,
+                    organizerPersonPublicId, organizerName, organizerEmail, title, description,
+                    type, startsAt, endsAt, timeZone, allDay, location, conferenceUrl, status,
+                    visibility, recurrence, recurrenceInterval, recurrenceUntil,
+                    responseRequired, myResponse, attendees, resource, conflict, importance,
+                    detailLevel, redacted, starred, preferenceVersion, capabilities,
+                    restrictionReason, recurrenceId, version, List.of(), null);
+        }
 
         public EventSummary(
                 UUID eventId,
@@ -164,7 +213,7 @@ public final class CalendarDtos {
                     visibility, recurrence, recurrenceInterval, recurrenceUntil,
                     responseRequired, myResponse, attendees, resource, conflict, importance,
                     detailLevel, redacted, starred, preferenceVersion, capabilities,
-                    restrictionReason, null, version);
+                    restrictionReason, null, version, List.of(), null);
         }
 
         public EventSummary(
@@ -203,7 +252,7 @@ public final class CalendarDtos {
                     responseRequired, myResponse, attendees, resource, conflict,
                     EventImportance.NORMAL, EventDetailLevel.FULL, false, false,
                     0, new EventCapabilities(true, false, false, false,
-                            myResponse != null, true), null, null, version);
+                            myResponse != null, true), null, null, version, List.of(), null);
         }
     }
 
@@ -264,7 +313,8 @@ public final class CalendarDtos {
 
     public enum RecurrenceEditScope {
         SERIES,
-        THIS_OCCURRENCE
+        THIS_OCCURRENCE,
+        THIS_AND_FOLLOWING
     }
 
     public record TrashedEventSummary(
@@ -328,7 +378,26 @@ public final class CalendarDtos {
             OffsetDateTime purgeAfter,
             boolean legalHold,
             EventCapabilities capabilities,
-            long version) {
+            long version,
+            List<DayOfWeek> recurrenceDays,
+            Integer recurrenceCount) {
+
+        public CompanyEventSummary(
+                UUID eventId, UUID calendarId, String title, String description,
+                EventType type, OffsetDateTime startsAt, OffsetDateTime endsAt,
+                String timeZone, boolean allDay, String location, String conferenceUrl,
+                EventStatus status, EventVisibility visibility,
+                RecurrencePattern recurrence, int recurrenceInterval,
+                LocalDate recurrenceUntil, boolean responseRequired,
+                List<Attendee> attendees, EventImportance importance,
+                OffsetDateTime deletedAt, OffsetDateTime purgeAfter, boolean legalHold,
+                EventCapabilities capabilities, long version) {
+            this(eventId, calendarId, title, description, type, startsAt, endsAt,
+                    timeZone, allDay, location, conferenceUrl, status, visibility,
+                    recurrence, recurrenceInterval, recurrenceUntil, responseRequired,
+                    attendees, importance, deletedAt, purgeAfter, legalHold,
+                    capabilities, version, List.of(), null);
+        }
     }
 
     public record HomeMetrics(
@@ -461,7 +530,35 @@ public final class CalendarDtos {
             UUID resourceId,
             @NotNull UUID idempotencyKey,
             UUID calendarId,
-            EventImportance importance) {
+            EventImportance importance,
+            @Size(max = 7) List<@NotNull DayOfWeek> recurrenceDays,
+            @Min(1) @Max(4000) Integer recurrenceCount) {
+
+        public CreateEventRequest(
+                String title,
+                String description,
+                EventType type,
+                OffsetDateTime startsAt,
+                OffsetDateTime endsAt,
+                String timeZone,
+                boolean allDay,
+                String location,
+                String conferenceUrl,
+                EventVisibility visibility,
+                RecurrencePattern recurrence,
+                int recurrenceInterval,
+                LocalDate recurrenceUntil,
+                boolean responseRequired,
+                List<AttendeeInput> attendees,
+                UUID resourceId,
+                UUID idempotencyKey,
+                UUID calendarId,
+                EventImportance importance) {
+            this(title, description, type, startsAt, endsAt, timeZone, allDay, location,
+                    conferenceUrl, visibility, recurrence, recurrenceInterval,
+                    recurrenceUntil, responseRequired, attendees, resourceId, idempotencyKey,
+                    calendarId, importance, null, null);
+        }
 
         public CreateEventRequest(
                 String title,
@@ -484,7 +581,7 @@ public final class CalendarDtos {
             this(title, description, type, startsAt, endsAt, timeZone, allDay, location,
                     conferenceUrl, visibility, recurrence, recurrenceInterval,
                     recurrenceUntil, responseRequired, attendees, resourceId, idempotencyKey,
-                    null, EventImportance.NORMAL);
+                    null, EventImportance.NORMAL, null, null);
         }
     }
 
@@ -509,7 +606,37 @@ public final class CalendarDtos {
             EventImportance importance,
             RecurrenceEditScope editScope,
             OffsetDateTime originalStartsAt,
-            UUID idempotencyKey) {
+            UUID idempotencyKey,
+            @Size(max = 7) List<@NotNull DayOfWeek> recurrenceDays,
+            @Min(1) @Max(4000) Integer recurrenceCount) {
+
+        public UpdateEventRequest(
+                String title,
+                String description,
+                EventType type,
+                OffsetDateTime startsAt,
+                OffsetDateTime endsAt,
+                String timeZone,
+                boolean allDay,
+                String location,
+                String conferenceUrl,
+                EventVisibility visibility,
+                RecurrencePattern recurrence,
+                int recurrenceInterval,
+                LocalDate recurrenceUntil,
+                boolean responseRequired,
+                List<AttendeeInput> attendees,
+                UUID resourceId,
+                Long version,
+                EventImportance importance,
+                RecurrenceEditScope editScope,
+                OffsetDateTime originalStartsAt,
+                UUID idempotencyKey) {
+            this(title, description, type, startsAt, endsAt, timeZone, allDay, location,
+                    conferenceUrl, visibility, recurrence, recurrenceInterval,
+                    recurrenceUntil, responseRequired, attendees, resourceId, version,
+                    importance, editScope, originalStartsAt, idempotencyKey, null, null);
+        }
 
         public UpdateEventRequest(
                 String title,
@@ -533,7 +660,7 @@ public final class CalendarDtos {
             this(title, description, type, startsAt, endsAt, timeZone, allDay, location,
                     conferenceUrl, visibility, recurrence, recurrenceInterval,
                     recurrenceUntil, responseRequired, attendees, resourceId, version,
-                    importance, null, null, null);
+                    importance, null, null, null, null, null);
         }
 
         public UpdateEventRequest(
@@ -557,7 +684,7 @@ public final class CalendarDtos {
             this(title, description, type, startsAt, endsAt, timeZone, allDay, location,
                     conferenceUrl, visibility, recurrence, recurrenceInterval,
                     recurrenceUntil, responseRequired, attendees, resourceId, version,
-                    EventImportance.NORMAL, null, null, null);
+                    EventImportance.NORMAL, null, null, null, null, null);
         }
     }
 
@@ -568,6 +695,12 @@ public final class CalendarDtos {
     }
 
     public record VersionRequest(@NotNull @Min(0) Long version) {
+    }
+
+    public record CancelOccurrenceRequest(
+            @NotNull OffsetDateTime originalStartsAt,
+            @NotNull @Min(0) Long version,
+            @NotNull UUID idempotencyKey) {
     }
 
     public record ResourceSummary(

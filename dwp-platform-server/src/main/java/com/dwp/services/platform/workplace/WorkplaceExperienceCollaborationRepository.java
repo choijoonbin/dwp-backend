@@ -151,6 +151,21 @@ public class WorkplaceExperienceCollaborationRepository {
                 """, batchSize);
     }
 
+    @Transactional(readOnly = true)
+    public RetentionBacklog retentionBacklog() {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) AS work_plan_count,
+                       MIN(plan.expires_at)::timestamp
+                           AT TIME ZONE current_setting('TimeZone')
+                           AS oldest_work_plan_expired_at
+                  FROM wp_experience_work_plans plan
+                 WHERE plan.expires_at < CURRENT_DATE
+                """, (result, ignored) -> new RetentionBacklog(
+                        result.getLong("work_plan_count"),
+                        result.getObject(
+                                "oldest_work_plan_expired_at", OffsetDateTime.class)));
+    }
+
     boolean locationMatches(long tenantId, UUID siteId, UUID floorId, UUID resourceId) {
         Long count = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM wp_sites site
@@ -183,6 +198,9 @@ public class WorkplaceExperienceCollaborationRepository {
     }
 
     record ResourceLocation(UUID siteId, UUID floorId) { }
+
+    public record RetentionBacklog(
+            long workPlans, OffsetDateTime oldestWorkPlanExpiredAt) { }
 
     ConnectorStatus connector(long tenantId, ConnectorKind kind) {
         return jdbc.query("SELECT * FROM wp_experience_connector_configurations WHERE tenant_id = ? AND connector_kind = ?",

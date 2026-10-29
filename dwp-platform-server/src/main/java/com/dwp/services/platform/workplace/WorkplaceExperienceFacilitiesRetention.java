@@ -5,6 +5,8 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,6 +19,13 @@ public class WorkplaceExperienceFacilitiesRetention {
         this.jdbc = jdbc; this.named = new NamedParameterJdbcTemplate(jdbc);
     }
     public record Purged(int requests, int closures) { }
+    public record RetentionBacklog(
+            long requests,
+            OffsetDateTime oldestRequestExpiredAt,
+            long closures,
+            OffsetDateTime oldestClosureExpiredAt) {
+        long total() { return requests + closures; }
+    }
 
     @Transactional
     public Purged purge(int batchSize) {
@@ -35,6 +44,40 @@ public class WorkplaceExperienceFacilitiesRetention {
         return new Purged(requests,closures);
     }
 
+    @Transactional(readOnly = true)
+    public RetentionBacklog retentionBacklog() {
+        return jdbc.queryForObject("""
+                SELECT (SELECT COUNT(*)
+                          FROM wp_experience_facility_retention_eligible_requests)
+                           AS request_count,
+                       (SELECT MIN(request.updated_at
+                                   + make_interval(days => policy.booking_retention_days))
+                          FROM wp_experience_facility_retention_eligible_requests eligible
+                          JOIN wp_experience_facility_requests request
+                            ON request.tenant_id = eligible.tenant_id
+                           AND request.request_id = eligible.request_id
+                          JOIN wp_tenant_policies policy
+                            ON policy.tenant_id = request.tenant_id)
+                           AS oldest_request_expired_at,
+                       (SELECT COUNT(*)
+                          FROM wp_experience_facility_retention_eligible_closures)
+                           AS closure_count,
+                       (SELECT MIN(GREATEST(closure.ends_at, closure.updated_at)
+                                   + make_interval(days => policy.booking_retention_days))
+                          FROM wp_experience_facility_retention_eligible_closures eligible
+                          JOIN wp_experience_facility_closures closure
+                            ON closure.tenant_id = eligible.tenant_id
+                           AND closure.closure_id = eligible.closure_id
+                          JOIN wp_tenant_policies policy
+                            ON policy.tenant_id = closure.tenant_id)
+                           AS oldest_closure_expired_at
+                """, (result, ignored) -> new RetentionBacklog(
+                        result.getLong("request_count"),
+                        result.getObject("oldest_request_expired_at", OffsetDateTime.class),
+                        result.getLong("closure_count"),
+                        result.getObject("oldest_closure_expired_at", OffsetDateTime.class)));
+    }
+
     private int purgeKind(String kind, Long tenant,int batchSize) {
         boolean request = "REQUEST".equals(kind);
         String table = request ? "wp_experience_facility_requests" : "wp_experience_facility_closures";
@@ -43,7 +86,8 @@ public class WorkplaceExperienceFacilitiesRetention {
         var candidates = named.query("SELECT x."+idColumn+", x.tenant_id, x.resource_id FROM "+table+" x "
                 + "JOIN "+eligible+" e ON e.tenant_id=x.tenant_id AND e."+idColumn+"=x."+idColumn
                 + (tenant==null?"":" WHERE x.tenant_id=:tenant")
-                + " ORDER BY x.updated_at,x."+idColumn+" FOR UPDATE OF x SKIP LOCKED LIMIT :batch",
+                + " ORDER BY " + (request ? "x.updated_at" : "GREATEST(x.ends_at,x.updated_at)")
+                + ",x."+idColumn+" FOR UPDATE OF x SKIP LOCKED LIMIT :batch",
                 new MapSqlParameterSource("tenant",tenant).addValue("batch",batchSize),
                 (rs,i) -> new Candidate(rs.getObject(1,UUID.class),rs.getLong(2),rs.getObject(3,UUID.class)));
         int purged = 0;

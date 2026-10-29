@@ -48,7 +48,7 @@ class CalendarTeamAvailabilityPostgresIntegrationTest {
         source.setURL(POSTGRES.getJdbcUrl());
         source.setUser(POSTGRES.getUsername());
         source.setPassword(POSTGRES.getPassword());
-        Flyway.configure().dataSource(source).locations("classpath:db/migration").target("196").load().migrate();
+        Flyway.configure().dataSource(source).locations("classpath:db/migration").target("377").load().migrate();
         jdbc = new JdbcTemplate(source);
     }
 

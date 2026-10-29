@@ -18,8 +18,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -271,7 +273,8 @@ class MailProductSurfacePepEvidenceTest {
     }
 
     @Test
-    void latestContractExposesEveryExactMailOwnerBinding() throws Exception {
+    void registryBaselineAndPendingEventExtensionsExposeExactMailOwnerBindings()
+            throws Exception {
         JsonNode bundle = contractArtifact(30);
         assertThat(bundle.path("bundleKey").asText()).isEqualTo("product-surfaces");
         assertThat(bundle.path("version").asInt()).isEqualTo(30);
@@ -283,8 +286,21 @@ class MailProductSurfacePepEvidenceTest {
                         MailProductSurfaceContract.BindingContract::routeContractKey,
                         Function.identity()));
         Map<String, JsonNode> routes = mailRoutes(bundle);
-        assertThat(routes.keySet()).containsExactlyInAnyOrderElementsOf(runtime.keySet());
-        runtime.forEach((routeKey, binding) -> assertRoute(routes.get(routeKey), binding));
+        Set<String> pendingRegistryExtensions = Set.of(
+                "route.mail.work.events.data",
+                "route.mail.work.events-catch-up.data");
+        Set<String> expectedRuntimeRoutes = Stream.concat(
+                        routes.keySet().stream(), pendingRegistryExtensions.stream())
+                .collect(Collectors.toUnmodifiableSet());
+        assertThat(runtime.keySet())
+                .containsExactlyInAnyOrderElementsOf(expectedRuntimeRoutes);
+        routes.forEach((routeKey, route) -> assertRoute(route, runtime.get(routeKey)));
+        assertThat(contract.resolveOwner("GET", "/v1/mail/events"))
+                .get().extracting(MailProductSurfaceContract.Binding::routeContractKey)
+                .isEqualTo("route.mail.work.events.data");
+        assertThat(contract.resolveOwner("GET", "/v1/mail/events/catch-up"))
+                .get().extracting(MailProductSurfaceContract.Binding::routeContractKey)
+                .isEqualTo("route.mail.work.events-catch-up.data");
 
         JsonNode policy = exactNode(
                 bundle.path("accessPolicies"),

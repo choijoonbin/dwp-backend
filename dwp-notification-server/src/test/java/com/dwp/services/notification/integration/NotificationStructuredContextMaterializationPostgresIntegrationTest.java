@@ -68,6 +68,7 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
     private DataSourceTransactionManager transactions;
     private NotificationDatabaseScope scope;
     private DirectNotificationMaterializer materializer;
+    private NotificationRetentionService retentionService;
     private NotificationAttentionContextRepository contextRepository;
     private NotificationQueryRepository queryRepository;
     private long tenantId;
@@ -114,7 +115,7 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                 new NotificationRedisChannels("notification.context.test", 8),
                 new NotificationRedisSignalCodec(mapper),
                 false);
-        NotificationRetentionService retention = new NotificationRetentionService(
+        retentionService = new NotificationRetentionService(
                 scope,
                 new NotificationRetentionRepository(named),
                 publisher,
@@ -140,7 +141,7 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                         attention);
         NotificationMaterializationTransactions nativeTransactions =
                 new NotificationMaterializationTransactions(
-                        transactions, scope, repository, retention, publisher, runtime);
+                        transactions, scope, repository, retentionService, publisher, runtime);
         NotificationRecipientEntitlementAdmission entitlements =
                 new NotificationRecipientEntitlementAdmission(
                         (requestedTenant, userId) -> Optional.of(
@@ -261,6 +262,16 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                                 "threadId", threadId.toString(),
                                 "followUpId", UUID.randomUUID().toString(),
                                 "dueAt", "2026-09-17T10:00:00Z"),
+                        true),
+                new MailContractCase(
+                        "mail.action.escalated.v1",
+                        "MAIL.ACTION_ESCALATED",
+                        "/mail/actions?proposalId=" + threadId,
+                        Map.of(
+                                "proposalId", threadId.toString(),
+                                "threadId", threadId.toString(),
+                                "channel", "IN_APP",
+                                "urgency", "HIGH"),
                         true));
         NotificationDomainEventTranslator translator = new NotificationDomainEventTranslator(
                 mapper, "urn:dwp:platform:mail=dwp-platform-server");
@@ -325,6 +336,11 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
         long recipient = 900032L;
         UUID requestReference = UUID.randomUUID();
         UUID personReference = UUID.randomUUID();
+        admin.update("""
+                INSERT INTO ntf_tenant_retention_policies (
+                    tenant_id, default_ttl_seconds, change_reason, updated_by)
+                VALUES (?, ?, 'Context integration tenant default', 1)
+                """, tenantId, Duration.ofDays(60).toSeconds());
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         var data = mapper.createObjectNode();
         var intent = data.putArray("notificationIntents").addObject()
@@ -336,10 +352,6 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                 .put("targetReference", "employee-change:" + requestReference)
                 .put("actionRequired", false);
         intent.putArray("recipientUserIds").add(recipient);
-        intent.putObject("variables")
-                .put("effectiveDate", "2026-10-15")
-                .put("requestReference", requestReference.toString())
-                .put("targetType", "PERSON");
         DomainEventEnvelope event = DomainEventEnvelope.create(
                 "urn:dwp:people:hrm:dwp-experience",
                 "EmployeeChangeAppliedNotificationRequested.v1",
@@ -370,6 +382,8 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                 """, Integer.class, tenantId, recipient, result.notificationId())).isOne();
         assertThat(admin.queryForMap("""
                 SELECT notification.target_ref,
+                       notification.retention_policy_source,
+                       notification.retention_ttl_seconds,
                        recipient_notification.reason_code,
                        notification.action_payload ->> 'route' AS route,
                        type.type_key,
@@ -385,10 +399,41 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                    AND recipient_notification.user_id=?
                 """, tenantId, result.notificationId(), recipient))
                 .containsEntry("target_ref", "employee-change:" + requestReference)
+                .containsEntry("retention_policy_source", "CONTRACT_OVERRIDE")
+                .containsEntry(
+                        "retention_ttl_seconds", Duration.ofDays(30).toSeconds())
                 .containsEntry("reason_code", "EMPLOYEE_CHANGE_APPLIED")
-                .containsEntry("route", "/hr/operations/people/employee-change-requests")
+                .containsEntry(
+                        "route",
+                        "/hr/operations/people/employee-change-requests?requestPublicId="
+                                + requestReference)
                 .containsEntry("type_key", "HCM.EMPLOYEE_CHANGE_APPLIED")
                 .containsEntry("owner_app_key", "hcm");
+
+        admin.update("""
+                UPDATE ntf_notifications
+                   SET expires_at = CURRENT_TIMESTAMP - INTERVAL '1 day'
+                 WHERE tenant_id=? AND notification_id=?
+                """, tenantId, result.notificationId());
+        admin.update("""
+                INSERT INTO ntf_notification_retention_holds (
+                    hold_id, tenant_id, notification_id, user_id,
+                    case_reference, reason, starts_at, created_by)
+                VALUES (?, ?, ?, NULL, 'CASE-HRIS-RETENTION',
+                        'Active legal hold regression',
+                        CURRENT_TIMESTAMP - INTERVAL '1 minute', 1)
+                """, UUID.randomUUID(), tenantId, result.notificationId());
+
+        var purged = new TransactionTemplate(transactions).execute(status ->
+                retentionService.purgeTenant(tenantId, Instant.now()));
+
+        assertThat(purged).isNotNull();
+        assertThat(purged.deletedProjections()).isZero();
+        assertThat(purged.deletedNotifications()).isZero();
+        assertThat(admin.queryForObject("""
+                SELECT count(*) FROM ntf_user_notifications
+                 WHERE tenant_id=? AND user_id=? AND notification_id=?
+                """, Integer.class, tenantId, recipient, result.notificationId())).isOne();
     }
 
     @Test
@@ -501,6 +546,34 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                  WHERE tenant_id=? AND user_id=? AND notification_id=?
                 """, Integer.class, tenantId, recipient, result.notificationId()))
                 .isEqualTo(5);
+    }
+
+    @Test
+    void discoversCanonicalContextKeysAtTheirPostgresLengthBoundaries() {
+        long recipient = 900023L;
+        String maximumResourceKey = "p:" + "r".repeat(298);
+        String maximumTopicKey = "t" + "o".repeat(159);
+        DirectMaterializationRequest request = request(
+                recipient,
+                UUID.randomUUID(),
+                List.of(
+                        context(MaterializationContextKind.PROJECT, maximumResourceKey),
+                        context(MaterializationContextKind.TOPIC, maximumTopicKey)));
+
+        var result = materializer.materialize(worker(), request, "context-length-boundaries");
+
+        assertThat(result.recipientCount()).isOne();
+        NotificationRequestContext.Actor recipientActor = user(recipient);
+        assertThat(userTransaction(recipientActor, () -> contextRepository.discover(
+                recipientActor, "RESOURCE", maximumResourceKey, 20)))
+                .singleElement()
+                .satisfies(option -> assertThat(option.scopeKey())
+                        .isEqualTo(maximumResourceKey));
+        assertThat(userTransaction(recipientActor, () -> contextRepository.discover(
+                recipientActor, "TOPIC_TOKEN", maximumTopicKey, 20)))
+                .singleElement()
+                .satisfies(option -> assertThat(option.scopeKey())
+                        .isEqualTo(maximumTopicKey));
     }
 
     @Test

@@ -43,6 +43,7 @@ class CalendarOccurrenceEditPostgresIntegrationTest {
     private static JdbcTemplate jdbc;
     private static TransactionTemplate transactions;
 
+    private CalendarRepository repository;
     private CalendarOccurrenceCommandService commands;
     private CalendarOccurrenceProjector projector;
 
@@ -78,7 +79,7 @@ class CalendarOccurrenceEditPostgresIntegrationTest {
         }) {
             jdbc.update("DELETE FROM " + table + " WHERE tenant_id = ?", TENANT_ID);
         }
-        CalendarRepository repository = new CalendarRepository(
+        repository = new CalendarRepository(
                 jdbc, new ObjectMapper().findAndRegisterModules());
         CalendarOccurrenceRepository occurrenceRepository =
                 new CalendarOccurrenceRepository(jdbc);
@@ -151,6 +152,106 @@ class CalendarOccurrenceEditPostgresIntegrationTest {
                 SELECT COUNT(*) FROM cal_event_occurrence_overrides
                  WHERE tenant_id = ? AND event_id = ?
                 """, Integer.class, TENANT_ID, eventId)).isZero();
+    }
+
+    @Test
+    void freeBusyUsesMovedAndCancelledOccurrenceOverridesAndKeepsTenantBoundaries() {
+        UUID eventId = fixture();
+        OffsetDateTime movedOriginal = OffsetDateTime.parse("2026-09-22T09:00:00+09:00");
+        tx(() -> commands.updateOccurrence(
+                TENANT_ID, ACTOR_ID, ACTOR_PERSON_ID, eventId,
+                "en", "corr-free-busy-move", null,
+                request(movedOriginal, UUID.randomUUID(), "Moved occurrence")));
+
+        List<CalendarRepository.BusyRow> moved = repository.busySlots(
+                TENANT_ID,
+                List.of(ACTOR_PERSON_ID),
+                OffsetDateTime.parse("2026-09-22T08:00:00+09:00"),
+                OffsetDateTime.parse("2026-09-22T13:00:00+09:00"));
+        assertThat(moved).singleElement().satisfies(value -> {
+            assertThat(value.startsAt().toInstant())
+                    .isEqualTo(movedOriginal.plusHours(2).toInstant());
+            assertThat(value.endsAt().toInstant())
+                    .isEqualTo(movedOriginal.plusHours(3).toInstant());
+        });
+
+        OffsetDateTime cancelledOriginal =
+                OffsetDateTime.parse("2026-09-23T09:00:00+09:00");
+        jdbc.update("""
+                INSERT INTO cal_event_occurrence_overrides (
+                    tenant_id, event_id, original_starts_at, override_kind,
+                    created_by, updated_by)
+                VALUES (?, ?, ?, 'CANCELLED', ?, ?)
+                """, TENANT_ID, eventId, cancelledOriginal, ACTOR_ID, ACTOR_ID);
+        assertThat(repository.busySlots(
+                TENANT_ID,
+                List.of(ACTOR_PERSON_ID),
+                OffsetDateTime.parse("2026-09-23T08:00:00+09:00"),
+                OffsetDateTime.parse("2026-09-23T13:00:00+09:00"))).isEmpty();
+        assertThat(repository.busySlots(
+                TENANT_ID + 1,
+                List.of(ACTOR_PERSON_ID),
+                OffsetDateTime.parse("2026-09-22T08:00:00+09:00"),
+                OffsetDateTime.parse("2026-09-22T13:00:00+09:00"))).isEmpty();
+    }
+
+    @Test
+    void cancellingFirstSplitSourceBookingReleasesTheExclusionForFollowingSeries() {
+        UUID sourceEventId = fixture();
+        UUID calendarId = jdbc.queryForObject("""
+                SELECT calendar_id FROM cal_events
+                 WHERE tenant_id = ? AND event_id = ?
+                """, UUID.class, TENANT_ID, sourceEventId);
+        UUID resourceId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO cal_resources (
+                    resource_id, tenant_id, resource_code, name_ko, name_en,
+                    resource_type, site_name, capacity, features, time_zone,
+                    lifecycle_state, created_by, updated_by)
+                VALUES (?, ?, ?, '회의실', 'Room', 'ROOM', 'HQ', 8, '[]'::jsonb,
+                        'Asia/Seoul', 'AVAILABLE', ?, ?)
+                """, resourceId, TENANT_ID, "SPLIT-" + resourceId, ACTOR_ID, ACTOR_ID);
+        OffsetDateTime startsAt = OffsetDateTime.parse("2026-09-21T09:00:00+09:00");
+        CalendarRepository.ResourceRow resource = new CalendarRepository.ResourceRow(
+                resourceId, "SPLIT", "Room", "회의실", "Room", ResourceType.ROOM,
+                "HQ", null, 8, List.of(), "Asia/Seoul", false,
+                ResourceState.AVAILABLE, true, 0L);
+        repository.insertBooking(
+                TENANT_ID, ACTOR_ID, sourceEventId, resource,
+                startsAt, startsAt.plusHours(1));
+
+        UUID followingEventId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO cal_events (
+                    event_id, tenant_id, calendar_id, organizer_user_id,
+                    organizer_person_public_id, organizer_name, organizer_email,
+                    title, event_type, starts_at, ends_at, time_zone,
+                    status, visibility, importance, recurrence_pattern,
+                    recurrence_interval, response_required, source_type,
+                    created_by, updated_by)
+                VALUES (?, ?, ?, ?, ?, 'Owner', 'owner@example.com',
+                        'Following series', 'MEETING', ?, ?, 'Asia/Seoul',
+                        'CONFIRMED', 'DEFAULT', 'NORMAL', 'NONE', 1, FALSE,
+                        'NATIVE', ?, ?)
+                """, followingEventId, TENANT_ID, calendarId, ACTOR_ID, ACTOR_PERSON_ID,
+                startsAt, startsAt.plusHours(1), ACTOR_ID, ACTOR_ID);
+
+        assertThatThrownBy(() -> repository.insertBooking(
+                TENANT_ID, ACTOR_ID, followingEventId, resource,
+                startsAt, startsAt.plusHours(1)))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        repository.cancelBookings(TENANT_ID, ACTOR_ID, sourceEventId);
+        repository.insertBooking(
+                TENANT_ID, ACTOR_ID, followingEventId, resource,
+                startsAt, startsAt.plusHours(1));
+
+        assertThat(jdbc.queryForList("""
+                SELECT booking_status FROM cal_resource_bookings
+                 WHERE tenant_id = ? AND resource_id = ?
+                 ORDER BY booking_status
+                """, String.class, TENANT_ID, resourceId))
+                .containsExactly("CANCELLED", "CONFIRMED");
     }
 
     private UUID fixture() {

@@ -17,6 +17,7 @@ import java.util.UUID;
 import static com.dwp.services.platform.mail.MailTypes.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -40,6 +41,8 @@ class MailServiceTest {
     private MailWorkspaceRepository workspaceRepository;
     @Mock
     private MailAdminMutationReceipts adminReceipts;
+    @Mock
+    private MailBulkMutationReceipts bulkMutationReceipts;
 
     private MailService service;
     private final MailSendCommandFingerprint sendFingerprints =
@@ -48,7 +51,21 @@ class MailServiceTest {
     @BeforeEach
     void setUp() {
         service = new MailService(
-                queries, commands, providerCatalog, deliveryCompletion, notificationEvents);
+                queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                workspaceRepository, null, adminReceipts, bulkMutationReceipts);
+    }
+
+    @Test
+    void homeReturnsAnExplicitNoAccountRecoveryState() {
+        when(queries.accounts(1L, 7L)).thenReturn(List.of());
+
+        MailDtos.HomeResponse result = service.home(1L, 7L);
+
+        assertThat(result.accounts()).isEmpty();
+        assertThat(result.metrics()).isEqualTo(new MailDtos.HomeMetrics(0, 0, 0, 0, 0, 0));
+        assertThat(result.focusQueue()).isEmpty();
+        assertThat(result.proposals()).isEmpty();
+        assertThat(result.sharedInboxes()).isEmpty();
     }
 
     @Test
@@ -80,6 +97,52 @@ class MailServiceTest {
         verify(commands).domainEvent(
                 eq(1L), eq("MAIL_ACTION_PROPOSAL"), eq(proposalId),
                 eq("mail.action.accepted"), anyMap(), eq("corr-ai"));
+    }
+
+    @Test
+    void acceptedNotificationEscalationIsOwnedAndCompletedByNotificationEvidence() {
+        UUID proposalId = UUID.randomUUID();
+        UUID threadId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        UUID notificationEventId = UUID.randomUUID();
+        MailDtos.ActionProposal before = escalationProposal(
+                proposalId, threadId, ProposalStatus.PROPOSED, 2L);
+        MailDtos.ActionProposal accepted = escalationProposal(
+                proposalId, threadId, ProposalStatus.ACCEPTED, 3L);
+        MailDtos.ActionProposal executed = escalationProposal(
+                proposalId, threadId, ProposalStatus.EXECUTED, 4L);
+        when(queries.proposal(1L, 7L, proposalId))
+                .thenReturn(Optional.of(before), Optional.of(accepted), Optional.of(executed));
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(thread(threadId, true, 0L)));
+        when(queries.policy(1L)).thenReturn(policy());
+        when(commands.decideProposal(
+                1L, 7L, proposalId, ProposalDecision.ACCEPT, 2L)).thenReturn(1);
+        when(notificationEvents.actionEscalated(
+                1L, 7L, accepted, "corr-notify")).thenReturn(notificationEventId);
+        when(queries.ownerProposalHandoff(1L, proposalId, true)).thenReturn(Optional.of(
+                new MailQueryRepository.OwnerProposalHandoffRow(
+                        proposalId, commandId, ProposalType.ESCALATE_NOTIFICATION,
+                        threadId, accepted.proposedPayload(), 7L, accepted.targetRoute(),
+                        "ACCEPTED", null, OffsetDateTime.now(), 3L)));
+        when(commands.updateProposalOutcomeFromOwner(
+                1L, 7L, proposalId, commandId,
+                ProposalType.ESCALATE_NOTIFICATION, "EXECUTED",
+                "notification-event:" + notificationEventId, 3L)).thenReturn(1);
+
+        MailDtos.ActionProposal result = service.decideProposal(
+                1L, 7L, "APP.MAIL:UPDATE", proposalId, "corr-notify",
+                new MailDtos.ProposalDecisionRequest(ProposalDecision.ACCEPT, 2L));
+
+        assertThat(result.status()).isEqualTo(ProposalStatus.EXECUTED);
+        verify(notificationEvents).actionEscalated(1L, 7L, accepted, "corr-notify");
+        verify(commands).updateProposalOutcomeFromOwner(
+                1L, 7L, proposalId, commandId,
+                ProposalType.ESCALATE_NOTIFICATION, "EXECUTED",
+                "notification-event:" + notificationEventId, 3L);
+        verify(commands).domainEvent(
+                eq(1L), eq("MAIL_ACTION_PROPOSAL"), eq(proposalId),
+                eq("mail.action.owner-outcome"), anyMap(), eq("corr-notify"));
     }
 
     @Test
@@ -206,6 +269,98 @@ class MailServiceTest {
                         ConnectionState.ACTIVE, 0L)))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("runtime adapter");
+    }
+
+    @Test
+    void externalConnectionCannotActivateWithoutFreshScopedConsentedDiagnostic() {
+        UUID connectionId = UUID.randomUUID();
+        MailService adminService = new MailService(
+                queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                null, null, adminReceipts);
+        when(queries.connection(1L, connectionId)).thenReturn(Optional.of(
+                new MailDtos.ConnectionSummary(
+                        connectionId, "microsoft-graph", "Microsoft 365",
+                        ProviderType.MICROSOFT_GRAPH, "OAUTH2", "sk.com",
+                        ConnectionState.CONFIGURATION_REQUIRED,
+                        List.of("READ", "SEND"), true,
+                        null, null, 4L)));
+        when(providerCatalog.isRuntimeAvailable(ProviderType.MICROSOFT_GRAPH))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> adminService.updateConnection(
+                1L, 10L, connectionId, "corr-diagnostic", UUID.randomUUID(),
+                new MailDtos.ConnectionUpdateRequest(
+                        "Microsoft 365", "sk.com", null,
+                        ConnectionState.ACTIVE, 4L)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("scoped readiness diagnostic");
+
+        verify(commands, never()).updateConnection(eq(1L), eq(10L), eq(connectionId), any());
+    }
+
+    @Test
+    void freshScopedConsentedDiagnosticAllowsExternalActivation() {
+        UUID connectionId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailService adminService = new MailService(
+                queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                null, null, adminReceipts);
+        MailDtos.ConnectionSummary before = new MailDtos.ConnectionSummary(
+                connectionId, "microsoft-graph", "Microsoft 365",
+                ProviderType.MICROSOFT_GRAPH, "OAUTH2", "sk.com",
+                ConnectionState.CONFIGURATION_REQUIRED,
+                List.of("READ", "SEND"), true, null, null, 4L);
+        MailDtos.ConnectionSummary after = new MailDtos.ConnectionSummary(
+                connectionId, "microsoft-graph", "Microsoft 365",
+                ProviderType.MICROSOFT_GRAPH, "OAUTH2", "sk.com",
+                ConnectionState.ACTIVE,
+                List.of("READ", "SEND"), true, null, null, 5L);
+        MailDtos.ConnectionUpdateRequest request = new MailDtos.ConnectionUpdateRequest(
+                "Microsoft 365", "sk.com", null, ConnectionState.ACTIVE, 4L);
+        when(queries.connection(1L, connectionId))
+                .thenReturn(Optional.of(before))
+                .thenReturn(Optional.of(after));
+        when(providerCatalog.isRuntimeAvailable(ProviderType.MICROSOFT_GRAPH))
+                .thenReturn(true);
+        when(queries.hasFreshActivationDiagnostic(
+                eq(1L), eq(10L), eq(connectionId), eq(4L), any()))
+                .thenReturn(true);
+        when(commands.updateConnection(1L, 10L, connectionId, request)).thenReturn(1);
+
+        MailDtos.ConnectionSummary result = adminService.updateConnection(
+                1L, 10L, connectionId, "corr-activate", idempotencyKey, request);
+
+        assertThat(result.state()).isEqualTo(ConnectionState.ACTIVE);
+        verify(commands).updateConnection(1L, 10L, connectionId, request);
+    }
+
+    @Test
+    void sandboxActivationDoesNotRequireExternalDiagnosticReceipt() {
+        UUID connectionId = UUID.randomUUID();
+        MailService adminService = new MailService(
+                queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                null, null, adminReceipts);
+        MailDtos.ConnectionSummary before = new MailDtos.ConnectionSummary(
+                connectionId, "sandbox", "Sandbox", ProviderType.DWP_SANDBOX,
+                "NONE", "example.test", ConnectionState.CONFIGURATION_REQUIRED,
+                List.of("READ", "SEND"), false, null, null, 0L);
+        MailDtos.ConnectionSummary after = new MailDtos.ConnectionSummary(
+                connectionId, "sandbox", "Sandbox", ProviderType.DWP_SANDBOX,
+                "NONE", "example.test", ConnectionState.ACTIVE,
+                List.of("READ", "SEND"), false, null, null, 1L);
+        MailDtos.ConnectionUpdateRequest request = new MailDtos.ConnectionUpdateRequest(
+                "Sandbox", "example.test", null, ConnectionState.ACTIVE, 0L);
+        when(queries.connection(1L, connectionId))
+                .thenReturn(Optional.of(before))
+                .thenReturn(Optional.of(after));
+        when(providerCatalog.isRuntimeAvailable(ProviderType.DWP_SANDBOX)).thenReturn(true);
+        when(commands.updateConnection(1L, 10L, connectionId, request)).thenReturn(1);
+
+        assertThat(adminService.updateConnection(
+                1L, 10L, connectionId, "corr-sandbox", UUID.randomUUID(), request).state())
+                .isEqualTo(ConnectionState.ACTIVE);
+        verify(queries, never()).hasFreshActivationDiagnostic(
+                eq(1L), eq(10L), eq(connectionId), eq(0L), any());
     }
 
     @Test
@@ -497,6 +652,8 @@ class MailServiceTest {
         when(queries.thread(1L, 7L, threadId))
                 .thenReturn(Optional.of(before))
                 .thenReturn(Optional.of(after));
+        when(workspaceRepository.replyAccount(1L, 7L, threadId))
+                .thenReturn(Optional.of(before.accountId()));
         when(commands.insertReply(
                 1L, 7L, threadId, request.body(), idempotencyKey, persistedRecipients))
                 .thenReturn(true);
@@ -598,6 +755,8 @@ class MailServiceTest {
         String fingerprint = sendFingerprints.reply(7L, requestedThreadId, request);
         when(queries.thread(1L, 7L, requestedThreadId))
                 .thenReturn(Optional.of(thread(requestedThreadId, false, 1L)));
+        when(workspaceRepository.replyAccount(1L, 7L, requestedThreadId))
+                .thenReturn(Optional.of(UUID.randomUUID()));
         when(commands.insertReply(
                 1L, 7L, requestedThreadId, request.body(), idempotencyKey))
                 .thenReturn(true);
@@ -687,6 +846,40 @@ class MailServiceTest {
         verify(commands).domainEvent(
                 eq(1L), eq("MAIL_THREAD"), eq(threadId),
                 eq("mail.thread.mark.read"), anyMap(), eq("corr-thread"));
+    }
+
+    @Test
+    void bulkThreadMutationCompletesTheItemReceiptInTheSameTransactionBoundary() {
+        UUID threadId = UUID.randomUUID();
+        UUID intentId = UUID.randomUUID();
+        UUID itemKey = UUID.randomUUID();
+        UUID receiptId = UUID.randomUUID();
+        MailDtos.ThreadSummary before = thread(threadId, true, 4L);
+        MailDtos.ThreadSummary after = thread(threadId, false, 5L);
+        when(bulkMutationReceipts.claim(
+                1L, 7L, threadId, "MARK_READ", 4L, intentId, itemKey))
+                .thenReturn(new MailBulkMutationReceipts.Claim(
+                        true, new MailBulkMutationReceipts.Receipt(
+                        receiptId, threadId, "MARK_READ", 4L, intentId, itemKey,
+                        "a".repeat(64), "PENDING", null, false)));
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(before))
+                .thenReturn(Optional.of(after));
+        when(commands.applyAction(
+                1L, 7L, threadId, ThreadAction.MARK_READ, 4L)).thenReturn(1);
+        when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
+        when(bulkMutationReceipts.complete(
+                1L, 7L, receiptId, 5L, false)).thenReturn(1);
+
+        MailDtos.ThreadDetail result = service.applyAction(
+                1L, 7L, threadId, "corr-bulk",
+                new MailDtos.ThreadActionRequest(
+                        ThreadAction.MARK_READ, 4L, intentId, itemKey));
+
+        assertThat(result.thread().version()).isEqualTo(5L);
+        verify(bulkMutationReceipts).complete(1L, 7L, receiptId, 5L, false);
     }
 
     @Test
@@ -857,6 +1050,24 @@ class MailServiceTest {
                         "requiresConfirmation", true),
                 new BigDecimal("0.9100"), "MEDIUM",
                 "APP.CALENDAR", "CREATE", "/calendar/schedule?action=create",
+                OffsetDateTime.now().plusDays(1), version);
+    }
+
+    private MailDtos.ActionProposal escalationProposal(
+            UUID proposalId,
+            UUID threadId,
+            ProposalStatus status,
+            long version) {
+        return new MailDtos.ActionProposal(
+                proposalId, threadId, ProposalType.ESCALATE_NOTIFICATION,
+                1, status, "알림 에스컬레이션", "검토된 조치를 알립니다.",
+                List.of(Map.of("messageHash", "a".repeat(64))),
+                Map.of(
+                        "channel", "IN_APP",
+                        "urgency", "HIGH",
+                        "requiresConfirmation", true),
+                new BigDecimal("0.9200"), "LOW",
+                "APP.MAIL", "UPDATE", "/mail/actions",
                 OffsetDateTime.now().plusDays(1), version);
     }
 

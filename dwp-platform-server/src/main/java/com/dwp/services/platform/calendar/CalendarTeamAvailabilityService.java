@@ -30,6 +30,7 @@ public class CalendarTeamAvailabilityService {
     static final int MAX_ROWS = 4000;
     private final CalendarTeamAvailabilityRepository repository;
     private final Clock clock;
+    private final CalendarRecurrenceEngine recurrence = new CalendarRecurrenceEngine();
 
     @Autowired
     public CalendarTeamAvailabilityService(CalendarTeamAvailabilityRepository repository) {
@@ -89,39 +90,45 @@ public class CalendarTeamAvailabilityService {
     private List<Window> project(ScheduleRow row, List<OverrideRow> overrides, OffsetDateTime from, OffsetDateTime to) {
         if (row.startsAt() == null || row.endsAt() == null || !row.endsAt().isAfter(row.startsAt())) throw unavailable();
         List<Window> result = new ArrayList<>();
-        if ("NONE".equals(row.recurrence())) {
-            addUnlessOverridden(result, row, row.startsAt(), row.endsAt(), overrides, from, to);
-        } else {
-            if (row.recurrenceInterval() < 1) throw unavailable();
-            try {
-                ZoneId zone = ZoneId.of(row.timeZone());
-                ZonedDateTime origin = row.startsAt().atZoneSameInstant(zone);
-                Duration duration = Duration.between(row.startsAt(), row.endsAt());
-                ZonedDateTime earliest = from.minus(duration).atZoneSameInstant(zone);
-                long distance = switch (row.recurrence()) {
-                    case "DAILY" -> ChronoUnit.DAYS.between(origin.toLocalDate(), earliest.toLocalDate());
-                    case "WEEKLY" -> ChronoUnit.DAYS.between(origin.toLocalDate(), earliest.toLocalDate()) / 7;
-                    case "MONTHLY" -> ChronoUnit.MONTHS.between(origin.toLocalDate().withDayOfMonth(1), earliest.toLocalDate().withDayOfMonth(1));
-                    default -> throw unavailable();
-                };
-                long index = Math.max(0, distance / row.recurrenceInterval() - 1);
-                int guard = 0;
-                while (true) {
-                    if (++guard > MAX_ROWS) throw unavailable();
-                    long increment = Math.multiplyExact(index++, row.recurrenceInterval());
-                    ZonedDateTime local = switch (row.recurrence()) {
-                        case "DAILY" -> origin.plusDays(increment);
-                        case "WEEKLY" -> origin.plusWeeks(increment);
-                        case "MONTHLY" -> origin.plusMonths(increment);
-                        default -> throw unavailable();
-                    };
-                    OffsetDateTime start = local.toOffsetDateTime();
-                    if (!start.isBefore(to) || (row.recurrenceUntil() != null && local.toLocalDate().isAfter(row.recurrenceUntil()))) break;
-                    addUnlessOverridden(result, row, start, start.plus(duration), overrides, from, to);
-                }
-            } catch (DateTimeException | ArithmeticException exception) {
-                throw unavailable();
+        try {
+            CalendarTypes.RecurrencePattern pattern =
+                    CalendarTypes.RecurrencePattern.valueOf(row.recurrence());
+            OffsetDateTime projectionStart = row.startsAt();
+            OffsetDateTime projectionEnd = row.endsAt();
+            if (row.recurrenceCount() == null && row.recurrenceDays().isEmpty()
+                    && (pattern == CalendarTypes.RecurrencePattern.DAILY
+                    || pattern == CalendarTypes.RecurrencePattern.WEEKLY)) {
+                ZoneId eventZone = ZoneId.of(row.timeZone());
+                ZonedDateTime origin = row.startsAt().atZoneSameInstant(eventZone);
+                ZonedDateTime earliest = from.minus(
+                        Duration.between(row.startsAt(), row.endsAt()))
+                        .atZoneSameInstant(eventZone);
+                long units = pattern == CalendarTypes.RecurrencePattern.DAILY
+                        ? ChronoUnit.DAYS.between(
+                                origin.toLocalDate(), earliest.toLocalDate())
+                        : ChronoUnit.WEEKS.between(
+                                origin.toLocalDate(), earliest.toLocalDate());
+                long steps = Math.max(0L, units / row.recurrenceInterval() - 1L);
+                ZonedDateTime local = pattern == CalendarTypes.RecurrencePattern.DAILY
+                        ? origin.plusDays(Math.multiplyExact(steps, row.recurrenceInterval()))
+                        : origin.plusWeeks(Math.multiplyExact(steps, row.recurrenceInterval()));
+                projectionStart = local.toOffsetDateTime();
+                projectionEnd = projectionStart.plus(
+                        Duration.between(row.startsAt(), row.endsAt()));
             }
+            CalendarRecurrenceEngine.Rule rule = recurrence.rule(
+                    pattern, row.recurrenceInterval(), row.recurrenceUntil(),
+                    row.recurrenceCount(), java.util.Set.copyOf(row.recurrenceDays()),
+                    row.timeZone());
+            for (CalendarRecurrenceEngine.Projection occurrence : recurrence.project(
+                    projectionStart, projectionEnd, rule, from, to, MAX_ROWS)) {
+                addUnlessOverridden(
+                        result, row, occurrence.startsAt(), occurrence.endsAt(),
+                        overrides, from, to);
+            }
+        } catch (DateTimeException | ArithmeticException | IllegalArgumentException
+                 | CalendarRecurrenceEngine.ProjectionLimitExceededException exception) {
+            throw unavailable();
         }
         for (OverrideRow override : overrides) {
             if ("MODIFIED".equals(override.kind())) add(result, override.startsAt(), override.endsAt(), row.visibleType(), from, to);

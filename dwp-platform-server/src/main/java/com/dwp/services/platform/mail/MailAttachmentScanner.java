@@ -1,11 +1,16 @@
 package com.dwp.services.platform.mail;
 
 import java.util.UUID;
+import java.time.Instant;
 
 /** Trusted content scanner boundary used before a compose upload becomes sendable. */
 public interface MailAttachmentScanner {
 
     ScanResult scan(ScanRequest request);
+
+    default Readiness readiness() {
+        return new Readiness(true, "IN_PROCESS", Instant.now(), null);
+    }
 
     enum Verdict {
         CLEAN,
@@ -55,6 +60,19 @@ public interface MailAttachmentScanner {
                 throw new IllegalArgumentException(
                         "A clean attachment scan requires nonblank evidence.");
             }
+        }
+    }
+
+    record Readiness(
+            boolean ready,
+            String owner,
+            Instant checkedAt,
+            String errorCode) {
+
+        public Readiness {
+            owner = owner == null || owner.isBlank() ? "UNKNOWN" : owner.trim();
+            if (checkedAt == null) throw new IllegalArgumentException("checkedAt is required");
+            errorCode = errorCode == null ? null : errorCode.trim();
         }
     }
 }

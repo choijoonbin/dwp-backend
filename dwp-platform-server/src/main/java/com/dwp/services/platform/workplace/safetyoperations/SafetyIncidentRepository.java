@@ -177,23 +177,36 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
                 "dispatch:" + batchId, java.util.Map.of("dispatchBatchId", batchId), now);
         return batchId;
     }
-
     List<DispatchSummary> dispatches(long tenantId, UUID incidentId) {
         return jdbc.query("""
-                SELECT * FROM wp_safety_dispatch_batches
-                 WHERE tenant_id=? AND incident_id=? ORDER BY created_at,dispatch_batch_id
+                SELECT batch.*,
+                       (SELECT COUNT(*) FROM wp_safety_dispatch_attempts attempt
+                         WHERE attempt.tenant_id=batch.tenant_id
+                           AND attempt.dispatch_batch_id=batch.dispatch_batch_id
+                           AND attempt.attempt_state='MANUAL_REVIEW_REQUIRED')
+                           AS manual_review_count
+                  FROM wp_safety_dispatch_batches batch
+                 WHERE batch.tenant_id=? AND batch.incident_id=?
+                 ORDER BY batch.created_at,batch.dispatch_batch_id
                 """, (rs, n) -> new DispatchSummary(
                 rs.getObject("dispatch_batch_id", UUID.class),
                 DispatchState.valueOf(rs.getString("dispatch_state")),
                 rs.getInt("attempt_count"), rs.getInt("delivered_count"),
                 rs.getInt("failed_count"), rs.getInt("unknown_count"),
                 list(rs.getString("channels"), DeliveryChannel.class),
+                rs.getInt("manual_review_count") > 0 ?
+                        DispatchReviewState.MANUAL_REVIEW_REQUIRED : DispatchReviewState.NONE,
+                rs.getInt("manual_review_count"),
                 rs.getObject("updated_at", OffsetDateTime.class)), tenantId, incidentId);
     }
-
     List<UUID> retryMemberIds(long tenantId, UUID incidentId, List<AttemptState> states) {
         if (states.isEmpty()) return List.of();
-        String values = String.join(",", states.stream().map(state -> "'" + state.name() + "'").toList());
+        java.util.EnumSet<AttemptState> compatibleStates = java.util.EnumSet.copyOf(states);
+        if (compatibleStates.contains(AttemptState.OFFLINE_QUEUED)) {
+            compatibleStates.add(AttemptState.MANUAL_REVIEW_REQUIRED);
+        }
+        String values = String.join(",", compatibleStates.stream().map(
+                state -> "'" + state.name() + "'").toList());
         return jdbc.query("""
                 SELECT DISTINCT a.audience_member_id
                   FROM wp_safety_dispatch_attempts a
@@ -288,9 +301,13 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
     boolean markOffline(long tenantId, UUID attemptId, String code, OffsetDateTime now) {
         int changed = jdbc.update("""
                 UPDATE wp_safety_dispatch_attempts
-                   SET attempt_state='OFFLINE_QUEUED',result_code=?,
+                   SET attempt_state=CASE WHEN offline_retry_count+1>=3 THEN
+                       'MANUAL_REVIEW_REQUIRED' ELSE 'OFFLINE_QUEUED' END,
+                       result_code=?,
                        offline_retry_count=LEAST(3,offline_retry_count+1),
-                       next_attempt_at=? + INTERVAL '30 seconds',dispatch_started_at=NULL,updated_at=?
+                       next_attempt_at=CASE WHEN offline_retry_count+1>=3 THEN NULL
+                                            ELSE ? + INTERVAL '30 seconds' END,
+                       dispatch_started_at=NULL,updated_at=?
                  WHERE tenant_id=? AND dispatch_attempt_id=? AND attempt_state='DISPATCHING'
                 """, code, now, now, tenantId, attemptId);
         if (changed == 1) {
@@ -343,7 +360,8 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
                     version=version+1,updated_at=?
                   FROM (SELECT dispatch_batch_id,
                          COUNT(*) FILTER (WHERE attempt_state='DELIVERED') delivered,
-                         COUNT(*) FILTER (WHERE attempt_state='DELIVERY_FAILED') failed,
+                         COUNT(*) FILTER (WHERE attempt_state IN
+                           ('DELIVERY_FAILED','MANUAL_REVIEW_REQUIRED')) failed,
                          COUNT(*) FILTER (WHERE attempt_state='RESULT_UNKNOWN') unknown,
                          COUNT(*) FILTER (WHERE attempt_state IN
                            ('QUEUED','DISPATCHING','OFFLINE_QUEUED')) pending

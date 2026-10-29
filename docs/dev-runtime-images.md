@@ -39,7 +39,10 @@ For `./dev up <profiles>`, the launcher resolves the selected Java services and
 invokes all corresponding `bootJar` tasks in one Gradle invocation. It then
 validates each completed JAR as an owner-controlled, non-symlink regular file,
 checks that the file is stable while hashing it, verifies the ZIP and Spring
-Boot launcher structure, and computes SHA-256 and migration digests.
+Boot launcher structure, and computes SHA-256 and database-resource digests.
+The build runs in `.dev-runtime/image-build`, so it never overwrites the
+ordinary `build/libs` files that a legacy process may still be using during its
+one-time transition.
 
 An image is published below:
 
@@ -87,22 +90,30 @@ service-to-module binding, digest syntax, and command-to-image binding. State
 cannot authorize an arbitrary JAR or shell command. Unknown, duplicate,
 symlinked, overly permissive, or path-escaping state fails closed.
 
-The ordinary state-change lock protects short state mutations and process
-transitions. Long Gradle builds do not hold that lock. A watcher snapshots the
-target managed identities while holding the lock, builds and stages outside
-the lock, then reacquires it and proceeds only for services that are still
-managed by the same identities. A concurrent `stop` therefore cannot be
-blocked for the duration of a build, and a service stopped during a build is
-never resurrected.
+The image-build lock serializes the isolated mutable build workspace. The
+ordinary state-change lock protects state mutations and process transitions;
+long Gradle builds do not hold it. A watcher snapshots the target managed
+identities while holding the state lock, builds and stages outside that lock,
+then reacquires it and proceeds only for services that are still managed by
+the same identities. Every prepared image set is also bound to the exact
+source digest observed before and after its build. A concurrent `stop`
+therefore cannot be blocked for the duration of a build, and a service stopped
+during a build is never resurrected.
+
+`reset --yes` acquires the image-build lock, the non-blocking watcher lock, and
+then the state lock. It fails without mutation if a watcher is active and
+cannot race image publication or process reconciliation.
 
 ## Migration and rollback policy
 
-The migration digest is derived from the exact migration entries embedded in
-the candidate image, ordered by path and content. A failed generation may be
-automatically restored to its previous image only when its migration digest is
-unchanged. If database migrations differ, the launcher cannot prove that the
-old binary remains compatible with the database and must not start it
-automatically.
+The migration digest conservatively covers every regular `db/**` resource in
+the outer Boot JAR and recursively in nested `BOOT-INF/lib/*.jar` files. The
+container path, entry path, and content are ordered and hashed together;
+duplicate, corrupt, non-regular, excessively deep, or oversized archives fail
+closed. A failed generation may be automatically restored to its previous
+image only when this digest is unchanged. If database resources differ, the
+launcher cannot prove that the old binary remains compatible with the database
+and must not start it automatically.
 
 For a multi-service transition, automatic rollback is allowed only when every
 affected service is migration-equivalent to its previous image. Otherwise the
@@ -167,12 +178,16 @@ races, build failure, cleanup, migration-aware rollback, generation restart
 limits, watcher debounce, stop-during-build, circuit breaking, and retained
 generation safety.
 
-Meeting is the first live canary. Auth, Notification, and Meeting must start
-from immutable image paths; the authenticated Meeting Home contract and the
-browser home screen must both succeed. While Meeting serves repeated Home
-requests, rebuilding, replacing, and cleaning `build/libs` must produce no
-5xx response or ZIP/class-loading error and must not change the running PID or
-image digest. A second `./dev up meeting` must be idempotent.
+Meeting is the first live canary. Its profile starts Auth, People, Provider,
+Notification, and Meeting from immutable image paths. People and Provider are
+required by the gateway's fail-closed product-surface authority aggregation,
+so a fresh browser login must not depend on unrelated services already being
+up. Gateway and Frontend remain explicit profiles for the browser canary, for
+example `./dev up meeting gateway web`. The authenticated Meeting Home contract
+and the browser home screen must both succeed. While Meeting serves repeated
+Home requests, rebuilding, replacing, and cleaning `build/libs` must produce
+no 5xx response or ZIP/class-loading error and must not change the running PID
+or image digest. A second `./dev up meeting` must be idempotent.
 
 After the canary passes, the same launcher is enabled for every Java service.
 The foreground watcher is enabled only after manual `up` remains stable. A

@@ -43,7 +43,6 @@ final class CalendarInvitationResponseCommand {
                 tenantId, actorId, verifiedGroupRefs, authorized.resource());
 
         CalendarInvitationResponseRepository responses = repository.invitationResponses();
-        String fingerprint = fingerprint(eventId, actorPersonPublicId, request);
         responses.lockCommand(tenantId, actorId, request.idempotencyKey());
         CalendarInvitationResponseRepository.ResponseReceipt receipt = responses.receipt(
                 tenantId, actorId, request.idempotencyKey()).orElse(null);
@@ -51,6 +50,14 @@ final class CalendarInvitationResponseCommand {
                         tenantId, actorId, actorPersonPublicId, eventId)
                 .orElseThrow(() -> new BaseException(
                         ErrorCode.NOT_FOUND, "The attendee record was not found."));
+        if (locked.ambiguous()) {
+            throw conflict(
+                    "More than one delegated attendee can respond to this invitation."
+                            + " Ask the calendar owner to respond directly.");
+        }
+        UUID responsePersonPublicId = locked.responsePersonPublicId() == null
+                ? actorPersonPublicId : locked.responsePersonPublicId();
+        String fingerprint = fingerprint(eventId, responsePersonPublicId, request);
 
         if (receipt != null) {
             requireExactReplay(
@@ -83,10 +90,14 @@ final class CalendarInvitationResponseCommand {
                 tenantId, actorId, eventId, "calendar.attendee.responded", correlationId,
                 Map.of(
                         "response", locked.response().name(),
-                        "eventVersion", locked.eventVersion()),
+                        "eventVersion", locked.eventVersion(),
+                        "delegated", locked.delegated(),
+                        "responsePersonPublicId", Objects.toString(responsePersonPublicId, "")),
                 Map.of(
                         "response", request.response().name(),
-                        "eventVersion", eventVersion));
+                        "eventVersion", eventVersion,
+                        "delegated", locked.delegated(),
+                        "responsePersonPublicId", Objects.toString(responsePersonPublicId, "")));
         return summary(
                 repository, occurrenceProjector, tenantId, actorId,
                 actorPersonPublicId, verifiedGroupRefs, eventId, locale);

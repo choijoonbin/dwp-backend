@@ -3244,6 +3244,60 @@
         },
         "type": "object"
       },
+      "ApiResponseAppointment": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Appointment"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAppointmentReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AppointmentReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseAssemblyCommandResult": {
         "properties": {
           "correlationId": {
@@ -3568,6 +3622,33 @@
         },
         "type": "object"
       },
+      "ApiResponseAuthenticatedBookablePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AuthenticatedBookablePage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseAuthorizationStart": {
         "properties": {
           "correlationId": {
@@ -3649,6 +3730,33 @@
         },
         "type": "object"
       },
+      "ApiResponseBookingHold": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BookingHold"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseBookingImpactCommandResult": {
         "properties": {
           "correlationId": {
@@ -3656,6 +3764,87 @@
           },
           "data": {
             "$ref": "#/components/schemas/BookingImpactCommandResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseBookingPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BookingPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseBookingPagePublishReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BookingPagePublishReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseBookingSecurityCapabilities": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BookingSecurityCapabilities"
           },
           "errorCode": {
             "type": "string"
@@ -4115,6 +4304,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/CatalogSnapshot"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCatchUp": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CatchUp"
           },
           "errorCode": {
             "type": "string"
@@ -5539,6 +5755,33 @@
         },
         "type": "object"
       },
+      "ApiResponseEvaluationResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EvaluationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseEvent": {
         "properties": {
           "correlationId": {
@@ -6383,6 +6626,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/GroupSendResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseHardRecheckResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HardRecheckResponse"
           },
           "errorCode": {
             "type": "string"
@@ -7498,6 +7768,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListAppointment": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Appointment"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListAssignedResource": {
         "properties": {
           "correlationId": {
@@ -7536,6 +7836,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/AuditCase"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListBookingPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/BookingPage"
             },
             "type": "array"
           },
@@ -10195,6 +10525,60 @@
         },
         "type": "object"
       },
+      "ApiResponsePollDetails": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PollDetails"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePollPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PollPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponsePostIncidentReport": {
         "properties": {
           "correlationId": {
@@ -10337,6 +10721,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/PrivacyRequestPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseProjection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Projection"
           },
           "errorCode": {
             "type": "string"
@@ -10627,6 +11038,33 @@
         },
         "type": "object"
       },
+      "ApiResponseReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Receipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseRecommendationFeedbackResponse": {
         "properties": {
           "correlationId": {
@@ -10877,6 +11315,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ReleaseWindow"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseReminderSet": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReminderSet"
           },
           "errorCode": {
             "type": "string"
@@ -11849,6 +12314,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ScopeRevisionPreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSearchPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SearchPage"
           },
           "errorCode": {
             "type": "string"
@@ -14735,6 +15227,66 @@
         ],
         "type": "object"
       },
+      "Appointment": {
+        "properties": {
+          "appointmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "bookerPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "pageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "CONFIRMED",
+              "RESCHEDULED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "supersedesAppointmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AppointmentReceipt": {
+        "properties": {
+          "appointment": {
+            "$ref": "#/components/schemas/Appointment"
+          },
+          "managementToken": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApprovalCommand": {
         "properties": {
           "approved": {
@@ -15730,6 +16282,55 @@
         ],
         "type": "object"
       },
+      "AuthenticatedBookablePage": {
+        "properties": {
+          "conferenceUrl": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "dialInInstructions": {
+            "type": "string"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "location": {
+            "type": "string"
+          },
+          "meetingMode": {
+            "enum": [
+              "IN_PERSON",
+              "VIDEO",
+              "PHONE"
+            ],
+            "type": "string"
+          },
+          "pageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "pageVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/BookingQuestion"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AuthorityValidationSnapshot": {
         "properties": {
           "allSelectedItemsValid": {
@@ -15819,6 +16420,31 @@
         },
         "type": "object"
       },
+      "AvailabilityInterval": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "BUSY",
+              "TENTATIVE",
+              "OUT_OF_OFFICE",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AvailabilityParticipant": {
         "properties": {
           "availableSlotCount": {
@@ -15855,6 +16481,34 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "AvailabilityRule": {
+        "properties": {
+          "dayOfWeek": {
+            "enum": [
+              "MONDAY",
+              "TUESDAY",
+              "WEDNESDAY",
+              "THURSDAY",
+              "FRIDAY",
+              "SATURDAY",
+              "SUNDAY"
+            ],
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dayOfWeek",
+          "endsAt",
+          "startsAt"
+        ],
         "type": "object"
       },
       "AvailabilitySlot": {
@@ -15956,6 +16610,25 @@
         ],
         "type": "object"
       },
+      "BookingAnswer": {
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9_-]{1,63}",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "type": "object"
+      },
       "BookingAvailability": {
         "properties": {
           "available": {
@@ -16020,6 +16693,52 @@
           "decision",
           "version"
         ],
+        "type": "object"
+      },
+      "BookingHold": {
+        "properties": {
+          "bookerPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fencingToken": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "holdId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "pageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "HELD",
+              "CONSUMED",
+              "EXPIRED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "BookingImpactCommandResult": {
@@ -16135,27 +16854,125 @@
       },
       "BookingPage": {
         "properties": {
-          "content": {
+          "availabilityRules": {
             "items": {
-              "$ref": "#/components/schemas/WorkplaceExperienceBookingDetail"
+              "$ref": "#/components/schemas/AvailabilityRule"
             },
             "type": "array"
           },
-          "page": {
+          "bufferAfterMinutes": {
             "format": "int32",
             "type": "integer"
           },
-          "size": {
+          "bufferBeforeMinutes": {
             "format": "int32",
             "type": "integer"
           },
-          "totalElements": {
+          "calendarId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conferenceUrl": {
+            "type": "string"
+          },
+          "dailyLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "dialInInstructions": {
+            "type": "string"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "location": {
+            "type": "string"
+          },
+          "maximumAdvanceDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "meetingMode": {
+            "enum": [
+              "IN_PERSON",
+              "VIDEO",
+              "PHONE"
+            ],
+            "type": "string"
+          },
+          "minimumNoticeMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "ownerGroupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "ownerPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "ownerType": {
+            "enum": [
+              "PERSONAL",
+              "TEAM"
+            ],
+            "type": "string"
+          },
+          "pageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publicLinkConfigured": {
+            "type": "boolean"
+          },
+          "publicTokenVersion": {
             "format": "int64",
             "type": "integer"
           },
-          "totalPages": {
-            "format": "int32",
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/BookingQuestion"
+            },
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "PAUSED",
+              "ARCHIVED"
+            ],
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "BookingPagePublishReceipt": {
+        "properties": {
+          "page": {
+            "$ref": "#/components/schemas/BookingPage"
+          },
+          "publicToken": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -16176,6 +16993,48 @@
         },
         "required": [
           "proposed"
+        ],
+        "type": "object"
+      },
+      "BookingQuestion": {
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9_-]{1,63}",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "maxLength": 120,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "type": {
+            "enum": [
+              "SHORT_TEXT",
+              "LONG_TEXT",
+              "SINGLE_SELECT",
+              "CHECKBOX"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type"
         ],
         "type": "object"
       },
@@ -16207,6 +17066,24 @@
           "resourceId",
           "startsAt"
         ],
+        "type": "object"
+      },
+      "BookingSecurityCapabilities": {
+        "properties": {
+          "authenticatedBookingEnabled": {
+            "type": "boolean"
+          },
+          "externalPublicBookingEnabled": {
+            "type": "boolean"
+          },
+          "externalPublicBookingReason": {
+            "type": "string"
+          },
+          "holdTtlSeconds": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "BookingSummary": {
@@ -16789,6 +17666,37 @@
         ],
         "type": "object"
       },
+      "CancelAppointmentRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "CancelBookingHoldRequest": {
+        "properties": {
+          "fencingToken": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fencingToken"
+        ],
+        "type": "object"
+      },
       "CancelClosure": {
         "properties": {
           "confirmed": {
@@ -16808,6 +17716,46 @@
         "required": [
           "reason",
           "version"
+        ],
+        "type": "object"
+      },
+      "CancelOccurrenceRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "originalStartsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "originalStartsAt",
+          "version"
+        ],
+        "type": "object"
+      },
+      "CandidateSlot": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endsAt",
+          "startsAt"
         ],
         "type": "object"
       },
@@ -17337,6 +18285,32 @@
         },
         "type": "object"
       },
+      "CastVotesRequest": {
+        "properties": {
+          "comment": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "votes": {
+            "items": {
+              "$ref": "#/components/schemas/VoteInput"
+            },
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "votes"
+        ],
+        "type": "object"
+      },
       "CatalogCapabilities": {
         "properties": {
           "brokerRead": {
@@ -17671,6 +18645,24 @@
         },
         "type": "object"
       },
+      "CatchUp": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventEnvelope"
+            },
+            "type": "array"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "nextAfter": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "Category": {
         "properties": {
           "categoryKey": {
@@ -17693,6 +18685,54 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "ChangeBookingPageStateRequest": {
+        "properties": {
+          "state": {
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "PAUSED",
+              "ARCHIVED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ChangePollStateRequest": {
+        "properties": {
+          "state": {
+            "enum": [
+              "DRAFT",
+              "OPEN",
+              "AGREEMENT_REACHED",
+              "CONFIRMED",
+              "CANCELLED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "version"
+        ],
         "type": "object"
       },
       "ChangeRequestStatus": {
@@ -18813,9 +19853,29 @@
               "NONE",
               "DAILY",
               "WEEKLY",
-              "MONTHLY"
+              "MONTHLY",
+              "YEARLY"
             ],
             "type": "string"
+          },
+          "recurrenceCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "recurrenceDays": {
+            "items": {
+              "enum": [
+                "MONDAY",
+                "TUESDAY",
+                "WEDNESDAY",
+                "THURSDAY",
+                "FRIDAY",
+                "SATURDAY",
+                "SUNDAY"
+              ],
+              "type": "string"
+            },
+            "type": "array"
           },
           "recurrenceInterval": {
             "format": "int32",
@@ -19309,6 +20369,38 @@
         ],
         "type": "object"
       },
+      "ConfirmBookingRequest": {
+        "properties": {
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/BookingAnswer"
+            },
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array"
+          },
+          "fencingToken": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "holdId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "answers",
+          "fencingToken",
+          "holdId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
       "ConfirmEmergencyHandoffRequest": {
         "properties": {
           "expectedContactVersion": {
@@ -19337,6 +20429,34 @@
         "required": [
           "previewId",
           "reason"
+        ],
+        "type": "object"
+      },
+      "ConfirmPollRequest": {
+        "properties": {
+          "calendarId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "candidateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "calendarId",
+          "candidateId",
+          "idempotencyKey",
+          "version"
         ],
         "type": "object"
       },
@@ -20873,6 +21993,34 @@
         ],
         "type": "object"
       },
+      "CreateBookingHoldRequest": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "pageVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endsAt",
+          "idempotencyKey",
+          "pageVersion",
+          "startsAt"
+        ],
+        "type": "object"
+      },
       "CreateBundleRequest": {
         "properties": {
           "bundleKey": {
@@ -21133,9 +22281,33 @@
               "NONE",
               "DAILY",
               "WEEKLY",
-              "MONTHLY"
+              "MONTHLY",
+              "YEARLY"
             ],
             "type": "string"
+          },
+          "recurrenceCount": {
+            "format": "int32",
+            "maximum": 4000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recurrenceDays": {
+            "items": {
+              "enum": [
+                "MONDAY",
+                "TUESDAY",
+                "WEDNESDAY",
+                "THURSDAY",
+                "FRIDAY",
+                "SATURDAY",
+                "SUNDAY"
+              ],
+              "type": "string"
+            },
+            "maxItems": 7,
+            "minItems": 0,
+            "type": "array"
           },
           "recurrenceInterval": {
             "format": "int32",
@@ -21435,6 +22607,58 @@
           "code",
           "labels",
           "sortOrder"
+        ],
+        "type": "object"
+      },
+      "CreatePollRequest": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/PollCandidateInput"
+            },
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array"
+          },
+          "description": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/PollParticipantInput"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
+          "timeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidates",
+          "expiresAt",
+          "idempotencyKey",
+          "participants",
+          "timeZone",
+          "title"
         ],
         "type": "object"
       },
@@ -23322,6 +24546,17 @@
             "format": "int32",
             "type": "integer"
           },
+          "manualReviewCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "reviewState": {
+            "enum": [
+              "NONE",
+              "MANUAL_REVIEW_REQUIRED"
+            ],
+            "type": "string"
+          },
           "state": {
             "enum": [
               "ACCEPTED",
@@ -24266,6 +25501,101 @@
         },
         "type": "object"
       },
+      "EvaluationRequest": {
+        "properties": {
+          "candidateSlot": {
+            "$ref": "#/components/schemas/CandidateSlot"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "maximum": 1440,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/ParticipantRequest"
+            },
+            "maxItems": 19,
+            "minItems": 0,
+            "type": "array"
+          },
+          "roomCriteria": {
+            "$ref": "#/components/schemas/RoomCriteria"
+          },
+          "searchTimeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "searchWindow": {
+            "$ref": "#/components/schemas/SearchWindow"
+          }
+        },
+        "required": [
+          "candidateSlot",
+          "durationMinutes",
+          "participants",
+          "searchTimeZone",
+          "searchWindow"
+        ],
+        "type": "object"
+      },
+      "EvaluationResponse": {
+        "properties": {
+          "challengeToken": {
+            "type": "string"
+          },
+          "completeness": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "criteriaHash": {
+            "type": "string"
+          },
+          "evaluationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/ParticipantAvailability"
+            },
+            "type": "array"
+          },
+          "rooms": {
+            "items": {
+              "$ref": "#/components/schemas/RoomRecommendation"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceEvidence"
+            },
+            "type": "array"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/SchedulingCandidate"
+            },
+            "type": "array"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Event": {
         "properties": {
           "action": {
@@ -24410,29 +25740,46 @@
         },
         "type": "object"
       },
-      "EventPage": {
+      "EventEnvelope": {
         "properties": {
-          "content": {
-            "items": {
-              "$ref": "#/components/schemas/Event"
-            },
-            "type": "array"
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
           },
-          "page": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "size": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "totalElements": {
+          "sequence": {
             "format": "int64",
             "type": "integer"
           },
-          "totalPages": {
-            "format": "int32",
-            "type": "integer"
+          "threadId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EventPage": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "range": {
+            "$ref": "#/components/schemas/Range"
           }
         },
         "type": "object"
@@ -24675,9 +26022,29 @@
               "NONE",
               "DAILY",
               "WEEKLY",
-              "MONTHLY"
+              "MONTHLY",
+              "YEARLY"
             ],
             "type": "string"
+          },
+          "recurrenceCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "recurrenceDays": {
+            "items": {
+              "enum": [
+                "MONDAY",
+                "TUESDAY",
+                "WEDNESDAY",
+                "THURSDAY",
+                "FRIDAY",
+                "SATURDAY",
+                "SUNDAY"
+              ],
+              "type": "string"
+            },
+            "type": "array"
           },
           "recurrenceId": {
             "format": "date-time",
@@ -24957,6 +26324,12 @@
             },
             "type": "array"
           },
+          "sourceCoverage": {
+            "items": {
+              "$ref": "#/components/schemas/ExceptionSourceCoverage"
+            },
+            "type": "array"
+          },
           "summary": {
             "$ref": "#/components/schemas/ExceptionSummary"
           }
@@ -24969,12 +26342,22 @@
             "enum": [
               "OPEN_SAFETY",
               "REVIEW_BOOKING",
-              "REPLAY_CONNECTOR"
+              "REPLAY_CONNECTOR",
+              "REVIEW_DEVICE",
+              "REVIEW_SERVICE_ORDER",
+              "REVIEW_SERVICE_PROVIDER",
+              "REVIEW_SERVICE_REFUND",
+              "REVIEW_VISIT",
+              "REVIEW_ACCESS_PASS"
             ],
             "type": "string"
           },
           "actionHref": {
             "type": "string"
+          },
+          "ageSeconds": {
+            "format": "int64",
+            "type": "integer"
           },
           "code": {
             "type": "string"
@@ -25011,6 +26394,13 @@
           "impact": {
             "type": "string"
           },
+          "resolved": {
+            "type": "boolean"
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
           "runtimeVersion": {
             "format": "int64",
             "type": "integer"
@@ -25027,14 +26417,22 @@
             "enum": [
               "SAFETY",
               "BOOKING",
-              "CONNECTOR"
+              "CONNECTOR",
+              "DEVICE_COMMAND",
+              "SERVICE_ORDER",
+              "SERVICE_PROVIDER",
+              "SERVICE_REFUND",
+              "VISIT_PROVIDER",
+              "ACCESS_PASS"
             ],
             "type": "string"
           },
           "status": {
             "enum": [
               "ACTIVE",
-              "RECOVERING"
+              "RECOVERING",
+              "MANUAL_REVIEW",
+              "RESOLVED"
             ],
             "type": "string"
           },
@@ -25042,6 +26440,36 @@
             "type": "string"
           },
           "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ExceptionSourceCoverage": {
+        "properties": {
+          "returnedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "SAFETY",
+              "BOOKING",
+              "CONNECTOR",
+              "DEVICE_COMMAND",
+              "SERVICE_ORDER",
+              "SERVICE_PROVIDER",
+              "SERVICE_REFUND",
+              "VISIT_PROVIDER",
+              "ACCESS_PASS"
+            ],
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "unresolvedCount": {
             "format": "int64",
             "type": "integer"
           }
@@ -25073,8 +26501,19 @@
             "format": "int32",
             "type": "integer"
           },
+          "returnedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
           "slaCompliancePercent": {
             "type": "number"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "unresolvedCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "warning": {
             "format": "int32",
@@ -27401,6 +28840,104 @@
             "type": "string"
           },
           "purpose": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HardConflict": {
+        "properties": {
+          "blocking": {
+            "type": "boolean"
+          },
+          "clientRef": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "BUSY",
+              "TENTATIVE",
+              "OUT_OF_OFFICE",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HardRecheckRequest": {
+        "properties": {
+          "challengeToken": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "criteriaHash": {
+            "maxLength": 64,
+            "minLength": 64,
+            "type": "string"
+          },
+          "roomId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/CandidateSlot"
+          }
+        },
+        "required": [
+          "challengeToken",
+          "criteriaHash",
+          "selection"
+        ],
+        "type": "object"
+      },
+      "HardRecheckResponse": {
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/HardConflict"
+            },
+            "type": "array"
+          },
+          "criteriaHash": {
+            "type": "string"
+          },
+          "evaluationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "hardRecheckToken": {
+            "type": "string"
+          },
+          "room": {
+            "$ref": "#/components/schemas/RoomRecommendation"
+          },
+          "selectionHash": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "BLOCKED",
+              "INCOMPLETE"
+            ],
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -30559,6 +32096,14 @@
             ],
             "type": "string"
           },
+          "bulkIntentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "itemIdempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
           "targetFolderId": {
             "format": "uuid",
             "type": "string"
@@ -30936,6 +32481,9 @@
               "QUEUED",
               "SENDING",
               "RETRYING",
+              "PROVIDER_ACCEPTED",
+              "RESULT_UNKNOWN",
+              "DELIVERED",
               "SENT",
               "FAILED"
             ],
@@ -32153,6 +33701,70 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "ParticipantAvailability": {
+        "properties": {
+          "clientRef": {
+            "type": "string"
+          },
+          "coverage": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "intervals": {
+            "items": {
+              "$ref": "#/components/schemas/AvailabilityInterval"
+            },
+            "type": "array"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "ORGANIZER",
+              "REQUIRED",
+              "OPTIONAL"
+            ],
+            "type": "string"
+          },
+          "workingSchedule": {
+            "$ref": "#/components/schemas/WorkingSchedule"
+          }
+        },
+        "type": "object"
+      },
+      "ParticipantRequest": {
+        "properties": {
+          "clientRef": {
+            "maxLength": 80,
+            "minLength": 0,
+            "pattern": "[A-Za-z0-9_-]{1,80}",
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "ORGANIZER",
+              "REQUIRED",
+              "OPTIONAL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "clientRef",
+          "role"
+        ],
         "type": "object"
       },
       "PatchPersonalPreferenceRequest": {
@@ -33918,6 +35530,257 @@
         },
         "type": "object"
       },
+      "PollCandidate": {
+        "properties": {
+          "agreementEligible": {
+            "type": "boolean"
+          },
+          "candidateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ifNeededCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "noCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "yesCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PollCandidateEvidence": {
+        "properties": {
+          "availabilityState": {
+            "type": "string"
+          },
+          "candidateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "roomHoldActive": {
+            "type": "boolean"
+          },
+          "safeReasonCode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PollCandidateInput": {
+        "properties": {
+          "candidateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidateId",
+          "endsAt",
+          "startsAt"
+        ],
+        "type": "object"
+      },
+      "PollDetails": {
+        "properties": {
+          "availability": {
+            "items": {
+              "$ref": "#/components/schemas/PollCandidateEvidence"
+            },
+            "type": "array"
+          },
+          "holds": {
+            "items": {
+              "$ref": "#/components/schemas/PollHold"
+            },
+            "type": "array"
+          },
+          "poll": {
+            "$ref": "#/components/schemas/SchedulingPoll"
+          }
+        },
+        "type": "object"
+      },
+      "PollHold": {
+        "properties": {
+          "candidateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fencingToken": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "holdId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "PEOPLE_SOFT",
+              "ROOM_HARD"
+            ],
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "pollId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "CONSUMED",
+              "RELEASED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PollPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PollDetails"
+            },
+            "type": "array"
+          },
+          "nextPollId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "nextUpdatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PollParticipant": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "externalEmail": {
+            "type": "string"
+          },
+          "externalVotingEnabled": {
+            "type": "boolean"
+          },
+          "participantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "PollParticipantInput": {
+        "properties": {
+          "displayName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "externalEmail": {
+            "format": "email",
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "displayName"
+        ],
+        "type": "object"
+      },
+      "PollVote": {
+        "properties": {
+          "candidateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "choice": {
+            "enum": [
+              "YES",
+              "IF_NEEDED",
+              "NO"
+            ],
+            "type": "string"
+          },
+          "participantId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "PositiveRevision": {
         "minimum": 1,
         "type": "integer"
@@ -34664,6 +36527,33 @@
           },
           "title": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Projection": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceEvidence"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -35581,6 +37471,22 @@
         ],
         "type": "object"
       },
+      "Range": {
+        "properties": {
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ReactionRequest": {
         "properties": {
           "reaction": {
@@ -35724,35 +37630,17 @@
       },
       "Receipt": {
         "properties": {
-          "appliedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "commandId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "commandType": {
-            "type": "string"
-          },
-          "expectedRevision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "payloadSha256": {
-            "type": "string"
-          },
-          "providerTenantId": {
+          "proposalId": {
             "format": "uuid",
             "type": "string"
           },
           "replayed": {
             "type": "boolean"
           },
-          "result": {
-            "$ref": "#/components/schemas/JsonNode"
+          "state": {
+            "type": "string"
           },
-          "targetRevision": {
+          "version": {
             "format": "int64",
             "type": "integer"
           }
@@ -36433,6 +38321,90 @@
         },
         "type": "object"
       },
+      "ReminderDefinition": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "IN_APP",
+              "EMAIL"
+            ],
+            "type": "string"
+          },
+          "nextDueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "nextOccurrenceStartsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "offsetMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "reminderId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReminderInput": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "IN_APP",
+              "EMAIL"
+            ],
+            "type": "string"
+          },
+          "offsetMinutes": {
+            "format": "int32",
+            "maximum": 40320,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channel",
+          "offsetMinutes"
+        ],
+        "type": "object"
+      },
+      "ReminderSet": {
+        "properties": {
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reminders": {
+            "items": {
+              "$ref": "#/components/schemas/ReminderDefinition"
+            },
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "INVALIDATED"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ReorderItem": {
         "properties": {
           "navigationItemId": {
@@ -36490,6 +38462,28 @@
         },
         "required": [
           "entitlementKeys"
+        ],
+        "type": "object"
+      },
+      "ReplaceRemindersRequest": {
+        "properties": {
+          "reminders": {
+            "items": {
+              "$ref": "#/components/schemas/ReminderInput"
+            },
+            "maxItems": 5,
+            "minItems": 0,
+            "type": "array"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reminders",
+          "version"
         ],
         "type": "object"
       },
@@ -37111,6 +39105,35 @@
         },
         "type": "object"
       },
+      "RescheduleAppointmentRequest": {
+        "properties": {
+          "fencingToken": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "replacementHoldId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fencingToken",
+          "idempotencyKey",
+          "replacementHoldId",
+          "version"
+        ],
+        "type": "object"
+      },
       "RescheduleRequest": {
         "properties": {
           "scheduledAt": {
@@ -37173,6 +39196,7 @@
                 "DELIVERED",
                 "DELIVERY_FAILED",
                 "OFFLINE_QUEUED",
+                "MANUAL_REVIEW_REQUIRED",
                 "RESULT_UNKNOWN"
               ],
               "type": "string"
@@ -38283,6 +40307,56 @@
         },
         "type": "object"
       },
+      "RoomCriteria": {
+        "properties": {
+          "approvalPreference": {
+            "enum": [
+              "ANY",
+              "PREFER_NO_APPROVAL",
+              "REQUIRE_NO_APPROVAL",
+              "REQUIRE_APPROVAL"
+            ],
+            "type": "string"
+          },
+          "floor": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "minimumCapacity": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "preferredFeatures": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array"
+          },
+          "requiredFeatures": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array"
+          },
+          "site": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "RoomPanelProjection": {
         "properties": {
           "asOf": {
@@ -38319,6 +40393,72 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "RoomRecommendation": {
+        "properties": {
+          "eligibilityReason": {
+            "enum": [
+              "ELIGIBLE",
+              "NO_CLEAR_CANDIDATE",
+              "RESOURCE_UNAVAILABLE",
+              "RESOURCE_CONFLICT",
+              "SITE_MISMATCH",
+              "FLOOR_MISMATCH",
+              "CAPACITY_TOO_SMALL",
+              "REQUIRED_FEATURE_MISSING",
+              "APPROVAL_PREFERENCE_MISMATCH",
+              "RESOURCE_VERSION_CHANGED",
+              "POLICY_VERSION_CHANGED",
+              "ROOM_NOT_VISIBLE"
+            ],
+            "type": "string"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "hardRecheckRequired": {
+            "type": "boolean"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rank": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "reasonCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "resourceVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "room": {
+            "$ref": "#/components/schemas/ResourceSummary"
+          },
+          "score": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RotateBookingTokenRequest": {
+        "properties": {
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
         "type": "object"
       },
       "RouteProjection": {
@@ -39382,6 +41522,131 @@
         ],
         "type": "object"
       },
+      "SaveBookingPageRequest": {
+        "properties": {
+          "availabilityRules": {
+            "items": {
+              "$ref": "#/components/schemas/AvailabilityRule"
+            },
+            "maxItems": 28,
+            "minItems": 0,
+            "type": "array"
+          },
+          "bufferAfterMinutes": {
+            "format": "int32",
+            "maximum": 180,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "bufferBeforeMinutes": {
+            "format": "int32",
+            "maximum": 180,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "calendarId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conferenceUrl": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "dailyLimit": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "description": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "dialInInstructions": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "location": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "maximumAdvanceDays": {
+            "format": "int32",
+            "maximum": 365,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "meetingMode": {
+            "enum": [
+              "IN_PERSON",
+              "VIDEO",
+              "PHONE"
+            ],
+            "type": "string"
+          },
+          "minimumNoticeMinutes": {
+            "format": "int32",
+            "maximum": 10080,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ownerGroupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "ownerType": {
+            "enum": [
+              "PERSONAL",
+              "TEAM"
+            ],
+            "type": "string"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/BookingQuestion"
+            },
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array"
+          },
+          "timeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "availabilityRules",
+          "calendarId",
+          "meetingMode",
+          "ownerType",
+          "questions",
+          "timeZone",
+          "title",
+          "version"
+        ],
+        "type": "object"
+      },
       "SaveConnectorRequest": {
         "properties": {
           "authMode": {
@@ -39942,6 +42207,56 @@
         },
         "type": "object"
       },
+      "SchedulingCandidate": {
+        "properties": {
+          "candidateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "completeness": {
+            "enum": [
+              "COMPLETE",
+              "PARTIAL",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hardRecheckRequired": {
+            "type": "boolean"
+          },
+          "optionalConflictRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reasonCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requiredConflictRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "score": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SchedulingEvaluationRequest": {
         "properties": {
           "durationMinutes": {
@@ -40040,6 +42355,77 @@
           },
           "status": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SchedulingPoll": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/PollCandidate"
+            },
+            "type": "array"
+          },
+          "confirmedCandidateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "confirmedEventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "myVotes": {
+            "items": {
+              "$ref": "#/components/schemas/PollVote"
+            },
+            "type": "array"
+          },
+          "organizerPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/PollParticipant"
+            },
+            "type": "array"
+          },
+          "pollId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "DRAFT",
+              "OPEN",
+              "AGREEMENT_REACHED",
+              "CONFIRMED",
+              "CANCELLED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -40225,6 +42611,50 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "SearchPage": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "normalizedQuery": {
+            "type": "string"
+          },
+          "range": {
+            "$ref": "#/components/schemas/Range"
+          }
+        },
+        "type": "object"
+      },
+      "SearchWindow": {
+        "properties": {
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
         "type": "object"
       },
       "SectionActivityFeed": {
@@ -41934,6 +44364,49 @@
         ],
         "type": "object"
       },
+      "SourceEvidence": {
+        "properties": {
+          "affectedParticipantRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "coverageFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "coverageTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSuccessfulSyncAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "HEALTHY",
+              "PARTIAL",
+              "STALE",
+              "UNKNOWN",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SourceState": {
         "properties": {
           "expiresAt": {
@@ -42065,6 +44538,18 @@
           },
           "proposedUtilizationPercent": {
             "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "SseEmitter": {
+        "properties": {
+          "timeout": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -42924,6 +45409,14 @@
             ],
             "type": "string"
           },
+          "bulkIntentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "itemIdempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
           "version": {
             "format": "int64",
             "minimum": 0,
@@ -43436,7 +45929,8 @@
           "editScope": {
             "enum": [
               "SERIES",
-              "THIS_OCCURRENCE"
+              "THIS_OCCURRENCE",
+              "THIS_AND_FOLLOWING"
             ],
             "type": "string"
           },
@@ -43470,9 +45964,33 @@
               "NONE",
               "DAILY",
               "WEEKLY",
-              "MONTHLY"
+              "MONTHLY",
+              "YEARLY"
             ],
             "type": "string"
+          },
+          "recurrenceCount": {
+            "format": "int32",
+            "maximum": 4000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recurrenceDays": {
+            "items": {
+              "enum": [
+                "MONDAY",
+                "TUESDAY",
+                "WEDNESDAY",
+                "THURSDAY",
+                "FRIDAY",
+                "SATURDAY",
+                "SUNDAY"
+              ],
+              "type": "string"
+            },
+            "maxItems": 7,
+            "minItems": 0,
+            "type": "array"
           },
           "recurrenceInterval": {
             "format": "int32",
@@ -44835,6 +47353,27 @@
         ],
         "type": "object"
       },
+      "VoteInput": {
+        "properties": {
+          "candidateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "choice": {
+            "enum": [
+              "YES",
+              "IF_NEEDED",
+              "NO"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidateId",
+          "choice"
+        ],
+        "type": "object"
+      },
       "WebVitalRequest": {
         "properties": {
           "delta": {
@@ -45789,6 +48328,65 @@
           "waiting": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkingDay": {
+        "properties": {
+          "dayOfWeek": {
+            "enum": [
+              "MONDAY",
+              "TUESDAY",
+              "WEDNESDAY",
+              "THURSDAY",
+              "FRIDAY",
+              "SATURDAY",
+              "SUNDAY"
+            ],
+            "type": "string"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/WorkingWindow"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "WorkingSchedule": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/WorkingDay"
+            },
+            "type": "array"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkingWindow": {
+        "properties": {
+          "endsAt": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -51570,7 +54168,7 @@
   "paths": {
     "/internal/audit/events": {
       "post": {
-        "operationId": "ingest_2",
+        "operationId": "ingest_3",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -51604,7 +54202,7 @@
     },
     "/internal/observability/api-history": {
       "post": {
-        "operationId": "ingest_1",
+        "operationId": "ingest_2",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -52020,6 +54618,76 @@
         ]
       }
     },
+    "/internal/v1/mail/proposals": {
+      "post": {
+        "operationId": "ingest_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "internal-mail-proposal-ingest-controller"
+        ]
+      }
+    },
+    "/internal/v1/mail/webhooks/{provider}": {
+      "post": {
+        "operationId": "accept_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-webhook-ingress-controller"
+        ]
+      }
+    },
     "/v1/admin/announcements": {
       "get": {
         "operationId": "list_10",
@@ -52228,7 +54896,7 @@
     },
     "/v1/admin/api-history/events": {
       "get": {
-        "operationId": "events_5",
+        "operationId": "events_4",
         "parameters": [
           {
             "in": "query",
@@ -53115,8 +55783,17 @@
     },
     "/v1/admin/audit-control/events": {
       "get": {
-        "operationId": "events_4",
+        "operationId": "getHcmAuditEvidencePage",
         "parameters": [
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "const": "HCM",
+              "type": "string"
+            }
+          },
           {
             "in": "query",
             "name": "window",
@@ -53169,7 +55846,7 @@
           },
           {
             "in": "query",
-            "name": "actor",
+            "name": "query",
             "required": false,
             "schema": {
               "type": "string"
@@ -53177,7 +55854,27 @@
           },
           {
             "in": "query",
-            "name": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 10,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor",
             "required": false,
             "schema": {
               "type": "string"
@@ -53191,25 +55888,6 @@
               "default": 0,
               "format": "int32",
               "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "size",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "format": "int32",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "product",
-            "required": false,
-            "schema": {
-              "const": "HCM",
-              "type": "string"
             }
           }
         ],
@@ -53233,7 +55911,7 @@
           }
         },
         "tags": [
-          "admin-audit-control-controller"
+          "hcm-audit-evidence-controller"
         ],
         "x-dwp-controller-variants": [
           {
@@ -53252,7 +55930,7 @@
     },
     "/v1/admin/audit-control/events/{eventId}": {
       "get": {
-        "operationId": "event",
+        "operationId": "getHcmAuditEvidence",
         "parameters": [
           {
             "in": "path",
@@ -53293,7 +55971,7 @@
           }
         },
         "tags": [
-          "admin-audit-control-controller"
+          "hcm-audit-evidence-controller"
         ],
         "x-dwp-controller-variants": [
           {
@@ -56620,6 +59298,32 @@
         "operationId": "getControlledFileTransfers",
         "parameters": [
           {
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "schema": {
+              "pattern": "^Bearer .+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "HRIS_INTEGRATION_ADMIN",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "cursor",
             "required": false,
@@ -56679,32 +59383,6 @@
               "maximum": 100,
               "minimum": 1,
               "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": true,
-            "schema": {
-              "pattern": "^Bearer .+$",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Correlation-Id",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Uuid"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Purpose-Code",
-            "required": true,
-            "schema": {
-              "const": "HRIS_INTEGRATION_ADMIN",
-              "type": "string"
             }
           }
         ],
@@ -56798,6 +59476,32 @@
         "parameters": [
           {
             "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "schema": {
+              "pattern": "^Bearer .+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-Id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Purpose-Code",
+            "required": true,
+            "schema": {
+              "const": "HRIS_INTEGRATION_ADMIN",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
@@ -56823,32 +59527,6 @@
             "schema": {
               "maxLength": 200,
               "minLength": 1,
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": true,
-            "schema": {
-              "pattern": "^Bearer .+$",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Correlation-Id",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Uuid"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Purpose-Code",
-            "required": true,
-            "schema": {
-              "const": "HRIS_INTEGRATION_ADMIN",
               "type": "string"
             }
           }
@@ -65807,6 +68485,14 @@
             }
           },
           {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "path",
             "name": "bookingId",
             "required": true,
@@ -65859,6 +68545,14 @@
             "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -76127,6 +78821,694 @@
         ]
       }
     },
+    "/v1/calendar/booking/appointments": {
+      "get": {
+        "operationId": "listMyCalendarBookingAppointments",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListAppointment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/appointments/{appointmentId}": {
+      "get": {
+        "operationId": "getMyCalendarBookingAppointment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAppointment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/appointments/{appointmentId}/cancel": {
+      "post": {
+        "operationId": "cancelAuthenticatedCalendarBooking",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAppointmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAppointment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/appointments/{appointmentId}/management-token:revoke": {
+      "post": {
+        "operationId": "revokeCalendarBookingManagementToken",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateBookingTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAppointment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/appointments/{appointmentId}/management-token:rotate": {
+      "post": {
+        "operationId": "rotateCalendarBookingManagementToken",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateBookingTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAppointmentReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/appointments/{appointmentId}/reschedule": {
+      "post": {
+        "operationId": "rescheduleAuthenticatedCalendarBooking",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RescheduleAppointmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAppointment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/capabilities": {
+      "get": {
+        "operationId": "getCalendarBookingCapabilities",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingSecurityCapabilities"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/pages": {
+      "get": {
+        "operationId": "listCalendarBookingPages",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListBookingPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createCalendarBookingPage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveBookingPageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/pages/{pageId}": {
+      "get": {
+        "operationId": "getCalendarBookingPage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateCalendarBookingPage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveBookingPageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/pages/{pageId}/appointments": {
+      "post": {
+        "operationId": "confirmAuthenticatedCalendarBooking",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmBookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAppointmentReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/pages/{pageId}/availability": {
+      "get": {
+        "operationId": "getAuthenticatedCalendarBookingAvailability",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingAvailability"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/pages/{pageId}/bookable": {
+      "get": {
+        "operationId": "getAuthenticatedCalendarBookablePage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAuthenticatedBookablePage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/pages/{pageId}/holds": {
+      "post": {
+        "operationId": "createAuthenticatedCalendarBookingHold",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBookingHoldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingHold"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/pages/{pageId}/holds/{holdId}/cancel": {
+      "post": {
+        "operationId": "cancelAuthenticatedCalendarBookingHold",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "holdId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelBookingHoldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingHold"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/pages/{pageId}/public-token:revoke": {
+      "post": {
+        "operationId": "revokeCalendarBookingPagePublicToken",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateBookingTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/pages/{pageId}/public-token:rotate": {
+      "post": {
+        "operationId": "rotateCalendarBookingPagePublicToken",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateBookingTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingPagePublishReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
+    "/v1/calendar/booking/pages/{pageId}/state": {
+      "post": {
+        "operationId": "changeCalendarBookingPageState",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeBookingPageStateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingPagePublishReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-booking-controller"
+        ]
+      }
+    },
     "/v1/calendar/calendars": {
       "get": {
         "operationId": "calendars_1",
@@ -76623,6 +80005,63 @@
         ]
       }
     },
+    "/v1/calendar/events/{eventId}/occurrences/cancel": {
+      "post": {
+        "operationId": "cancelCalendarEventOccurrence",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelOccurrenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-controller"
+        ]
+      }
+    },
     "/v1/calendar/events/{eventId}/preference": {
       "put": {
         "operationId": "updateEventPreference",
@@ -76669,6 +80108,76 @@
         },
         "tags": [
           "calendar-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/calendar/events/{eventId}/reminders": {
+      "get": {
+        "operationId": "getCalendarEventReminders",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReminderSet"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-reminder-controller"
+        ]
+      },
+      "put": {
+        "operationId": "replaceCalendarEventReminders",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceRemindersRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReminderSet"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-reminder-controller"
         ]
       }
     },
@@ -76990,6 +80499,278 @@
         },
         "tags": [
           "calendar-controller"
+        ]
+      }
+    },
+    "/v1/calendar/scheduling-polls": {
+      "get": {
+        "operationId": "listCalendarSchedulingPolls",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "afterUpdatedAt",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "afterPollId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePollPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-scheduling-poll-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createCalendarSchedulingPoll",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePollDetails"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-scheduling-poll-controller"
+        ]
+      }
+    },
+    "/v1/calendar/scheduling-polls/{pollId}": {
+      "get": {
+        "operationId": "getCalendarSchedulingPoll",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pollId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePollDetails"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-scheduling-poll-controller"
+        ]
+      }
+    },
+    "/v1/calendar/scheduling-polls/{pollId}/cancel": {
+      "post": {
+        "operationId": "cancelCalendarSchedulingPoll",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pollId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePollStateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePollDetails"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-scheduling-poll-controller"
+        ]
+      }
+    },
+    "/v1/calendar/scheduling-polls/{pollId}/confirm": {
+      "post": {
+        "operationId": "confirmCalendarSchedulingPoll",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pollId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmPollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePollDetails"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-scheduling-poll-controller"
+        ]
+      }
+    },
+    "/v1/calendar/scheduling-polls/{pollId}/open": {
+      "post": {
+        "operationId": "openCalendarSchedulingPoll",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pollId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePollStateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePollDetails"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-scheduling-poll-controller"
+        ]
+      }
+    },
+    "/v1/calendar/scheduling-polls/{pollId}/votes": {
+      "post": {
+        "operationId": "castCalendarSchedulingPollVotes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pollId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastVotesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePollDetails"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-scheduling-poll-controller"
         ]
       }
     },
@@ -81896,6 +85677,78 @@
         },
         "tags": [
           "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/events": {
+      "get": {
+        "operationId": "streamMailEvents",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/SseEmitter"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-event-stream-controller"
+        ]
+      }
+    },
+    "/v1/mail/events/catch-up": {
+      "get": {
+        "operationId": "catchUpMailEvents",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCatchUp"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-event-stream-controller"
         ]
       }
     },
@@ -93050,6 +96903,295 @@
         },
         "tags": [
           "workspace-controller"
+        ]
+      }
+    },
+    "/v2/calendar/events": {
+      "get": {
+        "operationId": "listCalendarEventsV2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": false,
+            "schema": {
+              "default": "Asia/Seoul",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEventPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-events-v-2-controller"
+        ]
+      }
+    },
+    "/v2/calendar/events/search": {
+      "get": {
+        "operationId": "searchCalendarEventsV2",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": false,
+            "schema": {
+              "default": "Asia/Seoul",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSearchPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-event-search-controller"
+        ]
+      }
+    },
+    "/v2/calendar/external-events": {
+      "get": {
+        "operationId": "listExternalCalendarEventsV2",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseProjection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-external-projection-controller"
+        ]
+      }
+    },
+    "/v2/calendar/scheduling/evaluations": {
+      "post": {
+        "operationId": "evaluateCalendarSchedulingV2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvaluationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-scheduling-v-2-controller"
+        ]
+      }
+    },
+    "/v2/calendar/scheduling/evaluations/{evaluationId}/hard-recheck": {
+      "post": {
+        "operationId": "hardRecheckCalendarSchedulingV2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "evaluationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HardRecheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHardRecheckResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-scheduling-v-2-controller"
         ]
       }
     },

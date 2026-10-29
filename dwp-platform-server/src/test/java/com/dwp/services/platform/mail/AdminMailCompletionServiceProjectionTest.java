@@ -52,7 +52,7 @@ class AdminMailCompletionServiceProjectionTest {
         UUID deliveryId = UUID.randomUUID();
         OffsetDateTime acceptedAt = OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(10);
         var row = delivery(
-                deliveryId, "DELIVERED", "provider-message", null, null, 2);
+                deliveryId, "PROVIDER_ACCEPTED", "provider-message", null, null, 2);
         row = new AdminMailCompletionRepository.DeliveryRow(
                 row.id(), row.threadId(), row.messageId(), row.status(), row.attemptCount(),
                 row.nextAttemptAt(), row.leaseOwner(), row.leaseExpiresAt(),
@@ -65,7 +65,7 @@ class AdminMailCompletionServiceProjectionTest {
 
         DeliveryAuditItem item = service.deliveryAudit(7, "", "", 0, 50).items().getFirst();
 
-        assertThat(item.state()).isEqualTo("ACCEPTED_BY_PROVIDER");
+        assertThat(item.state()).isEqualTo("PROVIDER_ACCEPTED");
         assertThat(item.stage()).isEqualTo("ACCEPTED_BY_PROVIDER");
         assertThat(item.timeline()).noneMatch(event ->
                 "DELIVERED_CONFIRMED".equals(event.stage()));

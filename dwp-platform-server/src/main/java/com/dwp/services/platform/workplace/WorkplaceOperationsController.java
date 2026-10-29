@@ -89,10 +89,11 @@ public class WorkplaceOperationsController {
             @RequestHeader("X-DWP-User-ID") Long actorId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @PathVariable UUID bookingId,
             @Valid @RequestBody WorkplaceOperationsDtos.ForceCancelBookingRequest request) {
         return ApiResponse.success(service.forceCancel(
-                tenantId, actorId, bookingId, locale, correlationId, request));
+                tenantId, actorId, bookingId, locale, correlationId, idempotencyKey, request));
     }
 
     @PutMapping("/v1/admin/workplace/bookings/{bookingId}/legal-hold")
@@ -101,10 +102,11 @@ public class WorkplaceOperationsController {
             @RequestHeader("X-DWP-User-ID") Long actorId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @PathVariable UUID bookingId,
             @Valid @RequestBody WorkplaceOperationsDtos.LegalHoldRequest request) {
         return ApiResponse.success(service.updateLegalHold(
-                tenantId, actorId, bookingId, locale, correlationId, request));
+                tenantId, actorId, bookingId, locale, correlationId, idempotencyKey, request));
     }
 
     @GetMapping("/v1/admin/workplace/audit-events")

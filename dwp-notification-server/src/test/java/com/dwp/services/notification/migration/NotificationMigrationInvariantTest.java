@@ -11,6 +11,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NotificationMigrationInvariantTest {
 
     @Test
+    void registersMailActionEscalationWithoutLeakingMessageContent() throws IOException {
+        String migration = resource(
+                "db/migration/V38__register_mail_action_escalation_contract.sql");
+
+        assertThat(migration)
+                .contains(
+                        "MAIL.ACTION_ESCALATED",
+                        "mail.action.escalated.v1",
+                        "proposalId", "threadId", "channel", "urgency",
+                        "TITLE_ONLY", "SOURCE_EVENT_RECIPIENT",
+                        "mail-action-escalated-ko-v1",
+                        "mail-action-escalated-en-v1")
+                .contains("/mail/actions?proposalId={{proposalId}}")
+                .doesNotContain(
+                        "messageBody", "bodyContent", "senderEmail", "recipients");
+    }
+
+    @Test
     void registersMeetingsContractsWithSafeLocalizedPreparationActions() throws IOException {
         String migration = resource(
                 "db/migration/V24__register_meetings_notification_contracts.sql");
@@ -397,6 +415,32 @@ class NotificationMigrationInvariantTest {
                         "providerCredential",
                         "http://",
                         "https://");
+    }
+
+    @Test
+    void appendsExactHcmEmployeeChangeDeepLinksWithoutMutatingPublishedV35()
+            throws IOException {
+        String migration = resource(
+                "db/migration/V36__harden_hcm_employee_change_deep_link.sql");
+
+        assertThat(migration)
+                .contains(
+                        "'11000000-0000-0000-0000-000000000401'",
+                        "'10000000-0000-0000-0000-000000000400', 2",
+                        "\"requiredVariables\":[\"requestPublicId\"]",
+                        "\"variableAllowlist\":[\"effectiveDate\",\"requestPublicId\",\"requestReference\",\"targetType\"]",
+                        "\"templateVersion\":2",
+                        "'IN_APP', 'ko-KR', 2",
+                        "'IN_APP', 'en-US', 2",
+                        "/hr/operations/people/employee-change-requests?requestPublicId={{requestPublicId}}",
+                        "Published V35",
+                        "templates remain immutable")
+                .doesNotContain(
+                        "UPDATE ntf_template_versions",
+                        "DELETE FROM ntf_template_versions",
+                        "personPublicId",
+                        "emailAddress",
+                        "phoneNumber");
     }
 
     private String resource(String path) throws IOException {

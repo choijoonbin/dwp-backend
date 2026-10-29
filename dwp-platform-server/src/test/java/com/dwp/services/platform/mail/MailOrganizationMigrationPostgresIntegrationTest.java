@@ -433,6 +433,15 @@ class MailOrganizationMigrationPostgresIntegrationTest {
                    AND enforcement_type = 'CHECK'
                    AND lifecycle_state = 'ACTIVE'
                 """.formatted(schema), Integer.class)).isEqualTo(8);
+        assertThat(jdbc.queryForList("""
+                SELECT code
+                  FROM %s.sys_code_values
+                 WHERE code_set_key = 'PLATFORM.MAIL_RULE_RUNS.RUN_STATUS'
+                   AND lifecycle_state = 'ACTIVE'
+                 ORDER BY code
+                """.formatted(schema), String.class)).containsExactly(
+                "FAILED", "LEASED", "QUEUED", "RETRY_WAIT",
+                "RUNNING", "SKIPPED", "SUCCEEDED");
     }
 
     private void assertRuntimeQueries(String schema) {

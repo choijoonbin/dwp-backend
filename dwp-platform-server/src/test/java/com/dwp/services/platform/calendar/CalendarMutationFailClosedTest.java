@@ -76,7 +76,8 @@ class CalendarMutationFailClosedTest {
                         restoreRepository,
                         repository,
                         retentionRepository,
-                        roomAccess));
+                        roomAccess,
+                        roomBookingPolicy));
     }
 
     @Test

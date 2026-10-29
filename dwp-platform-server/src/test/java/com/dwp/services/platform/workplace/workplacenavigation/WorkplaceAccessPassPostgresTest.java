@@ -2,6 +2,7 @@ package com.dwp.services.platform.workplace.workplacenavigation;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.workplace.exceptionconsole.WorkplaceExceptionConsoleRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
@@ -149,6 +150,49 @@ class WorkplaceAccessPassPostgresTest {
                 SELECT COUNT(*) FROM wp_navigation_access_pass_pairing_receipts
                  WHERE tenant_id=? AND pass_id=?
                 """, Integer.class, fixture.tenantId(), issued.pass().passId())).isZero();
+    }
+
+    @Test
+    void exceptionConsoleStopsShowingResolvedPairingLocks() {
+        Fixture fixture = fixture("EXCEPTION_RESOLUTION");
+        WorkplaceAccessPassService service = service(devices(fixture));
+        AccessPassCommandResult issued = issue(service, fixture, "issue-exception-resolution");
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            String key = "exception-lock-" + attempt;
+            assertThatThrownBy(() -> service.pair(
+                    fixture.tenantId(), fixture.deviceId(), fixture.deviceIdentity(), key,
+                    "corr-" + key,
+                    new AccessPassPairingRequest(issued.pass().passId(), "222222222222")))
+                    .isInstanceOf(BaseException.class);
+        }
+        WorkplaceExceptionConsoleRepository exceptions =
+                new WorkplaceExceptionConsoleRepository(jdbc);
+        jdbc.update("""
+                UPDATE wp_navigation_access_passes
+                   SET issued_at=CURRENT_TIMESTAMP-INTERVAL '5 minutes',
+                       expires_at=CURRENT_TIMESTAMP+INTERVAL '15 minutes'
+                 WHERE tenant_id=? AND pass_id=?
+                """, fixture.tenantId(), issued.pass().passId());
+
+        assertThat(exceptions.accessPassFailures(fixture.tenantId()))
+                .extracting(WorkplaceExceptionConsoleRepository.OperationalRow::id)
+                .contains(issued.pass().passId());
+
+        jdbc.update("""
+                UPDATE wp_navigation_access_passes
+                   SET lifecycle_state='REVOKED',revoked_at=CURRENT_TIMESTAMP
+                 WHERE tenant_id=? AND pass_id=?
+                """, fixture.tenantId(), issued.pass().passId());
+        assertThat(exceptions.accessPassFailures(fixture.tenantId())).isEmpty();
+
+        jdbc.update("""
+                UPDATE wp_navigation_access_passes
+                   SET lifecycle_state='ACTIVE',revoked_at=NULL,
+                       issued_at=CURRENT_TIMESTAMP-INTERVAL '30 minutes',
+                       expires_at=CURRENT_TIMESTAMP-INTERVAL '10 minutes'
+                 WHERE tenant_id=? AND pass_id=?
+                """, fixture.tenantId(), issued.pass().passId());
+        assertThat(exceptions.accessPassFailures(fixture.tenantId())).isEmpty();
     }
 
     private static AccessPassCommandResult issue(

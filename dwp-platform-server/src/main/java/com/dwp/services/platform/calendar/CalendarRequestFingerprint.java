@@ -28,6 +28,14 @@ final class CalendarRequestFingerprint {
         append(canonical, Integer.toString(request.recurrenceInterval()));
         append(canonical, request.recurrenceUntil() == null
                 ? null : request.recurrenceUntil().toString());
+        if (request.recurrenceDays() == null) {
+            append(canonical, null);
+        } else {
+            request.recurrenceDays().stream().distinct().sorted()
+                    .forEach(day -> append(canonical, day.name()));
+        }
+        append(canonical, request.recurrenceCount() == null
+                ? null : request.recurrenceCount().toString());
         append(canonical, Boolean.toString(request.responseRequired()));
         append(canonical, request.calendarId() == null
                 ? null : request.calendarId().toString());

@@ -498,6 +498,40 @@ class MailQueryGovernanceSupport extends MailQueryMappingSupport {
                 .stream().findFirst();
     }
 
+    boolean hasFreshActivationDiagnostic(
+            Long tenantId,
+            Long actorUserId,
+            UUID connectionId,
+            long connectionVersion,
+            OffsetDateTime notBefore) {
+        Boolean ready = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                      FROM mail_connection_operations operation
+                     WHERE operation.tenant_id = ?
+                       AND operation.actor_user_id = ?
+                       AND operation.connection_id = ?
+                       AND operation.operation_kind = 'DIAGNOSTIC'
+                       AND operation.operation_state = 'SUCCEEDED'
+                       AND operation.error_code IS NULL
+                       AND operation.completed_at IS NOT NULL
+                       AND operation.evidence_generated_at >= ?
+                       AND operation.evidence_generated_at
+                           <= CURRENT_TIMESTAMP + INTERVAL '1 minute'
+                       AND UPPER(COALESCE(operation.operation_scope, ''))
+                           IN ('TENANT', 'FULL')
+                       AND UPPER(COALESCE(
+                           operation.request_payload ->> 'capability', ''))
+                           IN ('AUTHENTICATION', 'READ', 'SYNC', 'SEND')
+                       AND operation.request_payload
+                           @> '{"confirmedExternalImpact":true}'::jsonb
+                       AND operation.request_payload ->> 'version' = ?
+                )
+                """, Boolean.class, tenantId, actorUserId, connectionId,
+                notBefore, Long.toString(connectionVersion));
+        return Boolean.TRUE.equals(ready);
+    }
+
     List<MailDtos.SharedInboxSummary> sharedInboxes(Long tenantId) {
         return jdbc.query("""
                 SELECT inbox.shared_inbox_id, inbox.inbox_key, inbox.display_name,

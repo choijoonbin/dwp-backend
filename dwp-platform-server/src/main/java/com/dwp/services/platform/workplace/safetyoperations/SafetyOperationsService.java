@@ -456,7 +456,8 @@ public class SafetyOperationsService {
     public boolean recordDispatchOutcome(DispatchOutcome outcome) {
         if (outcome.tenantId() <= 0 || outcome.state() == AttemptState.QUEUED
                 || outcome.state() == AttemptState.DISPATCHING
-                || outcome.state() == AttemptState.OFFLINE_QUEUED) {
+                || outcome.state() == AttemptState.OFFLINE_QUEUED
+                || outcome.state() == AttemptState.MANUAL_REVIEW_REQUIRED) {
             throw invalid("Only terminal provider dispatch outcomes may be recorded.");
         }
         return incidents.recordOutcome(outcome);

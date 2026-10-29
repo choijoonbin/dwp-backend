@@ -43,6 +43,25 @@ class NotificationOperationsMigrationInvariantTest {
     }
 
     @Test
+    void governsBoundedTenantAndContractRetentionWithMaterializedEvidence()
+            throws IOException {
+        String migration = resource(
+                "db/migration/V37__govern_notification_retention_hierarchy.sql");
+
+        assertThat(migration)
+                .contains(
+                        "CREATE TABLE ntf_tenant_retention_policies",
+                        "default_ttl_seconds BETWEEN 86400 AND 31536000",
+                        "ADD COLUMN retention_ttl_seconds BIGINT",
+                        "CONTRACT_OVERRIDE",
+                        "retention_policy_source",
+                        "retention_ttl_seconds = 2592000",
+                        "FORCE ROW LEVEL SECURITY",
+                        "active legal hold blocks purge")
+                .doesNotContain("UPDATE ntf_template_versions");
+    }
+
+    @Test
     void repairsPendingAuditEventsToTheCentralPolicyDecisionContract() throws IOException {
         String migration = resource(
                 "db/migration/V16__align_notification_audit_policy_decisions.sql");

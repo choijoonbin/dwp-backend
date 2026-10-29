@@ -1,6 +1,7 @@
 package com.dwp.services.platform.mail;
 
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
@@ -12,12 +13,22 @@ class MailInboundMessageService {
 
     private final MailDeliveryRepository deliveries;
     private final MailNotificationEvents notificationEvents;
+    private final MailIncomingRuleRepository incomingRules;
+
+    @Autowired
+    MailInboundMessageService(
+            MailDeliveryRepository deliveries,
+            MailNotificationEvents notificationEvents,
+            MailIncomingRuleRepository incomingRules) {
+        this.deliveries = deliveries;
+        this.notificationEvents = notificationEvents;
+        this.incomingRules = incomingRules;
+    }
 
     MailInboundMessageService(
             MailDeliveryRepository deliveries,
             MailNotificationEvents notificationEvents) {
-        this.deliveries = deliveries;
-        this.notificationEvents = notificationEvents;
+        this(deliveries, notificationEvents, null);
     }
 
     @Transactional
@@ -29,6 +40,7 @@ class MailInboundMessageService {
         int replied = deliveries.markFollowUpsReplied(
                 tenantId, threadId, messageId, receivedAt);
         notificationEvents.newMailReceived(tenantId, threadId, messageId);
+        if (incomingRules != null) incomingRules.enqueue(tenantId, threadId, messageId);
         return replied;
     }
 }

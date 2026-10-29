@@ -302,7 +302,10 @@ class WorkplaceServiceTest {
                 allowedResourceId, from.plusDays(2));
         WorkplaceBookingRepository.BookingRow denied = bookingRow(
                 deniedResourceId, from.plusDays(3));
-        when(bookings.bookings(1L, 9L, from, to, true)).thenReturn(List.of(allowed, denied));
+        when(bookings.bookings(
+                1L, 9L, from, to, true,
+                WorkplaceService.MAX_BOOKING_HISTORY_RESULTS + 1))
+                .thenReturn(List.of(allowed, denied));
         when(catalog.policy(1L)).thenReturn(policy(true));
         when(catalog.resource(1L, allowedResourceId, false)).thenReturn(Optional.of(
                 resource(allowedResourceId, allowedFloorId,
@@ -325,6 +328,27 @@ class WorkplaceServiceTest {
 
         assertThat(result).extracting(WorkplaceDtos.Booking::resourceId)
                 .containsExactly(allowedResourceId);
+    }
+
+    @Test
+    void myBookingsRejectsAnOverflowSentinelInsteadOfMaterializingAnUnboundedHistory() {
+        OffsetDateTime from = OffsetDateTime.now().minusDays(399);
+        OffsetDateTime to = OffsetDateTime.now();
+        WorkplaceBookingRepository.BookingRow row =
+                bookingRow(UUID.randomUUID(), from.plusDays(1));
+        when(catalog.policy(1L)).thenReturn(policy(true));
+        when(bookings.bookings(
+                1L, 9L, from, to, false,
+                WorkplaceService.MAX_BOOKING_HISTORY_RESULTS + 1))
+                .thenReturn(java.util.Collections.nCopies(
+                        WorkplaceService.MAX_BOOKING_HISTORY_RESULTS + 1, row));
+
+        assertThatThrownBy(() -> service.myBookings(
+                1L, 9L, from, to, "en-US", null))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE))
+                .hasMessageContaining("limited to 2000 records");
     }
 
     @Test

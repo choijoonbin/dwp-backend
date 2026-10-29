@@ -2,6 +2,7 @@ package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,14 +18,25 @@ public class MailLifecycleService {
     private final MailLifecycleRepository lifecycle;
     private final MailQueryRepository queries;
     private final MailCommandRepository evidence;
+    private final MailBulkMutationReceipts bulkMutationReceipts;
 
+    @Autowired
     public MailLifecycleService(
             MailLifecycleRepository lifecycle,
             MailQueryRepository queries,
-            MailCommandRepository evidence) {
+            MailCommandRepository evidence,
+            MailBulkMutationReceipts bulkMutationReceipts) {
         this.lifecycle = lifecycle;
         this.queries = queries;
         this.evidence = evidence;
+        this.bulkMutationReceipts = bulkMutationReceipts;
+    }
+
+    MailLifecycleService(
+            MailLifecycleRepository lifecycle,
+            MailQueryRepository queries,
+            MailCommandRepository evidence) {
+        this(lifecycle, queries, evidence, null);
     }
 
     @Transactional(readOnly = true)
@@ -58,8 +70,27 @@ public class MailLifecycleService {
             UUID threadId,
             String correlationId,
             MailOrganizationDtos.LifecycleRequest request) {
+        // Resolve through the governed visibility query before recording an
+        // idempotency key so inaccessible thread identifiers remain opaque.
         MailLifecycleRepository.LifecycleThread before = lifecycle.visibleThread(
                 tenantId, userId, threadId).orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        MailBulkMutationReceipts.Claim bulkClaim = null;
+        if (MailBulkMutationReceipts.bulk(
+                request.bulkIntentId(), request.itemIdempotencyKey())) {
+            if (bulkMutationReceipts == null || request.action() != LifecycleAction.ARCHIVE) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "This lifecycle action is not supported by governed bulk triage.");
+            }
+            bulkClaim = bulkMutationReceipts.claim(
+                    tenantId, userId, threadId, request.action().name(), request.version(),
+                    request.bulkIntentId(), request.itemIdempotencyKey());
+            if (!bulkClaim.created()) {
+                MailDtos.ThreadSummary replay = queries.thread(tenantId, userId, threadId)
+                        .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+                return new MailOrganizationDtos.LifecycleResult(replay, false);
+            }
+        }
         if (before.version() != request.version()) {
             conflict();
         }
@@ -95,6 +126,13 @@ public class MailLifecycleService {
                         "folderType", after.folderType(),
                         "workflowState", after.workflowState().name(),
                         "version", after.version()));
+        if (bulkClaim != null && bulkMutationReceipts.complete(
+                tenantId, userId, bulkClaim.receipt().receiptId(),
+                after.version(), false) != 1) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The Mail bulk item receipt changed before completion.");
+        }
         return new MailOrganizationDtos.LifecycleResult(after, false);
     }
 

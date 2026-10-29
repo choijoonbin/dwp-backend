@@ -30,7 +30,8 @@ class SavedViewSurfaceAccessPolicy {
             "workspace.apps", "APP.APPS:VIEW",
             "people.workforce-directory", "APP.PEOPLE_DIRECTORY:VIEW",
             "workforce.operations-overview", "APP.WORKFORCE_MANAGEMENT:VIEW",
-            "calendar.schedule", "APP.CALENDAR:VIEW");
+            "calendar.schedule", "APP.CALENDAR:VIEW",
+            "notifications.work", "APP.NOTIFICATIONS:VIEW");
 
     void requireRead(String surfaceKey, String permissionHeader) {
         requireActor(surfaceKey, permissionHeader);

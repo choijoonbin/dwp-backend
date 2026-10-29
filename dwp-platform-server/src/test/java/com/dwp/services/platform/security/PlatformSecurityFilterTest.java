@@ -211,6 +211,73 @@ class PlatformSecurityFilterTest extends PlatformAdministrationSecurityEvidence 
     }
 
     @Test
+    void calendarV2PostsRequireTheExactViewAuthority() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+        List<String> paths = List.of(
+                "/v2/calendar/scheduling/evaluations",
+                "/v2/calendar/scheduling/evaluations/"
+                        + "123e4567-e89b-42d3-a456-426614174000/hard-recheck");
+
+        for (String path : paths) {
+            MockHttpServletRequest allowed = calendarV2Request(path, "APP.CALENDAR:VIEW");
+            MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+            filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+            assertThat(allowedResponse.getStatus()).as(path).isEqualTo(200);
+
+            MockHttpServletRequest denied = calendarV2Request(path, "APP.CALENDAR:CREATE");
+            MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+            filter.doFilter(denied, deniedResponse, new MockFilterChain());
+            assertThat(deniedResponse.getStatus()).as(path).isEqualTo(403);
+        }
+    }
+
+    @Test
+    void calendarV2IdentityHeadersFailClosedUnlessSingleAndCanonical() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+
+        MockHttpServletRequest missingPerson = calendarV2Request(
+                "/v2/calendar/scheduling/evaluations", "APP.CALENDAR:VIEW");
+        missingPerson.removeHeader("X-DWP-Person-Public-ID");
+        MockHttpServletResponse missingPersonResponse = new MockHttpServletResponse();
+        filter.doFilter(missingPerson, missingPersonResponse, new MockFilterChain());
+        assertThat(missingPersonResponse.getStatus()).isEqualTo(401);
+
+        MockHttpServletRequest duplicatePerson = calendarV2Request(
+                "/v2/calendar/scheduling/evaluations", "APP.CALENDAR:VIEW");
+        duplicatePerson.addHeader(
+                "X-DWP-Person-Public-ID", "123e4567-e89b-42d3-a456-426614174000");
+        MockHttpServletResponse duplicatePersonResponse = new MockHttpServletResponse();
+        filter.doFilter(duplicatePerson, duplicatePersonResponse, new MockFilterChain());
+        assertThat(duplicatePersonResponse.getStatus()).isEqualTo(401);
+
+        MockHttpServletRequest duplicateTenant = calendarV2Request(
+                "/v2/calendar/scheduling/evaluations", "APP.CALENDAR:VIEW");
+        duplicateTenant.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        MockHttpServletResponse duplicateTenantResponse = new MockHttpServletResponse();
+        filter.doFilter(duplicateTenant, duplicateTenantResponse, new MockFilterChain());
+        assertThat(duplicateTenantResponse.getStatus()).isEqualTo(401);
+
+        MockHttpServletRequest aliasedTenant = calendarV2Request(
+                "/v2/calendar/scheduling/evaluations", "APP.CALENDAR:VIEW");
+        aliasedTenant.removeHeader(PlatformSecurityFilter.TENANT_HEADER);
+        aliasedTenant.addHeader(PlatformSecurityFilter.TENANT_HEADER, "03");
+        MockHttpServletResponse aliasedTenantResponse = new MockHttpServletResponse();
+        filter.doFilter(aliasedTenant, aliasedTenantResponse, new MockFilterChain());
+        assertThat(aliasedTenantResponse.getStatus()).isEqualTo(401);
+
+        MockHttpServletRequest aliasedPerson = calendarV2Request(
+                "/v2/calendar/scheduling/evaluations", "APP.CALENDAR:VIEW");
+        aliasedPerson.removeHeader("X-DWP-Person-Public-ID");
+        aliasedPerson.addHeader(
+                "X-DWP-Person-Public-ID", "123E4567-E89B-42D3-A456-426614174000");
+        MockHttpServletResponse aliasedPersonResponse = new MockHttpServletResponse();
+        filter.doFilter(aliasedPerson, aliasedPersonResponse, new MockFilterChain());
+        assertThat(aliasedPersonResponse.getStatus()).isEqualTo(401);
+    }
+
+    @Test
     void limitsTheAgentRuntimeIdentityToTheExactCalendarReadEndpoint() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest allowed = request("/v1/calendar/events");
@@ -248,6 +315,54 @@ class PlatformSecurityFilterTest extends PlatformAdministrationSecurityEvidence 
         filter.doFilter(deniedBroaderRead, deniedBroaderReadResponse, new MockFilterChain());
 
         assertThat(deniedBroaderReadResponse.getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void admitsOnlyTheExactRuntimeIdentityToProduceMailProposals() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+        MockHttpServletRequest allowed = new MockHttpServletRequest(
+                "POST", "/internal/v1/mail/proposals");
+        allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowed.addHeader("X-DWP-Service-Identity", "dwp-agent-runtime");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest gatewayToken = new MockHttpServletRequest(
+                "POST", "/internal/v1/mail/proposals");
+        gatewayToken.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        gatewayToken.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        gatewayToken.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        gatewayToken.addHeader("X-DWP-Service-Identity", "dwp-agent-runtime");
+        MockHttpServletResponse gatewayResponse = new MockHttpServletResponse();
+        filter.doFilter(gatewayToken, gatewayResponse, new MockFilterChain());
+        assertThat(gatewayResponse.getStatus()).isEqualTo(401);
+
+        MockHttpServletRequest forgedIdentity = new MockHttpServletRequest(
+                "POST", "/internal/v1/mail/proposals");
+        forgedIdentity.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        forgedIdentity.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        forgedIdentity.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        forgedIdentity.addHeader("X-DWP-Service-Identity", "unknown-runtime");
+        MockHttpServletResponse forgedResponse = new MockHttpServletResponse();
+        filter.doFilter(forgedIdentity, forgedResponse, new MockFilterChain());
+        assertThat(forgedResponse.getStatus()).isEqualTo(401);
+
+        MockHttpServletRequest duplicateIdentity = new MockHttpServletRequest(
+                "POST", "/internal/v1/mail/proposals");
+        duplicateIdentity.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        duplicateIdentity.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        duplicateIdentity.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        duplicateIdentity.addHeader("X-DWP-Service-Identity", "dwp-agent-runtime");
+        duplicateIdentity.addHeader("X-DWP-Service-Identity", "dwp-agent-runtime");
+        MockHttpServletResponse duplicateResponse = new MockHttpServletResponse();
+        filter.doFilter(duplicateIdentity, duplicateResponse, new MockFilterChain());
+        assertThat(duplicateResponse.getStatus()).isEqualTo(401);
     }
 
     @Test
@@ -761,6 +876,18 @@ class PlatformSecurityFilterTest extends PlatformAdministrationSecurityEvidence 
         MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
         filter.doFilter(denied, deniedResponse, new MockFilterChain());
         assertThat(deniedResponse.getStatus()).isEqualTo(403);
+    }
+
+    private MockHttpServletRequest calendarV2Request(String path, String permission) {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        request.addHeader(
+                "X-DWP-Person-Public-ID", "123e4567-e89b-42d3-a456-426614174000");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, permission);
+        return request;
     }
 
 }

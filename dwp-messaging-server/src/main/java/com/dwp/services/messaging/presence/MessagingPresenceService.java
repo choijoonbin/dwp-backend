@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
  * a disabled or unavailable Redis authority produces UNKNOWN rather than a fabricated fallback.
  */
 @Service
-public final class MessagingPresenceService {
+public final class MessagingPresenceService implements MessagingPresenceLeaseControl {
 
     private static final Logger log = LoggerFactory.getLogger(MessagingPresenceService.class);
     private static final Pattern SAFE_KEY_PREFIX = Pattern.compile("[A-Za-z0-9._:-]{3,120}");
@@ -73,6 +73,7 @@ public final class MessagingPresenceService {
     private final Duration refreshAfter;
     private final String keyPrefix;
     private final int activeUserWarningThreshold;
+    private final MessagingPresenceSharingPolicy sharingPolicy;
     private final Clock fallbackClock;
     private final Counter heartbeatSuccess;
     private final Counter heartbeatFailure;
@@ -96,7 +97,8 @@ public final class MessagingPresenceService {
             @Value("${dwp.messaging.presence.key-prefix:dwp:messaging:presence:v1}")
             String keyPrefix,
             @Value("${dwp.messaging.presence.active-user-warning-threshold:5000}")
-            int activeUserWarningThreshold) {
+            int activeUserWarningThreshold,
+            MessagingPresenceSharingPolicy sharingPolicy) {
         this(
                 redisTemplate,
                 enabled,
@@ -104,6 +106,7 @@ public final class MessagingPresenceService {
                 refreshAfter,
                 keyPrefix,
                 activeUserWarningThreshold,
+                sharingPolicy,
                 meterRegistry,
                 Clock.systemUTC());
     }
@@ -115,6 +118,28 @@ public final class MessagingPresenceService {
             Duration refreshAfter,
             String keyPrefix,
             int activeUserWarningThreshold,
+            MeterRegistry meterRegistry,
+            Clock fallbackClock) {
+        this(
+                redisTemplate,
+                enabled,
+                ttl,
+                refreshAfter,
+                keyPrefix,
+                activeUserWarningThreshold,
+                MessagingPresenceSharingPolicy.ALLOW_ALL,
+                meterRegistry,
+                fallbackClock);
+    }
+
+    MessagingPresenceService(
+            StringRedisTemplate redisTemplate,
+            boolean enabled,
+            Duration ttl,
+            Duration refreshAfter,
+            String keyPrefix,
+            int activeUserWarningThreshold,
+            MessagingPresenceSharingPolicy sharingPolicy,
             MeterRegistry meterRegistry,
             Clock fallbackClock) {
         if (ttl == null || ttl.compareTo(MIN_TTL) < 0 || ttl.compareTo(MAX_TTL) > 0) {
@@ -152,12 +177,14 @@ public final class MessagingPresenceService {
         this.refreshAfter = refreshAfter;
         this.keyPrefix = normalizedPrefix;
         this.activeUserWarningThreshold = activeUserWarningThreshold;
+        this.sharingPolicy = sharingPolicy == null
+                ? MessagingPresenceSharingPolicy.ALLOW_ALL : sharingPolicy;
         this.fallbackClock = fallbackClock;
         this.heartbeatSuccess = counter(
                 resolvedMeters,
                 "dwp.messaging.presence.heartbeat.total",
                 "success",
-                "Presence heartbeat attempts that renewed a Redis lease");
+                "Presence heartbeat attempts accepted after durable privacy enforcement");
         this.heartbeatFailure = counter(
                 resolvedMeters,
                 "dwp.messaging.presence.heartbeat.total",
@@ -207,6 +234,10 @@ public final class MessagingPresenceService {
                 Clock.systemUTC());
     }
 
+    public boolean enabled() {
+        return enabled;
+    }
+
     /** Renews only the verified subject's server-timed presence lease. */
     public boolean heartbeat() {
         if (!enabled) {
@@ -216,18 +247,21 @@ public final class MessagingPresenceService {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();
         long startedAt = System.nanoTime();
         try {
-            Long expiresAt = redisTemplate.execute(
-                    HEARTBEAT_SCRIPT,
-                    List.of(key(subject.tenantId())),
-                    Long.toString(subject.userId()),
-                    Long.toString(ttl.toMillis()),
-                    Long.toString(ttl.multipliedBy(2).toMillis()));
-            if (expiresAt == null) {
-                throw new IllegalStateException("Presence heartbeat did not return its lease expiry.");
+            boolean accepted = sharingPolicy.enforce(
+                    subject.tenantId(),
+                    subject.userId(),
+                    () -> renew(subject.tenantId(), subject.userId()),
+                    () -> withdraw(subject.tenantId(), subject.userId()));
+            if (!accepted) {
+                throw new IllegalStateException("Presence privacy could not be enforced.");
             }
             heartbeatSuccess.increment();
             return true;
         } catch (RuntimeException exception) {
+            // A policy lookup failure must not fall through to lease renewal. Remove any older
+            // lease when Redis is still reachable; if Redis is also unavailable, reads already
+            // fail with UNAVAILABLE rather than projecting a fabricated live state.
+            withdraw(subject.tenantId(), subject.userId());
             heartbeatFailure.increment();
             sampledWarning(
                     lastHeartbeatFailureLogAt,
@@ -236,6 +270,38 @@ public final class MessagingPresenceService {
             return false;
         } finally {
             heartbeatLatency.record(System.nanoTime() - startedAt, TimeUnit.NANOSECONDS);
+        }
+    }
+
+    private boolean renew(long tenantId, long userId) {
+        Long expiresAt = redisTemplate.execute(
+                HEARTBEAT_SCRIPT,
+                List.of(key(tenantId)),
+                Long.toString(userId),
+                Long.toString(ttl.toMillis()),
+                Long.toString(ttl.multipliedBy(2).toMillis()));
+        if (expiresAt == null) {
+            throw new IllegalStateException("Presence heartbeat did not return its lease expiry.");
+        }
+        return true;
+    }
+
+    /**
+     * Removes a single subject lease. Absence is success; disabled presence has no lease authority
+     * to contact and is therefore already withdrawn.
+     */
+    @Override
+    public boolean withdraw(long tenantId, long userId) {
+        if (!enabled) return true;
+        try {
+            redisTemplate.opsForZSet().remove(key(tenantId), Long.toString(userId));
+            return true;
+        } catch (RuntimeException exception) {
+            sampledWarning(
+                    lastHeartbeatFailureLogAt,
+                    "Messaging presence lease withdrawal unavailable",
+                    exception);
+            return false;
         }
     }
 

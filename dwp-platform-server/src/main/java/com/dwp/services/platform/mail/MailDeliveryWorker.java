@@ -2,6 +2,7 @@ package com.dwp.services.platform.mail;
 
 import com.dwp.platform.contract.ExecutionContext;
 import com.dwp.platform.contract.MailConnectorPort;
+import com.dwp.platform.contract.MailProviderException;
 import com.dwp.services.platform.media.TenantMediaStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,9 +92,21 @@ class MailDeliveryWorker {
                                 : sanitize(readiness.errorCode()),
                         readiness.state() == MailConnectorPort.ReadinessState.CONFIGURATION_REQUIRED
                                 || readiness.state()
-                                == MailConnectorPort.ReadinessState.AUTHENTICATION_REQUIRED);
+                                == MailConnectorPort.ReadinessState.AUTHENTICATION_REQUIRED,
+                        readiness.retryAfter());
                 return;
             }
+        } catch (MailProviderException exception) {
+            log.warn(
+                    "Mail delivery readiness failed category={} code={} provider={} deliveryId={}",
+                    exception.category(), exception.errorCode(),
+                    job.providerType(), job.deliveryId());
+            boolean permanent = exception.category()
+                    == MailProviderException.Category.AUTHENTICATION
+                    || exception.category() == MailProviderException.Category.PERMANENT;
+            completion.fail(job, workerId, maximumAttempts,
+                    sanitize(exception.errorCode()), permanent, exception.retryAfter());
+            return;
         } catch (RuntimeException exception) {
             log.warn(
                     "Mail delivery readiness check failed for provider={} deliveryId={}",
@@ -181,14 +194,43 @@ class MailDeliveryWorker {
                             attachments,
                             senderMode,
                             job.replyToProviderMessageReference()));
+            if (job.providerType() != MailTypes.ProviderType.DWP_SANDBOX
+                    && receipt.outcome() == MailConnectorPort.DeliveryOutcome.DELIVERED) {
+                receipt = new MailConnectorPort.DeliveryReceipt(
+                        receipt.providerMessageReference(), receipt.providerThreadReference(),
+                        receipt.acceptedAt(), MailConnectorPort.DeliveryOutcome.PROVIDER_ACCEPTED);
+            }
             completion.complete(job, workerId, receipt, senderMode);
+        } catch (MailProviderException exception) {
+            log.warn(
+                    "Mail delivery provider failure category={} code={} provider={} deliveryId={}",
+                    exception.category(), exception.errorCode(),
+                    job.providerType(), job.deliveryId());
+            if (exception.category() == MailProviderException.Category.RESULT_UNKNOWN) {
+                completion.complete(
+                        job, workerId,
+                        new MailConnectorPort.DeliveryReceipt(
+                                null, null, null,
+                                MailConnectorPort.DeliveryOutcome.RESULT_UNKNOWN),
+                        senderMode);
+                return;
+            }
+            boolean permanent = exception.category()
+                    == MailProviderException.Category.AUTHENTICATION
+                    || exception.category() == MailProviderException.Category.PERMANENT;
+            completion.fail(
+                    job, workerId, maximumAttempts,
+                    sanitize(exception.errorCode()), permanent, exception.retryAfter());
         } catch (RuntimeException exception) {
             log.warn(
                     "Mail delivery attempt failed for provider={} deliveryId={}",
                     job.providerType(), job.deliveryId(), exception);
-            completion.fail(
-                    job, workerId, maximumAttempts,
-                    "MAIL_PROVIDER_RESULT_UNKNOWN", true);
+            completion.complete(
+                    job, workerId,
+                    new MailConnectorPort.DeliveryReceipt(
+                            null, null, null,
+                            MailConnectorPort.DeliveryOutcome.RESULT_UNKNOWN),
+                    senderMode);
         }
     }
 

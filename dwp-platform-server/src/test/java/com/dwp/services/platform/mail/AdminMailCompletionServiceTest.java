@@ -31,6 +31,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class AdminMailCompletionServiceTest {
@@ -607,7 +608,7 @@ class AdminMailCompletionServiceTest {
     }
 
     @Test
-    void synchronizationDelegatesNonemptyProviderBatchToMaterializer() {
+    void synchronizationOnlyEnqueuesDurableWorkAndReturnsAccepted() {
         UUID connectionId = UUID.randomUUID();
         UUID accountId = UUID.randomUUID();
         UUID operationId = UUID.randomUUID();
@@ -615,35 +616,27 @@ class AdminMailCompletionServiceTest {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         MailConnectorPort connector = mock(MailConnectorPort.class);
         MailExternalSyncMaterializer materializer = mock(MailExternalSyncMaterializer.class);
-        MailConnectorPort.ProviderMessage message = new MailConnectorPort.ProviderMessage(
-                "provider-message", "provider-thread", "provider-folder",
-                Instant.parse("2026-09-17T00:00:00Z"), "sender@example.test",
-                List.of("recipient@example.test"), "Subject", "Body", Map.of());
-        MailConnectorPort.SyncBatch batch = new MailConnectorPort.SyncBatch(
-                List.of(message), "cursor-2", false, true);
-        MailConnectorPort.SyncBatch finalBatch = new MailConnectorPort.SyncBatch(
-                List.of(), "cursor-3", false, false);
+        MailSyncJobRepository syncJobs = mock(MailSyncJobRepository.class);
         when(connector.manifest()).thenReturn(new MailConnectorPort.Manifest(
                 MailConnectorPort.ProviderFamily.DWP_SANDBOX, "test", "test",
                 java.util.Set.of(MailConnectorPort.Capability.READ)));
-        when(connector.synchronize(any())).thenReturn(batch).thenReturn(finalBatch);
         service = new AdminMailCompletionService(
                 repository, new MailConnectorRegistry(List.of(connector)),
-                new ObjectMapper().findAndRegisterModules(), materializer);
+                new ObjectMapper().findAndRegisterModules(), materializer,
+                null, null, null, syncJobs);
         ConnectionOperationRequest request = new ConnectionOperationRequest(
                 "READ", "TENANT", null, false, key, 0L);
         String fingerprint = new AdminMailCommandFingerprint(
                 new ObjectMapper().findAndRegisterModules()).digest(
                 "CONNECTION_OPERATION", 91L, connectionId, "SYNC",
                 "READ", "TENANT", "", false, 0L);
-        AdminMailCompletionRepository.ConnectionOperationRow completed =
+        AdminMailCompletionRepository.ConnectionOperationRow accepted =
                 new AdminMailCompletionRepository.ConnectionOperationRow(
-                        operationId, connectionId, "SYNC", "SUCCEEDED", key,
-                        fingerprint, "corr-sync", now, null,
-                        now.minusSeconds(1), now);
+                        operationId, connectionId, "SYNC", "ACCEPTED", key,
+                        fingerprint, "corr-sync", null, null, now, null);
         when(repository.connectionOperation(7, 91, key))
                 .thenReturn(Optional.empty())
-                .thenReturn(Optional.of(completed));
+                .thenReturn(Optional.of(accepted));
         when(repository.connection(7, connectionId)).thenReturn(Optional.of(
                 new AdminMailCompletionRepository.ConnectionRow(
                         connectionId, "DWP_SANDBOX", "ACTIVE", null,
@@ -652,24 +645,14 @@ class AdminMailCompletionServiceTest {
                 eq(7L), eq(91L), eq(connectionId), eq("SYNC"), eq("TENANT"),
                 any(), eq(key), eq(fingerprint), eq("corr-sync")))
                 .thenReturn(Optional.of(operationId));
-        AdminMailCompletionRepository.AccountRow account =
-                new AdminMailCompletionRepository.AccountRow(
-                        accountId, "recipient@example.test", "provider-account", "cursor-1");
-        when(repository.connectionAccounts(7, connectionId)).thenReturn(List.of(account));
-        when(repository.markConnectionSynchronized(7, connectionId, 0, 91)).thenReturn(1);
-
         ConnectionOperation operation = service.connectionOperation(
                 7, 91, connectionId, "SYNC", "corr-sync", request);
 
-        assertThat(operation.state()).isEqualTo("SUCCEEDED");
-        verify(materializer).materialize(7, 91, account, batch);
-        verify(materializer).materialize(
-                7, 91,
-                new AdminMailCompletionRepository.AccountRow(
-                        accountId, "recipient@example.test",
-                        "provider-account", "cursor-2"),
-                finalBatch);
-        verify(repository).markConnectionSynchronized(7, connectionId, 0, 91);
+        assertThat(operation.state()).isEqualTo("ACCEPTED");
+        verify(syncJobs).enqueue(
+                7, operationId, connectionId, 91, 0, "MANUAL", 5);
+        verify(connector, never()).synchronize(any());
+        verifyNoInteractions(materializer);
     }
 
     @Test

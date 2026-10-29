@@ -261,7 +261,17 @@ public final class MailDtos {
 
     public record ThreadActionRequest(
             @NotNull ThreadAction action,
-            @NotNull @Min(0) Long version) {
+            @NotNull @Min(0) Long version,
+            UUID bulkIntentId,
+            UUID itemIdempotencyKey) {
+
+        public ThreadActionRequest(ThreadAction action, Long version) {
+            this(action, version, null, null);
+        }
+
+        public ThreadActionRequest {
+            MailBulkMutationReceipts.bulk(bulkIntentId, itemIdempotencyKey);
+        }
     }
 
     public record SnoozeRequest(

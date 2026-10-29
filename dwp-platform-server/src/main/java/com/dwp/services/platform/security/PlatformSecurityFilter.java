@@ -5,6 +5,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.filter.ApiHistoryServletFilter;
 import com.dwp.core.security.RolePlaneBoundary;
 import com.dwp.services.platform.servicecenter.ServicesProductSurfacePepFilter;
+import com.dwp.services.platform.mail.MailWebhookSecurityFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -31,6 +32,12 @@ import java.util.stream.Collectors;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
+
+    private static final String MAIL_PROPOSAL_INGEST_PATH =
+            "/internal/v1/mail/proposals";
+    private static final String SERVICE_IDENTITY_HEADER =
+            "X-DWP-Service-Identity";
+    private static final String MAIL_PROPOSAL_PRODUCER = "dwp-agent-runtime";
 
     private final String serviceToken;
     private final String runtimeServiceToken;
@@ -114,6 +121,7 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
                 || path.startsWith(ApiHistoryServletFilter.COLLECTOR_PATH)
                 || path.startsWith("/internal/audit/events")
                 || path.startsWith("/internal/provider/")
+                || MailWebhookSecurityFilter.verified(request)
                 || path.equals("/error");
     }
 
@@ -142,7 +150,13 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
             response.setHeader("Cache-Control", "private, no-store, max-age=0");
         }
         boolean runtimeRead = isRuntimeRead(request);
-        if (serviceToken.isBlank() && (!runtimeRead || runtimeServiceToken.isBlank())) {
+        boolean runtimeProposalEndpoint =
+                MAIL_PROPOSAL_INGEST_PATH.equals(path);
+        boolean runtimeProposalWrite = runtimeProposalEndpoint
+                && "POST".equals(request.getMethod())
+                && exactServiceIdentity(request, MAIL_PROPOSAL_PRODUCER);
+        boolean runtimeCall = runtimeRead || runtimeProposalWrite;
+        if (serviceToken.isBlank() && (!runtimeCall || runtimeServiceToken.isBlank())) {
             writeError(response, ErrorCode.EXTERNAL_SERVICE_ERROR, "Platform service identity is not configured.");
             return;
         }
@@ -151,11 +165,17 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
                 : request.getHeader(SERVICE_TOKEN_HEADER);
         boolean gatewayIdentity = !serviceToken.isBlank()
                 && constantTimeEquals(serviceToken, providedToken);
-        boolean runtimeIdentity = runtimeRead
+        boolean runtimeIdentity = runtimeCall
                 && !runtimeServiceToken.isBlank()
                 && constantTimeEquals(runtimeServiceToken, providedToken);
         if (!gatewayIdentity && !runtimeIdentity) {
             writeError(response, ErrorCode.UNAUTHORIZED, "Trusted platform service identity is required.");
+            return;
+        }
+        if (runtimeProposalEndpoint
+                && (!runtimeProposalWrite || !runtimeIdentity)) {
+            writeError(response, ErrorCode.UNAUTHORIZED,
+                    "The exact Mail proposal producer identity is required.");
             return;
         }
 
@@ -494,7 +514,23 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
             writeError(response, ErrorCode.FORBIDDEN, "Personal tenant Activity permission is required.");
             return;
         }
-        boolean calendarPath = path.startsWith("/v1/calendar");
+        boolean calendarV2Path = pathFamily(path, "/v2/calendar");
+        boolean calendarReminderPath = isCanonicalCalendarReminderPath(path);
+        boolean calendarBookingPath = isCanonicalCalendarBookingPath(path);
+        boolean calendarBookingAttempt = path.equals("/v1/calendar/booking")
+                || path.startsWith("/v1/calendar/booking/");
+        if (calendarBookingAttempt && !calendarBookingPath) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "The Calendar booking route must be canonical.");
+            return;
+        }
+        if ((calendarV2Path || calendarReminderPath || calendarBookingPath)
+                && !hasCanonicalCalendarV2Identity(request)) {
+            writeError(response, ErrorCode.UNAUTHORIZED,
+                    "Verified Calendar tenant, user, and person identity are required.");
+            return;
+        }
+        boolean calendarPath = path.startsWith("/v1/calendar") || calendarV2Path;
         if (calendarPath && !hasCalendarAuthority(request)) {
             writeError(response, ErrorCode.FORBIDDEN, "Calendar permission is required.");
             return;
@@ -603,6 +639,16 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
         response.setStatus(errorCode.getHttpStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(errorCode, message));
+    }
+
+    private boolean exactServiceIdentity(
+            HttpServletRequest request,
+            String expected) {
+        List<String> values = Collections.list(
+                request.getHeaders(SERVICE_IDENTITY_HEADER));
+        return values.size() == 1
+                && expected.equals(values.getFirst())
+                && values.getFirst().indexOf(',') < 0;
     }
 
     private HcmPlatformPepRegistry.ExplorerOwnerEvidence explorerOwnerEvidence(

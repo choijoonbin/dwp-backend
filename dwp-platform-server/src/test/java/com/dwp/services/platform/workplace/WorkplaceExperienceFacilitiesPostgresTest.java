@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import static com.dwp.services.platform.workplace.WorkplaceExperienceFacilitiesDtos.*;
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 @Testcontainers(disabledWithoutDocker = true)
@@ -150,11 +152,85 @@ class WorkplaceExperienceFacilitiesPostgresTest {
         OffsetDateTime start = OffsetDateTime.now().minusMinutes(1).withNano(0);
         UUID booking = tx(() -> rawBooking(f,f.resource,start,start.plusHours(1)));
         assertThat(jdbc.queryForObject("SELECT auto_release_minutes_snapshot FROM wp_bookings WHERE booking_id=?",Integer.class,booking)).isZero();
-        assertThat(tx(() -> bookings.releaseNoShows(f.tenant,start))).isEmpty();
-        assertThat(tx(() -> bookings.releaseNoShows(f.tenant,start.plusSeconds(1)))).hasSize(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT no_show_due_at FROM wp_bookings WHERE booking_id=?",
+                OffsetDateTime.class, booking)).isEqualTo(start);
+        assertThat(tx(() -> bookings.releaseNoShows(f.tenant,start,100))).isEmpty();
+        assertThat(tx(() -> bookings.releaseNoShows(f.tenant,start.plusSeconds(1),100))).hasSize(1);
         assertThat(jdbc.queryForObject("SELECT booking_status FROM wp_bookings WHERE booking_id=?",String.class,booking)).isEqualTo("NO_SHOW");
         assertThatThrownBy(() -> jdbc.update("UPDATE wp_bookings SET auto_release_minutes_snapshot=-1 WHERE booking_id=?",booking))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
+
+    @Test void lifecycleBatchIsTenantFairBoundedAndReportsRemainingBacklog() {
+        var first = fixture("DESK");
+        var second = fixture("DESK");
+        OffsetDateTime now = OffsetDateTime.now().withNano(0);
+        for (int index = 0; index < 3; index++) {
+            OffsetDateTime startsAt = now.minusHours(8L - index * 2L);
+            tx(() -> rawBooking(first, first.resource, startsAt, startsAt.plusHours(1)));
+            tx(() -> rawBooking(second, second.resource, startsAt, startsAt.plusHours(1)));
+        }
+        jdbc.update("""
+                UPDATE wp_booking_lifecycle_cursors
+                   SET last_tenant_id=?
+                 WHERE lifecycle_kind='NO_SHOW'
+                """, first.tenant - 1);
+
+        var released = tx(() -> bookings.releaseNoShows(now, 4, 1));
+
+        assertThat(released).hasSize(2);
+        assertThat(released).extracting(WorkplaceBookingRepository.LifecycleBookingRow::tenantId)
+                .containsExactlyInAnyOrder(first.tenant, second.tenant);
+        assertThat(bookings.lifecycleBacklog(now)).satisfies(backlog -> {
+            assertThat(backlog.noShows()).isEqualTo(4);
+            assertThat(backlog.oldestNoShowDueAt()).isNotNull();
+        });
+        var plan = tx(() -> {
+            jdbc.execute("SET LOCAL enable_seqscan=off");
+            return jdbc.query("""
+                    EXPLAIN (COSTS OFF)
+                    SELECT booking_id
+                      FROM wp_bookings
+                     WHERE tenant_id=?
+                       AND booking_status='RESERVED'
+                       AND require_check_in_snapshot=TRUE
+                       AND no_show_due_at < ?
+                     ORDER BY no_show_due_at, booking_id
+                     LIMIT 10
+                    """, (result, ignored) -> result.getString(1), first.tenant, now);
+        });
+        assertThat(String.join("\n", plan)).contains("idx_wp_bookings_no_show_claim");
+    }
+
+    @Test void lifecycleAuditAndDomainEventFailureRollBackWithTheBooking() {
+        var fixture = fixture("DESK");
+        OffsetDateTime startsAt = OffsetDateTime.now().minusHours(2).withNano(0);
+        UUID booking = tx(() -> rawBooking(
+                fixture, fixture.resource, startsAt, startsAt.plusHours(1)));
+        var mapper = new ObjectMapper().findAndRegisterModules();
+        var spatial = new WorkplaceSpatialGovernanceService(
+                new WorkplaceSpatialGovernanceRepository(jdbc, mapper), mapper);
+        var runtime = new WorkplaceRuntimeGovernance(spatial);
+        WorkplaceDomainEvents failingEvents = mock(WorkplaceDomainEvents.class);
+        doThrow(new IllegalStateException("Injected domain event failure"))
+                .when(failingEvents).bookingChanged(any(), any(), any(), any());
+        WorkplaceService failingService = new WorkplaceService(
+                catalog, bookings, mock(CalendarService.class), mock(TenantMediaStorage.class),
+                mock(WorkplaceFloorPlanValidator.class),
+                mock(WorkplaceMediaCleanupRepository.class), spatial,
+                new WorkplaceReleaseWindowRepository(jdbc), failingEvents, runtime);
+
+        assertThatThrownBy(() -> tx(() -> failingService.maintainBookingLifecycle(10, 10)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Injected domain event failure");
+        assertThat(jdbc.queryForObject(
+                "SELECT booking_status FROM wp_bookings WHERE booking_id=?",
+                String.class, booking)).isEqualTo("RESERVED");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM wp_audit_events WHERE aggregate_id=? "
+                        + "AND action='workplace.booking.no_show'",
+                Integer.class, booking)).isZero();
     }
 
     @Test void closureFirstBookingWaitsThenNativeDatabaseRejects() throws Exception {

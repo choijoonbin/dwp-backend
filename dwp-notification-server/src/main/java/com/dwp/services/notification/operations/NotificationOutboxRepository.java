@@ -127,6 +127,29 @@ public class NotificationOutboxRepository {
                 .addValue("batchSize", batchSize));
     }
 
+    public OutboxStatus status(long tenantId) {
+        return jdbc.queryForObject("""
+                SELECT count(*) FILTER (
+                           WHERE published_at IS NULL AND dead_at IS NULL) AS backlog,
+                       count(*) FILTER (
+                           WHERE published_at IS NULL AND dead_at IS NULL
+                             AND attempt_count > 0) AS retries,
+                       count(*) FILTER (
+                           WHERE published_at IS NULL AND dead_at IS NOT NULL) AS dead,
+                       min(created_at) FILTER (
+                           WHERE published_at IS NULL AND dead_at IS NULL) AS oldest_created_at
+                  FROM ntf_outbox_events
+                 WHERE tenant_id = :tenantId
+                """, tenant(tenantId), (resultSet, ignored) -> {
+                    Timestamp oldest = resultSet.getTimestamp("oldest_created_at");
+                    return new OutboxStatus(
+                            resultSet.getLong("backlog"),
+                            resultSet.getLong("retries"),
+                            resultSet.getLong("dead"),
+                            oldest == null ? null : oldest.toInstant());
+                });
+    }
+
     private MapSqlParameterSource identity(
             long tenantId,
             UUID outboxId,
@@ -168,5 +191,12 @@ public class NotificationOutboxRepository {
             String payload,
             Instant occurredAt,
             int attemptCount) {
+    }
+
+    public record OutboxStatus(
+            long backlog,
+            long retries,
+            long dead,
+            Instant oldestCreatedAt) {
     }
 }

@@ -3,6 +3,7 @@ package com.dwp.services.messaging.domain;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.messaging.attachment.AttachmentService;
+import com.dwp.services.messaging.operations.MessagingOperationalReadiness;
 import com.dwp.services.messaging.presence.MessagingPresenceService;
 import com.dwp.services.messaging.realtime.MessagingEventRecorder;
 import com.dwp.services.messaging.security.MessagingRequestContext;
@@ -10,7 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,13 +21,8 @@ import java.util.UUID;
 
 @Service
 public class MessagingService {
-
-    private static final int WORK_SOURCE_EXCERPT_LIMIT = 500;
-    private static final Set<String> SCOPES =
-            Set.of("ALL", "FAVORITES", "SPACES", "DIRECT", "CHANNELS", "MENTIONS");
     private static final Set<String> NOTIFICATION_LEVELS =
             Set.of("DEFAULT", "ALL", "MENTIONS", "MUTE");
-
     private final MessagingQueryRepository queries;
     private final MessagingTenantPolicyGuard policyGuard;
     private final MessagingCommandRepository commands;
@@ -37,6 +32,10 @@ public class MessagingService {
     private final MessagingNotificationEvents notificationEvents;
     private final AttachmentService attachments;
     private final MessagingPresenceService presence;
+    private final MessagingPeopleDirectory peopleDirectory;
+    private final MessagingConversationDirectory conversationDirectory;
+    private final MessagingAdministration administration;
+    private final MessagingWorkSourceService workSources;
 
     @Autowired
     public MessagingService(
@@ -48,7 +47,8 @@ public class MessagingService {
             MessagingEventRecorder events,
             MessagingNotificationEvents notificationEvents,
             AttachmentService attachments,
-            MessagingPresenceService presence) {
+            MessagingPresenceService presence,
+            MessagingOperationalReadiness operationalReadiness) {
         this.queries = queries;
         this.policyGuard = policyGuard;
         this.commands = commands;
@@ -58,6 +58,11 @@ public class MessagingService {
         this.notificationEvents = notificationEvents;
         this.attachments = attachments;
         this.presence = presence;
+        this.peopleDirectory = new MessagingPeopleDirectory(queries, presence);
+        this.conversationDirectory = new MessagingConversationDirectory(queries);
+        this.administration = new MessagingAdministration(
+                queries, commands, events, operationalReadiness);
+        this.workSources = new MessagingWorkSourceService(queries, messageQueries);
     }
 
     MessagingService(
@@ -75,7 +80,8 @@ public class MessagingService {
                 events,
                 MessagingNotificationEvents.disabled(),
                 null,
-                MessagingPresenceService.unavailable());
+                MessagingPresenceService.unavailable(),
+                null);
     }
 
     MessagingService(
@@ -94,7 +100,8 @@ public class MessagingService {
                 events,
                 MessagingNotificationEvents.disabled(),
                 null,
-                presence);
+                presence,
+                null);
     }
 
     @Transactional(readOnly = true)
@@ -109,19 +116,13 @@ public class MessagingService {
             String query,
             int page,
             int pageSize) {
-        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
-        String resolvedScope = scope(scope);
-        String resolvedQuery = query(query);
-        int resolvedPage = Math.max(0, page);
-        int resolvedPageSize = Math.max(1, Math.min(100, pageSize));
-        return new MessagingDtos.ConversationPage(
-                queries.conversations(
-                        subject.tenantId(), subject.userId(), resolvedScope,
-                        resolvedQuery, resolvedPage, resolvedPageSize),
-                queries.conversationCount(
-                        subject.tenantId(), subject.userId(), resolvedScope, resolvedQuery),
-                resolvedPage,
-                resolvedPageSize);
+        return conversations(scope, query, page, pageSize, null);
+    }
+
+    @Transactional(readOnly = true)
+    public MessagingDtos.ConversationPage conversations(
+            String scope, String query, int page, int pageSize, String cursor) {
+        return conversationDirectory.page(scope, query, page, pageSize, cursor);
     }
 
     @Transactional(readOnly = true)
@@ -159,31 +160,7 @@ public class MessagingService {
 
     @Transactional(readOnly = true)
     public MessagingDtos.WorkSourceMessage workSource(UUID conversationId, UUID messageId) {
-        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
-        MessagingDtos.ConversationSummary conversation = visibleConversation(
-                subject.tenantId(), subject.userId(), conversationId);
-        MessagingMessageAccess access = messageQueries.access(
-                        subject.tenantId(), conversationId, subject.userId(), messageId)
-                .orElseThrow(() -> new BaseException(
-                        ErrorCode.ENTITY_NOT_FOUND, "The message was not found."));
-        MessagingDtos.MessageSummary message = messageQueries.message(
-                        subject.tenantId(), conversationId, subject.userId(), messageId)
-                .orElseThrow(() -> new BaseException(
-                        ErrorCode.ENTITY_NOT_FOUND, "The message was not found."));
-        if (access.deletedAt() != null || message.deletedAt() != null
-                || message.body() == null || message.body().isBlank()
-                || "SYSTEM".equals(message.messageKind())) {
-            throw new BaseException(ErrorCode.RESOURCE_NOT_AVAILABLE,
-                    "The message is not available as a Work source.");
-        }
-        String excerpt = message.body().strip().replaceAll("\\s+", " ");
-        if (excerpt.length() > WORK_SOURCE_EXCERPT_LIMIT) {
-            excerpt = excerpt.substring(0, WORK_SOURCE_EXCERPT_LIMIT);
-        }
-        return new MessagingDtos.WorkSourceMessage(
-                conversationId, messageId, bounded(conversation.name(), 200),
-                bounded(message.senderName(), 200), message.createdAt(), message.editedAt(),
-                excerpt, message.version());
+        return workSources.source(conversationId, messageId);
     }
 
     @Transactional
@@ -275,6 +252,53 @@ public class MessagingService {
                     correlationId);
         }
         return message(subject, conversationId, result.messageId());
+    }
+
+    /**
+     * Performs the same mutable authority, policy, mention and thread checks used at send time
+     * without creating a message. Scheduled delivery invokes {@link #sendMessage} again so this
+     * preflight never substitutes for execution-time revalidation.
+     */
+    @Transactional(readOnly = true)
+    public void validateScheduledMessage(
+            UUID conversationId,
+            String body,
+            UUID replyToMessageId,
+            List<Long> mentionedUserIds) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        MessagingDtos.ConversationSummary conversation = visibleConversation(
+                subject.tenantId(), subject.userId(), conversationId);
+        if ("ANNOUNCEMENT".equals(conversation.conversationType())
+                && !canModerate(subject.tenantId(), conversationId, subject.userId())) {
+            throw new BaseException(ErrorCode.FORBIDDEN,
+                    "Only moderators can post to announcement conversations.");
+        }
+        if (body == null || body.isBlank()) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "A scheduled message requires text. Governed attachment reservation is not available.");
+        }
+        policyGuard.requireMessageSendingEnabled(subject.tenantId(), conversation);
+        resolveMentions(subject, conversation, body,
+                mentionedUserIds == null ? List.of() : mentionedUserIds);
+        validateReplyParent(subject, conversationId, replyToMessageId);
+    }
+
+    /** Validates that a server draft cannot retain references outside the actor's active scope. */
+    @Transactional(readOnly = true)
+    public void validateDraft(
+            UUID conversationId,
+            UUID threadRootMessageId,
+            String body,
+            List<Long> mentionedUserIds) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        MessagingDtos.ConversationSummary conversation = visibleConversation(
+                subject.tenantId(), subject.userId(), conversationId);
+        if (threadRootMessageId != null) {
+            validateReplyParent(subject, conversationId, threadRootMessageId);
+        }
+        resolveMentions(subject, conversation, body == null ? "" : body,
+                mentionedUserIds == null ? List.of() : mentionedUserIds);
     }
 
     @Transactional
@@ -386,7 +410,8 @@ public class MessagingService {
                 message(subject, conversationId, rootMessageId),
                 messageQueries.replies(
                         subject.tenantId(), conversationId, subject.userId(), rootMessageId, resolvedLimit),
-                messageQueries.replyCount(subject.tenantId(), conversationId, rootMessageId));
+                messageQueries.replyCount(
+                        subject.tenantId(), conversationId, subject.userId(), rootMessageId));
     }
 
     @Transactional
@@ -495,38 +520,32 @@ public class MessagingService {
 
     @Transactional(readOnly = true)
     public List<MessagingDtos.PersonSummary> people(String query, int limit) {
-        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
-        return MessagingPresenceProjection.people(
-                queries, presence, subject, query(query), limit);
+        return peopleDirectory.people(query, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public MessagingDtos.PersonPage peoplePage(
+            String query,
+            String organization,
+            String jobTitle,
+            String presenceFilter,
+            String cursor,
+            int offset,
+            int limit) {
+        return peopleDirectory.page(
+                query, organization, jobTitle, presenceFilter, cursor, offset, limit);
     }
 
     @Transactional(readOnly = true)
     public MessagingDtos.AdminOverview adminOverview() {
-        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
-        return new MessagingDtos.AdminOverview(
-                OffsetDateTime.now(),
-                queries.adminMetrics(subject.tenantId()),
-                queries.policy(subject.tenantId()),
-                queries.conversations(subject.tenantId(), subject.userId(), "CHANNELS", "", 0, 12));
+        return administration.overview();
     }
 
     @Transactional
     public MessagingDtos.TenantPolicy updatePolicy(
             MessagingDtos.TenantPolicyRequest request,
             String correlationId) {
-        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
-        if (commands.updatePolicy(subject.tenantId(), subject.userId(), request) == 0) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                    "Messaging policy was changed by another administrator.");
-        }
-        commands.audit(
-                subject.tenantId(), subject.userId(), "messaging.policy.updated",
-                "MSG_TENANT_POLICY", String.valueOf(subject.tenantId()), correlationId,
-                Map.of("retentionDays", request.retentionDays()));
-        events.tenantEvent(
-                subject, "messaging.tenant-policy.updated",
-                Map.of("version", request.version() + 1));
-        return queries.policy(subject.tenantId());
+        return administration.updatePolicy(request, correlationId);
     }
 
     private MessagingDtos.ConversationSummary visibleConversation(
@@ -536,12 +555,6 @@ public class MessagingService {
         return queries.conversation(tenantId, userId, conversationId)
                 .orElseThrow(() -> new BaseException(
                         ErrorCode.ENTITY_NOT_FOUND, "The conversation was not found."));
-    }
-
-    private String bounded(String value, int limit) {
-        if (value == null) return null;
-        String result = value.strip();
-        return result.length() <= limit ? result : result.substring(0, limit);
     }
 
     private boolean canModerate(long tenantId, UUID conversationId, long userId) {
@@ -656,19 +669,6 @@ public class MessagingService {
         payload.put("messageSequence", messageSequence);
         if (replyToMessageId != null) payload.put("replyToMessageId", replyToMessageId);
         return Map.copyOf(payload);
-    }
-
-    private String scope(String value) {
-        String normalized = value == null || value.isBlank()
-                ? "ALL"
-                : value.trim().toUpperCase(Locale.ROOT);
-        return SCOPES.contains(normalized) ? normalized : "ALL";
-    }
-
-    private String query(String value) {
-        if (value == null) return "";
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        return normalized.length() > 80 ? normalized.substring(0, 80) : normalized;
     }
 
     private String senderName(MessagingRequestContext.Subject subject) {

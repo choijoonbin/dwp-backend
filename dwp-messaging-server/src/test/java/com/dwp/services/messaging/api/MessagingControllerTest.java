@@ -109,6 +109,108 @@ class MessagingControllerTest {
     }
 
     @Test
+    void conversationListSerializesCursorAndOffsetCompatibilityContract() throws Exception {
+        UUID conversationId = UUID.randomUUID();
+        MessagingService service = mock(MessagingService.class);
+        MessagingDtos.ConversationSummary conversation = new MessagingDtos.ConversationSummary(
+                conversationId, "channel:cursor", "CHANNEL", "Cursor channel", null,
+                "PRIVATE", "INTERNAL", null, null, "ACTIVE", 3, 1,
+                false, true, null, CREATED_AT, 2);
+        MessagingDtos.ConversationPage page = new MessagingDtos.ConversationPage(
+                List.of(conversation), 4, 0, 1, true, "cursor-v1", null);
+        when(service.conversations("CHANNELS", "risk", 0, 1, "previous-cursor"))
+                .thenReturn(page);
+        when(service.conversations("ALL", "", 0, 30))
+                .thenReturn(new MessagingDtos.ConversationPage(
+                        List.of(conversation), 1, 0, 30));
+        MockMvc mvc = standaloneSetup(new MessagingController(service)).build();
+
+        mvc.perform(get("/v1/conversations")
+                        .param("scope", "CHANNELS")
+                        .param("q", "risk")
+                        .param("pageSize", "1")
+                        .param("cursor", "previous-cursor"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].conversationId")
+                        .value(conversationId.toString()))
+                .andExpect(jsonPath("$.data.total").value(4))
+                .andExpect(jsonPath("$.data.hasMore").value(true))
+                .andExpect(jsonPath("$.data.nextCursor").value("cursor-v1"));
+        verify(service).conversations("CHANNELS", "risk", 0, 1, "previous-cursor");
+
+        mvc.perform(get("/v1/conversations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].conversationId")
+                        .value(conversationId.toString()))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.pageSize").value(30))
+                .andExpect(jsonPath("$.data.hasMore").value(false));
+        verify(service).conversations("ALL", "", 0, 30);
+    }
+
+    @Test
+    void peopleDirectorySerializesCursorAndOffsetCompatibilityContract() throws Exception {
+        MessagingService service = mock(MessagingService.class);
+        MessagingDtos.PersonSummary person = new MessagingDtos.PersonSummary(
+                200,
+                UUID.randomUUID(),
+                "kim@example.com",
+                "Kim Person",
+                "Risk Analyst",
+                "Risk Operations",
+                "AVAILABLE");
+        MessagingDtos.PersonPage page = new MessagingDtos.PersonPage(
+                List.of(person),
+                42,
+                true,
+                "S2ltIFBlcnNvbg.200",
+                14,
+                new MessagingDtos.PresenceMetadata("LIVE", CREATED_AT, 75, 20));
+        when(service.peoplePage(
+                "kim", "risk", "analyst", "AVAILABLE", null, 12, 2))
+                .thenReturn(page);
+        MockMvc mvc = standaloneSetup(new MessagingController(service)).build();
+
+        mvc.perform(get("/v1/people/page")
+                        .param("q", "kim")
+                        .param("organization", "risk")
+                        .param("jobTitle", "analyst")
+                        .param("presence", "AVAILABLE")
+                        .param("offset", "12")
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].userId").value(200))
+                .andExpect(jsonPath("$.data.total").value(42))
+                .andExpect(jsonPath("$.data.hasMore").value(true))
+                .andExpect(jsonPath("$.data.nextCursor").value("S2ltIFBlcnNvbg.200"))
+                .andExpect(jsonPath("$.data.nextOffset").value(14))
+                .andExpect(jsonPath("$.data.presence.authority").value("LIVE"));
+        verify(service).peoplePage(
+                "kim", "risk", "analyst", "AVAILABLE", null, 12, 2);
+    }
+
+    @Test
+    void legacyPeopleSearchKeepsItsArrayResponseForRollingClients() throws Exception {
+        MessagingService service = mock(MessagingService.class);
+        MessagingDtos.PersonSummary person = new MessagingDtos.PersonSummary(
+                200,
+                UUID.randomUUID(),
+                "kim@example.com",
+                "Kim Person",
+                "Risk Analyst",
+                "Risk Operations",
+                "UNKNOWN");
+        when(service.people("kim", 20)).thenReturn(List.of(person));
+        MockMvc mvc = standaloneSetup(new MessagingController(service)).build();
+
+        mvc.perform(get("/v1/people").param("q", "kim"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].userId").value(200))
+                .andExpect(jsonPath("$.data.items").doesNotExist());
+        verify(service).people("kim", 20);
+    }
+
+    @Test
     void exactMessageSerializesAnAuthorizedReplyOutsideTheRootHistoryPage() throws Exception {
         UUID conversationId = UUID.randomUUID();
         UUID messageId = UUID.randomUUID();
@@ -212,6 +314,40 @@ class MessagingControllerTest {
                 .andExpect(jsonPath("$.data.conversation").doesNotExist())
                 .andExpect(jsonPath("$.data.members").doesNotExist())
                 .andExpect(jsonPath("$.data.messages").doesNotExist());
+    }
+
+    @Test
+    void adminOverviewSerializesEffectiveRuntimeReadinessAndFreshness() throws Exception {
+        MessagingService service = mock(MessagingService.class);
+        MessagingDtos.RuntimeCapability retention = new MessagingDtos.RuntimeCapability(
+                "RETENTION_ENFORCEMENT", "database-worker", true, true, false,
+                "BLOCKED", "LEGAL_HOLD_AUTHORITY_UNAVAILABLE", CREATED_AT,
+                "CURRENT", 2L);
+        when(service.adminOverview()).thenReturn(new MessagingDtos.AdminOverview(
+                CREATED_AT,
+                new MessagingDtos.AdminMetrics(1, 1, 2, 3, 0),
+                new MessagingDtos.TenantPolicy(
+                        true, true, true, true, false, false, 365, 100, 4),
+                List.of(),
+                new MessagingDtos.RuntimeReadiness(
+                        CREATED_AT, "BLOCKED", List.of(retention))));
+        MockMvc mvc = standaloneSetup(new MessagingController(service)).build();
+
+        mvc.perform(get("/v1/admin/overview"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runtimeReadiness.overallState").value("BLOCKED"))
+                .andExpect(jsonPath("$.data.runtimeReadiness.capabilities[0].capability")
+                        .value("RETENTION_ENFORCEMENT"))
+                .andExpect(jsonPath("$.data.runtimeReadiness.capabilities[0].provider")
+                        .value("database-worker"))
+                .andExpect(jsonPath("$.data.runtimeReadiness.capabilities[0].configured")
+                        .value(true))
+                .andExpect(jsonPath("$.data.runtimeReadiness.capabilities[0].effective")
+                        .value(false))
+                .andExpect(jsonPath("$.data.runtimeReadiness.capabilities[0].freshness")
+                        .value("CURRENT"))
+                .andExpect(jsonPath("$.data.runtimeReadiness.capabilities[0].pendingWorkCount")
+                        .value(2));
     }
 
     private MessagingDtos.MessageSummary message(UUID messageId, UUID conversationId) {

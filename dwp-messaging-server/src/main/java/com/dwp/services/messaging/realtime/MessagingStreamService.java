@@ -39,9 +39,21 @@ public class MessagingStreamService {
     }
 
     public SseEmitter open(MessagingRequestContext.Subject subject, String cursor) {
-        long initialCursor = cursor == null || cursor.isBlank()
-                ? events.latestVisibleSequence(subject)
-                : parseCursor(cursor);
+        boolean reconnecting = cursor != null && !cursor.isBlank();
+        long initialCursor;
+        long catchUpThrough;
+        if (reconnecting) {
+            initialCursor = parseCursor(cursor);
+            catchUpThrough = events.latestTenantSequence(subject.tenantId());
+            if (initialCursor > catchUpThrough) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "The realtime cursor is ahead of the tenant event sequence. Reconnect without a cursor.");
+            }
+        } else {
+            initialCursor = events.latestVisibleSequence(subject);
+            catchUpThrough = initialCursor;
+        }
         SseEmitter emitter = new SseEmitter(timeoutMillis);
         Client client = new Client(UUID.randomUUID(), subject, emitter, initialCursor);
         Runnable cleanup = () -> remove(client);
@@ -52,7 +64,7 @@ public class MessagingStreamService {
             client.connected();
             clientsByTenant.computeIfAbsent(subject.tenantId(), ignored -> ConcurrentHashMap.newKeySet())
                     .add(client);
-            catchUp(client, events.latestTenantSequence(subject.tenantId()));
+            catchUp(client, catchUpThrough);
         } catch (IOException | RuntimeException exception) {
             remove(client);
             emitter.completeWithError(exception);

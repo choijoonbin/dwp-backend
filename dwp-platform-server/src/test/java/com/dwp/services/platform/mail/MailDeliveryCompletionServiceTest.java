@@ -63,23 +63,51 @@ class MailDeliveryCompletionServiceTest {
         verify(deliveries).mirrorSandboxDelivery(
                 job, receipt, MailConnectorPort.SenderMode.ACCOUNT);
         verify(commands).audit(
-                job.tenantId(), job.createdBy(), "mail.message.sent", "MAIL_MESSAGE",
+                job.tenantId(), job.createdBy(), "mail.message.delivered", "MAIL_MESSAGE",
                 job.messageId().toString(), job.correlationId(),
                 Map.of("deliveryState", "SENDING", "attempt", job.attemptCount()),
                 Map.of(
-                        "deliveryState", "SENT",
+                        "deliveryState", "DELIVERED",
                         "attempt", job.attemptCount(),
                         "providerType", ProviderType.DWP_SANDBOX.name(),
                         "acceptedAt", "2026-09-17T01:15:30Z"));
         verify(commands).domainEvent(
-                job.tenantId(), "MAIL_MESSAGE", job.messageId(), "mail.message.sent",
+                job.tenantId(), "MAIL_THREAD", job.threadId(), "mail.message.delivered",
                 Map.of(
                         "messageId", job.messageId(),
                         "threadId", job.threadId(),
                         "providerType", ProviderType.DWP_SANDBOX.name(),
+                        "deliveryState", "DELIVERED",
                         "acceptedAt", "2026-09-17T01:15:30Z"),
                 job.correlationId());
         verifyNoMoreInteractions(inboundMessages);
+    }
+
+    @Test
+    void providerAcceptanceEmitsThreadVisibleEventWithoutClaimingDelivery() {
+        MailDeliveryRepository.DeliveryJob job = new MailDeliveryRepository.DeliveryJob(
+                UUID.randomUUID(), 42L, UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), 1, "corr-provider", 7L,
+                UUID.randomUUID(), ProviderType.MICROSOFT_GRAPH, null, "example.com",
+                UUID.randomUUID(), "graph-account", "sender@example.com", "Sender",
+                "Subject", "Body", List.of("recipient@example.com"), List.of(), List.of(), null);
+        Instant accepted = Instant.parse("2026-09-17T01:15:30Z");
+        MailConnectorPort.DeliveryReceipt receipt = new MailConnectorPort.DeliveryReceipt(
+                null, null, accepted, MailConnectorPort.DeliveryOutcome.PROVIDER_ACCEPTED);
+        when(deliveries.markDelivered(job, "provider-worker", receipt)).thenReturn(1);
+
+        service.complete(job, "provider-worker", receipt);
+
+        verify(deliveries, never()).mirrorSandboxDelivery(
+                job, receipt, MailConnectorPort.SenderMode.ACCOUNT);
+        verify(commands).domainEvent(
+                job.tenantId(), "MAIL_THREAD", job.threadId(),
+                "mail.message.provider-accepted",
+                Map.of("messageId", job.messageId(), "threadId", job.threadId(),
+                        "providerType", ProviderType.MICROSOFT_GRAPH.name(),
+                        "deliveryState", "PROVIDER_ACCEPTED",
+                        "acceptedAt", "2026-09-17T01:15:30Z"),
+                job.correlationId());
     }
 
     @Test

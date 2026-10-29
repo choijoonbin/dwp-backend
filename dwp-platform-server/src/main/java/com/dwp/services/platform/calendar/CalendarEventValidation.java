@@ -4,11 +4,12 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 
 import java.time.DateTimeException;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -27,15 +28,14 @@ final class CalendarEventValidation {
     private static final Duration MAX_QUERY_SPAN = Duration.ofDays(370);
 
     private final CalendarRepository repository;
-    private final CalendarOccurrenceProjector occurrenceProjector;
     private final CalendarSchedulingHorizon schedulingHorizon;
+    private final CalendarRecurrenceEngine recurrence = new CalendarRecurrenceEngine();
 
     CalendarEventValidation(
             CalendarRepository repository,
             CalendarOccurrenceProjector occurrenceProjector,
             CalendarSchedulingHorizon schedulingHorizon) {
         this.repository = repository;
-        this.occurrenceProjector = occurrenceProjector;
         this.schedulingHorizon = schedulingHorizon;
     }
 
@@ -46,8 +46,26 @@ final class CalendarEventValidation {
             String timeZone,
             EventType type,
             String description,
-            RecurrencePattern recurrence,
+            RecurrencePattern pattern,
             LocalDate recurrenceUntil,
+            List<CalendarDtos.AttendeeInput> attendees) {
+        return validateEvent(
+                tenantId, startsAt, endsAt, timeZone, type, description,
+                pattern, 1, recurrenceUntil, null, List.of(), attendees);
+    }
+
+    CalendarRepository.PolicyRow validateEvent(
+            Long tenantId,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt,
+            String timeZone,
+            EventType type,
+            String description,
+            RecurrencePattern recurrencePattern,
+            int recurrenceInterval,
+            LocalDate recurrenceUntil,
+            Integer recurrenceCount,
+            List<DayOfWeek> recurrenceDays,
             List<CalendarDtos.AttendeeInput> attendees) {
         ZoneId eventZone = zone(timeZone);
         if (!endsAt.isAfter(startsAt)) throw invalid("The event must end after it starts.");
@@ -69,7 +87,7 @@ final class CalendarEventValidation {
                 .anyMatch(this::isExternalAttendee)) {
             throw invalid("External attendees are disabled by tenant policy.");
         }
-        if (recurrence == RecurrencePattern.NONE && recurrenceUntil != null) {
+        if (recurrencePattern == RecurrencePattern.NONE && recurrenceUntil != null) {
             throw invalid("A recurrence end date requires a recurrence pattern.");
         }
         LocalDate localStart = startsAt.atZoneSameInstant(eventZone).toLocalDate();
@@ -79,7 +97,40 @@ final class CalendarEventValidation {
         if (!horizon.contains(recurrenceUntil)) {
             throw invalid("The recurrence end date exceeds the advance booking policy.");
         }
+        if (recurrenceCount != null) {
+            CalendarRecurrenceEngine.Rule rule = rule(
+                    recurrencePattern, recurrenceInterval, recurrenceUntil,
+                    recurrenceCount, recurrenceDays, timeZone);
+            OffsetDateTime lastOccurrence = startsAt;
+            for (int ordinal = 1; ordinal < recurrenceCount; ordinal++) {
+                lastOccurrence = recurrence.next(startsAt, lastOccurrence, rule);
+            }
+            if (!horizon.contains(lastOccurrence, eventZone)) {
+                throw invalid("The recurrence count exceeds the advance booking policy.");
+            }
+        }
         return policy;
+    }
+
+    void validateRecurrence(
+            OffsetDateTime startsAt,
+            String timeZone,
+            RecurrencePattern pattern,
+            int interval,
+            LocalDate until,
+            Integer count,
+            List<DayOfWeek> days) {
+        try {
+            recurrence.validate(startsAt, recurrence.rule(
+                    pattern, interval, until, count,
+                    days == null ? java.util.Set.of() : java.util.Set.copyOf(days),
+                    timeZone));
+            if (days != null && days.stream().distinct().count() != days.size()) {
+                throw new IllegalArgumentException("Weekly BYDAY values must be unique.");
+            }
+        } catch (IllegalArgumentException exception) {
+            throw invalid(exception.getMessage());
+        }
     }
 
     CalendarRepository.ResourceRow validateResource(
@@ -89,9 +140,11 @@ final class CalendarEventValidation {
             OffsetDateTime endsAt,
             UUID excludingEventId,
             String timeZone,
-            RecurrencePattern recurrence,
+            RecurrencePattern pattern,
             int recurrenceInterval,
             LocalDate recurrenceUntil,
+            List<DayOfWeek> recurrenceDays,
+            Integer recurrenceCount,
             String locale) {
         if (resourceId == null) return null;
         CalendarRepository.ResourceRow resource = repository.resource(
@@ -107,12 +160,14 @@ final class CalendarEventValidation {
                     ErrorCode.RESOURCE_CONFLICT,
                     "The Workplace location for this room is not open for booking.");
         }
-        if (recurrence != RecurrencePattern.NONE && recurrenceUntil == null) {
-            throw invalid("Recurring resource reservations require an end date.");
+        if (pattern != RecurrencePattern.NONE
+                && recurrenceUntil == null && recurrenceCount == null) {
+            throw invalid("Recurring resource reservations require an end date or count.");
         }
         repository.lockResource(tenantId, resourceId);
         for (BookingWindow occurrence : bookingWindows(
-                startsAt, endsAt, timeZone, recurrence, recurrenceInterval, recurrenceUntil)) {
+                startsAt, endsAt, timeZone, pattern, recurrenceInterval,
+                recurrenceUntil, recurrenceDays, recurrenceCount)) {
             if (repository.facilityClosureConflict(
                             tenantId, resourceId, occurrence.startsAt(), occurrence.endsAt())
                     || repository.resourceConflict(
@@ -147,27 +202,50 @@ final class CalendarEventValidation {
             OffsetDateTime startsAt,
             OffsetDateTime endsAt,
             String timeZone,
-            RecurrencePattern recurrence,
+            RecurrencePattern pattern,
             int recurrenceInterval,
-            LocalDate recurrenceUntil) {
-        List<BookingWindow> result = new ArrayList<>();
+            LocalDate recurrenceUntil,
+            List<DayOfWeek> recurrenceDays,
+            Integer recurrenceCount) {
         Duration duration = Duration.between(startsAt, endsAt);
-        OffsetDateTime current = startsAt;
-        LocalDate lastDate = recurrenceUntil == null
-                ? startsAt.atZoneSameInstant(zone(timeZone)).toLocalDate()
-                : recurrenceUntil;
-        int guard = 0;
-        while (!current.atZoneSameInstant(zone(timeZone)).toLocalDate().isAfter(lastDate)
-                && guard++ < MAX_OCCURRENCES) {
-            result.add(new BookingWindow(current, current.plus(duration)));
-            if (recurrence == RecurrencePattern.NONE) break;
-            current = occurrenceProjector.increment(
-                    current, recurrence, recurrenceInterval, timeZone);
+        CalendarRecurrenceEngine.Rule rule = rule(
+                pattern, recurrenceInterval, recurrenceUntil,
+                recurrenceCount, recurrenceDays, timeZone);
+        OffsetDateTime exclusiveTo;
+        if (recurrenceUntil != null) {
+            exclusiveTo = recurrenceUntil.plusDays(1)
+                    .atStartOfDay(rule.zone()).toOffsetDateTime();
+        } else if (recurrenceCount != null) {
+            OffsetDateTime last = startsAt;
+            for (int ordinal = 1; ordinal < recurrenceCount; ordinal++) {
+                last = recurrence.next(startsAt, last, rule);
+            }
+            exclusiveTo = last.plus(duration).plusNanos(1);
+        } else {
+            exclusiveTo = endsAt.plusNanos(1);
         }
-        if (result.size() >= MAX_OCCURRENCES) {
+        try {
+            return recurrence.project(
+                            startsAt, endsAt, rule, startsAt, exclusiveTo, MAX_OCCURRENCES)
+                    .stream()
+                    .map(value -> new BookingWindow(value.startsAt(), value.endsAt()))
+                    .toList();
+        } catch (IllegalArgumentException
+                 | CalendarRecurrenceEngine.ProjectionLimitExceededException exception) {
             throw invalid("The recurring reservation exceeds the scheduling policy.");
         }
-        return result;
+    }
+
+    private CalendarRecurrenceEngine.Rule rule(
+            RecurrencePattern pattern,
+            int interval,
+            LocalDate until,
+            Integer count,
+            List<DayOfWeek> days,
+            String timeZone) {
+        EnumSet<DayOfWeek> normalized = days == null || days.isEmpty()
+                ? EnumSet.noneOf(DayOfWeek.class) : EnumSet.copyOf(days);
+        return recurrence.rule(pattern, interval, until, count, normalized, timeZone);
     }
 
     private boolean korean(String locale) {

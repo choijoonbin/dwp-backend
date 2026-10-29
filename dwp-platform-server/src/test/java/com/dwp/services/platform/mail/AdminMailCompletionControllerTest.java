@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 import static com.dwp.services.platform.mail.MailWorkspaceDtos.DeliveryAuditItem;
 import static com.dwp.services.platform.mail.MailWorkspaceDtos.DeliveryExportRequest;
@@ -18,6 +20,27 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AdminMailCompletionControllerTest {
+
+    @Test
+    void syncAdmissionReturnsHttpAcceptedWithDurableOperation() {
+        AdminMailCompletionService service = mock(AdminMailCompletionService.class);
+        AdminMailCompletionController controller = new AdminMailCompletionController(service);
+        UUID connectionId = UUID.randomUUID();
+        MailWorkspaceDtos.ConnectionOperationRequest request =
+                new MailWorkspaceDtos.ConnectionOperationRequest(
+                        "READ", "TENANT", null, false, UUID.randomUUID(), 0L);
+        MailWorkspaceDtos.ConnectionOperation operation =
+                new MailWorkspaceDtos.ConnectionOperation(
+                        UUID.randomUUID(), connectionId, "SYNCHRONIZE", "ACCEPTED",
+                        OffsetDateTime.now(ZoneOffset.UTC), null, "corr", null, null, false);
+        when(service.connectionOperation(
+                7, 91, connectionId, "SYNC", "corr", request)).thenReturn(operation);
+
+        var response = controller.synchronize(7, 91, "corr", connectionId, request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(202);
+        assertThat(response.getBody()).isNotNull();
+    }
 
     @Test
     void destructiveMailAdministrationRequiresFreshElevatedAccess() {

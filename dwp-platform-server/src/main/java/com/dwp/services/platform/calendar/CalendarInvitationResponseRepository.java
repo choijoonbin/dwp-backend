@@ -43,7 +43,7 @@ final class CalendarInvitationResponseRepository {
             Long actorId,
             UUID actorPersonPublicId,
             UUID eventId) {
-        return jdbc.query(
+        Optional<LockedResponseState> direct = jdbc.query(
                 CalendarInvitationResponseSql.LOCK_EVENT_AND_ATTENDEE,
                 (result, ignored) -> new LockedResponseState(
                         result.getObject("attendee_id", UUID.class),
@@ -52,6 +52,27 @@ final class CalendarInvitationResponseRepository {
                         result.getLong("response_version")),
                 tenantId, eventId, actorPersonPublicId, actorId,
                 actorPersonPublicId).stream().findFirst();
+        if (direct.isPresent() || actorPersonPublicId == null) return direct;
+
+        var delegated = jdbc.query(
+                CalendarInvitationResponseSql.LOCK_DELEGATED_EVENT_AND_ATTENDEE,
+                (result, ignored) -> new LockedResponseState(
+                        result.getObject("attendee_id", UUID.class),
+                        result.getLong("event_version"),
+                        ResponseStatus.valueOf(result.getString("response_status")),
+                        result.getLong("response_version"),
+                        result.getObject("attendee_person_public_id", UUID.class),
+                        true,
+                        false),
+                actorPersonPublicId, tenantId, eventId);
+        if (delegated.size() == 1) return Optional.of(delegated.getFirst());
+        if (delegated.size() > 1) {
+            LockedResponseState first = delegated.getFirst();
+            return Optional.of(new LockedResponseState(
+                    first.attendeeId(), first.eventVersion(), first.response(),
+                    first.responseVersion(), first.responsePersonPublicId(), true, true));
+        }
+        return Optional.empty();
     }
 
     long updateAttendee(
@@ -102,7 +123,18 @@ final class CalendarInvitationResponseRepository {
             UUID attendeeId,
             long eventVersion,
             ResponseStatus response,
-            long responseVersion) {
+            long responseVersion,
+            UUID responsePersonPublicId,
+            boolean delegated,
+            boolean ambiguous) {
+
+        LockedResponseState(
+                UUID attendeeId,
+                long eventVersion,
+                ResponseStatus response,
+                long responseVersion) {
+            this(attendeeId, eventVersion, response, responseVersion, null, false, false);
+        }
     }
 
     record ResponseReceipt(

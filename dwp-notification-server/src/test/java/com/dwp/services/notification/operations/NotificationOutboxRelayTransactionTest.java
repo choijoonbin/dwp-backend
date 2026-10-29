@@ -31,4 +31,20 @@ class NotificationOutboxRelayTransactionTest {
         order.verify(scope).applyWorker(7L);
         order.verify(repository).lease(7L, "lease-token", now, now.plusSeconds(30), 50);
     }
+
+    @Test
+    void appliesTheTenantWorkerScopeBeforeReadingOperationalStatus() {
+        NotificationDatabaseScope scope = mock(NotificationDatabaseScope.class);
+        NotificationOutboxRepository repository = mock(NotificationOutboxRepository.class);
+        NotificationOutboxRelayTransaction transaction =
+                new NotificationOutboxRelayTransaction(scope, repository);
+        var expected = new NotificationOutboxRepository.OutboxStatus(3, 1, 0, null);
+        when(repository.status(7L)).thenReturn(expected);
+
+        assertThat(transaction.status(7L)).isEqualTo(expected);
+
+        InOrder order = inOrder(scope, repository);
+        order.verify(scope).applyWorker(7L);
+        order.verify(repository).status(7L);
+    }
 }

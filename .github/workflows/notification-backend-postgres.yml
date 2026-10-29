@@ -1,0 +1,155 @@
+name: Notification backend PostgreSQL
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/notification-backend-postgres.yml"
+      - "build.gradle"
+      - "settings.gradle"
+      - "gradlew"
+      - "gradle/**"
+      - "gradle.properties"
+      - "dwp-core/**"
+      - "dwp-notification-server/**"
+      - "scripts/check-notification-no-dlt-consumer*.mjs"
+      - "scripts/check-notification-quality-workflow.test.mjs"
+  push:
+    branches:
+      - dwp-dev
+    paths:
+      - ".github/workflows/notification-backend-postgres.yml"
+      - "build.gradle"
+      - "settings.gradle"
+      - "gradlew"
+      - "gradle/**"
+      - "gradle.properties"
+      - "dwp-core/**"
+      - "dwp-notification-server/**"
+      - "scripts/check-notification-no-dlt-consumer*.mjs"
+      - "scripts/check-notification-quality-workflow.test.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notification-backend-postgres-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-contracts:
+    name: RLS, concurrency, append-only, and migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16.10-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      DWP_ENVIRONMENT: test
+      DWP_NOTIFICATION_INTEGRATION_DB_URL: jdbc:postgresql://localhost:5432/dwp_notification_reason_test
+      DWP_NOTIFICATION_INTEGRATION_DB_USERNAME: postgres
+      DWP_NOTIFICATION_INTEGRATION_DB_PASSWORD: postgres
+      DWP_NOTIFICATION_ATTENTION_TEST_DB_URL: jdbc:postgresql://localhost:5432/dwp_notification_attention_test
+      DWP_NOTIFICATION_ATTENTION_TEST_DB_USER: postgres
+      DWP_NOTIFICATION_ATTENTION_TEST_DB_USERNAME: postgres
+      DWP_NOTIFICATION_ATTENTION_TEST_DB_PASSWORD: postgres
+      DWP_NOTIFICATION_CONTEXT_TEST_DB_URL: jdbc:postgresql://localhost:5432/dwp_notification_context_test
+      DWP_NOTIFICATION_CONTEXT_TEST_DB_USERNAME: postgres
+      DWP_NOTIFICATION_CONTEXT_TEST_DB_PASSWORD: postgres
+      DWP_NOTIFICATION_SLA_TEST_DB_URL: jdbc:postgresql://localhost:5432/dwp_notification_sla_test
+      DWP_NOTIFICATION_SLA_TEST_DB_USERNAME: postgres
+      DWP_NOTIFICATION_SLA_TEST_DB_PASSWORD: postgres
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Verify Notification quality workflow contract
+        run: >-
+          node --test
+          scripts/check-notification-no-dlt-consumer.test.mjs
+          scripts/check-notification-quality-workflow.test.mjs
+
+      - name: Reject automatic Notification DLT consumers
+        run: node scripts/check-notification-no-dlt-consumer.mjs
+
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
+        with:
+          cache-provider: basic
+
+      - name: Create disposable Notification databases
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE DATABASE dwp_notification_reason_test;
+          CREATE DATABASE dwp_notification_attention_test;
+          CREATE DATABASE dwp_notification_context_test;
+          CREATE DATABASE dwp_notification_sla_test;
+          SQL
+
+      - name: Run Notification unit and real PostgreSQL contracts
+        run: >-
+          ./gradlew :dwp-notification-server:cleanTest :dwp-notification-server:test
+          --no-daemon --max-workers=1 --console=plain
+
+      - name: Require every intended PostgreSQL contract to execute
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          report_root = Path('dwp-notification-server/build/test-results/test')
+          required = (
+              'com.dwp.services.notification.domain.NotificationReasonQueryPostgresIntegrationTest',
+              'com.dwp.services.notification.domain.NotificationAttentionGovernanceConcurrencyPostgresIntegrationTest',
+              'com.dwp.services.notification.operations.NotificationAttentionAuditPostgresIntegrationTest',
+              'com.dwp.services.notification.integration.NotificationStructuredContextMaterializationPostgresIntegrationTest',
+              'com.dwp.services.notification.domain.NotificationNoiseQualityHistoryPostgresIntegrationTest',
+              'com.dwp.services.notification.integration.ApprovalSlaDeliveryJournalPostgresIntegrationTest',
+              'com.dwp.services.notification.integration.ApprovalSlaMaterializationPostgresIntegrationTest',
+          )
+          for class_name in required:
+              report = report_root / f'TEST-{class_name}.xml'
+              if not report.is_file():
+                  raise SystemExit(f'Missing PostgreSQL test report: {report}')
+              suite = ElementTree.parse(report).getroot()
+              tests = int(suite.attrib.get('tests', '0'))
+              skipped = int(suite.attrib.get('skipped', '0'))
+              failures = int(suite.attrib.get('failures', '0')) + int(suite.attrib.get('errors', '0'))
+              if tests < 1 or skipped or failures:
+                  raise SystemExit(
+                      f'{class_name} did not execute cleanly: tests={tests} skipped={skipped} failures={failures}'
+                  )
+              print(f'PASS {class_name}: {tests} tests, 0 skipped')
+          PY
+
+      - name: Upload Notification test reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: notification-backend-postgres-report
+          path: |
+            dwp-notification-server/build/reports/tests/test/
+            dwp-notification-server/build/test-results/test/
+          if-no-files-found: error
+          retention-days: 30

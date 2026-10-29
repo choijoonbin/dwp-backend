@@ -60,7 +60,14 @@ class MessagingInteractionCommandRepository {
                  WHERE message.tenant_id = ?
                    AND message.conversation_id = ?
                    AND message.message_id = ?
-                ON CONFLICT (tenant_id, user_id, message_id) DO NOTHING
+                ON CONFLICT (tenant_id, user_id, message_id) DO UPDATE SET
+                    state = 'SAVED', reminder_at = NULL, snoozed_until = NULL,
+                    completed_at = NULL, updated_at = CURRENT_TIMESTAMP,
+                    version = msg_saved_items.version + 1
+                WHERE msg_saved_items.state <> 'SAVED'
+                   OR msg_saved_items.reminder_at IS NOT NULL
+                   OR msg_saved_items.snoozed_until IS NOT NULL
+                   OR msg_saved_items.completed_at IS NOT NULL
                 """, userId, tenantId, conversationId, messageId);
     }
 

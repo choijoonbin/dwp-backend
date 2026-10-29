@@ -6,14 +6,25 @@ final class CalendarRestoreSql {
     }
 
     static final String TRASH_RESOURCE_BOOKINGS = """
-            UPDATE cal_resource_bookings
+            UPDATE cal_resource_bookings booking
                SET booking_status = 'CANCELLED',
                    cancelled_for_event_trash = TRUE,
-                   version = version + 1,
+                   trash_recurrence_pattern = event.recurrence_pattern,
+                   trash_recurrence_interval = event.recurrence_interval,
+                   trash_recurrence_until = event.recurrence_until,
+                   trash_recurrence_days = event.recurrence_days,
+                   trash_recurrence_count = event.recurrence_count,
+                   trash_event_starts_at = event.starts_at,
+                   trash_event_ends_at = event.ends_at,
+                   trash_event_time_zone = event.time_zone,
+                   version = booking.version + 1,
                    updated_at = CURRENT_TIMESTAMP,
                    updated_by = ?
-             WHERE tenant_id = ? AND event_id = ?
-               AND booking_status IN ('PENDING', 'CONFIRMED')
+              FROM cal_events event
+             WHERE booking.tenant_id = ? AND booking.event_id = ?
+               AND event.tenant_id = booking.tenant_id
+               AND event.event_id = booking.event_id
+               AND booking.booking_status IN ('PENDING', 'CONFIRMED')
             """;
 
     static final String RESTORABLE_RESOURCE_BOOKINGS = """
@@ -22,7 +33,16 @@ final class CalendarRestoreSql {
                    event.starts_at, event.ends_at, event.time_zone,
                    event.event_type, event.all_day,
                    event.recurrence_pattern, event.recurrence_interval,
-                   event.recurrence_until,
+                   event.recurrence_until, event.recurrence_days,
+                   event.recurrence_count,
+                   booking.trash_recurrence_pattern,
+                   booking.trash_recurrence_interval,
+                   booking.trash_recurrence_until,
+                   booking.trash_recurrence_days,
+                   booking.trash_recurrence_count,
+                   booking.trash_event_starts_at,
+                   booking.trash_event_ends_at,
+                   booking.trash_event_time_zone,
                    resource.resource_type, resource.time_zone AS resource_time_zone,
                    resource.approval_required, resource.lifecycle_state,
                    resource.capacity,
@@ -47,23 +67,28 @@ final class CalendarRestoreSql {
                     + " AND booking.resource_id = ? FOR UPDATE OF booking";
 
     static final String REBOOK_RESOURCE = """
-            UPDATE cal_resource_bookings
+            UPDATE cal_resource_bookings booking
                SET booking_status = ?,
                    cancelled_for_event_trash = FALSE,
+                   starts_at = event.starts_at,
+                   ends_at = event.ends_at,
                    requested_by = ?,
                    decision_note = NULL,
                    decided_at = NULL,
                    decided_by = NULL,
-                   version = version + 1,
+                   version = booking.version + 1,
                    updated_at = CURRENT_TIMESTAMP,
                    updated_by = ?
-             WHERE tenant_id = ?
-               AND event_id = ?
-               AND resource_id = ?
-               AND booking_status = 'CANCELLED'
-               AND cancelled_for_event_trash
-               AND version = ?
-            RETURNING version
+              FROM cal_events event
+             WHERE booking.tenant_id = ?
+               AND booking.event_id = ?
+               AND booking.resource_id = ?
+               AND booking.booking_status = 'CANCELLED'
+               AND booking.cancelled_for_event_trash
+               AND booking.version = ?
+               AND event.tenant_id = booking.tenant_id
+               AND event.event_id = booking.event_id
+            RETURNING booking.version
             """;
 
     static final String RESOURCE_REBOOK_COMMAND = """

@@ -37,6 +37,11 @@ final class LocalAttachmentScanner implements AttachmentScanner {
         return ScanResult.clean(detected);
     }
 
+    @Override
+    public ProviderHealth health() {
+        return ProviderHealth.developmentOnly("LOCAL_SCANNER_DEVELOPMENT_ONLY");
+    }
+
     private String validateOfficeArchive(String extension, byte[] content) {
         String requiredPrefix = switch (extension) {
             case "docx" -> "word/";

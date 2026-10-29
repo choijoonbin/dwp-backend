@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -16,13 +17,16 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.workplace.exceptionconsole.WorkplaceExceptionConsoleDtos.*;
@@ -63,14 +67,33 @@ public class WorkplaceExceptionConsoleService {
         this.externalTelemetryUrl = safeHttpsUrl(externalTelemetryUrl);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public ExceptionConsole console(long tenantId) {
         requireTenant(tenantId);
+        return console(tenantId, repository.unresolvedCounts(tenantId), false);
+    }
+
+    private ExceptionConsole console(
+            long tenantId,
+            WorkplaceExceptionConsoleRepository.SourceCounts counts,
+            boolean complete) {
         OffsetDateTime now = OffsetDateTime.now(clock).withOffsetSameInstant(ZoneOffset.UTC);
+        int regularLimit = complete ? MAX_EXPORT_ROWS + 1 : 100;
+        int bookingLimit = complete ? MAX_EXPORT_ROWS + 1 : 250;
         List<ExceptionItem> items = new ArrayList<>();
-        repository.activeSafety(tenantId).forEach(row -> items.add(safety(row)));
-        repository.bookingFailures(tenantId).forEach(row -> items.add(booking(row)));
-        repository.connectorFailures(tenantId).forEach(row -> items.add(connector(row, now)));
+        repository.activeSafety(tenantId, regularLimit).forEach(row -> items.add(safety(row, now)));
+        repository.bookingFailures(tenantId, bookingLimit).forEach(row -> items.add(booking(row, now)));
+        repository.connectorFailures(tenantId, regularLimit).forEach(row -> items.add(connector(row, now)));
+        repository.deviceCommandFailures(tenantId, regularLimit).forEach(row -> items.add(device(row, now)));
+        repository.serviceOrderFailures(tenantId, regularLimit).forEach(row -> items.add(serviceOrder(row, now)));
+        repository.serviceProviderFailures(tenantId, regularLimit)
+                .forEach(row -> items.add(serviceProvider(row, now)));
+        repository.serviceRefundFailures(tenantId, regularLimit)
+                .forEach(row -> items.add(serviceRefund(row, now)));
+        repository.visitProviderFailures(tenantId, regularLimit)
+                .forEach(row -> items.add(visitProvider(row, now)));
+        repository.accessPassFailures(tenantId, regularLimit)
+                .forEach(row -> items.add(accessPass(row, now)));
         items.sort(Comparator.comparing(ExceptionItem::severity)
                 .thenComparing(ExceptionItem::detectedAt, Comparator.reverseOrder()));
 
@@ -86,19 +109,44 @@ public class WorkplaceExceptionConsoleService {
         int warning = count(items, ExceptionSeverity.WARNING);
         int error = count(items, ExceptionSeverity.ERROR);
         BigDecimal sla = null;
+        List<ExceptionSourceCoverage> coverage = Arrays.stream(ExceptionSource.values())
+                .map(source -> coverage(source, counts.get(source), items))
+                .toList();
         ExceptionSummary summary = new ExceptionSummary(items.size(), critical, warning, error,
-                stats.conflicts(), dlq, recovery, sla);
+                stats.conflicts(), dlq, recovery, sla, counts.total(), items.size(),
+                coverage.stream().anyMatch(ExceptionSourceCoverage::truncated));
         return new ExceptionConsole(summary, List.copyOf(items), guardrails(items, stats, dlq),
-                now, externalTelemetryUrl);
+                now, externalTelemetryUrl, coverage);
     }
 
     @Transactional(readOnly = true)
     public ExceptionItem detail(long tenantId, String exceptionId) {
+        requireTenant(tenantId);
         String normalized = normalizeId(exceptionId);
-        return console(tenantId).exceptions().stream()
-                .filter(item -> item.exceptionId().equals(normalized))
-                .findFirst().orElseThrow(() -> new BaseException(
-                        ErrorCode.ENTITY_NOT_FOUND, "The Workplace exception was not found."));
+        int separator = normalized.indexOf(':');
+        String prefix = normalized.substring(0, separator);
+        String suffix = normalized.substring(separator + 1);
+        OffsetDateTime now = now();
+        return switch (ExceptionSource.valueOf(prefix)) {
+            case SAFETY -> repository.activeSafety(tenantId, UUID.fromString(suffix))
+                    .map(row -> safety(row, now)).orElseThrow(WorkplaceExceptionConsoleService::notFound);
+            case BOOKING -> repository.bookingFailure(tenantId, UUID.fromString(suffix))
+                    .map(row -> booking(row, now)).orElseThrow(WorkplaceExceptionConsoleService::notFound);
+            case CONNECTOR -> repository.connectorFailure(tenantId, suffix)
+                    .map(row -> connector(row, now)).orElseThrow(WorkplaceExceptionConsoleService::notFound);
+            case DEVICE_COMMAND -> repository.deviceCommandFailure(tenantId, UUID.fromString(suffix))
+                    .map(row -> device(row, now)).orElseThrow(WorkplaceExceptionConsoleService::notFound);
+            case SERVICE_ORDER -> repository.serviceOrderFailure(tenantId, UUID.fromString(suffix))
+                    .map(row -> serviceOrder(row, now)).orElseThrow(WorkplaceExceptionConsoleService::notFound);
+            case SERVICE_PROVIDER -> repository.serviceProviderFailure(tenantId, suffix)
+                    .map(row -> serviceProvider(row, now)).orElseThrow(WorkplaceExceptionConsoleService::notFound);
+            case SERVICE_REFUND -> repository.serviceRefundFailure(tenantId, UUID.fromString(suffix))
+                    .map(row -> serviceRefund(row, now)).orElseThrow(WorkplaceExceptionConsoleService::notFound);
+            case VISIT_PROVIDER -> repository.visitProviderFailure(tenantId, UUID.fromString(suffix))
+                    .map(row -> visitProvider(row, now)).orElseThrow(WorkplaceExceptionConsoleService::notFound);
+            case ACCESS_PASS -> repository.accessPassFailure(tenantId, UUID.fromString(suffix))
+                    .map(row -> accessPass(row, now)).orElseThrow(WorkplaceExceptionConsoleService::notFound);
+        };
     }
 
     @Transactional
@@ -138,13 +186,27 @@ public class WorkplaceExceptionConsoleService {
     }
 
     String exportCsv(long tenantId) {
-        List<ExceptionItem> items = console(tenantId).exceptions().stream()
-                .limit(MAX_EXPORT_ROWS).toList();
-        StringBuilder csv = new StringBuilder("exceptionId,source,severity,status,code,detectedAt,title,impact\n");
+        requireTenant(tenantId);
+        var counts = repository.unresolvedCounts(tenantId);
+        rejectOverflow(counts.total());
+        ExceptionConsole complete = console(tenantId, counts, true);
+        if (complete.exceptions().size() > MAX_EXPORT_ROWS) {
+            rejectOverflow(complete.exceptions().size());
+        }
+        if (complete.sourceCoverage().stream().anyMatch(coverage ->
+                coverage.returnedCount() != coverage.unresolvedCount())) {
+            throw versionConflict(
+                    "Exception evidence changed while the export was assembled. Retry the preview.");
+        }
+        List<ExceptionItem> items = complete.exceptions();
+        StringBuilder csv = new StringBuilder(
+                "exceptionId,source,severity,status,code,detectedAt,resolved,resolvedAt,ageSeconds,title,impact\n");
         for (ExceptionItem item : items) {
             append(csv, item.exceptionId(), item.source().name(), item.severity().name(),
                     item.status().name(), item.code(), item.detectedAt().toString(),
-                    item.title(), item.impact());
+                    Boolean.toString(item.resolved()),
+                    item.resolvedAt() == null ? null : item.resolvedAt().toString(),
+                    Long.toString(item.ageSeconds()), item.title(), item.impact());
         }
         return csv.toString();
     }
@@ -235,7 +297,8 @@ public class WorkplaceExceptionConsoleService {
         return command.csvContent();
     }
 
-    private ExceptionItem safety(WorkplaceExceptionConsoleRepository.SafetyRow row) {
+    private ExceptionItem safety(
+            WorkplaceExceptionConsoleRepository.SafetyRow row, OffsetDateTime now) {
         ExceptionSeverity severity = "CRITICAL".equals(row.severity())
                 ? ExceptionSeverity.CRITICAL : ExceptionSeverity.WARNING;
         return new ExceptionItem("SAFETY:" + row.id(), ExceptionSource.SAFETY, severity,
@@ -245,10 +308,12 @@ public class WorkplaceExceptionConsoleService {
                 safeCode(row.type(), "SAFETY_INCIDENT"), row.detectedAt(), row.version(),
                 List.of("Incident " + safeCode(row.number(), "restricted"),
                         "State=" + row.state()), ExceptionAction.OPEN_SAFETY,
-                "/workplace/admin/safety?incident=" + row.id(), null, null, null);
+                "/workplace/admin/safety?incident=" + row.id(), null, null, null,
+                false, null, ageSeconds(row.detectedAt(), now));
     }
 
-    private ExceptionItem booking(WorkplaceExceptionConsoleRepository.BookingRow row) {
+    private ExceptionItem booking(
+            WorkplaceExceptionConsoleRepository.BookingRow row, OffsetDateTime now) {
         boolean unknown = "RESULT_UNKNOWN".equals(row.state());
         String code = safeCode(row.errorCode(), unknown ? "BOOKING_RESULT_UNKNOWN" : "BOOKING_FAILED");
         return new ExceptionItem("BOOKING:" + row.id(), ExceptionSource.BOOKING,
@@ -259,7 +324,8 @@ public class WorkplaceExceptionConsoleService {
                 code, row.detectedAt(), row.version(),
                 List.of("State=" + row.state(), "Compensation=" + row.compensationAvailable(),
                         "Requery=" + row.requeryRequired()), ExceptionAction.REVIEW_BOOKING,
-                "/workplace/planner?batch=" + row.batchId() + "&step=RESULT", null, null, null);
+                "/workplace/planner?batch=" + row.batchId() + "&step=RESULT", null, null, null,
+                false, null, ageSeconds(row.detectedAt(), now));
     }
 
     private ExceptionItem connector(
@@ -290,7 +356,132 @@ public class WorkplaceExceptionConsoleService {
                 List.copyOf(evidence), recoverable ? ExceptionAction.REPLAY_CONNECTOR
                         : ExceptionAction.REVIEW_BOOKING,
                 recoverable ? null : "/workplace/admin/governance?area=dataSources",
-                kind, row.configurationVersion(), row.runtimeVersion());
+                kind, row.configurationVersion(), row.runtimeVersion(),
+                false, null, ageSeconds(row.receivedAt() == null ? now : row.receivedAt(), now));
+    }
+
+    private ExceptionItem device(
+            WorkplaceExceptionConsoleRepository.OperationalRow row, OffsetDateTime now) {
+        boolean exhausted = row.attemptCount() >= 10 || "DEAD_LETTER".equals(row.detail());
+        return operational("DEVICE_COMMAND:" + row.id(), ExceptionSource.DEVICE_COMMAND,
+                exhausted ? ExceptionSeverity.CRITICAL : ExceptionSeverity.ERROR,
+                exhausted ? ExceptionStatus.MANUAL_REVIEW : ExceptionStatus.ACTIVE,
+                "Device command outcome requires review",
+                exhausted ? "Automatic provider reconciliation exhausted its bounded retry budget."
+                        : "The provider outcome is unknown; do not repeat the mutation blindly.",
+                safeCode(row.errorCode(), exhausted ? "DEVICE_RETRY_EXHAUSTED"
+                        : "DEVICE_RESULT_UNKNOWN"), row,
+                List.of("Operation=" + safeCode(row.operation(), "UNKNOWN"),
+                        "State=" + safeCode(row.state(), "UNKNOWN"),
+                        "Attempts=" + row.attemptCount()),
+                ExceptionAction.REVIEW_DEVICE,
+                "/workplace/admin/devices?device=" + row.parentId()
+                        + "&command=" + row.id(), now);
+    }
+
+    private ExceptionItem serviceOrder(
+            WorkplaceExceptionConsoleRepository.OperationalRow row, OffsetDateTime now) {
+        return operational("SERVICE_ORDER:" + row.id(), ExceptionSource.SERVICE_ORDER,
+                ExceptionSeverity.ERROR, ExceptionStatus.ACTIVE,
+                "Service order provider outcome is unknown",
+                "Review the authoritative provider result before changing fulfillment state.",
+                safeCode(row.errorCode(), "SERVICE_ORDER_RESULT_UNKNOWN"), row,
+                List.of("State=" + safeCode(row.state(), "UNKNOWN"),
+                        "ReservationAuthority=" + safeCode(row.operation(), "UNKNOWN")),
+                ExceptionAction.REVIEW_SERVICE_ORDER,
+                "/workplace/admin/service-fulfillment?order=" + row.id(), now);
+    }
+
+    private ExceptionItem serviceProvider(
+            WorkplaceExceptionConsoleRepository.ServiceProviderRow row, OffsetDateTime now) {
+        OffsetDateTime detectedAt = row.receivedAt() == null ? row.updatedAt() : row.receivedAt();
+        boolean unavailable = "UNAVAILABLE".equals(row.state()) || row.state() == null;
+        List<String> evidence = new ArrayList<>();
+        evidence.add("State=" + safeCode(row.state(), "UNVERIFIED"));
+        evidence.add("ConfigurationVersion=" + row.configurationVersion());
+        evidence.add("ObservedConfigurationVersion="
+                + (row.observedConfigurationVersion() == null
+                ? "none" : row.observedConfigurationVersion()));
+        return new ExceptionItem("SERVICE_PROVIDER:" + row.providerCode(),
+                ExceptionSource.SERVICE_PROVIDER,
+                unavailable ? ExceptionSeverity.ERROR : ExceptionSeverity.WARNING,
+                ExceptionStatus.ACTIVE, "Service provider is not ready",
+                "Provider health or configuration-version evidence is incomplete or stale.",
+                safeCode(row.errorCode(), row.state() == null
+                        ? "SERVICE_PROVIDER_UNVERIFIED" : "SERVICE_PROVIDER_DEGRADED"),
+                detectedAt, row.version(), List.copyOf(evidence),
+                ExceptionAction.REVIEW_SERVICE_PROVIDER,
+                "/workplace/admin/service-providers?provider="
+                        + row.providerCode(), null, row.configurationVersion(),
+                row.observedConfigurationVersion(), false, null,
+                ageSeconds(detectedAt, now));
+    }
+
+    private ExceptionItem serviceRefund(
+            WorkplaceExceptionConsoleRepository.OperationalRow row, OffsetDateTime now) {
+        boolean manual = "REFUND_NOT_CONFIGURED".equals(row.state())
+                || "FAILED".equals(row.state())
+                || row.attemptCount() >= 10;
+        return operational("SERVICE_REFUND:" + row.id(), ExceptionSource.SERVICE_REFUND,
+                manual ? ExceptionSeverity.CRITICAL : ExceptionSeverity.ERROR,
+                manual ? ExceptionStatus.MANUAL_REVIEW : ExceptionStatus.RECOVERING,
+                "Service cancellation or refund requires reconciliation",
+                manual ? "Automated settlement cannot complete without administrator review."
+                        : "The provider refund outcome remains unresolved.",
+                safeCode(row.errorCode(), manual ? "SERVICE_REFUND_MANUAL_REVIEW"
+                        : "SERVICE_REFUND_RESULT_UNKNOWN"), row,
+                List.of("State=" + safeCode(row.state(), "UNKNOWN"),
+                        "RecoveryAttempts=" + row.attemptCount(),
+                        "RefundScope=" + safeCode(row.detail(), "UNKNOWN")),
+                ExceptionAction.REVIEW_SERVICE_REFUND,
+                "/workplace/admin/service-fulfillment?order=" + row.parentId()
+                        + "&adjustment=" + row.id(), now);
+    }
+
+    private ExceptionItem visitProvider(
+            WorkplaceExceptionConsoleRepository.OperationalRow row, OffsetDateTime now) {
+        boolean manual = "DEAD_LETTER".equals(row.state()) || row.attemptCount() >= 10;
+        return operational("VISIT_PROVIDER:" + row.id(), ExceptionSource.VISIT_PROVIDER,
+                manual ? ExceptionSeverity.CRITICAL : ExceptionSeverity.ERROR,
+                manual ? ExceptionStatus.MANUAL_REVIEW : ExceptionStatus.ACTIVE,
+                "Visit provider delivery requires review",
+                manual ? "Visit-provider delivery exhausted its retry path."
+                        : "Visitor or access-provider outcome is unknown.",
+                safeCode(row.errorCode(), manual ? "VISIT_PROVIDER_RETRY_EXHAUSTED"
+                        : "VISIT_PROVIDER_RESULT_UNKNOWN"), row,
+                List.of("Operation=" + safeCode(row.operation(), "UNKNOWN"),
+                        "State=" + safeCode(row.state(), "UNKNOWN"),
+                        "Attempts=" + row.attemptCount()),
+                ExceptionAction.REVIEW_VISIT,
+                "/workplace/admin/visits?visit=" + row.parentId(), now);
+    }
+
+    private ExceptionItem accessPass(
+            WorkplaceExceptionConsoleRepository.OperationalRow row, OffsetDateTime now) {
+        boolean manual = "PAIRING_RETRY_EXHAUSTED".equals(row.state());
+        return operational("ACCESS_PASS:" + row.id(), ExceptionSource.ACCESS_PASS,
+                manual ? ExceptionSeverity.ERROR : ExceptionSeverity.CRITICAL,
+                manual ? ExceptionStatus.MANUAL_REVIEW : ExceptionStatus.ACTIVE,
+                manual ? "Access-pass pairing is locked"
+                        : "Access-pass provider outcome is unknown",
+                manual ? "Pairing attempts reached the governed limit."
+                        : "Verify the access credential state before issuing another command.",
+                safeCode(row.errorCode(), manual ? "ACCESS_PASS_PAIRING_RETRY_EXHAUSTED"
+                        : "ACCESS_PASS_RESULT_UNKNOWN"), row,
+                List.of("Operation=" + safeCode(row.operation(), "UNKNOWN"),
+                        "State=" + safeCode(row.state(), "UNKNOWN"),
+                        "Attempts=" + row.attemptCount(), "PassId=" + row.parentId()),
+                ExceptionAction.REVIEW_ACCESS_PASS, null, now);
+    }
+
+    private ExceptionItem operational(
+            String id, ExceptionSource source, ExceptionSeverity severity,
+            ExceptionStatus status, String title, String impact, String code,
+            WorkplaceExceptionConsoleRepository.OperationalRow row, List<String> evidence,
+            ExceptionAction action, String href, OffsetDateTime now) {
+        return new ExceptionItem(id, source, severity, status, title, impact, code,
+                row.detectedAt(), row.version(), evidence, action, href,
+                null, null, null, false, null, ageSeconds(row.detectedAt(), now));
     }
 
     private List<Guardrail> guardrails(
@@ -319,6 +510,14 @@ public class WorkplaceExceptionConsoleService {
         return Math.toIntExact(items.stream().filter(item -> item.severity() == severity).count());
     }
 
+    private static ExceptionSourceCoverage coverage(
+            ExceptionSource source, long unresolvedCount, List<ExceptionItem> items) {
+        int returned = Math.toIntExact(items.stream()
+                .filter(item -> item.source() == source).count());
+        return new ExceptionSourceCoverage(
+                source, unresolvedCount, returned, returned < unresolvedCount);
+    }
+
     private static String normalizeId(String value) {
         if (value == null || value.isBlank() || value.length() > 100
                 || value.codePoints().anyMatch(Character::isISOControl)) {
@@ -335,7 +534,8 @@ public class WorkplaceExceptionConsoleService {
         }
         String prefix = normalized.substring(0, separator).toUpperCase(Locale.ROOT);
         String suffix = normalized.substring(separator + 1);
-        if ("SAFETY".equals(prefix) || "BOOKING".equals(prefix)) {
+        if (Set.of("SAFETY", "BOOKING", "DEVICE_COMMAND", "SERVICE_ORDER",
+                "SERVICE_REFUND", "VISIT_PROVIDER", "ACCESS_PASS").contains(prefix)) {
             try {
                 suffix = UUID.fromString(suffix).toString();
             } catch (IllegalArgumentException exception) {
@@ -346,6 +546,10 @@ public class WorkplaceExceptionConsoleService {
             try {
                 WorkplaceConnectorOpsDtos.ConnectorKind.valueOf(suffix);
             } catch (IllegalArgumentException exception) {
+                throw invalid("A valid Workplace exception identifier is required.");
+            }
+        } else if ("SERVICE_PROVIDER".equals(prefix)) {
+            if (!suffix.matches("[A-Za-z0-9._-]{1,80}")) {
                 throw invalid("A valid Workplace exception identifier is required.");
             }
         } else {
@@ -371,6 +575,11 @@ public class WorkplaceExceptionConsoleService {
 
     private static long parseCount(String value) {
         try { return Long.parseLong(value); } catch (NumberFormatException ignored) { return 0; }
+    }
+
+    private static long ageSeconds(OffsetDateTime detectedAt, OffsetDateTime now) {
+        if (detectedAt == null || now == null) return 0;
+        return Math.max(0, Duration.between(detectedAt.toInstant(), now.toInstant()).getSeconds());
     }
 
     private static String safeHttpsUrl(String value) {
@@ -461,6 +670,19 @@ public class WorkplaceExceptionConsoleService {
 
     private static BaseException conflict(String message) {
         return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
+    }
+
+    private static BaseException notFound() {
+        return new BaseException(
+                ErrorCode.ENTITY_NOT_FOUND, "The Workplace exception was not found.");
+    }
+
+    private static void rejectOverflow(long unresolvedCount) {
+        if (unresolvedCount > MAX_EXPORT_ROWS) {
+            throw conflict("EXPORT_ROW_LIMIT_EXCEEDED: unresolvedCount=" + unresolvedCount
+                    + ", maximumRows=" + MAX_EXPORT_ROWS
+                    + ". Resolve exceptions or export a narrower governed scope.");
+        }
     }
 
     private static BaseException versionConflict(String message) {

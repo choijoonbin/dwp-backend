@@ -49,6 +49,14 @@ public final class MessagingRedisChannels {
                 .toList();
     }
 
+    public String readinessChannel() {
+        return prefix + ".readiness";
+    }
+
+    public ChannelTopic readinessTopic() {
+        return new ChannelTopic(readinessChannel());
+    }
+
     public String typingChannel(long tenantId, UUID conversationId) {
         return typingPrefix + "." + shard(tenantId, conversationId);
     }

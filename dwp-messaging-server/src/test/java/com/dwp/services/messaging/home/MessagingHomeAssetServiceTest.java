@@ -22,7 +22,7 @@ class MessagingHomeAssetServiceTest {
 
     @Test
     void validatesLimitBeforeQueryAndUsesAuthenticatedTenantAndUser() {
-        for (int limit : List.of(0, -1, 21, Integer.MAX_VALUE)) {
+        for (int limit : List.of(0, -1, 101, Integer.MAX_VALUE)) {
             assertThatThrownBy(() -> service.recent(limit)).isInstanceOf(BaseException.class);
         }
         verifyNoInteractions(repository);
@@ -42,10 +42,10 @@ class MessagingHomeAssetServiceTest {
         OffsetDateTime now = OffsetDateTime.now();
         var file = new MessagingHomeDtos.SharedAsset("file:one", MessagingHomeDtos.AssetKind.FILE,
                 conversation, "Team", message, now.minusDays(1), "Sender", "plan.pdf",
-                UUID.randomUUID(), null, "application/pdf", 12L);
+                false, UUID.randomUUID(), null, "application/pdf", 12L);
         when(repository.files(7, 100, 1)).thenReturn(List.of(file));
         when(repository.linkMessages(7, 100)).thenReturn(List.of(new MessagingHomeAssetRepository.LinkMessage(
-                message, conversation, "Team", "https://example.com/plan", now, "Sender")));
+                message, conversation, "Team", "https://example.com/plan", now, "Sender", false)));
         var first = service.recent(1).items();
         assertThat(first).hasSize(1);
         assertThat(first.getFirst().kind()).isEqualTo(MessagingHomeDtos.AssetKind.LINK);
@@ -53,6 +53,25 @@ class MessagingHomeAssetServiceTest {
         assertThat(first.getFirst().url()).isEqualTo("https://example.com/plan");
         assertThat(first.getFirst().attachmentId()).isNull();
         assertThat(service.recent(1).items()).isEqualTo(first);
+    }
+
+    @Test
+    void protectedLinksKeepNavigationContextWithoutExposingUrlOrTitle() {
+        subject();
+        UUID conversation = UUID.randomUUID();
+        UUID message = UUID.randomUUID();
+        when(repository.files(7, 100, 6)).thenReturn(List.of());
+        when(repository.linkMessages(7, 100)).thenReturn(List.of(
+                new MessagingHomeAssetRepository.LinkMessage(
+                        message, conversation, "Restricted", null, OffsetDateTime.now(),
+                        "Sender", true)));
+
+        assertThat(service.recent(6).items()).singleElement().satisfies(item -> {
+            assertThat(item.protectedContent()).isTrue();
+            assertThat(item.title()).isNull();
+            assertThat(item.url()).isNull();
+            assertThat(item.messageId()).isEqualTo(message);
+        });
     }
 
     private void subject() {

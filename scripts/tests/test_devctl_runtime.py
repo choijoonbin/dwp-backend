@@ -618,7 +618,11 @@ class MeetingReadinessProbeTest(unittest.TestCase):
         ):
             self.assertTrue(devctl.meeting_home_ready(devctl.SERVICES["meeting"]))
 
-        constructor.assert_called_once_with("127.0.0.1", 8009, timeout=2)
+        constructor.assert_called_once_with(
+            "127.0.0.1",
+            8009,
+            timeout=devctl.MEETING_READINESS_REQUEST_TIMEOUT_SECONDS,
+        )
         self.assertEqual(("GET", "/v1/home?timeZone=UTC"), connection.request_arguments)
         headers = connection.request_keywords["headers"]  # type: ignore[index]
         self.assertEqual("local-secret", headers["X-DWP-Service-Token"])
@@ -1395,6 +1399,14 @@ class SelectiveRestartTest(unittest.TestCase):
             patch.object(devctl, "build_parser", return_value=parser),
             patch.object(devctl, "resolve_services", return_value=[auth]),
             patch.object(devctl, "doctor"),
+            patch.object(
+                devctl,
+                "stage_runtime_images",
+                return_value=devctl.PreparedRuntimeImages(
+                    {"auth": {}}, "1" * 64
+                ),
+            ),
+            patch.object(devctl, "verify_prepared_runtime_source"),
             patch.object(devctl, "state_change_lock", return_value=nullcontext()),
             patch.object(devctl, "start_infrastructure"),
             patch.object(devctl, "load_state", return_value={}),

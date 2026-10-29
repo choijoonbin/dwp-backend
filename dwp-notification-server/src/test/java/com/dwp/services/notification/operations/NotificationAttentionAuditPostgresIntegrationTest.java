@@ -174,9 +174,11 @@ class NotificationAttentionAuditPostgresIntegrationTest {
             runtime.update("""
                     INSERT INTO ntf_attention_rule_audit_outbox (
                         event_id, tenant_id, user_id, subject_type, subject_id,
-                        event_type, scope_kind, effect, subject_version, occurred_at)
+                        event_type, scope_kind, effect, subject_version,
+                        occurred_at, available_at)
                     VALUES (?, ?, ?, 'ATTENTION_RULE', ?, 'RULE_CREATED',
                             'ACTOR', 'PRIORITIZE', 1,
+                            TIMESTAMPTZ '2026-09-16 23:59:59+00',
                             TIMESTAMPTZ '2026-09-16 23:59:59+00')
                     """, eventId, requestedTenant, actor.userId(), UUID.randomUUID());
         });

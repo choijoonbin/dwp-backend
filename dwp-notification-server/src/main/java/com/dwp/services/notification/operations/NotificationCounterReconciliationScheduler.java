@@ -33,7 +33,8 @@ public class NotificationCounterReconciliationScheduler {
 
     @Scheduled(
             fixedDelayString = "${dwp.notification.reconciliation.fixed-delay:5m}",
-            initialDelayString = "${dwp.notification.reconciliation.initial-delay:2m}")
+            initialDelayString = "${dwp.notification.reconciliation.initial-delay:2m}",
+            scheduler = "notificationReconciliationTaskScheduler")
     public void run() {
         Instant now = Instant.now();
         long cursor = Long.MIN_VALUE;

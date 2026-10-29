@@ -185,6 +185,19 @@ public final class MessagingDtos {
             long refreshAfterSeconds) {
     }
 
+    /**
+     * Cursor-first directory page. Total counts durable directory filters before the ephemeral
+     * presence filter; nextOffset exists only as a compatibility fallback for cursor-less clients.
+     */
+    public record PersonPage(
+            List<PersonSummary> items,
+            long total,
+            boolean hasMore,
+            String nextCursor,
+            Integer nextOffset,
+            PresenceMetadata presence) {
+    }
+
     public record HomeResponse(
             OffsetDateTime generatedAt,
             HomeMetrics metrics,
@@ -198,7 +211,24 @@ public final class MessagingDtos {
             List<ConversationSummary> items,
             long total,
             int page,
-            int pageSize) {
+            int pageSize,
+            boolean hasMore,
+            String nextCursor,
+            Integer nextPage) {
+
+        public ConversationPage(
+                List<ConversationSummary> items,
+                long total,
+                int page,
+                int pageSize) {
+            this(
+                    items, total, page, pageSize,
+                    ((long) page + 1) * pageSize < total,
+                    null,
+                    ((long) page + 1) * pageSize < total && page < Integer.MAX_VALUE
+                            ? page + 1
+                            : null);
+        }
     }
 
     public record MessagePage(
@@ -229,7 +259,8 @@ public final class MessagingDtos {
             MessageSummary message,
             String conversationName,
             String conversationType,
-            OffsetDateTime savedAt) {
+            OffsetDateTime savedAt,
+            boolean protectedContent) {
     }
 
     public record SavedItemPage(
@@ -329,10 +360,30 @@ public final class MessagingDtos {
             int restrictedConversations) {
     }
 
+    public record RuntimeCapability(
+            String capability,
+            String provider,
+            boolean required,
+            boolean configured,
+            boolean effective,
+            String state,
+            String reasonCode,
+            OffsetDateTime lastVerifiedAt,
+            String freshness,
+            Long pendingWorkCount) {
+    }
+
+    public record RuntimeReadiness(
+            OffsetDateTime evaluatedAt,
+            String overallState,
+            List<RuntimeCapability> capabilities) {
+    }
+
     public record AdminOverview(
             OffsetDateTime generatedAt,
             AdminMetrics metrics,
             TenantPolicy policy,
-            List<ConversationSummary> governedConversations) {
+            List<ConversationSummary> governedConversations,
+            RuntimeReadiness runtimeReadiness) {
     }
 }

@@ -496,7 +496,7 @@ class MailAccessPostgresIntegrationTest {
                 """, created.deliveryId());
         MailWorkspaceDtos.DeliveryReceipt unknown = workspace.delivery(
                 sender.tenantId(), sender.userId(), created.deliveryId()).orElseThrow();
-        assertThat(unknown.state()).isEqualTo("UNKNOWN");
+        assertThat(unknown.state()).isEqualTo("RESULT_UNKNOWN");
         assertThat(unknown.canReconcile()).isTrue();
         assertThat(workspace.reconcileSandboxDelivery(
                 sender.tenantId(), sender.userId(), created.deliveryId(), unknown.version()))
@@ -750,7 +750,7 @@ class MailAccessPostgresIntegrationTest {
                 .locations(
                         "filesystem:src/main/resources/db/migration",
                         "filesystem:../dwp-core/src/main/resources/db/migration")
-                .target("291")
+                .target("372")
                 .cleanDisabled(false)
                 .load();
         flyway.clean();

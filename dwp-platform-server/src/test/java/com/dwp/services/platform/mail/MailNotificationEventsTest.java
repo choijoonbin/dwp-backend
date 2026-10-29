@@ -9,7 +9,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -153,5 +156,44 @@ class MailNotificationEventsTest {
         assertThat(intent.path("dueAt").asText()).isEqualTo("2026-09-17T10:00:00Z");
         assertThat(intent.path("variables").path("followUpId").asText())
                 .isEqualTo(followUpId.toString());
+    }
+
+    @Test
+    void actionEscalationPublishesOnlyReviewedReferencesAndRoutingVariables() {
+        UUID proposalId = UUID.randomUUID();
+        UUID threadId = UUID.randomUUID();
+        MailDtos.ActionProposal proposal = new MailDtos.ActionProposal(
+                proposalId, threadId, MailTypes.ProposalType.ESCALATE_NOTIFICATION,
+                1, MailTypes.ProposalStatus.ACCEPTED,
+                "Escalate", "Reviewed escalation",
+                List.of(Map.of("messageHash", "a".repeat(64))),
+                Map.of(
+                        "channel", "IN_APP",
+                        "urgency", "HIGH",
+                        "requiresConfirmation", true,
+                        "messageBody", "must-not-leak"),
+                new BigDecimal("0.92"), "LOW", "APP.MAIL", "UPDATE",
+                "/mail/actions", OffsetDateTime.now().plusHours(1), 4L);
+
+        UUID eventId = events.actionEscalated(7L, 41L, proposal, "corr-escalate");
+
+        ArgumentCaptor<DomainEventEnvelope> captured =
+                ArgumentCaptor.forClass(DomainEventEnvelope.class);
+        verify(recorder).record(captured.capture());
+        DomainEventEnvelope envelope = captured.getValue();
+        assertThat(envelope.id()).isEqualTo(eventId);
+        assertThat(envelope.type()).isEqualTo(MailNotificationEvents.ACTION_ESCALATED);
+        assertThat(envelope.aggregateSequence()).isEqualTo(5L);
+        assertThat(contracts.requireCompatible(envelope).maximumVersion()).isOne();
+        JsonNode intent = envelope.data().path("notificationIntents").get(0);
+        assertThat(intent.path("typeKey").asText())
+                .isEqualTo(MailNotificationEvents.ACTION_ESCALATED_TYPE);
+        assertThat(intent.path("recipientUserIds").get(0).asLong()).isEqualTo(41L);
+        assertThat(intent.path("targetReference").asText())
+                .isEqualTo("/mail/actions?proposalId=" + proposalId);
+        assertThat(intent.path("variables").path("channel").asText()).isEqualTo("IN_APP");
+        assertThat(intent.path("variables").path("urgency").asText()).isEqualTo("HIGH");
+        assertThat(envelope.data().toString())
+                .doesNotContain("must-not-leak", "messageBody", "bodyContent", "recipients");
     }
 }

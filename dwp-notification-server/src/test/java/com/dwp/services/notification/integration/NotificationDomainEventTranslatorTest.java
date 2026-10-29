@@ -234,7 +234,10 @@ class NotificationDomainEventTranslatorTest {
         assertThat(translated.request().sourceEventType()).isEqualTo(HRIS_EVENT);
         assertThat(translated.request().typeKey()).isEqualTo("HCM.EMPLOYEE_CHANGE_APPLIED");
         assertThat(translated.request().recipientUserIds()).containsExactly(900018L);
-        assertThat(translated.request().variables()).isEmpty();
+        assertThat(translated.request().variables())
+                .containsExactlyEntriesOf(Map.of(
+                        "requestPublicId",
+                        "00000000-0000-4000-8000-000000000042"));
     }
 
     @Test
@@ -277,17 +280,25 @@ class NotificationDomainEventTranslatorTest {
     }
 
     @Test
-    void rejectsMissingUnsafeAndNonCanonicalHrisLocales() throws Exception {
+    void normalizesSupportedHrisLocalesAndUsesDeterministicFallbacks() throws Exception {
         NotificationDomainEventTranslator hrisTranslator =
                 new NotificationDomainEventTranslator(
                         objectMapper, LEGACY_SOURCE_MAPPING, HRIS_ATOMIC_ONBOARDING);
 
         ObjectNode missingLocale = hrisIntent();
         missingLocale.remove("locale");
-        assertThatThrownBy(() -> hrisTranslator.translate(
-                hrisEvent(HRIS_EVENT, missingLocale)))
-                .isInstanceOf(NotificationDomainEventException.class)
-                .hasMessageContaining("locale is invalid");
+        assertThat(hrisTranslator.translate(hrisEvent(HRIS_EVENT, missingLocale))
+                .getFirst().request().locale()).isEqualTo("ko-KR");
+
+        ObjectNode supportedEnglishVariant = hrisIntent();
+        supportedEnglishVariant.put("locale", "en-GB");
+        assertThat(hrisTranslator.translate(hrisEvent(HRIS_EVENT, supportedEnglishVariant))
+                .getFirst().request().locale()).isEqualTo("en-US");
+
+        ObjectNode unsupportedLocale = hrisIntent();
+        unsupportedLocale.put("locale", "fr-FR");
+        assertThat(hrisTranslator.translate(hrisEvent(HRIS_EVENT, unsupportedLocale))
+                .getFirst().request().locale()).isEqualTo("en-US");
 
         ObjectNode unsafeLocale = hrisIntent();
         unsafeLocale.put("locale", "http://evil.example");
@@ -517,7 +528,6 @@ class NotificationDomainEventTranslatorTest {
                 .put("threadKey", "messaging-conversation:42")
                 .put("actionRequired", false);
         intent.putArray("recipientUserIds").add(900018L);
-        intent.putObject("variables");
         return intent;
     }
 

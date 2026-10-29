@@ -153,6 +153,22 @@ class MessagingHomeAssetPostgresIntegrationTest {
         assertThat(service.recent(20).items()).isEqualTo(service.recent(20).items());
     }
 
+    @Test
+    void protectedConversationAssetsNeverExposeFilenameUrlOrFileMetadata() {
+        jdbc.update("""
+                UPDATE msg_conversations SET data_classification = 'RESTRICTED'
+                 WHERE tenant_id = ? AND conversation_id = ?
+                """, TENANT, conversation);
+
+        assertThat(service.recent(6).items()).hasSize(2).allSatisfy(item -> {
+            assertThat(item.protectedContent()).isTrue();
+            assertThat(item.title()).isNull();
+            assertThat(item.url()).isNull();
+            assertThat(item.contentType()).isNull();
+            assertThat(item.sizeBytes()).isNull();
+        });
+    }
+
     private String grant() {
         String token = "b".repeat(64);
         attachments.createDownloadGrant(UUID.randomUUID(), attachment, TENANT, VIEWER, token,

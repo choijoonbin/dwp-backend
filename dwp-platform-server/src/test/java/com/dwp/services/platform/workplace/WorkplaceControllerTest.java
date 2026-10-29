@@ -81,4 +81,25 @@ class WorkplaceControllerTest {
                 1L, 9L, personId, bookingId, "en-US", "corr",
                 "group-a", "relocate-key", request);
     }
+
+    @Test
+    void administratorBookingControllersForwardRequiredIdempotencyKeys() {
+        UUID bookingId = UUID.randomUUID();
+        WorkplaceOperationsDtos.ForceCancelBookingRequest cancel =
+                new WorkplaceOperationsDtos.ForceCancelBookingRequest("Emergency", 3L);
+        WorkplaceOperationsDtos.LegalHoldRequest hold =
+                new WorkplaceOperationsDtos.LegalHoldRequest(true, "Investigation", 4L);
+        WorkplaceOperationsController controller =
+                new WorkplaceOperationsController(operationsService);
+
+        controller.forceCancelWorkplaceBooking(
+                1L, 9L, "en-US", "corr-cancel", "cancel-key", bookingId, cancel);
+        controller.updateWorkplaceLegalHold(
+                1L, 9L, "en-US", "corr-hold", "hold-key", bookingId, hold);
+
+        verify(operationsService).forceCancel(
+                1L, 9L, bookingId, "en-US", "corr-cancel", "cancel-key", cancel);
+        verify(operationsService).updateLegalHold(
+                1L, 9L, bookingId, "en-US", "corr-hold", "hold-key", hold);
+    }
 }

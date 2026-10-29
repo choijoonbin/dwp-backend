@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -12,6 +13,8 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.calendar.CalendarTypes.EventType;
@@ -26,12 +29,17 @@ class RoomBookingPolicyService {
 
     private final CalendarRepository repository;
     private final CalendarSchedulingHorizon schedulingHorizon;
+    private final WorkplaceRoomRecurrencePolicy workplaceRecurrencePolicy;
+    private final CalendarRecurrenceEngine recurrence = new CalendarRecurrenceEngine();
 
     RoomBookingPolicyService(
             CalendarRepository repository,
-            CalendarSchedulingHorizon schedulingHorizon) {
+            CalendarSchedulingHorizon schedulingHorizon,
+            WorkplaceRoomRecurrencePolicy workplaceRecurrencePolicy) {
         this.repository = repository;
         this.schedulingHorizon = schedulingHorizon;
+        this.workplaceRecurrencePolicy = Objects.requireNonNull(
+                workplaceRecurrencePolicy, "workplaceRecurrencePolicy");
     }
 
     void validateLockedCreate(
@@ -89,6 +97,8 @@ class RoomBookingPolicyService {
                         false,
                         RecurrencePattern.NONE,
                         1,
+                        null,
+                        List.of(),
                         null), resourceZone, policy(policy));
                 if (conflict) reason = RoomBookingEligibilityReason.RESOURCE_CONFLICT;
             } catch (BaseException exception) {
@@ -120,6 +130,7 @@ class RoomBookingPolicyService {
         if (request.allDay()) {
             throw invalid("Room reservations must use a specific time range.");
         }
+        validateWorkplaceRecurrence(tenantId, resource, excludingEventId, request);
         ZoneId resourceZone = zone(resource.timeZone());
         if (!resourceZone.equals(zone(request.timeZone()))) {
             throw invalid("The reservation time zone must match the meeting room time zone.");
@@ -139,6 +150,85 @@ class RoomBookingPolicyService {
         }
     }
 
+    private void validateWorkplaceRecurrence(
+            Long tenantId,
+            CalendarRepository.ResourceRow resource,
+            UUID excludingEventId,
+            RoomBookingRequest request) {
+        if (request.recurrence() == RecurrencePattern.NONE) return;
+        WorkplaceRoomRecurrencePolicy.ExistingSeries requested = series(
+                resource.resourceId(), request);
+        WorkplaceRoomRecurrencePolicy.ExistingSeries existing = excludingEventId == null
+                ? null
+                : workplaceRecurrencePolicy.existingSeries(tenantId, excludingEventId)
+                        .orElse(null);
+        validateWorkplaceRecurrence(tenantId, existing, requested);
+    }
+
+    void validateRestoreRecurrence(
+            Long tenantId,
+            CalendarTypes.ResourceType resourceType,
+            WorkplaceRoomRecurrencePolicy.ExistingSeries cancelledSeries,
+            WorkplaceRoomRecurrencePolicy.ExistingSeries requestedSeries) {
+        if (resourceType != CalendarTypes.ResourceType.ROOM) return;
+        validateWorkplaceRecurrence(tenantId, cancelledSeries, requestedSeries);
+    }
+
+    private void validateWorkplaceRecurrence(
+            Long tenantId,
+            WorkplaceRoomRecurrencePolicy.ExistingSeries existing,
+            WorkplaceRoomRecurrencePolicy.ExistingSeries requested) {
+        if (requested.recurrence() == RecurrencePattern.NONE
+                || workplaceRecurrencePolicy.allowsRecurring(
+                        tenantId, requested.calendarResourceId())) {
+            return;
+        }
+        boolean grandfatheredExistingSeries = existing != null
+                && Objects.equals(
+                        requested.calendarResourceId(), existing.calendarResourceId())
+                && existing.recurrence() != RecurrencePattern.NONE
+                && existing.recurrence() == requested.recurrence()
+                && existing.interval() == requested.interval()
+                && Objects.equals(existing.days(), requested.days())
+                && existing.startsAt().isEqual(requested.startsAt())
+                && existing.endsAt().isEqual(requested.endsAt())
+                && zone(existing.timeZone()).equals(zone(requested.timeZone()))
+                && recurrenceEndIsNotExtended(existing, requested);
+        if (!grandfatheredExistingSeries) {
+            throw invalid("Recurring reservations are disabled by the Workplace policy.");
+        }
+    }
+
+    private WorkplaceRoomRecurrencePolicy.ExistingSeries series(
+            UUID resourceId, RoomBookingRequest request) {
+        return new WorkplaceRoomRecurrencePolicy.ExistingSeries(
+                request.recurrence(),
+                request.recurrenceInterval(),
+                request.recurrenceUntil(),
+                request.recurrenceDays(),
+                request.recurrenceCount(),
+                request.startsAt(),
+                request.endsAt(),
+                request.timeZone(),
+                resourceId);
+    }
+
+    private boolean recurrenceEndIsNotExtended(
+            WorkplaceRoomRecurrencePolicy.ExistingSeries existing,
+            WorkplaceRoomRecurrencePolicy.ExistingSeries requested) {
+        if (existing.until() != null) {
+            return requested.until() != null
+                    && !requested.until().isAfter(existing.until())
+                    && requested.count() == null;
+        }
+        if (existing.count() != null) {
+            return requested.count() != null
+                    && requested.count() <= existing.count()
+                    && requested.until() == null;
+        }
+        return requested.until() == null && requested.count() == null;
+    }
+
     private List<BookingWindow> bookingWindows(
             RoomBookingRequest request,
             ZoneId resourceZone,
@@ -151,36 +241,46 @@ class RoomBookingPolicyService {
                 || duration.compareTo(Duration.ofMinutes(policy.maximumEventMinutes())) > 0) {
             throw invalid("The room reservation duration is outside the tenant policy.");
         }
-        if (request.recurrence() == RecurrencePattern.NONE && request.recurrenceUntil() != null) {
-            throw invalid("A recurrence end date requires a recurrence pattern.");
-        }
-        if (request.recurrence() != RecurrencePattern.NONE && request.recurrenceUntil() == null) {
-            throw invalid("Recurring room reservations require an end date.");
+        if (request.recurrence() != RecurrencePattern.NONE
+                && request.recurrenceUntil() == null
+                && request.recurrenceCount() == null) {
+            throw invalid("Recurring room reservations require bounded UNTIL or COUNT.");
         }
 
         CalendarSchedulingHorizon.Horizon horizon = schedulingHorizon.evaluate(
                 resourceZone, policy.maximumAdvanceDays());
-        ZonedDateTime first = request.startsAt().atZoneSameInstant(resourceZone);
-        LocalDate lastDate = request.recurrenceUntil() == null
-                ? first.toLocalDate()
-                : request.recurrenceUntil();
-        if (lastDate.isBefore(first.toLocalDate()) || !horizon.contains(lastDate)) {
+        if (!horizon.contains(request.startsAt(), resourceZone)
+                || !horizon.contains(request.recurrenceUntil())) {
             throw invalid("The room reservation exceeds the advance booking policy.");
         }
-
-        List<BookingWindow> result = new ArrayList<>();
-        OffsetDateTime current = request.startsAt();
-        while (!current.atZoneSameInstant(resourceZone).toLocalDate().isAfter(lastDate)) {
-            if (result.size() >= MAX_OCCURRENCES) {
-                throw invalid("The recurring room reservation is too large.");
-            }
-            BookingWindow window = new BookingWindow(current, current.plus(duration));
+        List<CalendarRecurrenceEngine.Projection> projected;
+        try {
+            CalendarRecurrenceEngine.Rule rule = recurrence.rule(
+                    request.recurrence(), request.recurrenceInterval(),
+                    request.recurrenceUntil(), request.recurrenceCount(),
+                    Set.copyOf(request.recurrenceDays()), resourceZone.getId());
+            OffsetDateTime windowTo = horizon.latestDate().plusDays(1)
+                    .atStartOfDay(resourceZone).toOffsetDateTime();
+            projected = recurrence.project(
+                    request.startsAt(), request.endsAt(), rule,
+                    request.startsAt().minusNanos(1), windowTo, MAX_OCCURRENCES);
+        } catch (IllegalArgumentException
+                 | CalendarRecurrenceEngine.ProjectionLimitExceededException exception) {
+            throw invalid(exception.getMessage());
+        }
+        if (request.recurrenceCount() != null
+                && projected.size() != request.recurrenceCount()) {
+            throw invalid("The room reservation exceeds the advance booking policy.");
+        }
+        List<BookingWindow> result = new ArrayList<>(projected.size());
+        for (CalendarRecurrenceEngine.Projection occurrence : projected) {
+            BookingWindow window = occurrence.ordinal() == 1
+                    ? new BookingWindow(request.startsAt(), request.endsAt())
+                    : new BookingWindow(occurrence.startsAt(), occurrence.endsAt());
             validateWindow(window, resourceZone, horizon, policy);
             result.add(window);
-            if (request.recurrence() == RecurrencePattern.NONE) break;
-            current = increment(
-                    current, request.recurrence(), request.recurrenceInterval(), resourceZone);
         }
+        if (result.isEmpty()) throw invalid("The recurring room reservation has no occurrences.");
         return result;
     }
 
@@ -204,20 +304,6 @@ class RoomBookingPolicyService {
         }
     }
 
-    private OffsetDateTime increment(
-            OffsetDateTime value,
-            RecurrencePattern pattern,
-            int interval,
-            ZoneId resourceZone) {
-        ZonedDateTime local = value.atZoneSameInstant(resourceZone);
-        return switch (pattern) {
-            case DAILY -> local.plusDays(interval).toOffsetDateTime();
-            case WEEKLY -> local.plusWeeks(interval).toOffsetDateTime();
-            case MONTHLY -> local.plusMonths(interval).toOffsetDateTime();
-            case NONE -> value;
-        };
-    }
-
     private ZoneId zone(String value) {
         try {
             return ZoneId.of(value);
@@ -230,14 +316,18 @@ class RoomBookingPolicyService {
         return new RoomBookingRequest(
                 request.type(), request.startsAt(), request.endsAt(), request.timeZone(),
                 request.allDay(), request.recurrence(), request.recurrenceInterval(),
-                request.recurrenceUntil());
+                request.recurrenceUntil(),
+                request.recurrenceDays() == null ? List.of() : request.recurrenceDays(),
+                request.recurrenceCount());
     }
 
     private RoomBookingRequest booking(CalendarDtos.UpdateEventRequest request) {
         return new RoomBookingRequest(
                 request.type(), request.startsAt(), request.endsAt(), request.timeZone(),
                 request.allDay(), request.recurrence(), request.recurrenceInterval(),
-                request.recurrenceUntil());
+                request.recurrenceUntil(),
+                request.recurrenceDays() == null ? List.of() : request.recurrenceDays(),
+                request.recurrenceCount());
     }
 
     private RoomPolicy policy(CalendarRepository.PolicyRow value) {
@@ -272,7 +362,9 @@ class RoomBookingPolicyService {
             boolean allDay,
             RecurrencePattern recurrence,
             int recurrenceInterval,
-            LocalDate recurrenceUntil) {
+            LocalDate recurrenceUntil,
+            List<DayOfWeek> recurrenceDays,
+            Integer recurrenceCount) {
     }
 
     private record RoomPolicy(

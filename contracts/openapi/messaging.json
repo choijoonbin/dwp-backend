@@ -1,6 +1,79 @@
 {
   "components": {
     "schemas": {
+      "ActivityItem": {
+        "properties": {
+          "actorName": {
+            "type": "string"
+          },
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversationName": {
+            "type": "string"
+          },
+          "conversationType": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "MENTION",
+              "THREAD_REPLY",
+              "REACTION",
+              "SYSTEM",
+              "SCHEDULE_FAILED"
+            ],
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "preview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "protectedContent": {
+            "type": "boolean"
+          },
+          "rootMessageId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "ActivityResponse": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "AddConversationMemberRequest": {
         "properties": {
           "conversationVersion": {
@@ -68,6 +141,36 @@
           },
           "policy": {
             "$ref": "#/components/schemas/TenantPolicy"
+          },
+          "runtimeReadiness": {
+            "$ref": "#/components/schemas/RuntimeReadiness"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseActivityResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ActivityResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"
@@ -423,6 +526,33 @@
         },
         "type": "object"
       },
+      "ApiResponseDraftResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DraftResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseHistoryResponse": {
         "properties": {
           "correlationId": {
@@ -484,6 +614,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/JoinTokenResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseLaterItem": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LaterItem"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseLaterPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LaterPage"
           },
           "errorCode": {
             "type": "string"
@@ -645,6 +829,33 @@
         },
         "type": "object"
       },
+      "ApiResponseMessagingAttentionThreadResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MessagingAttentionThreadResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseObservationResponse": {
         "properties": {
           "correlationId": {
@@ -652,6 +863,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ObservationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePersonPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PersonPage"
           },
           "errorCode": {
             "type": "string"
@@ -787,6 +1025,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/SavedItemSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseScheduledMessagePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ScheduledMessagePage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseScheduledMessageResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ScheduledMessageResponse"
           },
           "errorCode": {
             "type": "string"
@@ -1105,10 +1397,70 @@
         },
         "type": "object"
       },
+      "CollaborationConversationSummary": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/CollaborationMemberSummary"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "GROUP",
+              "CHANNEL"
+            ],
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CollaborationMemberSummary": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ConversationCreationResponse": {
         "properties": {
           "conversation": {
-            "$ref": "#/components/schemas/ConversationSummary"
+            "$ref": "#/components/schemas/CollaborationConversationSummary"
           },
           "idempotentReplay": {
             "type": "boolean"
@@ -1209,11 +1561,21 @@
       },
       "ConversationPage": {
         "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/ConversationSummary"
             },
             "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "nextPage": {
+            "format": "int32",
+            "type": "integer"
           },
           "page": {
             "format": "int32",
@@ -1505,6 +1867,37 @@
         },
         "type": "object"
       },
+      "DraftResponse": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "mentionedPersonPublicIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "threadRootMessageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "HistoryItemResponse": {
         "properties": {
           "conversationId": {
@@ -1645,6 +2038,93 @@
         },
         "type": "object"
       },
+      "LaterItem": {
+        "properties": {
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversationName": {
+            "type": "string"
+          },
+          "conversationType": {
+            "type": "string"
+          },
+          "messageDeleted": {
+            "type": "boolean"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "preview": {
+            "type": "string"
+          },
+          "protectedContent": {
+            "type": "boolean"
+          },
+          "reminderAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "savedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "senderName": {
+            "type": "string"
+          },
+          "snoozedUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "SAVED",
+              "SNOOZED",
+              "DUE",
+              "COMPLETED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "LaterPage": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LaterItem"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "LeaveConversationRequest": {
         "properties": {
           "version": {
@@ -1705,11 +2185,47 @@
           "emailAddress": {
             "type": "string"
           },
+          "favorite": {
+            "type": "boolean"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "lastReadAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastReadMessageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lastReadSequence": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "memberRole": {
+            "type": "string"
+          },
+          "membershipSource": {
+            "type": "string"
+          },
+          "notificationLevel": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
           "personPublicId": {
             "format": "uuid",
             "type": "string"
           },
-          "role": {
+          "pinned": {
+            "type": "boolean"
+          },
+          "presenceState": {
+            "type": "string"
+          },
+          "readReceiptVisibility": {
             "type": "string"
           },
           "userId": {
@@ -1874,6 +2390,21 @@
         },
         "type": "object"
       },
+      "MessagingAttentionThreadResponse": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ThreadItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "ObservationResponse": {
         "properties": {
           "observedMessageIds": {
@@ -1901,6 +2432,34 @@
         "required": [
           "messageIds"
         ],
+        "type": "object"
+      },
+      "PersonPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PersonSummary"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "nextOffset": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "presence": {
+            "$ref": "#/components/schemas/PresenceMetadata"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "PersonSearchResult": {
@@ -1984,6 +2543,9 @@
       },
       "PrivacyPreference": {
         "properties": {
+          "presenceSharingEnabled": {
+            "type": "boolean"
+          },
           "readReceiptsEnabled": {
             "type": "boolean"
           },
@@ -1992,6 +2554,11 @@
             "type": "integer"
           }
         },
+        "required": [
+          "presenceSharingEnabled",
+          "readReceiptsEnabled",
+          "version"
+        ],
         "type": "object"
       },
       "ReactionRequest": {
@@ -2127,6 +2694,88 @@
         },
         "type": "object"
       },
+      "RuntimeCapability": {
+        "properties": {
+          "capability": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "effective": {
+            "type": "boolean"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "lastVerifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pendingWorkCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RuntimeReadiness": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeCapability"
+            },
+            "type": "array"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "overallState": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SaveDraftRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 20000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mentionedPersonPublicIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
       "SavedItemPage": {
         "properties": {
           "items": {
@@ -2161,9 +2810,158 @@
           "message": {
             "$ref": "#/components/schemas/MessageSummary"
           },
+          "protectedContent": {
+            "type": "boolean"
+          },
           "savedAt": {
             "format": "date-time",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ScheduleMessageRequest": {
+        "properties": {
+          "attachmentIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array"
+          },
+          "body": {
+            "maxLength": 20000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "displayTimeZone": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "mentionedPersonPublicIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 0,
+            "type": "array"
+          },
+          "replyToMessageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scheduledFor": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "displayTimeZone",
+          "idempotencyKey",
+          "scheduledFor"
+        ],
+        "type": "object"
+      },
+      "ScheduledMessagePage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduledMessageResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ScheduledMessageResponse": {
+        "properties": {
+          "attemptCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "body": {
+            "type": "string"
+          },
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversationName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deliveredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deliveredMessageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "displayTimeZone": {
+            "type": "string"
+          },
+          "failureCode": {
+            "type": "string"
+          },
+          "failureDetail": {
+            "type": "string"
+          },
+          "mentionedPersonPublicIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "payloadPurgedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "replyToMessageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scheduledFor": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scheduledMessageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -2323,6 +3121,9 @@
             "format": "uuid",
             "type": "string"
           },
+          "protectedContent": {
+            "type": "boolean"
+          },
           "senderName": {
             "type": "string"
           },
@@ -2438,6 +3239,52 @@
             "format": "int64",
             "minimum": 0,
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ThreadItem": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversationName": {
+            "type": "string"
+          },
+          "conversationType": {
+            "type": "string"
+          },
+          "latestReplyAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "latestReplyMessageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "latestReplySenderName": {
+            "type": "string"
+          },
+          "protectedContent": {
+            "type": "boolean"
+          },
+          "replyCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rootDeleted": {
+            "type": "boolean"
+          },
+          "rootMessageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "rootPreview": {
+            "type": "string"
+          },
+          "rootSenderName": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -2580,6 +3427,32 @@
         ],
         "type": "object"
       },
+      "UpdateLaterRequest": {
+        "properties": {
+          "reminderAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "snoozedUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "version"
+        ],
+        "type": "object"
+      },
       "UpdateMessageRequest": {
         "properties": {
           "body": {
@@ -2600,8 +3473,19 @@
       },
       "UpdatePrivacyPreferenceRequest": {
         "properties": {
+          "presenceSharingEnabled": {
+            "description": "Optional ephemeral presence sharing choice; omitted values are preserved",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "readReceiptsEnabled": {
-            "type": "boolean"
+            "description": "Optional read-status sharing choice; omitted values are preserved",
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "version": {
             "format": "int64",
@@ -2610,7 +3494,6 @@
           }
         },
         "required": [
-          "readReceiptsEnabled",
           "version"
         ],
         "type": "object"
@@ -2719,6 +3602,38 @@
         ]
       }
     },
+    "/v1/activity": {
+      "get": {
+        "operationId": "activity",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseActivityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-attention-controller"
+        ]
+      }
+    },
     "/v1/admin/overview": {
       "get": {
         "operationId": "adminOverview",
@@ -2819,6 +3734,14 @@
               "default": 30,
               "format": "int32",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -3309,6 +4232,141 @@
         },
         "tags": [
           "messaging-display-preference-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/draft": {
+      "delete": {
+        "operationId": "deleteDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "threadRootMessageId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-continuity-controller"
+        ]
+      },
+      "get": {
+        "operationId": "draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "threadRootMessageId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDraftResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-continuity-controller"
+        ]
+      },
+      "put": {
+        "operationId": "saveDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "threadRootMessageId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDraftResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-continuity-controller"
         ]
       }
     },
@@ -4412,6 +5470,55 @@
         ]
       }
     },
+    "/v1/conversations/{conversationId}/scheduled-messages": {
+      "post": {
+        "operationId": "schedule",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScheduledMessageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-continuity-controller"
+        ]
+      }
+    },
     "/v1/conversations/{conversationId}/settings": {
       "get": {
         "operationId": "conversationSettings",
@@ -4656,6 +5763,115 @@
         ]
       }
     },
+    "/v1/later": {
+      "get": {
+        "operationId": "items",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLaterPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-later-controller"
+        ]
+      }
+    },
+    "/v1/later/{messageId}": {
+      "put": {
+        "operationId": "update_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLaterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLaterItem"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-later-controller"
+        ]
+      }
+    },
     "/v1/people": {
       "get": {
         "operationId": "people",
@@ -4697,15 +5913,101 @@
         ]
       }
     },
+    "/v1/people/page": {
+      "get": {
+        "operationId": "peoplePage",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "organization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "jobTitle",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "presence",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePersonPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-controller"
+        ]
+      }
+    },
     "/v1/presence/heartbeat": {
       "put": {
         "operationId": "heartbeat",
         "responses": {
           "204": {
-            "description": "Presence lease renewed",
+            "description": "Heartbeat accepted; a lease is renewed only when the user permits presence sharing",
             "headers": {
               "X-DWP-Presence-Lease-TTL-Seconds": {
-                "description": "Authoritative renewed lease lifetime in whole seconds",
+                "description": "Configured lease lifetime when sharing is enabled; an opted-out heartbeat publishes no lease",
                 "schema": {
                   "example": 75,
                   "format": "int64",
@@ -4826,6 +6128,131 @@
         ]
       }
     },
+    "/v1/scheduled-messages": {
+      "get": {
+        "operationId": "scheduled",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScheduledMessagePage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-continuity-controller"
+        ]
+      }
+    },
+    "/v1/scheduled-messages/{scheduledMessageId}": {
+      "delete": {
+        "operationId": "cancel",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scheduledMessageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScheduledMessageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-continuity-controller"
+        ]
+      },
+      "get": {
+        "operationId": "scheduled_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scheduledMessageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScheduledMessageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-continuity-controller"
+        ]
+      }
+    },
     "/v1/search": {
       "get": {
         "operationId": "search",
@@ -4910,6 +6337,38 @@
         },
         "tags": [
           "messaging-realtime-controller"
+        ]
+      }
+    },
+    "/v1/threads": {
+      "get": {
+        "operationId": "threads",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMessagingAttentionThreadResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-attention-controller"
         ]
       }
     }

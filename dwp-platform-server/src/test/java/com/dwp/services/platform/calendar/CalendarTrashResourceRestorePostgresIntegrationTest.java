@@ -12,6 +12,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -56,6 +58,13 @@ class CalendarTrashResourceRestorePostgresIntegrationTest {
     @BeforeEach
     void setUp() {
         for (String table : new String[] {
+                "wp_resources",
+                "wp_sections",
+                "wp_zones",
+                "wp_floors",
+                "wp_sites",
+                "wp_campuses",
+                "wp_tenant_policies",
                 "cal_resource_restore_commands",
                 "cal_event_tombstones",
                 "cal_resource_bookings",
@@ -67,6 +76,15 @@ class CalendarTrashResourceRestorePostgresIntegrationTest {
         }) {
             jdbc.update("DELETE FROM " + table + " WHERE tenant_id = ?", TENANT_ID);
         }
+        jdbc.update("""
+                INSERT INTO sys_service_tenants (
+                    provider_tenant_id, tenant_id, tenant_key, display_name,
+                    lifecycle_state, data_region, isolation_model, created_by, updated_by)
+                VALUES ('92930000-0000-4000-8000-000000000099', ?,
+                        'calendar-restore-policy-test', 'Calendar restore policy test',
+                        'ACTIVE', 'local', 'POOL', ?, ?)
+                ON CONFLICT (tenant_id) DO NOTHING
+                """, TENANT_ID, OWNER_USER_ID, OWNER_USER_ID);
         CalendarCollaborationRepository collaboration =
                 new CalendarCollaborationRepository(jdbc);
         CalendarRestoreRepository restoreRepository =
@@ -74,12 +92,17 @@ class CalendarTrashResourceRestorePostgresIntegrationTest {
         CalendarRepository calendar = new CalendarRepository(
                 jdbc, new ObjectMapper().findAndRegisterModules());
         CalendarRetentionRepository retention = new CalendarRetentionRepository(jdbc);
+        RoomBookingPolicyService roomBookingPolicy = new RoomBookingPolicyService(
+                calendar,
+                new CalendarSchedulingHorizon(Clock.systemUTC()),
+                new WorkplaceRoomRecurrencePolicy(jdbc));
         CalendarResourceRestoreService restore = new CalendarResourceRestoreService(
                 collaboration,
                 restoreRepository,
                 calendar,
                 retention,
-                mock(WorkplaceRoomAccessPort.class));
+                mock(WorkplaceRoomAccessPort.class),
+                roomBookingPolicy);
         collaborationService = new CalendarCollaborationService(
                 collaboration, calendar, retention, restore);
     }
@@ -212,6 +235,110 @@ class CalendarTrashResourceRestorePostgresIntegrationTest {
     }
 
     @Test
+    void restoredSeriesCannotBeExtendedBeforeRebookingWhenRecurringIsDisabled() {
+        Fixture fixture = recurringFixture("recurrence-policy-bypass");
+        manageAsWorkplaceRoom(fixture, false);
+
+        collaborationService.trashEvent(
+                TENANT_ID,
+                OWNER_USER_ID,
+                OWNER_PERSON_ID,
+                null,
+                fixture.eventId(),
+                "corr-trash-recurrence",
+                new CalendarDtos.TrashEventRequest(0L, "Recurrence policy test"));
+        CalendarRecoveryDtos.RestoreEventResponse restored = collaborationService.restoreEvent(
+                TENANT_ID,
+                OWNER_USER_ID,
+                OWNER_PERSON_ID,
+                null,
+                fixture.eventId(),
+                "corr-restore-recurrence",
+                new CalendarDtos.VersionRequest(1L));
+        assertThat(restored.reason())
+                .isEqualTo(CalendarRecoveryDtos.RestoreReason.EXPLICIT_REBOOK_REQUIRED);
+        assertThat(restored.resources()).singleElement().satisfies(resource ->
+                assertThat(resource.canRebook()).isTrue());
+
+        jdbc.update("""
+                UPDATE cal_events
+                   SET recurrence_until = recurrence_until + 7,
+                       version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP,
+                       updated_by = ?
+                 WHERE tenant_id = ? AND event_id = ?
+                """, OWNER_USER_ID, TENANT_ID, fixture.eventId());
+        long currentEventVersion = jdbc.queryForObject("""
+                SELECT version FROM cal_events WHERE tenant_id = ? AND event_id = ?
+                """, Long.class, TENANT_ID, fixture.eventId());
+        UUID idempotencyKey = UUID.randomUUID();
+
+        CalendarRecoveryDtos.RestoreEventResponse rejected =
+                collaborationService.rebookRestoredResource(
+                        TENANT_ID,
+                        OWNER_USER_ID,
+                        OWNER_PERSON_ID,
+                        null,
+                        fixture.eventId(),
+                        "corr-rebook-recurrence",
+                        new CalendarRecoveryDtos.RestoreResourceBookingRequest(
+                                currentEventVersion,
+                                fixture.resourceId(),
+                                restored.resources().getFirst().bookingVersion(),
+                                idempotencyKey));
+
+        assertThat(rejected.outcome())
+                .isEqualTo(CalendarRecoveryDtos.RestoreOutcome.EVENT_ONLY_RESOURCE_UNAVAILABLE);
+        assertThat(rejected.reason())
+                .isEqualTo(CalendarRecoveryDtos.RestoreReason.RESOURCE_POLICY_BLOCKED);
+        assertThat(booking(fixture.eventId()))
+                .containsEntry("booking_status", "CANCELLED")
+                .containsEntry("cancelled_for_event_trash", true)
+                .containsEntry("version", 1L);
+        assertThat(commandCount(idempotencyKey)).isOne();
+    }
+
+    @Test
+    void legacyTrashRowWithoutSeriesSnapshotFailsClosedWhenRecurringIsDisabled() {
+        Fixture fixture = recurringFixture("legacy-null-snapshot");
+        manageAsWorkplaceRoom(fixture, false);
+        jdbc.update("""
+                UPDATE cal_resource_bookings
+                   SET booking_status = 'CANCELLED',
+                       cancelled_for_event_trash = TRUE,
+                       version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP,
+                       updated_by = ?
+                 WHERE tenant_id = ? AND event_id = ?
+                """, OWNER_USER_ID, TENANT_ID, fixture.eventId());
+        assertThat(jdbc.queryForObject("""
+                SELECT trash_recurrence_pattern IS NULL
+                  FROM cal_resource_bookings
+                 WHERE tenant_id = ? AND event_id = ?
+                """, Boolean.class, TENANT_ID, fixture.eventId())).isTrue();
+        UUID idempotencyKey = UUID.randomUUID();
+
+        CalendarRecoveryDtos.RestoreEventResponse rejected =
+                collaborationService.rebookRestoredResource(
+                        TENANT_ID,
+                        OWNER_USER_ID,
+                        OWNER_PERSON_ID,
+                        null,
+                        fixture.eventId(),
+                        "corr-rebook-legacy-null",
+                        new CalendarRecoveryDtos.RestoreResourceBookingRequest(
+                                0L, fixture.resourceId(), 1L, idempotencyKey));
+
+        assertThat(rejected.reason())
+                .isEqualTo(CalendarRecoveryDtos.RestoreReason.RESOURCE_POLICY_BLOCKED);
+        assertThat(booking(fixture.eventId()))
+                .containsEntry("booking_status", "CANCELLED")
+                .containsEntry("cancelled_for_event_trash", true)
+                .containsEntry("version", 1L);
+        assertThat(commandCount(idempotencyKey)).isOne();
+    }
+
+    @Test
     void aPreviouslyManualCancelledBookingIsNotPresentedAsTrashRestorable() {
         Fixture fixture = fixture("manual-cancel");
         jdbc.update("""
@@ -249,16 +376,41 @@ class CalendarTrashResourceRestorePostgresIntegrationTest {
                 .containsEntry("version", 1L);
     }
 
+    @Test
+    void recurrencePolicyAllowsUnmanagedRoomsAndFailsClosedWithoutTenantPolicy() {
+        Fixture fixture = fixture("policy-resolution");
+        WorkplaceRoomRecurrencePolicy policy = new WorkplaceRoomRecurrencePolicy(jdbc);
+
+        assertThat(policy.allowsRecurring(TENANT_ID, fixture.resourceId())).isTrue();
+
+        manageAsWorkplaceRoom(fixture, false);
+        jdbc.update("DELETE FROM wp_tenant_policies WHERE tenant_id = ?", TENANT_ID);
+
+        assertThat(policy.allowsRecurring(TENANT_ID, fixture.resourceId())).isFalse();
+    }
+
     private Fixture fixture(String suffix) {
+        return fixture(suffix, CalendarTypes.RecurrencePattern.NONE, null);
+    }
+
+    private Fixture recurringFixture(String suffix) {
+        return fixture(
+                suffix,
+                CalendarTypes.RecurrencePattern.WEEKLY,
+                null);
+    }
+
+    private Fixture fixture(
+            String suffix,
+            CalendarTypes.RecurrencePattern recurrence,
+            LocalDate recurrenceUntil) {
         UUID calendarId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         UUID resourceId = UUID.randomUUID();
-        OffsetDateTime startsAt = OffsetDateTime.now(ZoneOffset.UTC)
-                .plusDays(2)
-                .withHour(10)
-                .withMinute(0)
-                .withSecond(0)
-                .withNano(0);
+        OffsetDateTime startsAt = nextStart();
+        if (recurrence != CalendarTypes.RecurrencePattern.NONE && recurrenceUntil == null) {
+            recurrenceUntil = startsAt.toLocalDate().plusWeeks(2);
+        }
         jdbc.update("""
                 INSERT INTO cal_identity_links (tenant_id, user_id, person_public_id)
                 VALUES (?, ?, ?)
@@ -277,13 +429,14 @@ class CalendarTrashResourceRestorePostgresIntegrationTest {
                     event_id, tenant_id, calendar_id, organizer_user_id,
                     organizer_person_public_id, organizer_name, title, description,
                     event_type, starts_at, ends_at, time_zone, status, visibility,
-                    recurrence_pattern, recurrence_interval, response_required,
-                    source_type, created_by, updated_by)
+                    recurrence_pattern, recurrence_interval, recurrence_until,
+                    response_required, source_type, created_by, updated_by)
                 VALUES (?, ?, ?, ?, ?, 'Restore owner', 'Restore contract', 'Agenda',
                         'MEETING', ?, ?, 'UTC', 'CONFIRMED', 'DEFAULT',
-                        'NONE', 1, FALSE, 'NATIVE', ?, ?)
+                        ?, 1, ?, FALSE, 'NATIVE', ?, ?)
                 """, eventId, TENANT_ID, calendarId, OWNER_USER_ID, OWNER_PERSON_ID,
-                startsAt, startsAt.plusHours(1), OWNER_USER_ID, OWNER_USER_ID);
+                startsAt, startsAt.plusHours(1), recurrence.name(), recurrenceUntil,
+                OWNER_USER_ID, OWNER_USER_ID);
         jdbc.update("""
                 INSERT INTO cal_resources (
                     resource_id, tenant_id, resource_code, name_ko, name_en,
@@ -301,6 +454,50 @@ class CalendarTrashResourceRestorePostgresIntegrationTest {
                 """, TENANT_ID, eventId, resourceId, startsAt, startsAt.plusHours(1),
                 OWNER_USER_ID, OWNER_USER_ID, OWNER_USER_ID);
         return new Fixture(eventId, resourceId, startsAt);
+    }
+
+    private OffsetDateTime nextStart() {
+        return OffsetDateTime.now(ZoneOffset.UTC)
+                .plusDays(2)
+                .withHour(10)
+                .withMinute(0)
+                .withSecond(0)
+                .withNano(0);
+    }
+
+    private void manageAsWorkplaceRoom(Fixture fixture, boolean allowRecurring) {
+        UUID siteId = UUID.randomUUID();
+        UUID floorId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wp_sites (
+                    site_id, tenant_id, site_code, name_ko, name_en, time_zone,
+                    created_by, updated_by)
+                VALUES (?, ?, ?, '복원 사이트', 'Restore site', 'UTC', ?, ?)
+                """, siteId, TENANT_ID, "RESTORE-SITE-" + fixture.resourceId(),
+                OWNER_USER_ID, OWNER_USER_ID);
+        jdbc.update("""
+                INSERT INTO wp_floors (
+                    floor_id, tenant_id, site_id, floor_number, name_ko, name_en,
+                    created_by, updated_by)
+                VALUES (?, ?, ?, 1, '복원 층', 'Restore floor', ?, ?)
+                """, floorId, TENANT_ID, siteId, OWNER_USER_ID, OWNER_USER_ID);
+        jdbc.update("""
+                INSERT INTO wp_resources (
+                    tenant_id, floor_id, calendar_resource_id, resource_code,
+                    name_ko, name_en, resource_type, booking_mode, lifecycle_state,
+                    capacity, created_by, updated_by)
+                VALUES (?, ?, ?, ?, '복원 회의실', 'Restore room', 'ROOM',
+                        'RESERVABLE', 'AVAILABLE', 8, ?, ?)
+                """, TENANT_ID, floorId, fixture.resourceId(),
+                "RESTORE-WP-" + fixture.resourceId(), OWNER_USER_ID, OWNER_USER_ID);
+        jdbc.update("""
+                INSERT INTO wp_tenant_policies (tenant_id, allow_recurring, created_by, updated_by)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (tenant_id) DO UPDATE
+                    SET allow_recurring = EXCLUDED.allow_recurring,
+                        updated_at = CURRENT_TIMESTAMP,
+                        updated_by = EXCLUDED.updated_by
+                """, TENANT_ID, allowRecurring, OWNER_USER_ID, OWNER_USER_ID);
     }
 
     private void insertCompetingBooking(Fixture target) {

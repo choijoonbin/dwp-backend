@@ -30,9 +30,7 @@ class RoomRepository {
             UUID excludingEventId) {
         return jdbc.query("""
                 SELECT booking.resource_id,
-                       occurrence.local_starts_at AT TIME ZONE event.time_zone AS starts_at,
-                       (occurrence.local_starts_at AT TIME ZONE event.time_zone)
-                           + (booking.ends_at - booking.starts_at) AS ends_at,
+                       occurrence.starts_at, occurrence.ends_at,
                        booking.booking_status
                   FROM cal_resource_bookings booking
                   JOIN cal_events event
@@ -41,35 +39,26 @@ class RoomRepository {
                   JOIN cal_resources resource
                     ON resource.tenant_id = booking.tenant_id
                    AND resource.resource_id = booking.resource_id
-                  CROSS JOIN LATERAL generate_series(
-                       booking.starts_at AT TIME ZONE event.time_zone,
-                       LEAST(
-                           ?::timestamptz AT TIME ZONE event.time_zone,
-                           COALESCE(
-                               event.recurrence_until + TIME '23:59:59',
-                               ?::timestamptz AT TIME ZONE event.time_zone)),
-                       CASE event.recurrence_pattern
-                           WHEN 'DAILY' THEN make_interval(days => event.recurrence_interval)
-                           WHEN 'WEEKLY' THEN make_interval(days => 7 * event.recurrence_interval)
-                           WHEN 'MONTHLY' THEN make_interval(months => event.recurrence_interval)
-                           ELSE INTERVAL '100 years'
-                       END
-                  ) occurrence(local_starts_at)
+                  CROSS JOIN LATERAL cal_project_recurrences(
+                       booking.starts_at, booking.ends_at, event.time_zone,
+                       event.recurrence_pattern, event.recurrence_interval,
+                       event.recurrence_until, event.recurrence_count,
+                       event.recurrence_days,
+                       ?::timestamptz, ?::timestamptz, 4000) occurrence
                  WHERE booking.tenant_id = ?
                    AND (?::uuid IS NULL OR booking.event_id <> ?::uuid)
                    AND booking.booking_status IN ('PENDING', 'CONFIRMED')
                    AND event.status <> 'CANCELLED'
                    AND resource.lifecycle_state <> 'RETIRED'
-                   AND (occurrence.local_starts_at AT TIME ZONE event.time_zone) < ?
-                   AND (occurrence.local_starts_at AT TIME ZONE event.time_zone)
-                       + (booking.ends_at - booking.starts_at) > ?
+                   AND occurrence.starts_at < ?
+                   AND occurrence.ends_at > ?
                  ORDER BY booking.resource_id, starts_at
                 """, (result, ignored) -> new ResourceOccupancyRow(
                         result.getObject("resource_id", UUID.class),
                         result.getObject("starts_at", OffsetDateTime.class),
                         result.getObject("ends_at", OffsetDateTime.class),
                         result.getString("booking_status")),
-                to, to, tenantId, excludingEventId, excludingEventId, to, from);
+                from, to, tenantId, excludingEventId, excludingEventId, to, from);
     }
 
     record ResourceOccupancyRow(

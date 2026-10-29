@@ -299,13 +299,34 @@ class AdminMailCompletionRepositoryBase {
             return credentialRef == null || credentialRef.isBlank() ? null : URI.create(credentialRef);
         }
     }
-    record AccountRow(UUID id, String email, String providerAccountRef, String cursor) { }
+    record AccountRow(
+            UUID id,
+            String email,
+            String providerAccountRef,
+            String cursor,
+            long cursorGeneration) {
+
+        AccountRow(UUID id, String email, String providerAccountRef, String cursor) {
+            this(id, email, providerAccountRef, cursor, 0L);
+        }
+    }
     record SyncAccountRow(
             UUID id,
             String email,
             Long ownerUserId,
             String cursor,
-            UUID sharedInboxId) { }
+            UUID sharedInboxId,
+            long cursorGeneration) {
+
+        SyncAccountRow(
+                UUID id,
+                String email,
+                Long ownerUserId,
+                String cursor,
+                UUID sharedInboxId) {
+            this(id, email, ownerUserId, cursor, sharedInboxId, 0L);
+        }
+    }
     record InboundIdentity(UUID threadId, UUID messageId) { }
     record InboundMessageRow(
             String providerMessageReference,

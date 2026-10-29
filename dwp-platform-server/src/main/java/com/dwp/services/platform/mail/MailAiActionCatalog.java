@@ -20,37 +20,58 @@ final class MailAiActionCatalog {
     }
 
     static Policy validate(MailDtos.ActionProposal proposal) {
-        Policy policy = POLICIES.get(proposal.type());
-        if (policy == null) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "Unsupported AI mail action.");
-        }
-        if (proposal.actionContractVersion() != CONTRACT_VERSION) {
-            throw new BaseException(
-                    ErrorCode.INVALID_STATE,
-                    "The AI proposal uses an unsupported action contract version.");
-        }
+        Policy policy = validateProducer(
+                proposal.type(), proposal.actionContractVersion(), proposal.riskLevel(),
+                proposal.targetRoute(), proposal.proposedPayload());
         if (!policy.resourceKey().equals(proposal.requiredResourceKey())
-                || !policy.permissionCode().equals(proposal.requiredPermissionCode())
-                || proposal.targetRoute() == null
-                || !proposal.targetRoute().startsWith(policy.routePrefix())) {
+                || !policy.permissionCode().equals(proposal.requiredPermissionCode())) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "The AI proposal target does not match the governed action policy.");
         }
-        if (riskRank(proposal.riskLevel()) < riskRank(policy.minimumRisk())) {
+        return policy;
+    }
+
+    static Policy validateProducer(
+            ProposalType type,
+            int actionContractVersion,
+            String riskLevel,
+            String targetRoute,
+            Map<String, Object> proposedPayload) {
+        Policy policy = policy(type);
+        if (actionContractVersion != CONTRACT_VERSION) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The AI proposal uses an unsupported action contract version.");
+        }
+        if (!safeTargetRoute(targetRoute, policy.routePrefix())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The AI proposal target does not match the governed action policy.");
+        }
+        if (riskRank(riskLevel) < riskRank(policy.minimumRisk())) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "The AI proposal risk is below the governed action policy floor.");
         }
-        if (!proposal.proposedPayload().keySet().containsAll(policy.requiredPayloadFields())) {
+        if (proposedPayload == null
+                || !proposedPayload.keySet().containsAll(policy.requiredPayloadFields())) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "The AI proposal payload does not satisfy the governed action contract.");
         }
-        if (!Boolean.TRUE.equals(proposal.proposedPayload().get("requiresConfirmation"))) {
+        if (!Boolean.TRUE.equals(proposedPayload.get("requiresConfirmation"))) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "The AI proposal must require explicit confirmation.");
+        }
+        return policy;
+    }
+
+    static Policy policy(ProposalType type) {
+        Policy policy = POLICIES.get(type);
+        if (policy == null) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "Unsupported AI mail action.");
         }
         return policy;
     }
@@ -90,6 +111,10 @@ final class MailAiActionCatalog {
     }
 
     private static int riskRank(String risk) {
+        if (risk == null) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE, "Unsupported AI mail action risk.");
+        }
         return switch (risk) {
             case "LOW" -> 0;
             case "MEDIUM" -> 1;
@@ -97,6 +122,21 @@ final class MailAiActionCatalog {
             default -> throw new BaseException(
                     ErrorCode.INVALID_STATE, "Unsupported AI mail action risk.");
         };
+    }
+
+    private static boolean safeTargetRoute(String route, String requiredPrefix) {
+        if (route == null || route.isBlank() || route.length() > 500
+                || !route.startsWith(requiredPrefix)
+                || route.startsWith("//") || route.indexOf('\\') >= 0
+                || route.chars().anyMatch(value -> value <= 31 || value == 127)) {
+            return false;
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(route);
+            return !uri.isAbsolute() && uri.getHost() == null && uri.getUserInfo() == null;
+        } catch (IllegalArgumentException invalid) {
+            return false;
+        }
     }
 
     record Policy(

@@ -14,6 +14,16 @@ import java.util.UUID;
 
 @Repository
 public class ActivityRepository {
+    static final String SEARCH_DOCUMENT = """
+            lower(
+                COALESCE(e.title_ko, '') || ' ' ||
+                COALESCE(e.title_en, '') || ' ' ||
+                COALESCE(e.summary_ko, '') || ' ' ||
+                COALESCE(e.summary_en, '') || ' ' ||
+                COALESCE(e.object_label_ko, '') || ' ' ||
+                COALESCE(e.object_label_en, '')
+            )
+            """;
     private static final String SELECT_EVENT = """
             SELECT e.*, (SELECT w.work_key FROM wrk_items w
               WHERE w.tenant_id=e.tenant_id AND w.work_item_id::text=e.object_id) AS source_work_key,
@@ -90,11 +100,9 @@ public class ActivityRepository {
             sql.append(" AND e.occurred_at < :to"); params.addValue("to", query.to());
         }
         if (query.query() != null) {
-            sql.append(" AND (e.title_ko ILIKE :query ESCAPE '!' OR e.title_en ILIKE :query ESCAPE '!'"
-                    + " OR e.summary_ko ILIKE :query ESCAPE '!' OR e.summary_en ILIKE :query ESCAPE '!'")
-                    .append(" OR e.object_label_ko ILIKE :query ESCAPE '!' OR e.object_label_en ILIKE :query ESCAPE '!')");
-            params.addValue("query", "%" + query.query().replace("!", "!!").replace("%", "!%")
-                    .replace("_", "!_") + "%");
+            sql.append(" AND (").append(SEARCH_DOCUMENT).append(" LIKE :query ESCAPE '!')");
+            params.addValue("query", "%" + query.query().toLowerCase(java.util.Locale.ROOT)
+                    .replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%");
         }
         if (position.id() != null) {
             sql.append(" AND (e.occurred_at,e.activity_event_id) < (:lastTime,:lastId)");

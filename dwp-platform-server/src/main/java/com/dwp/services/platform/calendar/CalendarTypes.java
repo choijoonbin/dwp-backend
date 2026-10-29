@@ -25,7 +25,7 @@ public final class CalendarTypes {
 
     public enum EventDetailLevel { FULL, FREE_BUSY }
 
-    public enum RecurrencePattern { NONE, DAILY, WEEKLY, MONTHLY }
+    public enum RecurrencePattern { NONE, DAILY, WEEKLY, MONTHLY, YEARLY }
 
     public enum AttendeeType { REQUIRED, OPTIONAL, RESOURCE }
 

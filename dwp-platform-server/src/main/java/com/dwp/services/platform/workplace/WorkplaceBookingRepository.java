@@ -124,7 +124,11 @@ class WorkplaceBookingRepository {
             Long userId,
             OffsetDateTime from,
             OffsetDateTime to,
-            boolean korean) {
+            boolean korean,
+            int limit) {
+        if (limit < 1 || limit > 2001) {
+            throw new IllegalArgumentException("booking history limit must be between 1 and 2001");
+        }
         return jdbc.query("""
                 SELECT booking.*, resource.resource_type,
                        CASE WHEN ? THEN resource.name_ko ELSE resource.name_en END AS resource_name,
@@ -138,9 +142,10 @@ class WorkplaceBookingRepository {
                   JOIN wp_sites site ON site.site_id = floor.site_id
                  WHERE booking.tenant_id = ? AND booking.user_id = ?
                    AND booking.starts_at < ? AND booking.ends_at > ?
-                 ORDER BY booking.starts_at, resource_name
+                 ORDER BY booking.starts_at, booking.booking_id
+                 LIMIT ?
                 """, (result, ignored) -> booking(result),
-                korean, korean, korean, tenantId, userId, to, from);
+                korean, korean, korean, tenantId, userId, to, from, limit);
     }
 
     Optional<BookingRow> booking(
@@ -360,28 +365,135 @@ class WorkplaceBookingRepository {
                 """, now, userId, tenantId, userId, bookingId, version);
     }
 
-    List<LifecycleBookingRow> releaseNoShows(Long tenantId, OffsetDateTime now) {
-        return releaseNoShows(now, "AND booking.tenant_id = ?", tenantId);
+    List<LifecycleBookingRow> releaseNoShows(
+            Long tenantId, OffsetDateTime now, int batchSize) {
+        return releaseNoShows(now, tenantId, batchSize, batchSize);
     }
 
-    List<LifecycleBookingRow> releaseNoShows(OffsetDateTime now) {
-        return releaseNoShows(now, "", null);
+    List<LifecycleBookingRow> releaseNoShows(
+            OffsetDateTime now, int batchSize, int perTenantLimit) {
+        return releaseNoShows(now, null, batchSize, perTenantLimit);
     }
 
     private List<LifecycleBookingRow> releaseNoShows(
-            OffsetDateTime now, String tenantPredicate, Long tenantId) {
-        String sql = """
-                WITH released AS (
+            OffsetDateTime now,
+            Long tenantId,
+            int batchSize,
+            int perTenantLimit) {
+        validateLifecycleLimits(batchSize, perTenantLimit);
+        // Global discovery advances a durable tenant cursor through at most batchSize policy
+        // rows, then performs index-backed claims only for that bounded window. Never move the
+        // window function above the LATERAL LIMIT: doing so scans the entire booking backlog.
+        String candidates = tenantId == null ? """
+                WITH cursor_state AS MATERIALIZED (
+                    SELECT last_tenant_id
+                      FROM wp_booking_lifecycle_cursors
+                     WHERE lifecycle_kind = 'NO_SHOW'
+                     FOR UPDATE
+                ), forward_tenants AS MATERIALIZED (
+                    SELECT policy.tenant_id, FALSE AS wrapped
+                      FROM wp_tenant_policies policy
+                      CROSS JOIN cursor_state cursor
+                     WHERE cursor.last_tenant_id IS NULL
+                        OR policy.tenant_id > cursor.last_tenant_id
+                     ORDER BY policy.tenant_id
+                     LIMIT ?
+                ), wrapped_tenants AS MATERIALIZED (
+                    SELECT policy.tenant_id, TRUE AS wrapped
+                      FROM wp_tenant_policies policy
+                      CROSS JOIN cursor_state cursor
+                     WHERE cursor.last_tenant_id IS NOT NULL
+                       AND policy.tenant_id <= cursor.last_tenant_id
+                     ORDER BY policy.tenant_id
+                     LIMIT GREATEST(
+                         0, ? - (SELECT COUNT(*) FROM forward_tenants))
+                ), tenant_window AS MATERIALIZED (
+                    SELECT tenant_id, wrapped FROM forward_tenants
+                    UNION ALL
+                    SELECT tenant_id, wrapped FROM wrapped_tenants
+                ), advanced_cursor AS MATERIALIZED (
+                    UPDATE wp_booking_lifecycle_cursors cursor
+                       SET last_tenant_id = progress.tenant_id,
+                           completed_cycles = cursor.completed_cycles
+                               + CASE WHEN progress.wrapped THEN 1 ELSE 0 END,
+                           updated_at = CURRENT_TIMESTAMP
+                      FROM (
+                          SELECT tenant_id, wrapped
+                            FROM tenant_window
+                           ORDER BY wrapped DESC, tenant_id DESC
+                           LIMIT 1
+                      ) progress
+                     WHERE cursor.lifecycle_kind = 'NO_SHOW'
+                    RETURNING cursor.last_tenant_id
+                ), eligible_tenants AS MATERIALIZED (
+                    SELECT tenant_scope.tenant_id, oldest.due_at, oldest.booking_id
+                      FROM tenant_window tenant_scope
+                      CROSS JOIN advanced_cursor cursor
+                      CROSS JOIN LATERAL (
+                          SELECT booking.no_show_due_at AS due_at, booking.booking_id
+                            FROM wp_bookings booking
+                           WHERE booking.tenant_id = tenant_scope.tenant_id
+                             AND booking.require_check_in_snapshot = TRUE
+                             AND booking.booking_status = 'RESERVED'
+                             AND booking.no_show_due_at < ?
+                           ORDER BY booking.no_show_due_at, booking.booking_id
+                           LIMIT 1
+                      ) oldest
+                ), tenant_budget AS MATERIALIZED (
+                    SELECT CASE WHEN COUNT(*) = 0 THEN 1
+                                ELSE LEAST(?,
+                                    ((?::bigint + COUNT(*) - 1) / COUNT(*))::integer)
+                           END AS claim_limit
+                      FROM eligible_tenants
+                ), candidates AS MATERIALIZED (
+                    SELECT claim.booking_id
+                      FROM eligible_tenants eligible
+                      CROSS JOIN tenant_budget budget
+                      CROSS JOIN LATERAL (
+                          SELECT locked.booking_id, locked.tenant_id, locked.due_at,
+                                 ROW_NUMBER() OVER (
+                                     ORDER BY locked.due_at, locked.booking_id) AS tenant_rank
+                            FROM (
+                                SELECT booking.booking_id, booking.tenant_id,
+                                       booking.no_show_due_at AS due_at
+                                  FROM wp_bookings booking
+                                 WHERE booking.tenant_id = eligible.tenant_id
+                                   AND booking.require_check_in_snapshot = TRUE
+                                   AND booking.booking_status = 'RESERVED'
+                                   AND booking.no_show_due_at < ?
+                                 ORDER BY booking.no_show_due_at, booking.booking_id
+                                 FOR UPDATE OF booking SKIP LOCKED
+                                 LIMIT budget.claim_limit
+                            ) locked
+                      ) claim
+                     ORDER BY claim.tenant_rank, claim.due_at,
+                              claim.tenant_id, claim.booking_id
+                     LIMIT ?
+                )
+                """ : """
+                WITH candidates AS MATERIALIZED (
+                    SELECT booking.booking_id
+                      FROM wp_bookings booking
+                     WHERE booking.tenant_id = ?
+                       AND booking.require_check_in_snapshot = TRUE
+                       AND booking.booking_status = 'RESERVED'
+                       AND booking.no_show_due_at < ?
+                     ORDER BY booking.no_show_due_at, booking.booking_id
+                     FOR UPDATE OF booking SKIP LOCKED
+                     LIMIT ?
+                )
+                """;
+        String sql = candidates + """
+                , released AS (
                     UPDATE wp_bookings booking
                        SET booking_status = 'NO_SHOW', released_at = ?,
                            version = booking.version + 1,
                            updated_at = CURRENT_TIMESTAMP, updated_by = 0
-                     WHERE 1 = 1
-                       %s
+                      FROM candidates
+                     WHERE booking.booking_id = candidates.booking_id
                        AND booking.require_check_in_snapshot = TRUE
                        AND booking.booking_status = 'RESERVED'
-                       AND booking.starts_at
-                           + make_interval(mins => booking.auto_release_minutes_snapshot) < ?
+                       AND booking.no_show_due_at < ?
                     RETURNING booking.tenant_id, booking.booking_id, booking.resource_id,
                               booking.user_id, booking.starts_at, booking.ends_at,
                               booking.booking_status, booking.version, booking.released_at
@@ -406,29 +518,142 @@ class WorkplaceBookingRepository {
                   JOIN wp_floors floor
                     ON floor.tenant_id = resource.tenant_id
                    AND floor.floor_id = resource.floor_id
-                """.formatted(tenantPredicate);
+                """;
         return tenantId == null
-                ? jdbc.query(sql, this::lifecycleBooking, now, now)
-                : jdbc.query(sql, this::lifecycleBooking, now, tenantId, now);
+                ? jdbc.query(sql, this::lifecycleBooking,
+                        batchSize, batchSize, now, perTenantLimit, batchSize,
+                        now, batchSize, now, now)
+                : jdbc.query(sql, this::lifecycleBooking,
+                        tenantId, now, Math.min(batchSize, perTenantLimit), now, now);
     }
 
-    List<LifecycleBookingRow> completeEndedBookings(Long tenantId, OffsetDateTime now) {
-        return completeEndedBookings(now, "AND booking.tenant_id = ?", tenantId);
+    List<LifecycleBookingRow> completeEndedBookings(
+            Long tenantId, OffsetDateTime now, int batchSize) {
+        return completeEndedBookings(now, tenantId, batchSize, batchSize);
     }
 
-    List<LifecycleBookingRow> completeEndedBookings(OffsetDateTime now) {
-        return completeEndedBookings(now, "", null);
+    List<LifecycleBookingRow> completeEndedBookings(
+            OffsetDateTime now, int batchSize, int perTenantLimit) {
+        return completeEndedBookings(now, null, batchSize, perTenantLimit);
     }
 
     private List<LifecycleBookingRow> completeEndedBookings(
-            OffsetDateTime now, String tenantPredicate, Long tenantId) {
-        String sql = """
-                WITH completed AS (
+            OffsetDateTime now,
+            Long tenantId,
+            int batchSize,
+            int perTenantLimit) {
+        validateLifecycleLimits(batchSize, perTenantLimit);
+        // Keep completion discovery symmetric with no-show discovery: both cursors visit a
+        // bounded tenant window and never rank the unbounded overdue booking population.
+        String candidates = tenantId == null ? """
+                WITH cursor_state AS MATERIALIZED (
+                    SELECT last_tenant_id
+                      FROM wp_booking_lifecycle_cursors
+                     WHERE lifecycle_kind = 'COMPLETION'
+                     FOR UPDATE
+                ), forward_tenants AS MATERIALIZED (
+                    SELECT policy.tenant_id, FALSE AS wrapped
+                      FROM wp_tenant_policies policy
+                      CROSS JOIN cursor_state cursor
+                     WHERE cursor.last_tenant_id IS NULL
+                        OR policy.tenant_id > cursor.last_tenant_id
+                     ORDER BY policy.tenant_id
+                     LIMIT ?
+                ), wrapped_tenants AS MATERIALIZED (
+                    SELECT policy.tenant_id, TRUE AS wrapped
+                      FROM wp_tenant_policies policy
+                      CROSS JOIN cursor_state cursor
+                     WHERE cursor.last_tenant_id IS NOT NULL
+                       AND policy.tenant_id <= cursor.last_tenant_id
+                     ORDER BY policy.tenant_id
+                     LIMIT GREATEST(
+                         0, ? - (SELECT COUNT(*) FROM forward_tenants))
+                ), tenant_window AS MATERIALIZED (
+                    SELECT tenant_id, wrapped FROM forward_tenants
+                    UNION ALL
+                    SELECT tenant_id, wrapped FROM wrapped_tenants
+                ), advanced_cursor AS MATERIALIZED (
+                    UPDATE wp_booking_lifecycle_cursors cursor
+                       SET last_tenant_id = progress.tenant_id,
+                           completed_cycles = cursor.completed_cycles
+                               + CASE WHEN progress.wrapped THEN 1 ELSE 0 END,
+                           updated_at = CURRENT_TIMESTAMP
+                      FROM (
+                          SELECT tenant_id, wrapped
+                            FROM tenant_window
+                           ORDER BY wrapped DESC, tenant_id DESC
+                           LIMIT 1
+                      ) progress
+                     WHERE cursor.lifecycle_kind = 'COMPLETION'
+                    RETURNING cursor.last_tenant_id
+                ), eligible_tenants AS MATERIALIZED (
+                    SELECT tenant_scope.tenant_id, oldest.due_at, oldest.booking_id
+                      FROM tenant_window tenant_scope
+                      CROSS JOIN advanced_cursor cursor
+                      CROSS JOIN LATERAL (
+                          SELECT booking.ends_at AS due_at, booking.booking_id
+                            FROM wp_bookings booking
+                           WHERE booking.tenant_id = tenant_scope.tenant_id
+                             AND booking.ends_at <= ?
+                             AND (booking.booking_status = 'CHECKED_IN'
+                                  OR (booking.booking_status = 'RESERVED'
+                                      AND booking.require_check_in_snapshot = FALSE))
+                           ORDER BY booking.ends_at, booking.booking_id
+                           LIMIT 1
+                      ) oldest
+                ), tenant_budget AS MATERIALIZED (
+                    SELECT CASE WHEN COUNT(*) = 0 THEN 1
+                                ELSE LEAST(?,
+                                    ((?::bigint + COUNT(*) - 1) / COUNT(*))::integer)
+                           END AS claim_limit
+                      FROM eligible_tenants
+                ), candidates AS MATERIALIZED (
+                    SELECT claim.booking_id
+                      FROM eligible_tenants eligible
+                      CROSS JOIN tenant_budget budget
+                      CROSS JOIN LATERAL (
+                          SELECT locked.booking_id, locked.tenant_id, locked.due_at,
+                                 ROW_NUMBER() OVER (
+                                     ORDER BY locked.due_at, locked.booking_id) AS tenant_rank
+                            FROM (
+                                SELECT booking.booking_id, booking.tenant_id,
+                                       booking.ends_at AS due_at
+                                  FROM wp_bookings booking
+                                 WHERE booking.tenant_id = eligible.tenant_id
+                                   AND booking.ends_at <= ?
+                                   AND (booking.booking_status = 'CHECKED_IN'
+                                        OR (booking.booking_status = 'RESERVED'
+                                            AND booking.require_check_in_snapshot = FALSE))
+                                 ORDER BY booking.ends_at, booking.booking_id
+                                 FOR UPDATE OF booking SKIP LOCKED
+                                 LIMIT budget.claim_limit
+                            ) locked
+                      ) claim
+                     ORDER BY claim.tenant_rank, claim.due_at,
+                              claim.tenant_id, claim.booking_id
+                     LIMIT ?
+                )
+                """ : """
+                WITH candidates AS MATERIALIZED (
+                    SELECT booking.booking_id
+                      FROM wp_bookings booking
+                     WHERE booking.tenant_id = ?
+                       AND booking.ends_at <= ?
+                       AND (booking.booking_status = 'CHECKED_IN'
+                            OR (booking.booking_status = 'RESERVED'
+                                AND booking.require_check_in_snapshot = FALSE))
+                     ORDER BY booking.ends_at, booking.booking_id
+                     FOR UPDATE OF booking SKIP LOCKED
+                     LIMIT ?
+                )
+                """;
+        String sql = candidates + """
+                , completed AS (
                     UPDATE wp_bookings booking
                        SET booking_status = 'COMPLETED', version = booking.version + 1,
                            updated_at = CURRENT_TIMESTAMP, updated_by = 0
-                     WHERE 1 = 1
-                       %s
+                      FROM candidates
+                     WHERE booking.booking_id = candidates.booking_id
                        AND booking.ends_at <= ?
                        AND (booking.booking_status = 'CHECKED_IN'
                             OR (booking.booking_status = 'RESERVED'
@@ -457,10 +682,56 @@ class WorkplaceBookingRepository {
                   JOIN wp_floors floor
                     ON floor.tenant_id = resource.tenant_id
                    AND floor.floor_id = resource.floor_id
-                """.formatted(tenantPredicate);
+                """;
         return tenantId == null
-                ? jdbc.query(sql, this::lifecycleBooking, now)
-                : jdbc.query(sql, this::lifecycleBooking, tenantId, now);
+                ? jdbc.query(sql, this::lifecycleBooking,
+                        batchSize, batchSize, now, perTenantLimit, batchSize,
+                        now, batchSize, now)
+                : jdbc.query(sql, this::lifecycleBooking,
+                        tenantId, now, Math.min(batchSize, perTenantLimit), now);
+    }
+
+    LifecycleBacklog lifecycleBacklog(OffsetDateTime now) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) FILTER (
+                           WHERE booking.require_check_in_snapshot = TRUE
+                             AND booking.booking_status = 'RESERVED'
+                             AND booking.no_show_due_at < boundary.now)
+                           AS no_show_count,
+                       MIN(booking.no_show_due_at) FILTER (
+                           WHERE booking.require_check_in_snapshot = TRUE
+                             AND booking.booking_status = 'RESERVED'
+                             AND booking.no_show_due_at < boundary.now)
+                           AS oldest_no_show_due_at,
+                       COUNT(*) FILTER (
+                           WHERE booking.ends_at <= boundary.now
+                             AND (booking.booking_status = 'CHECKED_IN'
+                                  OR (booking.booking_status = 'RESERVED'
+                                      AND booking.require_check_in_snapshot = FALSE)))
+                           AS completion_count,
+                       MIN(booking.ends_at) FILTER (
+                           WHERE booking.ends_at <= boundary.now
+                             AND (booking.booking_status = 'CHECKED_IN'
+                                  OR (booking.booking_status = 'RESERVED'
+                                      AND booking.require_check_in_snapshot = FALSE)))
+                           AS oldest_completion_due_at
+                  FROM wp_bookings booking
+                 CROSS JOIN (SELECT ?::timestamptz AS now) boundary
+                 WHERE booking.booking_status IN ('RESERVED', 'CHECKED_IN')
+                """, (result, ignored) -> new LifecycleBacklog(
+                        result.getLong("no_show_count"),
+                        result.getObject("oldest_no_show_due_at", OffsetDateTime.class),
+                        result.getLong("completion_count"),
+                        result.getObject("oldest_completion_due_at", OffsetDateTime.class)),
+                now);
+    }
+
+    private void validateLifecycleLimits(int batchSize, int perTenantLimit) {
+        WorkplaceMaintenanceRunBudget.validateBatchSize(batchSize);
+        if (perTenantLimit < 1 || perTenantLimit > batchSize) {
+            throw new IllegalArgumentException(
+                    "perTenantLimit must be between 1 and batchSize");
+        }
     }
 
     private LifecycleBookingRow lifecycleBooking(ResultSet result, int ignored)
@@ -610,6 +881,16 @@ class WorkplaceBookingRepository {
             OffsetDateTime startsAt,
             OffsetDateTime endsAt,
             long version) {
+    }
+
+    record LifecycleBacklog(
+            long noShows,
+            OffsetDateTime oldestNoShowDueAt,
+            long completions,
+            OffsetDateTime oldestCompletionDueAt) {
+        long total() {
+            return noShows + completions;
+        }
     }
 
     record BookingCommandRow(

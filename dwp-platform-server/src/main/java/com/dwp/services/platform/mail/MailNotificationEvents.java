@@ -21,9 +21,11 @@ class MailNotificationEvents {
     static final String NEW_MAIL_RECEIVED = "mail.message.received.v1";
     static final String SHARED_INBOX_ASSIGNED = "mail.shared-inbox.assigned.v1";
     static final String FOLLOW_UP_DUE = "mail.follow-up.due.v1";
+    static final String ACTION_ESCALATED = "mail.action.escalated.v1";
     static final String NEW_MAIL_TYPE = "MAIL.NEW_MESSAGE";
     static final String SHARED_ASSIGNMENT_TYPE = "MAIL.SHARED_ASSIGNMENT";
     static final String FOLLOW_UP_DUE_TYPE = "MAIL.FOLLOW_UP_DUE";
+    static final String ACTION_ESCALATED_TYPE = "MAIL.ACTION_ESCALATED";
 
     private final DomainEventRecorder recorder;
     private final ObjectMapper json;
@@ -40,6 +42,7 @@ class MailNotificationEvents {
         contracts.register(NEW_MAIL_RECEIVED, 1, 1);
         contracts.register(SHARED_INBOX_ASSIGNED, 1, 1);
         contracts.register(FOLLOW_UP_DUE, 1, 1);
+        contracts.register(ACTION_ESCALATED, 1, 1);
     }
 
     Optional<UUID> newMailReceived(long tenantId, UUID threadId, UUID messageId) {
@@ -153,6 +156,45 @@ class MailNotificationEvents {
                 data));
     }
 
+    UUID actionEscalated(
+            long tenantId,
+            long actorUserId,
+            MailDtos.ActionProposal proposal,
+            String correlationId) {
+        requireUser(tenantId, actorUserId);
+        if (proposal == null || proposal.proposalId() == null || proposal.threadId() == null) {
+            throw new IllegalArgumentException("Mail proposal escalation identity is required.");
+        }
+        String channel = safeVariable(proposal.proposedPayload().get("channel"), "IN_APP");
+        String urgency = safeVariable(proposal.proposedPayload().get("urgency"), "NORMAL");
+        ObjectNode data = json.createObjectNode();
+        addIntent(
+                data,
+                ACTION_ESCALATED_TYPE,
+                actorUserId,
+                "PROPOSAL_ACCEPTED",
+                proposal.threadId(),
+                "mail-proposal:" + proposal.proposalId(),
+                "/mail/actions?proposalId=" + proposal.proposalId(),
+                true,
+                "user:" + actorUserId,
+                Map.of(
+                        "proposalId", proposal.proposalId().toString(),
+                        "threadId", proposal.threadId().toString(),
+                        "channel", channel,
+                        "urgency", urgency));
+        return record(
+                ACTION_ESCALATED,
+                tenantId,
+                "MAIL_ACTION_PROPOSAL",
+                proposal.proposalId(),
+                Math.addExact(proposal.version(), 1L),
+                OffsetDateTime.now(java.time.ZoneOffset.UTC),
+                correlation(correlationId,
+                        "mail-action-escalated:" + proposal.proposalId()),
+                data);
+    }
+
     private void addIntent(
             ObjectNode data,
             String typeKey,
@@ -230,6 +272,12 @@ class MailNotificationEvents {
         if (tenantId < 1 || userId < 1) {
             throw new IllegalArgumentException("Mail notification user identity is required.");
         }
+    }
+
+    private String safeVariable(Object value, String fallback) {
+        if (!(value instanceof String text)) return fallback;
+        String normalized = text.trim();
+        return normalized.matches("[A-Za-z0-9._-]{1,80}") ? normalized : fallback;
     }
 
     private String correlation(String value, String fallback) {

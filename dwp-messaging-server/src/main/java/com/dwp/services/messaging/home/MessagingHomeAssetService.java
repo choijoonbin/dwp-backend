@@ -20,18 +20,27 @@ public class MessagingHomeAssetService {
 
     @Transactional(readOnly = true)
     public MessagingHomeDtos.SharedAssetsResponse recent(int limit) {
-        if (limit < 1 || limit > 20) throw new BaseException(
-                ErrorCode.INVALID_INPUT_VALUE, "Shared asset limit must be between 1 and 20.");
+        if (limit < 1 || limit > 100) throw new BaseException(
+                ErrorCode.INVALID_INPUT_VALUE, "Shared asset limit must be between 1 and 100.");
         var subject = MessagingRequestContext.get();
         var assets = new ArrayList<>(repository.files(subject.tenantId(), subject.userId(), limit));
         for (var message : repository.linkMessages(subject.tenantId(), subject.userId())) {
+            if (message.protectedContent()) {
+                assets.add(new MessagingHomeDtos.SharedAsset(
+                        "link-protected:" + message.messageId(),
+                        MessagingHomeDtos.AssetKind.LINK,
+                        message.conversationId(), message.conversationName(), message.messageId(),
+                        message.sharedAt(), message.senderName(), null, true,
+                        null, null, null, null));
+                continue;
+            }
             for (var url : MessagingSharedLinkExtractor.links(message.body())) {
                 String key = message.messageId() + ":" + url;
                 assets.add(new MessagingHomeDtos.SharedAsset(
                         "link:" + UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)),
                         MessagingHomeDtos.AssetKind.LINK, message.conversationId(), message.conversationName(),
                         message.messageId(), message.sharedAt(), message.senderName(), url.getHost(),
-                        null, url.toString(), null, null));
+                        false, null, url.toString(), null, null));
             }
         }
         assets.sort(Comparator.comparing(MessagingHomeDtos.SharedAsset::sharedAt).reversed()

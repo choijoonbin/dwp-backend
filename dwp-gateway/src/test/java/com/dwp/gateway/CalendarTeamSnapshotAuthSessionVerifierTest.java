@@ -59,5 +59,19 @@ class CalendarTeamSnapshotAuthSessionVerifierTest {
             verifier.verify(MockServerHttpRequest.get(path).build()).block();
             assertThat(captured.get().url().getQuery()).as(path).isEqualTo("permissionPrefix=APP.CALENDAR");
         }
+
+        for (String path : List.of(
+                "/api/platform/v2/calendar/events",
+                "/api/platform/v2/calendar/events/search",
+                "/api/platform/v2/calendar/external-events",
+                "/api/platform/v2/calendar/scheduling/evaluations",
+                "/api/platform/v2/calendar/scheduling/evaluations/evaluation-id/hard-recheck")) {
+            verifier.verify(MockServerHttpRequest.get(path).build()).block();
+            assertThat(captured.get().url().getQuery()).as(path)
+                    .isEqualTo("permissionPrefix=APP.CALENDAR");
+        }
+
+        verifier.verify(MockServerHttpRequest.get("/api/platform/v2/calendar-extra").build()).block();
+        assertThat(captured.get().url().getQuery()).isNull();
     }
 }

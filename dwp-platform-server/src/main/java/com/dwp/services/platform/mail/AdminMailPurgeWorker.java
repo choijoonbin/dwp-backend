@@ -26,6 +26,8 @@ class AdminMailPurgeWorker {
     private final AdminMailPurgeTransactions transactions;
     private final MailPurgeExecutionAuthority authority;
     private final MailPurgeDomainEventPort domainEvents;
+    private final MailProviderPurgeCoordinator providerPurge;
+    private final MailMetrics metrics;
     private final boolean enabled;
     private final int batchSize;
     private final int leaseSeconds;
@@ -38,6 +40,8 @@ class AdminMailPurgeWorker {
             AdminMailPurgeTransactions transactions,
             MailPurgeExecutionAuthority authority,
             MailPurgeDomainEventPort domainEvents,
+            MailProviderPurgeCoordinator providerPurge,
+            MailMetrics metrics,
             @Value("${dwp.platform.mail.purge.enabled:true}") boolean enabled,
             @Value("${dwp.platform.mail.purge.batch-size:5}") int batchSize,
             @Value("${dwp.platform.mail.purge.lease-seconds:30}") int leaseSeconds,
@@ -47,6 +51,8 @@ class AdminMailPurgeWorker {
         this.transactions = transactions;
         this.authority = authority;
         this.domainEvents = domainEvents;
+        this.providerPurge = providerPurge;
+        this.metrics = metrics;
         this.enabled = enabled;
         this.batchSize = positive(batchSize, "batchSize");
         this.leaseSeconds = positive(leaseSeconds, "leaseSeconds");
@@ -58,12 +64,26 @@ class AdminMailPurgeWorker {
             AdminMailCompletionRepository repository,
             AdminMailPurgeTransactions transactions,
             MailPurgeExecutionAuthority authority,
+            MailPurgeDomainEventPort domainEvents,
             boolean enabled,
             int batchSize,
             int leaseSeconds,
             int maximumAttempts,
             String workerName) {
-        this(repository, transactions, authority, null, enabled, batchSize,
+        this(repository, transactions, authority, domainEvents, null, null, enabled, batchSize,
+                leaseSeconds, maximumAttempts, workerName);
+    }
+
+    AdminMailPurgeWorker(
+            AdminMailCompletionRepository repository,
+            AdminMailPurgeTransactions transactions,
+            MailPurgeExecutionAuthority authority,
+            boolean enabled,
+            int batchSize,
+            int leaseSeconds,
+            int maximumAttempts,
+            String workerName) {
+        this(repository, transactions, authority, null, null, null, enabled, batchSize,
                 leaseSeconds, maximumAttempts, workerName);
     }
 
@@ -78,6 +98,7 @@ class AdminMailPurgeWorker {
                 execute(job);
             }
         } catch (RuntimeException pollingFailure) {
+            if (metrics != null) metrics.purge("poll_failed");
             log.error("Mail purge polling failed", pollingFailure);
         }
     }
@@ -113,6 +134,7 @@ class AdminMailPurgeWorker {
                     repository.completeLeasedPurgeJob(
                             job.tenantId(), job.id(), workerId, state, counts, steps,
                             "UNKNOWN", decision.reasonCode());
+                    if (metrics != null) metrics.purge(state);
                     return;
                 }
                 counts = transactions.revalidateAndDelete(job);
@@ -124,37 +146,60 @@ class AdminMailPurgeWorker {
                 requireCheckpoint(job, "LOCAL_DELETE_CHECKPOINTED", steps, counts);
             }
 
-            steps.add(step("DELETE_PROVIDER_DATA", "SKIPPED", Map.of(
-                    "evidenceSource", "approved purge preview",
-                    "code", "NO_EXTERNAL_PROVIDER_DELETE_CONTRACT")));
+            MailProviderPurgeCoordinator.Result providerResult = providerPurge == null
+                    ? new MailProviderPurgeCoordinator.Result(
+                            MailProviderPurgeCoordinator.State.PURGED, 0, 0)
+                    : providerPurge.execute(job.tenantId(), job.actorId(), job.id());
+            steps.add(step("DELETE_PROVIDER_DATA",
+                    providerResult.complete() ? "SUCCEEDED" : providerResult.state().name(),
+                    Map.of("evidenceSource", "mail_provider_purge_commands",
+                            "providerCommands", providerResult.commands(),
+                            "providerPurgedItems", providerResult.purgedItems(),
+                            "providerOutcome", providerResult.state().name())));
             steps.add(step("QUEUE_ATTACHMENT_CLEANUP",
                     counts.attachmentCleanupCommands() > 0 ? "SUCCEEDED" : "SKIPPED",
                     Map.of("commands", counts.attachmentCleanupCommands(),
                             "evidenceSource", "sys_tenant_media_cleanup_outbox")));
-            UUID durableEventId = domainEvents == null
-                    ? null : domainEvents.record(job, counts);
-            AdminMailCompletionRepository.PurgeEventEvidence event = durableEventId == null
-                    ? repository.ensurePurgeCompletionEvent(
-                            job.tenantId(), job.id(), job.actorId(), counts)
-                    : repository.ensurePurgeCompletionEvent(
-                            job.tenantId(), job.id(), job.actorId(), counts, durableEventId);
-            boolean eventPublished = event.publishedAt() != null;
-            steps.add(step("PUBLISH_PURGE_EVENT",
-                    eventPublished ? "SUCCEEDED" : "UNKNOWN", Map.of(
-                    "eventId", event.eventId(),
-                    "publishAttempts", event.publishAttempts(),
-                    "deliveryState", event.deliveryState(),
-                    "evidenceSource", "sys_domain_event_outbox",
-                    "code", eventPublished ? "PUBLISHED" : "PUBLICATION_PENDING")));
+            boolean eventPublished = false;
+            if (providerResult.complete()) {
+                UUID durableEventId = domainEvents == null
+                        ? null : domainEvents.record(job, counts);
+                AdminMailCompletionRepository.PurgeEventEvidence event = durableEventId == null
+                        ? repository.ensurePurgeCompletionEvent(
+                                job.tenantId(), job.id(), job.actorId(), counts)
+                        : repository.ensurePurgeCompletionEvent(
+                                job.tenantId(), job.id(), job.actorId(), counts, durableEventId);
+                eventPublished = event.publishedAt() != null;
+                steps.add(step("PUBLISH_PURGE_EVENT",
+                        eventPublished ? "SUCCEEDED" : "UNKNOWN", Map.of(
+                        "eventId", event.eventId(),
+                        "publishAttempts", event.publishAttempts(),
+                        "deliveryState", event.deliveryState(),
+                        "evidenceSource", "sys_domain_event_outbox",
+                        "code", eventPublished ? "PUBLISHED" : "PUBLICATION_PENDING")));
+            } else {
+                steps.add(step("PUBLISH_PURGE_EVENT", "SKIPPED", Map.of(
+                        "evidenceSource", "mail_provider_purge_commands",
+                        "code", "PROVIDER_PURGE_NOT_COMPLETE",
+                        "providerOutcome", providerResult.state().name())));
+            }
             requireCheckpoint(job, "SIDE_EFFECT_EVIDENCE_RECORDED", steps, counts);
 
             long remaining = repository.remainingPurgeCandidates(
                     job.tenantId(), job.candidateThreadIds());
-            String verification = remaining == 0 ? "VERIFIED" : "FAILED";
+            String verification = remaining != 0 ? "FAILED"
+                    : providerResult.complete() ? "VERIFIED" : "UNKNOWN";
             String state = remaining != 0 ? "FAILED"
+                    : !providerResult.complete()
+                        ? providerResult.state() == MailProviderPurgeCoordinator.State.FAILED
+                                || job.attemptCount() >= maximumAttempts
+                            ? "FAILED" : providerResult.state()
+                                    == MailProviderPurgeCoordinator.State.RECONCILIATION_REQUIRED
+                                    ? "UNKNOWN" : "PARTIAL"
                     : eventPublished ? "SUCCEEDED"
                     : job.attemptCount() >= maximumAttempts ? "FAILED" : "PARTIAL";
             String errorCode = remaining != 0 ? "PURGE_VERIFICATION_FAILED"
+                    : !providerResult.complete() ? "PROVIDER_PURGE_" + providerResult.state().name()
                     : eventPublished ? null : "PURGE_EVENT_PUBLICATION_PENDING";
             steps.add(step("VERIFY_LOCAL_ABSENCE", verification, Map.of(
                     "remainingThreads", remaining,
@@ -164,11 +209,15 @@ class AdminMailPurgeWorker {
                     verification, errorCode) != 1) {
                 throw new IllegalStateException("PURGE_WORKER_LEASE_LOST");
             }
+            String auditAction = providerResult.complete() && remaining == 0 && eventPublished
+                    ? "mail.purge.completed"
+                    : "mail.purge.provider-reconciliation-required";
             repository.audit(
-                    job.tenantId(), job.actorId(), "mail.purge.completed", "MAIL_PURGE_JOB",
+                    job.tenantId(), job.actorId(), auditAction, "MAIL_PURGE_JOB",
                     job.id().toString(), null, Map.of("attempt", job.attemptCount()),
                     Map.of("result", state, "deletedThreads", counts.threads(),
                             "deletedMessages", counts.messages(), "remaining", remaining));
+            if (metrics != null) metrics.purge(state);
         } catch (RuntimeException failure) {
             String code = sanitize(failure);
             steps.add(step("WORKER_INTERRUPTED", "UNKNOWN", Map.of(
@@ -177,6 +226,7 @@ class AdminMailPurgeWorker {
             repository.completeLeasedPurgeJob(
                     job.tenantId(), job.id(), workerId, state, counts, steps,
                     "UNKNOWN", code);
+            if (metrics != null) metrics.purge(state);
             log.warn("Mail purge attempt failed jobId={} attempt={}",
                     job.id(), job.attemptCount(), failure);
         }

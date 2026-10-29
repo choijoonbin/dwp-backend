@@ -59,14 +59,94 @@ class MessagingQueryRepository {
                  GROUP BY conversation.conversation_id, member.favorite, member.pinned,
                           member.last_read_sequence, last_message.message_id
                  ORDER BY member.pinned DESC, member.favorite DESC,
-                          conversation.last_message_at DESC NULLS LAST,
+                          CASE WHEN last_message.message_id IS NOT NULL
+                               THEN conversation.last_message_at END DESC NULLS LAST,
                           conversation.conversation_id
                  LIMIT ? OFFSET ?
                 """, (result, ignored) -> conversation(result),
                 tenantId, userId,
                 scope, scope, scope, scope, scope, scope,
                 query, pattern(query), pattern(query),
-                pageSize, page * pageSize);
+                pageSize, (long) page * pageSize);
+    }
+
+    ConversationSlice conversationPage(
+            long tenantId,
+            long userId,
+            String scope,
+            String query,
+            MessagingConversationCursor.Cursor cursor,
+            int page,
+            int pageSize) {
+        String cursorPredicate = cursor == null ? "" : """
+                   AND ((? = TRUE AND member.pinned = FALSE)
+                        OR (member.pinned = ? AND (
+                            (? = TRUE AND member.favorite = FALSE)
+                            OR (member.favorite = ? AND (
+                                COALESCE(CASE WHEN last_message.message_id IS NOT NULL
+                                                  THEN conversation.last_message_at END,
+                                         '-infinity'::TIMESTAMPTZ)
+                                    < COALESCE(?::TIMESTAMPTZ, '-infinity'::TIMESTAMPTZ)
+                                OR (CASE WHEN last_message.message_id IS NOT NULL
+                                             THEN conversation.last_message_at END
+                                        IS NOT DISTINCT FROM ?::TIMESTAMPTZ
+                                    AND conversation.conversation_id > ?))))))
+                """;
+        String offsetClause = cursor == null ? " OFFSET ?" : "";
+        String sql = conversationSelect() + """
+                 WHERE conversation.tenant_id = ?
+                   AND conversation.lifecycle_state = 'ACTIVE'
+                   AND member.user_id = ?
+                   AND member.lifecycle_state = 'ACTIVE'
+                   AND (? = 'ALL'
+                        OR (? = 'FAVORITES' AND member.favorite = TRUE)
+                        OR (? = 'SPACES' AND conversation.visibility = 'SPACE')
+                        OR (? = 'DIRECT' AND conversation.conversation_type = 'DIRECT')
+                        OR (? = 'CHANNELS' AND conversation.conversation_type <> 'DIRECT')
+                        OR (? = 'MENTIONS' AND EXISTS (
+                            SELECT 1
+                              FROM msg_message_mentions mention
+                              JOIN msg_messages mentioned_message
+                                ON mentioned_message.tenant_id = mention.tenant_id
+                               AND mentioned_message.conversation_id = mention.conversation_id
+                               AND mentioned_message.message_id = mention.message_id
+                             WHERE mention.tenant_id = conversation.tenant_id
+                               AND mention.conversation_id = conversation.conversation_id
+                               AND mention.mentioned_user_id = member.user_id
+                               AND mentioned_message.deleted_at IS NULL
+                               AND mentioned_message.sequence > member.last_read_sequence
+                               AND mentioned_message.sequence >= member.history_start_sequence)))
+                   AND (? = '' OR LOWER(COALESCE(conversation.name, '')) LIKE ?
+                        OR LOWER(COALESCE(conversation.topic, '')) LIKE ?)
+                """ + cursorPredicate + """
+                 GROUP BY conversation.conversation_id, member.favorite, member.pinned,
+                          member.last_read_sequence, last_message.message_id
+                 ORDER BY member.pinned DESC, member.favorite DESC,
+                          CASE WHEN last_message.message_id IS NOT NULL
+                               THEN conversation.last_message_at END DESC NULLS LAST,
+                          conversation.conversation_id
+                 LIMIT ?
+                """ + offsetClause;
+        List<Object> parameters = new ArrayList<>();
+        Collections.addAll(
+                parameters, tenantId, userId,
+                scope, scope, scope, scope, scope, scope,
+                query, pattern(query), pattern(query));
+        if (cursor != null) {
+            Collections.addAll(
+                    parameters,
+                    cursor.pinned(), cursor.pinned(),
+                    cursor.favorite(), cursor.favorite(),
+                    cursor.lastMessageAt(), cursor.lastMessageAt(), cursor.conversationId());
+        }
+        parameters.add(pageSize + 1);
+        if (cursor == null) parameters.add((long) page * pageSize);
+        List<MessagingDtos.ConversationSummary> results = jdbc.query(
+                sql, (result, ignored) -> conversation(result), parameters.toArray());
+        boolean hasMore = results.size() > pageSize;
+        return new ConversationSlice(
+                hasMore ? List.copyOf(results.subList(0, pageSize)) : List.copyOf(results),
+                hasMore);
     }
 
     long conversationCount(long tenantId, long userId, String scope, String query) {
@@ -104,6 +184,46 @@ class MessagingQueryRepository {
                 tenantId, userId, scope, scope, scope, scope, scope, scope,
                 query, pattern(query), pattern(query));
         return count == null ? 0 : count;
+    }
+
+    List<MessagingDtos.ConversationSummary> adminConversations(long tenantId, int limit) {
+        return jdbc.query("""
+                SELECT conversation.conversation_id, conversation.conversation_key,
+                       conversation.conversation_type, conversation.name,
+                       conversation.visibility, conversation.data_classification,
+                       conversation.linked_space_key, conversation.linked_space_name,
+                       conversation.lifecycle_state, conversation.last_message_at,
+                       conversation.version,
+                       COUNT(member.user_id) AS member_count
+                  FROM msg_conversations conversation
+                  LEFT JOIN msg_conversation_members member
+                    ON member.tenant_id = conversation.tenant_id
+                   AND member.conversation_id = conversation.conversation_id
+                   AND member.lifecycle_state = 'ACTIVE'
+                 WHERE conversation.tenant_id = ?
+                   AND conversation.lifecycle_state = 'ACTIVE'
+                 GROUP BY conversation.conversation_id
+                 ORDER BY conversation.last_message_at DESC NULLS LAST,
+                          conversation.conversation_id
+                 LIMIT ?
+                """, (row, ignored) -> new MessagingDtos.ConversationSummary(
+                row.getObject("conversation_id", UUID.class),
+                row.getString("conversation_key"),
+                row.getString("conversation_type"),
+                row.getString("name"),
+                null,
+                row.getString("visibility"),
+                row.getString("data_classification"),
+                row.getString("linked_space_key"),
+                row.getString("linked_space_name"),
+                row.getString("lifecycle_state"),
+                row.getInt("member_count"),
+                0,
+                false,
+                false,
+                null,
+                row.getObject("last_message_at", OffsetDateTime.class),
+                row.getLong("version")), tenantId, limit);
     }
 
     Optional<MessagingDtos.ConversationSummary> conversation(
@@ -195,6 +315,99 @@ class MessagingQueryRepository {
                 tenantId, userId, query, pattern(query), pattern(query), pattern(query), limit);
     }
 
+    PeoplePage peoplePage(
+            long tenantId,
+            long userId,
+            String query,
+            String organization,
+            String jobTitle,
+            MessagingPeopleCursor.Cursor cursor,
+            int offset,
+            int limit) {
+        long total = peopleCount(tenantId, userId, query, organization, jobTitle);
+        String cursorClause = cursor == null ? "" : """
+                   AND (display_name > ? OR (display_name = ? AND person_public_id > ?))
+                """;
+        String offsetClause = cursor == null ? " OFFSET ?" : "";
+        String sql = """
+                SELECT user_id, person_public_id, email_address, display_name,
+                       job_title, organization_name, presence_state
+                  FROM msg_people_snapshot
+                 WHERE tenant_id = ?
+                   AND lifecycle_state = 'ACTIVE'
+                   AND user_id <> ?
+                   AND (? = '' OR LOWER(display_name) LIKE ?
+                        OR LOWER(email_address) LIKE ?
+                        OR LOWER(COALESCE(job_title, '')) LIKE ?
+                        OR LOWER(COALESCE(organization_name, '')) LIKE ?)
+                   AND (? = '' OR LOWER(COALESCE(organization_name, '')) LIKE ?)
+                   AND (? = '' OR LOWER(COALESCE(job_title, '')) LIKE ?)
+                """ + cursorClause + """
+                 ORDER BY display_name, person_public_id
+                 LIMIT ?
+                """ + offsetClause;
+        List<Object> parameters = peopleFilterParameters(
+                tenantId, userId, query, organization, jobTitle);
+        if (cursor != null) {
+            parameters.add(cursor.displayName());
+            parameters.add(cursor.displayName());
+            parameters.add(cursor.personPublicId());
+        }
+        parameters.add(limit + 1);
+        if (cursor == null) parameters.add(offset);
+        List<MessagingDtos.PersonSummary> candidates = jdbc.query(
+                sql, (result, ignored) -> person(result), parameters.toArray());
+        boolean hasMore = candidates.size() > limit;
+        List<MessagingDtos.PersonSummary> items = hasMore
+                ? List.copyOf(candidates.subList(0, limit))
+                : List.copyOf(candidates);
+        return new PeoplePage(items, total, hasMore);
+    }
+
+    private long peopleCount(
+            long tenantId,
+            long userId,
+            String query,
+            String organization,
+            String jobTitle) {
+        List<Object> parameters = peopleFilterParameters(
+                tenantId, userId, query, organization, jobTitle);
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM msg_people_snapshot
+                 WHERE tenant_id = ?
+                   AND lifecycle_state = 'ACTIVE'
+                   AND user_id <> ?
+                   AND (? = '' OR LOWER(display_name) LIKE ?
+                        OR LOWER(email_address) LIKE ?
+                        OR LOWER(COALESCE(job_title, '')) LIKE ?
+                        OR LOWER(COALESCE(organization_name, '')) LIKE ?)
+                   AND (? = '' OR LOWER(COALESCE(organization_name, '')) LIKE ?)
+                   AND (? = '' OR LOWER(COALESCE(job_title, '')) LIKE ?)
+                """, Long.class, parameters.toArray());
+        return count == null ? 0 : count;
+    }
+
+    private List<Object> peopleFilterParameters(
+            long tenantId,
+            long userId,
+            String query,
+            String organization,
+            String jobTitle) {
+        return new ArrayList<>(List.of(
+                tenantId,
+                userId,
+                query,
+                pattern(query),
+                pattern(query),
+                pattern(query),
+                pattern(query),
+                organization,
+                pattern(organization),
+                jobTitle,
+                pattern(jobTitle)));
+    }
+
     List<MessagingDtos.PersonSummary> peopleByUserIds(
             long tenantId,
             long viewerUserId,
@@ -271,7 +484,11 @@ class MessagingQueryRepository {
                             AND saved_member.user_id = saved.user_id
                             AND saved_member.lifecycle_state = 'ACTIVE'
                             AND saved_message.sequence >= saved_member.history_start_sequence
-                          WHERE saved.tenant_id = ? AND saved.user_id = ?), 0) AS saved_items
+                          WHERE saved.tenant_id = ? AND saved.user_id = ?
+                            AND saved.state <> 'COMPLETED'
+                            AND (saved.state <> 'SNOOZED'
+                                 OR COALESCE(saved.reminder_at, saved.snoozed_until)
+                                    <= CURRENT_TIMESTAMP)), 0) AS saved_items
                   FROM msg_conversations conversation
                   JOIN msg_conversation_members member
                     ON member.tenant_id = conversation.tenant_id
@@ -294,6 +511,12 @@ class MessagingQueryRepository {
                 result.getInt("direct_messages"),
                 result.getInt("saved_items")),
                 tenantId, userId, tenantId, userId, userId, userId, tenantId);
+    }
+
+    record PeoplePage(
+            List<MessagingDtos.PersonSummary> items,
+            long total,
+            boolean hasMore) {
     }
 
     MessagingDtos.TenantPolicy policy(long tenantId) {
@@ -373,8 +596,12 @@ class MessagingQueryRepository {
                        last_message.sender_user_id AS last_sender_user_id,
                        last_message.sender_person_public_id AS last_sender_person_public_id,
                        last_message.sender_name AS last_sender_name,
-                       CASE WHEN last_message.deleted_at IS NULL
-                            THEN last_message.body ELSE '' END AS last_body,
+                       CASE
+                           WHEN conversation.data_classification IN ('CONFIDENTIAL', 'RESTRICTED')
+                               THEN ''
+                           WHEN last_message.deleted_at IS NULL THEN last_message.body
+                           ELSE ''
+                       END AS last_body,
                        last_message.content_type AS last_content_type,
                        last_message.message_kind AS last_message_kind,
                        last_message.reply_to_message_id AS last_reply_to_message_id,
@@ -460,5 +687,10 @@ class MessagingQueryRepository {
 
     private String pattern(String value) {
         return "%" + value.toLowerCase() + "%";
+    }
+
+    record ConversationSlice(
+            List<MessagingDtos.ConversationSummary> items,
+            boolean hasMore) {
     }
 }

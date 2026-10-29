@@ -26,11 +26,11 @@ public class MessagingPresenceController {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "204",
-                    description = "Presence lease renewed",
+                    description = "Heartbeat accepted; a lease is renewed only when the user permits presence sharing",
                     headers = {
                             @Header(
                                     name = LEASE_TTL_HEADER,
-                                    description = "Authoritative renewed lease lifetime in whole seconds",
+                                    description = "Configured lease lifetime when sharing is enabled; an opted-out heartbeat publishes no lease",
                                     schema = @Schema(type = "integer", format = "int64", minimum = "30", maximum = "300", example = "75")),
                             @Header(
                                     name = REFRESH_AFTER_HEADER,

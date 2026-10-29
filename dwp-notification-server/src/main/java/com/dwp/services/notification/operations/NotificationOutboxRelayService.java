@@ -1,6 +1,7 @@
 package com.dwp.services.notification.operations;
 
 import com.dwp.services.notification.operations.NotificationOutboxRepository.OutboxEvent;
+import com.dwp.services.notification.operations.NotificationOutboxRepository.OutboxStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,31 +69,42 @@ public class NotificationOutboxRelayService {
         int published = 0;
         int failed = 0;
         int dead = 0;
+        int leaseLost = 0;
         for (OutboxEvent event : events) {
             try {
                 kafka.send(topic, event.eventKey(), envelope(event))
                         .get(sendTimeout.toMillis(), TimeUnit.MILLISECONDS);
                 if (!transactions.markPublished(
                         tenantId, event.outboxId(), leaseToken, Instant.now())) {
-                    throw new IllegalStateException("Notification outbox lease was lost.");
+                    leaseLost++;
+                    failed++;
+                    continue;
                 }
                 published++;
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
-                if (markFailed(event, leaseToken, exception, now)) dead++;
+                FailureDisposition disposition = markFailed(event, leaseToken, exception, now);
+                if (disposition == FailureDisposition.DEAD) dead++;
+                if (disposition == FailureDisposition.LEASE_LOST) leaseLost++;
                 failed++;
                 break;
             } catch (Exception exception) {
-                if (markFailed(event, leaseToken, exception, now)) dead++;
+                FailureDisposition disposition = markFailed(event, leaseToken, exception, now);
+                if (disposition == FailureDisposition.DEAD) dead++;
+                if (disposition == FailureDisposition.LEASE_LOST) leaseLost++;
                 failed++;
             }
         }
         int cleaned = transactions.cleanupPublished(
                 tenantId, now.minus(publishedRetention), batchSize);
-        return new RelayResult(events.size(), published, failed, dead, cleaned);
+        return new RelayResult(events.size(), published, failed, dead, leaseLost, cleaned);
     }
 
-    private boolean markFailed(
+    public OutboxStatus statusTenant(long tenantId) {
+        return transactions.status(tenantId);
+    }
+
+    private FailureDisposition markFailed(
             OutboxEvent event,
             String leaseToken,
             Exception exception,
@@ -106,7 +118,10 @@ public class NotificationOutboxRelayService {
                 maximumAttempts,
                 now.plus(backoff(event.outboxId(), attempt)),
                 exception.getClass().getSimpleName() + ": " + exception.getMessage());
-        return marked && attempt >= maximumAttempts;
+        if (!marked) return FailureDisposition.LEASE_LOST;
+        return attempt >= maximumAttempts
+                ? FailureDisposition.DEAD
+                : FailureDisposition.RETRY_SCHEDULED;
     }
 
     private Duration backoff(UUID outboxId, int attempt) {
@@ -141,6 +156,13 @@ public class NotificationOutboxRelayService {
             int published,
             int failed,
             int dead,
+            int leaseLost,
             int cleaned) {
+    }
+
+    private enum FailureDisposition {
+        RETRY_SCHEDULED,
+        DEAD,
+        LEASE_LOST
     }
 }

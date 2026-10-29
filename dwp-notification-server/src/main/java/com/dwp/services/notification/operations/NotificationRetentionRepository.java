@@ -6,7 +6,6 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -23,13 +22,40 @@ public class NotificationRetentionRepository {
         this.jdbc = jdbc;
     }
 
-    public void extendExpiry(
+    public RetentionInputs retentionInputs(long tenantId, UUID typeVersionId) {
+        return jdbc.queryForObject("""
+                SELECT tenant_policy.default_ttl_seconds AS tenant_default_ttl_seconds,
+                       type_version.retention_ttl_seconds AS contract_override_ttl_seconds
+                  FROM ntf_notification_type_versions type_version
+                  LEFT JOIN ntf_tenant_retention_policies tenant_policy
+                    ON tenant_policy.tenant_id = :tenantId
+                 WHERE type_version.type_version_id = :typeVersionId
+                """, tenant(tenantId)
+                .addValue("typeVersionId", typeVersionId), (resultSet, ignored) ->
+                        new RetentionInputs(
+                                resultSet.getObject("tenant_default_ttl_seconds", Long.class),
+                                resultSet.getObject("contract_override_ttl_seconds", Long.class)));
+    }
+
+    public void applyExpiry(
             long tenantId,
             UUID notificationId,
-            Instant expiresAt) {
+            Instant expiresAt,
+            String policySource,
+            long ttlSeconds) {
         jdbc.update("""
                 UPDATE ntf_notifications
-                   SET expires_at = CASE
+                   SET retention_policy_source = CASE
+                           WHEN expires_at IS NULL OR expires_at < :expiresAt
+                               THEN :policySource
+                           ELSE retention_policy_source
+                       END,
+                       retention_ttl_seconds = CASE
+                           WHEN expires_at IS NULL OR expires_at < :expiresAt
+                               THEN :ttlSeconds
+                           ELSE retention_ttl_seconds
+                       END,
+                       expires_at = CASE
                            WHEN expires_at IS NULL THEN :expiresAt
                            ELSE GREATEST(expires_at, :expiresAt)
                        END,
@@ -37,7 +63,9 @@ public class NotificationRetentionRepository {
                  WHERE tenant_id = :tenantId AND notification_id = :notificationId
                 """, tenant(tenantId)
                 .addValue("notificationId", notificationId)
-                .addValue("expiresAt", Timestamp.from(expiresAt)));
+                .addValue("expiresAt", Timestamp.from(expiresAt))
+                .addValue("policySource", policySource)
+                .addValue("ttlSeconds", ttlSeconds));
     }
 
     public PurgeResult purgeExpired(
@@ -285,5 +313,10 @@ public class NotificationRetentionRepository {
     }
 
     private record Candidate(long userId, UUID notificationId) {
+    }
+
+    public record RetentionInputs(
+            Long tenantDefaultTtlSeconds,
+            Long contractOverrideTtlSeconds) {
     }
 }

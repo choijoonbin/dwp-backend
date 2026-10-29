@@ -1020,10 +1020,12 @@ class ApprovalRuntimeKeyEnvironmentTest(unittest.TestCase):
 
 
 class MeetingInvitationDevctlTest(unittest.TestCase):
-    def test_meeting_profile_starts_invitation_delivery_dependencies(self) -> None:
+    def test_meeting_profile_starts_surface_authority_and_delivery_dependencies(
+        self,
+    ) -> None:
         self.assertEqual(
             [service.name for service in devctl.resolve_services(["meeting"])],
-            ["auth", "notification", "meeting"],
+            ["auth", "people", "provider", "notification", "meeting"],
         )
 
         phase_by_service = {
@@ -1032,7 +1034,27 @@ class MeetingInvitationDevctlTest(unittest.TestCase):
             for service_name in phase
         }
         self.assertLess(phase_by_service["auth"], phase_by_service["meeting"])
+        self.assertLess(phase_by_service["people"], phase_by_service["meeting"])
+        self.assertLess(phase_by_service["provider"], phase_by_service["meeting"])
         self.assertLess(phase_by_service["notification"], phase_by_service["meeting"])
+
+        self.assertEqual(
+            [
+                service.name
+                for service in devctl.resolve_services(
+                    ["meeting", "gateway", "web"]
+                )
+            ],
+            [
+                "auth",
+                "people",
+                "provider",
+                "notification",
+                "meeting",
+                "gateway",
+                "frontend",
+            ],
+        )
 
     def test_single_meeting_delivery_token_override_is_shared_with_notification(
         self,

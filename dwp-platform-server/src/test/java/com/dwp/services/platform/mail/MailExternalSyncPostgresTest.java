@@ -74,7 +74,7 @@ class MailExternalSyncPostgresTest {
                             folderId, inbound, List.of(blocked));
             assertThat(repository.updateAccountSyncCursor(
                     fixture.tenantId(), fixture.accountId(), fixture.cursor(),
-                    "cursor-1", fixture.ownerUserId())).isOne();
+                    account.cursorGeneration(), "cursor-1", fixture.ownerUserId())).isOne();
             return inserted;
         });
         assertThat(first).isNotNull();
@@ -91,7 +91,7 @@ class MailExternalSyncPostgresTest {
                             folderId, inbound, List.of(blocked));
             assertThat(repository.updateAccountSyncCursor(
                     fixture.tenantId(), fixture.accountId(), "cursor-1",
-                    "cursor-2", fixture.ownerUserId())).isOne();
+                    account.cursorGeneration(), "cursor-2", fixture.ownerUserId())).isOne();
             return replay;
         });
 
@@ -132,7 +132,7 @@ class MailExternalSyncPostgresTest {
                     inbound(rolledBackMessage, rolledBackThread, List.of()), List.of());
             assertThat(repository.updateAccountSyncCursor(
                     fixture.tenantId(), fixture.accountId(), "cursor-2",
-                    "cursor-rollback", fixture.ownerUserId())).isOne();
+                    account.cursorGeneration(), "cursor-rollback", fixture.ownerUserId())).isOne();
             throw new IllegalStateException("force rollback");
         })).isInstanceOf(IllegalStateException.class).hasMessage("force rollback");
         assertThat(jdbc.queryForObject("""
@@ -197,7 +197,7 @@ class MailExternalSyncPostgresTest {
                 .locations(
                         "filesystem:src/main/resources/db/migration",
                         "filesystem:../dwp-core/src/main/resources/db/migration")
-                .target("282")
+                .target("370")
                 .cleanDisabled(false)
                 .load();
         flyway.clean();

@@ -37,6 +37,8 @@ public final class MailProductSurfacePepFilter extends OncePerRequestFilter {
     static final String CURRENT_REVALIDATE_AT_HEADER = "X-DWP-Current-Revalidate-At";
     static final String EXPECTED_REVISION_HEADER = "X-DWP-Expected-Decision-Revision";
     static final String RESPONSE_REVISION_HEADER = "X-DWP-Decision-Revision";
+    static final String TRUSTED_AUTHORITY_ATTRIBUTE =
+            MailProductSurfacePepFilter.class.getName() + ".trustedAuthority";
     private static final Set<String> ROLLOUT_STATES = Set.of("000", "100", "110", "111");
     private static final Set<String> ROLLOUT_COHORTS = Set.of(
             "baseline", "holdout", "full", "eligible-10", "eligible-25",
@@ -144,8 +146,21 @@ public final class MailProductSurfacePepFilter extends OncePerRequestFilter {
 
         response.setHeader(RESPONSE_REVISION_HEADER, revision);
         request.setAttribute(MailProductSurfaceAccessPolicy.class.getName() + ".decision", decision);
+        request.setAttribute(TRUSTED_AUTHORITY_ATTRIBUTE,
+                new TrustedAuthority(routeContractKey, revision, revalidateAt));
         filterChain.doFilter(request, response);
     }
+
+    static OffsetDateTime trustedRevalidateAt(HttpServletRequest request) {
+        Object value = request.getAttribute(TRUSTED_AUTHORITY_ATTRIBUTE);
+        return value instanceof TrustedAuthority authority
+                ? authority.revalidateAt() : null;
+    }
+
+    record TrustedAuthority(
+            String routeContractKey,
+            String revision,
+            OffsetDateTime revalidateAt) { }
 
     private boolean validRolloutEvidence(String state, String revision, String cohort) {
         return state != null && ROLLOUT_STATES.contains(state)

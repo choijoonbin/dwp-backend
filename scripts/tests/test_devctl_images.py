@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import os
 import stat
 import subprocess
@@ -128,6 +129,81 @@ class RuntimeImageRegistryTest(unittest.TestCase):
         self.assertEqual(["meeting"], parsed.profiles)
 
 
+class MeetingReadinessTimestampTest(unittest.TestCase):
+    def test_rfc3339_parser_accepts_java_instant_fraction_widths_and_offsets(self) -> None:
+        valid = (
+            "2026-10-28T08:36:55Z",
+            "2026-10-28T08:36:55.5Z",
+            "2026-10-28T08:36:55.529Z",
+            "2026-10-28T08:36:55.52907Z",
+            "2026-10-28T08:36:55.529070Z",
+            "2026-10-28T08:36:55.529070123Z",
+            "2026-10-28T17:36:55.52907+09:00",
+        )
+        for value in valid:
+            with self.subTest(value=value):
+                parsed = devctl.parse_rfc3339_instant(value)
+                self.assertIsNotNone(parsed.tzinfo)
+                self.assertIsNotNone(parsed.utcoffset())
+
+    def test_rfc3339_parser_rejects_naive_overprecision_and_invalid_dates(self) -> None:
+        invalid = (
+            "2026-10-28T08:36:55",
+            "2026-10-28T08:36:55.1234567890Z",
+            "2026-02-30T08:36:55.52907Z",
+            "2026-10-28T25:36:55Z",
+            "2026-10-28 08:36:55Z",
+            None,
+        )
+        for value in invalid:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                devctl.parse_rfc3339_instant(value)
+
+    def test_meeting_home_accepts_five_digit_java_instant(self) -> None:
+        payload = {
+            "success": True,
+            "status": "SUCCESS",
+            "data": {
+                "serverNow": "2026-10-28T08:36:55.52907Z",
+                "timeZone": "UTC",
+                "today": [],
+                "recent": [],
+                "metrics": {
+                    "meetingsToday": 0,
+                    "meetingMinutesToday": 0,
+                    "waitingForApproval": 0,
+                    "qualityScore": None,
+                    "averageJoinSeconds": None,
+                },
+                "capabilities": {"available": True, "provider": "LOCAL"},
+            },
+        }
+        response = Mock(status=200)
+        response.getheader.return_value = "application/json; charset=utf-8"
+        response.read.return_value = json.dumps(payload).encode("utf-8")
+        connection = Mock()
+        connection.getresponse.return_value = response
+        with (
+            patch.object(
+                devctl,
+                "service_environment",
+                return_value={"DWP_MEETING_SERVICE_TOKEN": "local-token"},
+            ),
+            patch.object(
+                devctl.http.client,
+                "HTTPConnection",
+                return_value=connection,
+            ) as http_connection,
+        ):
+            self.assertTrue(devctl.meeting_home_ready(devctl.SERVICES["meeting"]))
+        http_connection.assert_called_once_with(
+            "127.0.0.1",
+            devctl.SERVICES["meeting"].port,
+            timeout=devctl.MEETING_READINESS_REQUEST_TIMEOUT_SECONDS,
+        )
+        connection.close.assert_called_once()
+
+
 class RuntimeImageResetLockTest(unittest.TestCase):
     def test_reset_acquires_build_watch_then_state_lock(self) -> None:
         events: list[str] = []
@@ -194,6 +270,69 @@ class RuntimeImageResetLockTest(unittest.TestCase):
         watch_lock.assert_not_called()
         state_lock.assert_not_called()
         reset.assert_not_called()
+
+
+class RuntimeImageUpGenerationTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.service = devctl.SERVICES["meeting"]
+        self.prepared = devctl.PreparedRuntimeImages({}, "a" * 64)
+        self.parser = Mock()
+        self.parser.parse_args.return_value = Mock(
+            command="up", profiles=["meeting"]
+        )
+
+    def test_first_generation_check_aborts_before_state_lock_or_signal(self) -> None:
+        with (
+            patch.object(devctl, "build_parser", return_value=self.parser),
+            patch.object(devctl, "resolve_services", return_value=[self.service]),
+            patch.object(devctl, "doctor"),
+            patch.object(devctl, "stage_runtime_images", return_value=self.prepared),
+            patch.object(
+                devctl, "capture_runtime_source_digest", return_value="b" * 64
+            ),
+            patch.object(devctl, "state_change_lock") as state_lock,
+            patch.object(devctl, "start_infrastructure") as infrastructure,
+            patch.object(devctl, "reconcile_stale_services") as reconcile,
+            patch.object(devctl, "start_and_wait_services_in_phases") as start,
+            patch.object(devctl, "stop_service") as stop,
+            self.assertRaisesRegex(RuntimeError, "sources changed"),
+        ):
+            devctl.main()
+        state_lock.assert_not_called()
+        infrastructure.assert_not_called()
+        reconcile.assert_not_called()
+        start.assert_not_called()
+        stop.assert_not_called()
+
+    def test_second_generation_check_aborts_before_reconcile_or_signal(self) -> None:
+        with (
+            patch.object(devctl, "build_parser", return_value=self.parser),
+            patch.object(devctl, "resolve_services", return_value=[self.service]),
+            patch.object(devctl, "doctor"),
+            patch.object(devctl, "stage_runtime_images", return_value=self.prepared),
+            patch.object(
+                devctl,
+                "capture_runtime_source_digest",
+                side_effect=["a" * 64, "b" * 64],
+            ),
+            patch.object(
+                devctl, "state_change_lock", side_effect=lambda: nullcontext()
+            ),
+            patch.object(devctl, "start_infrastructure") as infrastructure,
+            patch.object(devctl, "load_state") as load_state,
+            patch.object(devctl, "reconcile_stale_services") as reconcile,
+            patch.object(devctl, "start_and_wait_services_in_phases") as start,
+            patch.object(devctl, "converge_managed_services") as converge,
+            patch.object(devctl, "stop_service") as stop,
+            self.assertRaisesRegex(RuntimeError, "sources changed"),
+        ):
+            devctl.main()
+        infrastructure.assert_called_once()
+        load_state.assert_not_called()
+        reconcile.assert_not_called()
+        start.assert_not_called()
+        converge.assert_not_called()
+        stop.assert_not_called()
 
 
 class RuntimeImageStateTest(RuntimeImageSandbox):
@@ -517,6 +656,84 @@ class RuntimeImageExecutionTest(RuntimeImageSandbox):
                 [devctl.SERVICES["meeting"]], state, {"meeting": desired}
             )
         reconcile.assert_not_called()
+
+    def test_existing_meeting_false_then_true_readiness_is_not_restarted(self) -> None:
+        envelope = self.publish()
+        state = {"meeting": self.process_state("meeting", envelope)}
+        identity = {"pgid": 1234, "startedAt": "now", "commandSha256": "f" * 64}
+        with (
+            patch.object(devctl, "process_alive", return_value=True),
+            patch.object(
+                devctl, "service_runtime_staleness", return_value=(False, "")
+            ),
+            patch.object(
+                devctl, "managed_service_ready", side_effect=[False, True]
+            ) as ready,
+            patch.object(devctl, "verify_managed_process", return_value=identity),
+            patch.object(devctl.time, "sleep"),
+            patch.object(devctl, "stop_service") as stop,
+        ):
+            restarted = devctl.reconcile_stale_services(
+                [devctl.SERVICES["meeting"]], state, {"meeting": envelope}
+            )
+        self.assertEqual(set(), restarted)
+        self.assertEqual(2, ready.call_count)
+        stop.assert_not_called()
+
+    def test_existing_meeting_requires_three_failed_readiness_probes(self) -> None:
+        envelope = self.publish()
+        state = {"meeting": self.process_state("meeting", envelope)}
+        identity = {"pgid": 1234, "startedAt": "now", "commandSha256": "f" * 64}
+        with (
+            patch.object(devctl, "process_alive", return_value=True),
+            patch.object(
+                devctl, "service_runtime_staleness", return_value=(False, "")
+            ),
+            patch.object(devctl, "managed_service_ready", return_value=False) as ready,
+            patch.object(devctl, "verify_managed_process", return_value=identity),
+            patch.object(devctl.time, "sleep"),
+            patch.object(devctl, "stop_service") as stop,
+        ):
+            restarted = devctl.reconcile_stale_services(
+                [devctl.SERVICES["meeting"]], state, {"meeting": envelope}
+            )
+        self.assertEqual({"meeting"}, restarted)
+        self.assertEqual(3, ready.call_count)
+        stop.assert_called_once_with(devctl.SERVICES["meeting"], state)
+
+    def test_meeting_identity_drift_or_verification_error_never_signals(self) -> None:
+        envelope = self.publish()
+        first = {"pgid": 1234, "startedAt": "first", "commandSha256": "a" * 64}
+        second = {"pgid": 1234, "startedAt": "second", "commandSha256": "b" * 64}
+        cases = (
+            ([first, second], "identity changed"),
+            (RuntimeError("identity verification failed"), "verification failed"),
+        )
+        for verify_effect, message in cases:
+            with self.subTest(message=message):
+                state = {"meeting": self.process_state("meeting", envelope)}
+                with (
+                    patch.object(devctl, "process_alive", return_value=True),
+                    patch.object(
+                        devctl,
+                        "service_runtime_staleness",
+                        return_value=(False, ""),
+                    ),
+                    patch.object(devctl, "service_ready", return_value=False),
+                    patch.object(
+                        devctl,
+                        "verify_managed_process",
+                        side_effect=verify_effect,
+                    ),
+                    patch.object(devctl, "stop_service") as stop,
+                    self.assertRaisesRegex(RuntimeError, message),
+                ):
+                    devctl.reconcile_stale_services(
+                        [devctl.SERVICES["meeting"]],
+                        state,
+                        {"meeting": envelope},
+                    )
+                stop.assert_not_called()
 
     def test_watcher_never_starts_a_selected_but_stopped_service(self) -> None:
         envelope = self.publish()

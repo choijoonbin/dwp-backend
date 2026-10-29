@@ -39,6 +39,34 @@ class MessagingStreamServiceTest {
     }
 
     @Test
+    void rejectsAReconnectCursorAheadOfTheTenantHighWaterMark() {
+        MessagingRealtimeRepository repository = mock(MessagingRealtimeRepository.class);
+        MessagingRequestContext.Subject subject = subject(101, 7);
+        when(repository.latestTenantSequence(7)).thenReturn(41L);
+        MessagingStreamService streams = new MessagingStreamService(repository, Duration.ofMinutes(1));
+
+        assertThatThrownBy(() -> streams.open(subject, "42"))
+                .isInstanceOfSatisfying(BaseException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        verify(repository, never()).latestVisibleSequence(subject);
+    }
+
+    @Test
+    void newConnectionUsesOnlyTheVisibleHighWaterQuery() {
+        MessagingRealtimeRepository repository = mock(MessagingRealtimeRepository.class);
+        MessagingRequestContext.Subject subject = subject(101, 7);
+        when(repository.latestVisibleSequence(subject)).thenReturn(41L);
+        MessagingStreamService streams = new MessagingStreamService(repository, Duration.ofMinutes(1));
+
+        streams.open(subject, null);
+
+        verify(repository).latestVisibleSequence(subject);
+        verify(repository, never()).latestTenantSequence(7);
+        verify(repository, never()).eventsBetween(subject, 41, 41, 200);
+    }
+
+    @Test
     void durableWakeUpReplaysPersistedEventsForConnectedTenant() {
         MessagingRealtimeRepository repository = mock(MessagingRealtimeRepository.class);
         MessagingRequestContext.Subject subject = subject(101, 1);

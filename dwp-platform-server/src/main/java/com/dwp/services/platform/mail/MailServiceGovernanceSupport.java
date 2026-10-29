@@ -6,6 +6,7 @@ import org.jsoup.Jsoup;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,9 +29,10 @@ class MailServiceGovernanceSupport extends MailServiceSupport {
             MailNotificationEvents notificationEvents,
             MailWorkspaceRepository workspaceRepository,
             MailProposalOutcomePort proposalOutcomes,
-            MailAdminMutationReceipts adminReceipts) {
+            MailAdminMutationReceipts adminReceipts,
+            MailBulkMutationReceipts bulkMutationReceipts) {
         super(queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
-                workspaceRepository, proposalOutcomes, adminReceipts);
+                workspaceRepository, proposalOutcomes, adminReceipts, bulkMutationReceipts);
     }
 
     @Transactional
@@ -238,13 +240,20 @@ class MailServiceGovernanceSupport extends MailServiceSupport {
                 correlationId);
         if (request.decision() == ProposalDecision.ACCEPT
                 && after.type() == ProposalType.ESCALATE_NOTIFICATION) {
-            String resultRef = "unsupported-owner:notification";
+            if (notificationEvents == null) {
+                throw new BaseException(
+                        ErrorCode.EXTERNAL_SERVICE_ERROR,
+                        "The notification owner integration is unavailable.");
+            }
+            UUID notificationEventId = notificationEvents.actionEscalated(
+                    tenantId, userId, after, correlationId);
+            String resultRef = "notification-event:" + notificationEventId;
             MailQueryRepository.OwnerProposalHandoffRow handoff = queries
                     .ownerProposalHandoff(tenantId, proposalId, true)
                     .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
             if (commands.updateProposalOutcomeFromOwner(
                     tenantId, userId, proposalId, handoff.commandId(),
-                    ProposalType.ESCALATE_NOTIFICATION, "UNKNOWN", resultRef,
+                    ProposalType.ESCALATE_NOTIFICATION, "EXECUTED", resultRef,
                     handoff.version()) != 1) {
                 conflict();
             }
@@ -252,16 +261,18 @@ class MailServiceGovernanceSupport extends MailServiceSupport {
                     tenantId, userId, "mail.action.owner-outcome",
                     "MAIL_ACTION_PROPOSAL", proposalId.toString(), correlationId,
                     Map.of("status", "ACCEPTED", "version", handoff.version()),
-                    Map.of("status", "UNKNOWN", "resultRef", resultRef,
+                    Map.of("status", "EXECUTED", "resultRef", resultRef,
                             "version", handoff.version() + 1));
             commands.domainEvent(
                     tenantId, "MAIL_ACTION_PROPOSAL", proposalId,
                     "mail.action.owner-outcome", Map.of(
                             "proposalId", proposalId,
                             "commandId", handoff.commandId(),
-                            "status", "UNKNOWN",
+                            "status", "EXECUTED",
                             "resultRef", resultRef,
                             "version", handoff.version() + 1), correlationId);
+            after = queries.proposal(tenantId, userId, proposalId)
+                    .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         }
         return after;
     }
@@ -444,6 +455,16 @@ class MailServiceGovernanceSupport extends MailServiceSupport {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "The provider contract exists, but its runtime adapter is not deployed.");
+        }
+        if (request.state() == ConnectionState.ACTIVE
+                && before.providerType() != ProviderType.DWP_SANDBOX
+                && !queries.hasFreshActivationDiagnostic(
+                        tenantId, userId, connectionId, before.version(),
+                        OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(10))) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "A fresh successful scoped readiness diagnostic with activation consent "
+                            + "is required before activation.");
         }
         if (commands.updateConnection(tenantId, userId, connectionId, request) == 0) {
             conflict();

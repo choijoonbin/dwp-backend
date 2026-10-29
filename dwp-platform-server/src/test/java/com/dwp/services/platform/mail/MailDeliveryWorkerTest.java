@@ -1,6 +1,7 @@
 package com.dwp.services.platform.mail;
 
 import com.dwp.platform.contract.MailConnectorPort;
+import com.dwp.platform.contract.MailProviderException;
 import com.dwp.services.platform.media.TenantMediaStorage;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -118,7 +119,7 @@ class MailDeliveryWorkerTest {
     }
 
     @Test
-    void ambiguousProviderFailureIsNotAutomaticallyRetried() {
+    void ambiguousProviderFailureRequiresReconciliationAndIsNotAutomaticallyRetried() {
         MailDeliveryRepository repository = mock(MailDeliveryRepository.class);
         MailDeliveryCompletionService completion = mock(MailDeliveryCompletionService.class);
         MailConnectorPort connector = readyConnector();
@@ -134,8 +135,83 @@ class MailDeliveryWorkerTest {
 
         worker.deliverPending();
 
-        verify(completion).fail(
-                eq(job), anyString(), eq(5), eq("MAIL_PROVIDER_RESULT_UNKNOWN"), eq(true));
+        ArgumentCaptor<MailConnectorPort.DeliveryReceipt> receipt =
+                ArgumentCaptor.forClass(MailConnectorPort.DeliveryReceipt.class);
+        verify(completion).complete(eq(job), anyString(), receipt.capture(),
+                eq(MailConnectorPort.SenderMode.ACCOUNT));
+        assertThat(receipt.getValue().outcome())
+                .isEqualTo(MailConnectorPort.DeliveryOutcome.RESULT_UNKNOWN);
+    }
+
+    @Test
+    void nonSandboxLegacyDeliveredReceiptIsDowngradedToProviderAccepted() {
+        MailDeliveryRepository repository = mock(MailDeliveryRepository.class);
+        MailDeliveryCompletionService completion = mock(MailDeliveryCompletionService.class);
+        TenantMediaStorage storage = mock(TenantMediaStorage.class);
+        MailConnectorPort connector = readyConnector(
+                MailConnectorPort.ProviderFamily.MICROSOFT_GRAPH);
+        MailDeliveryRepository.DeliveryJob job = job(ProviderType.MICROSOFT_GRAPH);
+        when(repository.claim(anyString(), eq(10), eq(30))).thenReturn(List.of(job));
+        when(repository.authorizedSenderMode(job))
+                .thenReturn(Optional.of(MailConnectorPort.SenderMode.ACCOUNT));
+        MailDeliveryWorker worker = new MailDeliveryWorker(
+                repository, new MailConnectorRegistry(List.of(connector)), completion, storage,
+                true, 10, 30, 5, "test");
+
+        worker.deliverPending();
+
+        ArgumentCaptor<MailConnectorPort.DeliveryReceipt> receipt =
+                ArgumentCaptor.forClass(MailConnectorPort.DeliveryReceipt.class);
+        verify(completion).complete(eq(job), anyString(), receipt.capture(),
+                eq(MailConnectorPort.SenderMode.ACCOUNT));
+        assertThat(receipt.getValue().outcome())
+                .isEqualTo(MailConnectorPort.DeliveryOutcome.PROVIDER_ACCEPTED);
+    }
+
+    @Test
+    void providerRateLimitPreservesRetryAfter() {
+        MailDeliveryRepository repository = mock(MailDeliveryRepository.class);
+        MailDeliveryCompletionService completion = mock(MailDeliveryCompletionService.class);
+        TenantMediaStorage storage = mock(TenantMediaStorage.class);
+        MailConnectorPort connector = readyConnector();
+        MailDeliveryRepository.DeliveryJob job = job(ProviderType.DWP_SANDBOX);
+        Instant retryAt = Instant.now().plusSeconds(90);
+        when(repository.claim(anyString(), eq(10), eq(30))).thenReturn(List.of(job));
+        when(repository.authorizedSenderMode(job))
+                .thenReturn(Optional.of(MailConnectorPort.SenderMode.ACCOUNT));
+        when(connector.send(any())).thenThrow(new MailProviderException(
+                MailProviderException.Category.RATE_LIMIT, "MAIL_RATE_LIMITED", retryAt));
+        MailDeliveryWorker worker = new MailDeliveryWorker(
+                repository, new MailConnectorRegistry(List.of(connector)), completion, storage,
+                true, 10, 30, 5, "test");
+
+        worker.deliverPending();
+
+        verify(completion).fail(eq(job), org.mockito.ArgumentMatchers.anyString(), eq(5),
+                eq("MAIL_RATE_LIMITED"), eq(false), eq(retryAt));
+    }
+
+    @Test
+    void unavailableReadinessPreservesProviderRetryAfter() {
+        MailDeliveryRepository repository = mock(MailDeliveryRepository.class);
+        MailDeliveryCompletionService completion = mock(MailDeliveryCompletionService.class);
+        TenantMediaStorage storage = mock(TenantMediaStorage.class);
+        MailConnectorPort connector = readyConnector();
+        MailDeliveryRepository.DeliveryJob job = job(ProviderType.DWP_SANDBOX);
+        Instant retryAt = Instant.now().plusSeconds(75);
+        when(repository.claim(anyString(), eq(10), eq(30))).thenReturn(List.of(job));
+        when(connector.readiness(any())).thenReturn(new MailConnectorPort.Readiness(
+                MailConnectorPort.ReadinessState.UNAVAILABLE, Instant.now(),
+                "MAIL_PROVIDER_RATE_LIMITED", retryAt));
+        MailDeliveryWorker worker = new MailDeliveryWorker(
+                repository, new MailConnectorRegistry(List.of(connector)), completion, storage,
+                true, 10, 30, 5, "test");
+
+        worker.deliverPending();
+
+        verify(completion).fail(eq(job), anyString(), eq(5),
+                eq("MAIL_PROVIDER_RATE_LIMITED"), eq(false), eq(retryAt));
+        verify(connector, never()).send(any());
     }
 
     @Test
@@ -290,6 +366,18 @@ class MailDeliveryWorkerTest {
                 MailConnectorPort.Capability.BCC,
                 MailConnectorPort.Capability.HTML_BODY,
                 MailConnectorPort.Capability.ATTACHMENTS));
+    }
+
+    private MailConnectorPort readyConnector(MailConnectorPort.ProviderFamily provider) {
+        MailConnectorPort connector = readyConnector();
+        when(connector.manifest()).thenReturn(new MailConnectorPort.Manifest(
+                provider, "test", "test", Set.of(
+                MailConnectorPort.Capability.SEND,
+                MailConnectorPort.Capability.SEND_ON_BEHALF,
+                MailConnectorPort.Capability.BCC,
+                MailConnectorPort.Capability.HTML_BODY,
+                MailConnectorPort.Capability.ATTACHMENTS)));
+        return connector;
     }
 
     private MailConnectorPort readyConnector(Set<MailConnectorPort.Capability> capabilities) {

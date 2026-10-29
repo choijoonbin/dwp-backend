@@ -76,7 +76,9 @@ class NotificationRuntimeConfigurationInvariantTest {
                 .isEqualTo("exact-source-event-onboardings: "
                         + "${DWP_NOTIFICATION_DOMAIN_EVENT_EXACT_ONBOARDINGS:"
                         + "urn:dwp:people:hrm:dwp-experience=dwp-people-server:"
-                        + "EmployeeChangeAppliedNotificationRequested.v1}");
+                        + "EmployeeChangeAppliedNotificationRequested.v1,"
+                        + "urn:dwp:platform:calendar=dwp-platform-server:"
+                        + "calendar.event-reminder.due.v1}");
     }
 
     @Test

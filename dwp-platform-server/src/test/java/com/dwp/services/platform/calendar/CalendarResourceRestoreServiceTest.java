@@ -7,14 +7,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalTime;
+import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.TemporalAdjusters;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -56,13 +61,16 @@ class CalendarResourceRestoreServiceTest {
     private CalendarRetentionRepository retention;
     @Mock
     private WorkplaceRoomAccessPort roomAccess;
+    @Mock
+    private RoomBookingPolicyService roomBookingPolicy;
 
     private CalendarResourceRestoreService service;
 
     @BeforeEach
     void setUp() {
         service = new CalendarResourceRestoreService(
-                collaboration, restoreRepository, calendar, retention, roomAccess);
+                collaboration, restoreRepository, calendar, retention, roomAccess,
+                roomBookingPolicy);
     }
 
     @Test
@@ -198,6 +206,11 @@ class CalendarResourceRestoreServiceTest {
         verify(restoreRepository, times(1)).rebookResource(
                 TENANT_ID, ACTOR_ID, EVENT_ID, RESOURCE_ID, 5L, false);
         verify(calendar, times(1)).lockResource(TENANT_ID, RESOURCE_ID);
+        verify(roomBookingPolicy, times(1)).validateRestoreRecurrence(
+                eq(TENANT_ID),
+                eq(CalendarTypes.ResourceType.ROOM),
+                any(WorkplaceRoomRecurrencePolicy.ExistingSeries.class),
+                any(WorkplaceRoomRecurrencePolicy.ExistingSeries.class));
         verify(restoreRepository, times(1)).saveResourceRebookCommand(
                 eq(TENANT_ID),
                 eq(ACTOR_ID),
@@ -209,6 +222,56 @@ class CalendarResourceRestoreServiceTest {
                 eq(CalendarRecoveryDtos.RestoreReason.RESOURCE_REBOOKED),
                 eq(12L),
                 eq(6L));
+    }
+
+    @Test
+    void mutatedTrashSeriesCannotBypassDisabledRecurrencePolicyDuringRebook() {
+        allowEvent(activeEvent(12L));
+        UUID idempotencyKey = UUID.randomUUID();
+        CalendarRestoreRepository.RestoreBookingRow booking = recurringBooking(5L);
+        when(restoreRepository.resourceRebookCommand(
+                TENANT_ID, ACTOR_ID, idempotencyKey)).thenReturn(Optional.empty());
+        when(restoreRepository.restorableResourceBookingForUpdate(
+                TENANT_ID, EVENT_ID, RESOURCE_ID)).thenReturn(Optional.of(booking));
+        doThrow(new BaseException(
+                ErrorCode.INVALID_INPUT_VALUE,
+                "Recurring reservations are disabled by the Workplace policy."))
+                .when(roomBookingPolicy)
+                .validateRestoreRecurrence(
+                        eq(TENANT_ID),
+                        eq(CalendarTypes.ResourceType.ROOM),
+                        any(WorkplaceRoomRecurrencePolicy.ExistingSeries.class),
+                        any(WorkplaceRoomRecurrencePolicy.ExistingSeries.class));
+
+        CalendarRecoveryDtos.RestoreEventResponse result = service.rebookResource(
+                TENANT_ID,
+                ACTOR_ID,
+                ACTOR_PERSON_ID,
+                null,
+                EVENT_ID,
+                "corr-policy-blocked",
+                new CalendarRecoveryDtos.RestoreResourceBookingRequest(
+                        12L, RESOURCE_ID, 5L, idempotencyKey));
+
+        assertThat(result.outcome())
+                .isEqualTo(CalendarRecoveryDtos.RestoreOutcome.EVENT_ONLY_RESOURCE_UNAVAILABLE);
+        assertThat(result.reason())
+                .isEqualTo(CalendarRecoveryDtos.RestoreReason.RESOURCE_POLICY_BLOCKED);
+        assertThat(result.resources()).singleElement().satisfies(resource ->
+                assertThat(resource.canRebook()).isFalse());
+        verify(restoreRepository, never()).rebookResource(
+                any(), any(), any(), any(), anyLong(), anyBoolean());
+        verify(restoreRepository).saveResourceRebookCommand(
+                eq(TENANT_ID),
+                eq(ACTOR_ID),
+                eq(idempotencyKey),
+                eq(EVENT_ID),
+                eq(RESOURCE_ID),
+                any(),
+                eq(CalendarRecoveryDtos.RestoreOutcome.EVENT_ONLY_RESOURCE_UNAVAILABLE),
+                eq(CalendarRecoveryDtos.RestoreReason.RESOURCE_POLICY_BLOCKED),
+                eq(12L),
+                eq(5L));
     }
 
     @Test
@@ -279,6 +342,97 @@ class CalendarResourceRestoreServiceTest {
         });
     }
 
+    @Test
+    void restoreProjectsCountAndByDayAndPreservesTrashRuleEvidence() {
+        allowEvent(deletedEvent(20L));
+        when(collaboration.restoreEvent(TENANT_ID, ACTOR_ID, EVENT_ID, 20L))
+                .thenReturn(Optional.of(restoredMutation(21L)));
+        LocalDate monday = LocalDate.now(ZoneOffset.UTC).plusDays(1)
+                .with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY));
+        OffsetDateTime startsAt = monday.atTime(10, 0).atOffset(ZoneOffset.UTC);
+        CalendarRestoreRepository.RestoreBookingRow booking = recurringBooking(
+                8L, startsAt, CalendarTypes.RecurrencePattern.WEEKLY,
+                List.of(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY), 3);
+        when(restoreRepository.restorableResourceBookings(TENANT_ID, EVENT_ID))
+                .thenReturn(List.of(booking));
+        allowPolicy();
+
+        CalendarRecoveryDtos.RestoreEventResponse result = service.restoreEvent(
+                TENANT_ID, ACTOR_ID, ACTOR_PERSON_ID, null, EVENT_ID,
+                "corr-byday-count", new CalendarDtos.VersionRequest(20L));
+
+        assertThat(result.reason())
+                .isEqualTo(CalendarRecoveryDtos.RestoreReason.EXPLICIT_REBOOK_REQUIRED);
+        verify(calendar, times(3)).resourceConflict(
+                eq(TENANT_ID), eq(RESOURCE_ID), any(), any(), eq(EVENT_ID));
+        ArgumentCaptor<WorkplaceRoomRecurrencePolicy.ExistingSeries> cancelled =
+                ArgumentCaptor.forClass(WorkplaceRoomRecurrencePolicy.ExistingSeries.class);
+        ArgumentCaptor<WorkplaceRoomRecurrencePolicy.ExistingSeries> current =
+                ArgumentCaptor.forClass(WorkplaceRoomRecurrencePolicy.ExistingSeries.class);
+        verify(roomBookingPolicy).validateRestoreRecurrence(
+                eq(TENANT_ID), eq(CalendarTypes.ResourceType.ROOM),
+                cancelled.capture(), current.capture());
+        assertThat(cancelled.getValue().days())
+                .containsExactlyInAnyOrder(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY);
+        assertThat(cancelled.getValue().count()).isEqualTo(3);
+        assertThat(current.getValue().days()).isEqualTo(cancelled.getValue().days());
+        assertThat(current.getValue().count()).isEqualTo(3);
+    }
+
+    @Test
+    void restoreProjectsYearlyCountWithSharedRecurrenceSemantics() {
+        allowEvent(deletedEvent(22L));
+        when(collaboration.restoreEvent(TENANT_ID, ACTOR_ID, EVENT_ID, 22L))
+                .thenReturn(Optional.of(restoredMutation(23L)));
+        OffsetDateTime startsAt = OffsetDateTime.now(ZoneOffset.UTC)
+                .plusDays(1).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        CalendarRestoreRepository.RestoreBookingRow booking = recurringBooking(
+                9L, startsAt, CalendarTypes.RecurrencePattern.YEARLY, List.of(), 2);
+        when(restoreRepository.restorableResourceBookings(TENANT_ID, EVENT_ID))
+                .thenReturn(List.of(booking));
+        allowPolicy(800);
+
+        CalendarRecoveryDtos.RestoreEventResponse result = service.restoreEvent(
+                TENANT_ID, ACTOR_ID, ACTOR_PERSON_ID, null, EVENT_ID,
+                "corr-yearly", new CalendarDtos.VersionRequest(22L));
+
+        assertThat(result.reason())
+                .isEqualTo(CalendarRecoveryDtos.RestoreReason.EXPLICIT_REBOOK_REQUIRED);
+        verify(calendar, times(2)).resourceConflict(
+                eq(TENANT_ID), eq(RESOURCE_ID), any(), any(), eq(EVENT_ID));
+    }
+
+    @Test
+    void restoreFastForwardsOldBoundedDailySeriesPastFourThousandOccurrences() {
+        allowEvent(deletedEvent(24L));
+        when(collaboration.restoreEvent(TENANT_ID, ACTOR_ID, EVENT_ID, 24L))
+                .thenReturn(Optional.of(restoredMutation(25L)));
+        OffsetDateTime oldStart = OffsetDateTime.parse("2010-01-01T10:00:00Z");
+        LocalDate until = LocalDate.now(ZoneOffset.UTC).plusDays(3);
+        CalendarRestoreRepository.RestoreBookingRow booking =
+                new CalendarRestoreRepository.RestoreBookingRow(
+                        RESOURCE_ID, "CANCELLED", 10L,
+                        oldStart, oldStart.plusHours(1), "UTC",
+                        CalendarTypes.EventType.MEETING, false,
+                        CalendarTypes.RecurrencePattern.DAILY, 1, until, List.of(), null,
+                        CalendarTypes.RecurrencePattern.DAILY, 1, until, List.of(), null,
+                        oldStart, oldStart.plusHours(1), "UTC",
+                        CalendarTypes.ResourceType.ROOM, "UTC", false,
+                        CalendarTypes.ResourceState.AVAILABLE, 8, 2);
+        when(restoreRepository.restorableResourceBookings(TENANT_ID, EVENT_ID))
+                .thenReturn(List.of(booking));
+        allowPolicy();
+
+        CalendarRecoveryDtos.RestoreEventResponse result = service.restoreEvent(
+                TENANT_ID, ACTOR_ID, ACTOR_PERSON_ID, null, EVENT_ID,
+                "corr-old-daily", new CalendarDtos.VersionRequest(24L));
+
+        assertThat(result.reason())
+                .isEqualTo(CalendarRecoveryDtos.RestoreReason.EXPLICIT_REBOOK_REQUIRED);
+        verify(calendar, atLeast(3)).resourceConflict(
+                eq(TENANT_ID), eq(RESOURCE_ID), any(), any(), eq(EVENT_ID));
+    }
+
     private void allowEvent(CalendarCollaborationRepository.EventDecision event) {
         when(collaboration.verifiedActor(TENANT_ID, ACTOR_ID, ACTOR_PERSON_ID))
                 .thenReturn(true);
@@ -294,6 +448,10 @@ class CalendarResourceRestoreServiceTest {
     }
 
     private void allowPolicy() {
+        allowPolicy(365);
+    }
+
+    private void allowPolicy(int maximumAdvanceDays) {
         when(calendar.policy(TENANT_ID)).thenReturn(new CalendarRepository.PolicyRow(
                 1,
                 LocalTime.MIN,
@@ -301,7 +459,7 @@ class CalendarResourceRestoreServiceTest {
                 30,
                 5,
                 1440,
-                365,
+                maximumAdvanceDays,
                 0,
                 90,
                 480,
@@ -365,12 +523,68 @@ class CalendarResourceRestoreServiceTest {
                 CalendarTypes.RecurrencePattern.NONE,
                 1,
                 null,
+                CalendarTypes.RecurrencePattern.NONE,
+                1,
+                null,
+                start,
+                start.plusHours(1),
+                "UTC",
                 CalendarTypes.ResourceType.ROOM,
                 "UTC",
                 approvalRequired,
                 CalendarTypes.ResourceState.AVAILABLE,
                 8,
                 2);
+    }
+
+    private CalendarRestoreRepository.RestoreBookingRow recurringBooking(long version) {
+        OffsetDateTime start = OffsetDateTime.now(ZoneOffset.UTC)
+                .plusDays(1)
+                .withHour(10)
+                .withMinute(0)
+                .withSecond(0)
+                .withNano(0);
+        return new CalendarRestoreRepository.RestoreBookingRow(
+                RESOURCE_ID,
+                "CANCELLED",
+                version,
+                start,
+                start.plusHours(1),
+                "UTC",
+                CalendarTypes.EventType.MEETING,
+                false,
+                CalendarTypes.RecurrencePattern.WEEKLY,
+                1,
+                start.toLocalDate().plusWeeks(3),
+                CalendarTypes.RecurrencePattern.WEEKLY,
+                1,
+                start.toLocalDate().plusWeeks(2),
+                start,
+                start.plusHours(1),
+                "UTC",
+                CalendarTypes.ResourceType.ROOM,
+                "UTC",
+                false,
+                CalendarTypes.ResourceState.AVAILABLE,
+                8,
+                2);
+    }
+
+    private CalendarRestoreRepository.RestoreBookingRow recurringBooking(
+            long version,
+            OffsetDateTime startsAt,
+            CalendarTypes.RecurrencePattern pattern,
+            List<DayOfWeek> days,
+            Integer count) {
+        return new CalendarRestoreRepository.RestoreBookingRow(
+                RESOURCE_ID, "CANCELLED", version,
+                startsAt, startsAt.plusHours(1), "UTC",
+                CalendarTypes.EventType.MEETING, false,
+                pattern, 1, null, days, count,
+                pattern, 1, null, days, count,
+                startsAt, startsAt.plusHours(1), "UTC",
+                CalendarTypes.ResourceType.ROOM, "UTC", false,
+                CalendarTypes.ResourceState.AVAILABLE, 8, 2);
     }
 
     private String fingerprint(

@@ -25,7 +25,7 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -76,6 +76,12 @@ DEFAULT_FRONTEND_NODE_OPTIONS = "--max-old-space-size=8192"
 ENVIRONMENT_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 CANONICAL_POSITIVE_INTEGER = re.compile(r"^[1-9][0-9]*$")
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+RFC3339_INSTANT = re.compile(
+    r"^(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})"
+    r"T(?P<time>[0-9]{2}:[0-9]{2}:[0-9]{2})"
+    r"(?:\.(?P<fraction>[0-9]{1,9}))?"
+    r"(?P<zone>Z|[+-][0-9]{2}:[0-9]{2})$"
+)
 SERVICE_STARTUP_TIMEOUT_ENVIRONMENT = "DWP_DEVCTL_STARTUP_TIMEOUT_SECONDS"
 SPRING_READINESS_PATH = "/actuator/health/readiness"
 DEFAULT_SERVICE_STARTUP_TIMEOUT_SECONDS = 300
@@ -100,6 +106,9 @@ WATCH_DEBOUNCE_SECONDS = 1.0
 LEGACY_IDENTITY_CONFIRMATION_INTERVAL_SECONDS = 0.1
 MEETING_READINESS_MAXIMUM_RESPONSE_BYTES = 1024 * 1024
 MEETING_READINESS_MAXIMUM_METRIC_VALUE = (1 << 63) - 1
+MEETING_READINESS_REQUEST_TIMEOUT_SECONDS = 5.0
+MEETING_EXISTING_READINESS_CONFIRMATION_ATTEMPTS = 3
+MEETING_EXISTING_READINESS_CONFIRMATION_BACKOFF_SECONDS = 0.25
 MEETING_READINESS_USER_ID = "900018"
 MEETING_READINESS_TENANT_ID = "1"
 MEETING_BASELINE_ROLLOUT_REVISION = "rollout-" + "0" * 64
@@ -487,7 +496,18 @@ PROFILES = {
 for optional_service in OPTIONAL_RUNTIME_SERVICES:
     PROFILES[optional_service] = {optional_service}
 if "meeting" in OPTIONAL_RUNTIME_SERVICES:
-    PROFILES["meeting"] = {"auth", "notification", "meeting"}
+    # Meeting routes are product-surface governed at the gateway.  The gateway
+    # resolves that authority through Auth, People eligibility, and Provider
+    # rollout decisions before the frontend can enter those routes.  Keep the
+    # fail-closed dependencies in the profile itself so a fresh login is usable
+    # instead of depending on services left over from another profile.
+    PROFILES["meeting"] = {
+        "auth",
+        "people",
+        "provider",
+        "notification",
+        "meeting",
+    }
 
 START_ORDER = (
     "auth",
@@ -1809,6 +1829,8 @@ def capture_runtime_source_digest(services: Iterable[Service]) -> str:
 
 def stage_runtime_images(
     services: Iterable[Service],
+    *,
+    acquire_build_lock: bool = True,
 ) -> PreparedRuntimeImages:
     selected = [service for service in services if service.name in JAVA_SERVICE_NAMES]
     if not selected:
@@ -1817,7 +1839,8 @@ def stage_runtime_images(
     ordered = [
         selected_by_name[name] for name in START_ORDER if name in selected_by_name
     ]
-    with runtime_image_build_lock():
+    build_lock = runtime_image_build_lock() if acquire_build_lock else nullcontext()
+    with build_lock:
         _ensure_owner_directory(RUNTIME_IMAGE_BUILD_ROOT)
         tasks = [
             f":{JAVA_SERVICE_MODULES[service.name]}:bootJar" for service in ordered
@@ -1871,6 +1894,21 @@ def runtime_image_launch_command(
 ) -> tuple[str, ...]:
     path = validate_published_runtime_image(service, envelope)
     return ("java", "-jar", str(path))
+
+
+def verify_prepared_runtime_source(
+    services: Iterable[Service], prepared_images: PreparedRuntimeImages
+) -> None:
+    selected = [service for service in services if service.name in JAVA_SERVICE_NAMES]
+    if not selected:
+        return
+    if not isinstance(prepared_images, PreparedRuntimeImages):
+        raise RuntimeError("Prepared runtime images have no bound source generation.")
+    if capture_runtime_source_digest(selected) != prepared_images.source_digest:
+        raise RuntimeError(
+            "Runtime sources changed after immutable images were prepared; "
+            "no managed process was signalled."
+        )
 
 
 def capture_service_runtime_artifacts(
@@ -3460,7 +3498,11 @@ def meeting_home_ready(service: Service) -> bool:
         "X-DWP-Rollout-Revision": MEETING_BASELINE_ROLLOUT_REVISION,
         "X-DWP-Rollout-Cohort": "baseline",
     }
-    connection = http.client.HTTPConnection("127.0.0.1", service.port, timeout=2)
+    connection = http.client.HTTPConnection(
+        "127.0.0.1",
+        service.port,
+        timeout=MEETING_READINESS_REQUEST_TIMEOUT_SECONDS,
+    )
     try:
         connection.request("GET", "/v1/home?timeZone=UTC", headers=headers)
         response = connection.getresponse()
@@ -3488,13 +3530,9 @@ def meeting_home_ready(service: Service) -> bool:
     if not isinstance(data, dict):
         return False
     server_now = data.get("serverNow")
-    if not isinstance(server_now, str):
-        return False
     try:
-        parsed_server_now = datetime.fromisoformat(server_now.replace("Z", "+00:00"))
+        parse_rfc3339_instant(server_now)
     except ValueError:
-        return False
-    if parsed_server_now.tzinfo is None or parsed_server_now.utcoffset() is None:
         return False
     metrics = data.get("metrics")
     capabilities = data.get("capabilities")
@@ -3532,6 +3570,30 @@ def meeting_home_ready(service: Service) -> bool:
     )
 
 
+def parse_rfc3339_instant(value: object) -> datetime:
+    if not isinstance(value, str):
+        raise ValueError("RFC3339 instant must be a string.")
+    match = RFC3339_INSTANT.fullmatch(value)
+    if match is None:
+        raise ValueError("RFC3339 instant is malformed or has no time zone.")
+    fraction = match.group("fraction")
+    normalized_fraction = ""
+    if fraction is not None:
+        normalized_fraction = "." + fraction.ljust(6, "0")[:6]
+    zone = "+00:00" if match.group("zone") == "Z" else match.group("zone")
+    normalized = (
+        f"{match.group('date')}T{match.group('time')}"
+        f"{normalized_fraction}{zone}"
+    )
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as error:
+        raise ValueError("RFC3339 instant contains an invalid date or time.") from error
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("RFC3339 instant must include a time zone.")
+    return parsed
+
+
 def service_ready(service: Service) -> bool:
     if not health_ready(service):
         return False
@@ -3552,6 +3614,19 @@ def managed_service_ready(
             "functional-readiness probe."
         )
     return ready
+
+
+def managed_meeting_ready_confirmed(
+    service: Service, process_state: dict[str, object]
+) -> bool:
+    if service.name != "meeting":
+        raise RuntimeError("Meeting readiness confirmation requires Meeting service.")
+    for attempt in range(MEETING_EXISTING_READINESS_CONFIRMATION_ATTEMPTS):
+        if managed_service_ready(service, process_state):
+            return True
+        if attempt + 1 < MEETING_EXISTING_READINESS_CONFIRMATION_ATTEMPTS:
+            time.sleep(MEETING_EXISTING_READINESS_CONFIRMATION_BACKOFF_SECONDS)
+    return False
 
 
 def service_startup_timeout_seconds() -> int:
@@ -4013,7 +4088,7 @@ def reconcile_stale_services(
             if service.name == "meeting":
                 if stale:
                     verify_managed_process(service, process_state)
-                elif not managed_service_ready(service, process_state):
+                elif not managed_meeting_ready_confirmed(service, process_state):
                     stale, reason = True, "functional readiness failed"
             if stale:
                 verify_managed_process(service, process_state)
@@ -4173,7 +4248,7 @@ def managed_runtime_drift(
             if stale:
                 candidates.append((service, reason))
             elif service.name == "meeting":
-                if not managed_service_ready(service, process_state):
+                if not managed_meeting_ready_confirmed(service, process_state):
                     candidates.append((service, "readiness failed"))
             elif not health_ready(service):
                 raise RuntimeError(
@@ -4703,31 +4778,43 @@ def main() -> None:
     elif args.command == "up":
         services = resolve_services(args.profiles)
         doctor(services)
-        prepared_images = stage_runtime_images(services)
-        with state_change_lock():
-            start_infrastructure(
-                include_events=any(
-                    service.name == "notification" for service in services
-                ),
-                include_media=any(
-                    service.name in {"messaging", "meeting"} for service in services
-                ),
-                include_people=any(service.name == "people" for service in services),
-                include_time=any(service.name == "time" for service in services),
-                include_payroll=any(service.name == "payroll" for service in services),
+        with runtime_image_build_lock():
+            prepared_images = stage_runtime_images(
+                services, acquire_build_lock=False
             )
-            state = load_state()
-            restarted_names = reconcile_stale_services(
-                services, state, prepared_images
-            )
-            tracked_before_start = set(state)
-            started_names = start_and_wait_services_in_phases(
-                services, state, restarted_names, prepared_images
-            )
-            restarted_names.update(started_names & tracked_before_start)
-            converge_managed_services(
-                services, state, restarted_names, prepared_images
-            )
+            verify_prepared_runtime_source(services, prepared_images)
+            with state_change_lock():
+                start_infrastructure(
+                    include_events=any(
+                        service.name == "notification" for service in services
+                    ),
+                    include_media=any(
+                        service.name in {"messaging", "meeting"}
+                        for service in services
+                    ),
+                    include_people=any(
+                        service.name == "people" for service in services
+                    ),
+                    include_time=any(
+                        service.name == "time" for service in services
+                    ),
+                    include_payroll=any(
+                        service.name == "payroll" for service in services
+                    ),
+                )
+                verify_prepared_runtime_source(services, prepared_images)
+                state = load_state()
+                restarted_names = reconcile_stale_services(
+                    services, state, prepared_images
+                )
+                tracked_before_start = set(state)
+                started_names = start_and_wait_services_in_phases(
+                    services, state, restarted_names, prepared_images
+                )
+                restarted_names.update(started_names & tracked_before_start)
+                converge_managed_services(
+                    services, state, restarted_names, prepared_images
+                )
     elif args.command == "watch":
         watch_runtime_services(args.profiles)
     elif args.command == "stop":

@@ -8,8 +8,8 @@ class MailWorkspaceRepositoryDeliveryStateTest {
 
     @Test
     void unknownProviderOutcomeNeverAppearsAsAFailedTimelineEvent() {
-        assertThat(MailWorkspaceRepository.deliveryAttentionState("UNKNOWN"))
-                .isEqualTo("UNKNOWN");
+        assertThat(MailWorkspaceRepository.deliveryAttentionState("RESULT_UNKNOWN"))
+                .isEqualTo("RESULT_UNKNOWN");
         assertThat(MailWorkspaceRepository.deliveryAttentionState("FAILED"))
                 .isEqualTo("FAILED");
     }

@@ -159,33 +159,47 @@ class MailDeliveryRepository {
             DeliveryJob job,
             String workerId,
             MailConnectorPort.DeliveryReceipt receipt) {
+        String status = receipt.outcome().name();
+        OffsetDateTime acceptedAt = receipt.acceptedAt() == null ? null
+                : OffsetDateTime.ofInstant(receipt.acceptedAt(), ZoneOffset.UTC);
+        OffsetDateTime deliveredAt = receipt.outcome()
+                == MailConnectorPort.DeliveryOutcome.DELIVERED ? acceptedAt : null;
+        String reconciliation = receipt.outcome()
+                == MailConnectorPort.DeliveryOutcome.DELIVERED
+                ? "NOT_REQUIRED" : "PENDING";
+        String errorCode = receipt.outcome()
+                == MailConnectorPort.DeliveryOutcome.RESULT_UNKNOWN
+                ? "MAIL_PROVIDER_RESULT_UNKNOWN" : null;
         int updated = jdbc.update("""
                 UPDATE mail_delivery_outbox
-                   SET delivery_status = 'DELIVERED',
+                   SET delivery_status = ?,
                        provider_message_ref = ?, provider_thread_ref = ?,
-                       accepted_at = ?, last_error_code = NULL,
+                       accepted_at = ?, delivered_at = ?,
+                       reconciliation_state = ?, last_error_code = ?,
                        lease_owner = NULL, lease_expires_at = NULL,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE delivery_id = ? AND delivery_status = 'LEASED' AND lease_owner = ?
-                """, receipt.providerMessageReference(), receipt.providerThreadReference(),
-                OffsetDateTime.ofInstant(receipt.acceptedAt(), ZoneOffset.UTC),
-                job.deliveryId(), workerId);
+                """, status, receipt.providerMessageReference(), receipt.providerThreadReference(),
+                acceptedAt, deliveredAt, reconciliation, errorCode, job.deliveryId(), workerId);
         if (updated == 0) return 0;
-        jdbc.update("""
-                UPDATE mail_messages
-                   SET provider_message_ref = ?, sent_at = ?
-                 WHERE tenant_id = ? AND message_id = ?
-                """, receipt.providerMessageReference(),
-                OffsetDateTime.ofInstant(receipt.acceptedAt(), ZoneOffset.UTC),
-                job.tenantId(), job.messageId());
-        jdbc.update("""
-                UPDATE mail_threads
-                   SET provider_thread_ref = CASE
-                           WHEN provider_thread_ref IS NULL OR provider_thread_ref LIKE 'dwp:%'
-                           THEN ? ELSE provider_thread_ref END,
-                       updated_at = CURRENT_TIMESTAMP
-                 WHERE tenant_id = ? AND thread_id = ?
-                """, receipt.providerThreadReference(), job.tenantId(), job.threadId());
+        if (receipt.providerMessageReference() != null) {
+            jdbc.update("""
+                    UPDATE mail_messages
+                       SET provider_message_ref = ?, sent_at = COALESCE(?, sent_at)
+                     WHERE tenant_id = ? AND message_id = ?
+                    """, receipt.providerMessageReference(), acceptedAt,
+                    job.tenantId(), job.messageId());
+        }
+        if (receipt.providerThreadReference() != null) {
+            jdbc.update("""
+                    UPDATE mail_threads
+                       SET provider_thread_ref = CASE
+                               WHEN provider_thread_ref IS NULL OR provider_thread_ref LIKE 'dwp:%'
+                               THEN ? ELSE provider_thread_ref END,
+                           updated_at = CURRENT_TIMESTAMP
+                     WHERE tenant_id = ? AND thread_id = ?
+                    """, receipt.providerThreadReference(), job.tenantId(), job.threadId());
+        }
         return updated;
     }
 
@@ -229,9 +243,10 @@ class MailDeliveryRepository {
     void releaseExpiredLeases() {
         jdbc.update("""
                 UPDATE mail_delivery_outbox
-                   SET delivery_status = 'FAILED',
+                   SET delivery_status = 'RESULT_UNKNOWN',
                        lease_owner = NULL, lease_expires_at = NULL,
                        last_error_code = 'MAIL_PROVIDER_RESULT_UNKNOWN',
+                       reconciliation_state = 'PENDING',
                        updated_at = CURRENT_TIMESTAMP
                  WHERE delivery_status = 'LEASED' AND lease_expires_at < CURRENT_TIMESTAMP
                 """);

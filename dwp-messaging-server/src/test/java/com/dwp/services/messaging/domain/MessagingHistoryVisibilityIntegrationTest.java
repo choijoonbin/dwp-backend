@@ -112,6 +112,27 @@ class MessagingHistoryVisibilityIntegrationTest {
     }
 
     @Test
+    void replyCountsUseTheSameHistoryBoundaryAsReplyItems() {
+        jdbc.update("DELETE FROM msg_saved_items WHERE tenant_id = ? AND message_id = ?",
+                TENANT_ID, hiddenMessageId);
+        jdbc.update("DELETE FROM msg_messages WHERE tenant_id = ? AND message_id = ?",
+                TENANT_ID, hiddenMessageId);
+        UUID hiddenReply = message(1, "pre-boundary reply", visibleMessageId);
+
+        MessagingDtos.MessageSummary root = messageQueries.message(
+                TENANT_ID, conversationId, USER_ID, visibleMessageId).orElseThrow();
+
+        assertThat(root.replyCount()).isZero();
+        assertThat(messageQueries.replies(
+                TENANT_ID, conversationId, USER_ID, visibleMessageId, 20)).isEmpty();
+        assertThat(messageQueries.replyCount(
+                TENANT_ID, conversationId, USER_ID, visibleMessageId)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM msg_messages WHERE message_id = ?",
+                Long.class, hiddenReply)).isOne();
+    }
+
+    @Test
     void pagesOnlyRootMessagesByDurableSequenceInDisplayOrder() {
         UUID rootThree = message(3, "root three");
         message(4, "thread reply", rootThree);

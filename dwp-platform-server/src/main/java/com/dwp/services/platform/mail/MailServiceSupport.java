@@ -31,6 +31,7 @@ class MailServiceSupport {
     final MailWorkspaceRepository workspaceRepository;
     final MailProposalOutcomePort proposalOutcomes;
     final MailAdminMutationReceipts adminReceipts;
+    final MailBulkMutationReceipts bulkMutationReceipts;
     final MailSendCommandFingerprint sendFingerprints;
 
     MailServiceSupport(
@@ -41,7 +42,8 @@ class MailServiceSupport {
             MailNotificationEvents notificationEvents,
             MailWorkspaceRepository workspaceRepository,
             MailProposalOutcomePort proposalOutcomes,
-            MailAdminMutationReceipts adminReceipts) {
+            MailAdminMutationReceipts adminReceipts,
+            MailBulkMutationReceipts bulkMutationReceipts) {
         this.queries = queries;
         this.commands = commands;
         this.providerCatalog = providerCatalog;
@@ -50,6 +52,7 @@ class MailServiceSupport {
         this.workspaceRepository = workspaceRepository;
         this.proposalOutcomes = proposalOutcomes;
         this.adminReceipts = adminReceipts;
+        this.bulkMutationReceipts = bulkMutationReceipts;
         this.sendFingerprints = new MailSendCommandFingerprint();
     }
 

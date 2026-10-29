@@ -7,6 +7,9 @@ import com.dwp.services.platform.workspace.WorkspaceDtos;
 import com.dwp.services.platform.workspace.WorkspaceRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.callback.Callback;
+import org.flywaydb.core.api.callback.Context;
+import org.flywaydb.core.api.callback.Event;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -95,8 +98,45 @@ class ActivityPostgresIntegrationTest {
                 .target("222").load().migrate();
         // Keep the staged V221 -> V222 assertions above, then expose the repository to
         // every current Activity-owned projection used by the production query.
+        MigrationSessionSettingsGuard sessionGuard = new MigrationSessionSettingsGuard();
         Flyway.configure().dataSource(source).locations("filesystem:src/main/resources/db/migration")
-                .load().migrate();
+                .callbacks(sessionGuard).load().migrate();
+        assertThat(sessionGuard.observed).isTrue();
+    }
+
+    private static final class MigrationSessionSettingsGuard implements Callback {
+        private boolean observed;
+
+        @Override
+        public boolean supports(Event event, Context context) {
+            return event == Event.AFTER_MIGRATE;
+        }
+
+        @Override
+        public boolean canHandleInTransaction(Event event, Context context) {
+            return false;
+        }
+
+        @Override
+        public void handle(Event event, Context context) {
+            try (var statement = context.getConnection().createStatement();
+                    var settings = statement.executeQuery(
+                            "SELECT current_setting('lock_timeout'), "
+                                    + "current_setting('statement_timeout')")) {
+                settings.next();
+                if (!"0".equals(settings.getString(1)) || !"0".equals(settings.getString(2))) {
+                    throw new IllegalStateException("V342 leaked Flyway session timeout settings");
+                }
+                observed = true;
+            } catch (java.sql.SQLException error) {
+                throw new IllegalStateException("Unable to verify Flyway session timeouts", error);
+            }
+        }
+
+        @Override
+        public String getCallbackName() {
+            return "activity-v342-session-settings-guard";
+        }
     }
 
     @BeforeEach
@@ -138,6 +178,21 @@ class ActivityPostgresIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM sys_code_bindings WHERE source_reference IN "
                 + "('wrk_activity_events.event_kind','wrk_activity_events.data_provenance','wrk_activity_events.work_status')"
                 + " AND usage_type='DATABASE_COLUMN' AND enforcement_type='CHECK'", Integer.class)).isEqualTo(3);
+    }
+
+    @Test
+    void migrationInstallsTheActivityTrigramSearchIndex() {
+        assertThat(jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_trgm')", Boolean.class))
+                .isTrue();
+        String definition = jdbc.queryForObject(
+                "SELECT pg_get_indexdef('idx_activity_search_text_trgm'::regclass)", String.class);
+        assertThat(definition)
+                .contains("USING gin")
+                .contains("gin_trgm_ops")
+                .contains("lower")
+                .contains("title_ko")
+                .contains("object_label_en");
     }
 
     @Test
@@ -241,7 +296,8 @@ class ActivityPostgresIntegrationTest {
         for (int i = 0; i < 225; i++) inserted.add(event("CHANGE", "COMPLETED", null, null, null, time, "result-" + i));
         ActivityQuery query = query(null, null, null, null, 31, false);
         var first = service.list(tenant, 7L, ACCESS, "en", query);
-        event("CHANGE", "COMPLETED", null, null, null, time.minusDays(1), "late backfill");
+        event("CHANGE", "COMPLETED", null, null, null, time.minusDays(1),
+                "late backfill", first.snapshotAt().plusSeconds(1));
         List<UUID> found = new ArrayList<>();
         var page = first;
         do {
@@ -253,7 +309,7 @@ class ActivityPostgresIntegrationTest {
         assertThat(found).hasSize(225); assertThat(new HashSet<>(found)).hasSize(225);
         assertThat(found).containsExactlyInAnyOrderElementsOf(inserted);
         assertThat(service.detail(tenant, 7L, ACCESS, "en", inserted.getFirst()).id()).isEqualTo(inserted.getFirst());
-        assertThat(service.list(tenant, 7L, ACCESS, "en", query("result-224", null, null, null, 50, false)).events()).hasSize(1);
+        assertThat(service.list(tenant, 7L, ACCESS, "en", query("RESULT-224", null, null, null, 50, false)).events()).hasSize(1);
         assertThat(service.list(tenant, 7L, ACCESS, "en", query(null, time, time.plusSeconds(1), null, 100, false)).events()).hasSize(100);
         assertThat(service.list(tenant, 7L, ACCESS, "en", query(null, time.minusSeconds(1), time, null, 50, false)).events()).isEmpty();
     }
@@ -429,16 +485,21 @@ class ActivityPostgresIntegrationTest {
 
     private UUID event(String kind, String state, String execution, Long version, Integer attempt,
                        OffsetDateTime time, String title) {
+        return event(kind, state, execution, version, attempt, time, title, null);
+    }
+
+    private UUID event(String kind, String state, String execution, Long version, Integer attempt,
+                       OffsetDateTime time, String title, OffsetDateTime createdAt) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO wrk_activity_events(activity_event_id,tenant_id,visible_to_user_id,actor_kind,actor_name,
                   event_state,title_ko,title_en,object_type,object_label_ko,object_label_en,source_system,audit_reference,
                   event_kind,source_event_id,object_id,execution_id,execution_version,attempt,audit_record_id,
-                  data_provenance,occurred_at,source_route)
+                  data_provenance,occurred_at,created_at,source_route)
                 VALUES (?,?,7,'PERSON','User',?,?,?,'WORK_ITEM','업무','Work','DWP_WORKSPACE',?,?,?,?,?,?,?,?,
-                  'LIVE',?,'https://untrusted.example/never-render')
+                  'LIVE',?,COALESCE(?,CURRENT_TIMESTAMP),'https://untrusted.example/never-render')
                 """, id, tenant, state, title, title, audit.toString(), kind, id.toString(), work.toString(),
-                execution, version, attempt, audit, time);
+                execution, version, attempt, audit, time, createdAt);
         return id;
     }
 

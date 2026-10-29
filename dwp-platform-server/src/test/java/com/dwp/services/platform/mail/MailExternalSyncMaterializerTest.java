@@ -16,6 +16,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -50,12 +51,14 @@ class MailExternalSyncMaterializerTest {
         lockedAccount = new AdminMailCompletionRepository.SyncAccountRow(
                 accountId, "inbox@example.test", 77L, "cursor-1", null);
         folderId = UUID.randomUUID();
+        when(repository.syncAccount(7, accountId)).thenReturn(Optional.of(lockedAccount));
         when(repository.lockSyncAccount(7, accountId)).thenReturn(Optional.of(lockedAccount));
         when(repository.synchronizationFolder(anyLong(), any(), any()))
                 .thenReturn(Optional.of(folderId));
         when(repository.inboundMessage(anyLong(), any(), any(), any()))
                 .thenReturn(Optional.empty());
-        when(repository.updateAccountSyncCursor(7, accountId, "cursor-1", "cursor-2", 91))
+        when(repository.updateAccountSyncCursor(
+                7, accountId, "cursor-1", 0, "cursor-2", 91))
                 .thenReturn(1);
         when(repository.materializeInboundMessage(
                 anyLong(), anyLong(), any(), any(), any(), any()))
@@ -91,7 +94,9 @@ class MailExternalSyncMaterializerTest {
         assertThat(capturedMessage.getValue().body()).isEqualTo("<p>Provider HTML</p>");
         assertThat(capturedMessage.getValue().attachmentProjection().getFirst())
                 .containsEntry("scanState", "READY")
-                .containsEntry("providerAttachmentReference", "attachment-1");
+                .containsKey("providerAttachmentReferenceHash")
+                .doesNotContainValue("attachment-1")
+                .containsEntry("providerContentReferenceAvailable", true);
         assertThat(capturedAttachments.getValue()).singleElement().satisfies(attachment -> {
             assertThat(attachment.scanState()).isEqualTo("READY");
             assertThat(attachment.storageReference())
@@ -102,7 +107,7 @@ class MailExternalSyncMaterializerTest {
         verify(inboundMessages).inboundMessageMaterialized(
                 anyLong(), any(), any(), any());
         verify(repository).updateAccountSyncCursor(
-                7, expectedAccount.id(), "cursor-1", "cursor-2", 91);
+                7, expectedAccount.id(), "cursor-1", 0, "cursor-2", 91);
     }
 
     @Test
@@ -131,7 +136,11 @@ class MailExternalSyncMaterializerTest {
         });
         assertThat(capturedMessage.getValue().attachmentProjection().getFirst())
                 .containsEntry("scanState", "BLOCKED")
-                .containsEntry("contentReference", "provider-fetch-token");
+                .doesNotContainValue("provider-fetch-token")
+                .containsKey("contentReferenceHash")
+                .containsKey("providerAttachmentReferenceHash")
+                .doesNotContainValue("attachment-2")
+                .doesNotContainKey("metadata");
         assertThat(result.blockedAttachments()).isOne();
         verify(scanner, never()).scan(any());
         verify(storage, never()).store(anyLong(), any(), any(), any());
@@ -154,14 +163,42 @@ class MailExternalSyncMaterializerTest {
         verify(repository, never()).materializeInboundMessage(
                 anyLong(), anyLong(), any(), any(), any(), any());
         verify(repository).updateAccountSyncCursor(
-                7, expectedAccount.id(), "cursor-1", "cursor-2", 91);
+                7, expectedAccount.id(), "cursor-1", 0, "cursor-2", 91);
         verify(inboundMessages, never()).inboundMessageMaterialized(
                 anyLong(), any(), any(), any());
     }
 
     @Test
+    void providerBccMetadataNeverBecomesAMaterializedParticipantOrSearchProjection() {
+        MailConnectorPort.ProviderMessage message = new MailConnectorPort.ProviderMessage(
+                "message-1", "thread-1", "inbox-folder",
+                Instant.parse("2026-09-17T01:02:03Z"),
+                "Provider Sender <sender@outside.test>",
+                List.of("To <to@example.test>", "Cc <cc@example.test>"),
+                "Provider subject", "Provider body", MailConnectorPort.BodyFormat.TEXT,
+                List.of(), Map.of("bcc", "secret-bcc@example.test"));
+
+        materializer.materialize(
+                7, 91, expectedAccount,
+                new MailConnectorPort.SyncBatch(List.of(message), "cursor-2", false, false));
+
+        ArgumentCaptor<AdminMailCompletionRepository.InboundMessageRow> captured =
+                ArgumentCaptor.forClass(AdminMailCompletionRepository.InboundMessageRow.class);
+        verify(repository).materializeInboundMessage(
+                anyLong(), anyLong(), any(), any(), captured.capture(), anyList());
+        assertThat(captured.getValue().recipients()).extracting(
+                        recipient -> recipient.get("email"))
+                .containsExactly("to@example.test", "cc@example.test")
+                .doesNotContain("secret-bcc@example.test");
+        assertThat(captured.getValue().participants()).extracting(
+                        participant -> participant.get("email"))
+                .containsExactly("sender@outside.test", "to@example.test", "cc@example.test")
+                .doesNotContain("secret-bcc@example.test");
+    }
+
+    @Test
     void cursorDriftFailsBeforeAnyMessageMutation() {
-        when(repository.lockSyncAccount(7, expectedAccount.id())).thenReturn(Optional.of(
+        when(repository.syncAccount(7, expectedAccount.id())).thenReturn(Optional.of(
                 new AdminMailCompletionRepository.SyncAccountRow(
                         expectedAccount.id(), expectedAccount.email(), 77L,
                         "different-cursor", null)));
@@ -175,7 +212,7 @@ class MailExternalSyncMaterializerTest {
         verify(repository, never()).materializeInboundMessage(
                 anyLong(), anyLong(), any(), any(), any(), any());
         verify(repository, never()).updateAccountSyncCursor(
-                anyLong(), any(), any(), any(), anyLong());
+                anyLong(), any(), any(), anyLong(), any(), anyLong());
     }
 
     @Test
@@ -187,7 +224,7 @@ class MailExternalSyncMaterializerTest {
         assertThat(result.partial()).isTrue();
         assertThat(result.inserted()).isZero();
         verify(repository).updateAccountSyncCursor(
-                7, expectedAccount.id(), "cursor-1", "cursor-2", 91);
+                7, expectedAccount.id(), "cursor-1", 0, "cursor-2", 91);
     }
 
     @Test
@@ -213,7 +250,7 @@ class MailExternalSyncMaterializerTest {
                 .hasMessage("database unavailable");
         verify(storage).delete(7L, "7/mail/provider-sync/orphan.txt");
         verify(repository, never()).updateAccountSyncCursor(
-                anyLong(), any(), any(), any(), anyLong());
+                anyLong(), any(), any(), anyLong(), any(), anyLong());
     }
 
     @Test

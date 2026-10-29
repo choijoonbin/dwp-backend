@@ -64,10 +64,8 @@ class AdminMailCompletionPolicySupport extends AdminMailCompletionDeliverySuppor
                         "MailWorkspaceService", policy.updatedAt()),
                 policyUnavailableRow("attachmentAllowlist", "ATTACHMENT", "ALLOWLIST",
                         "ATTACHMENT_ALLOWLIST_NOT_CONFIGURED"),
-                policyUnavailableRow("attachmentScannerReadiness", "ATTACHMENT", "SCANNER",
-                        "SCANNER_RUNTIME_ATTESTATION_UNAVAILABLE"),
-                policyUnavailableRow("dlpReadiness", "CONTENT", "DLP",
-                        "DLP_RUNTIME_ATTESTATION_UNAVAILABLE"),
+                attachmentScannerPolicyRow(),
+                dlpPolicyRow(),
                 policyUnavailableRow("aiTargetApplications", "AI", "TARGET_APPLICATIONS",
                         "AI_TARGET_SCOPE_NOT_CONFIGURED"),
                 policyUnavailableRow("aiDataScopes", "AI", "DATA_SCOPE",
@@ -97,6 +95,16 @@ class AdminMailCompletionPolicySupport extends AdminMailCompletionDeliverySuppor
                 .toList();
         return new PolicyGovernance(
                 now(), policy.version(), rows, history, domains, List.of(), recovery);
+    }
+
+    PolicyEvidenceRow attachmentScannerPolicyRow() {
+        return policyUnavailableRow("attachmentScannerReadiness", "ATTACHMENT", "SCANNER",
+                "SCANNER_RUNTIME_ATTESTATION_UNAVAILABLE");
+    }
+
+    PolicyEvidenceRow dlpPolicyRow() {
+        return policyUnavailableRow("dlpReadiness", "CONTENT", "DLP",
+                "DLP_RUNTIME_ATTESTATION_UNAVAILABLE");
     }
 
     @Transactional

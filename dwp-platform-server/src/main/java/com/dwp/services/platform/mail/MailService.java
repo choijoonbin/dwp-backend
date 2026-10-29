@@ -32,9 +32,23 @@ public class MailService extends MailServiceGovernanceSupport {
             MailNotificationEvents notificationEvents,
             MailWorkspaceRepository workspaceRepository,
             MailProposalOutcomePort proposalOutcomes,
-            MailAdminMutationReceipts adminReceipts) {
+            MailAdminMutationReceipts adminReceipts,
+            MailBulkMutationReceipts bulkMutationReceipts) {
         super(queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
-                workspaceRepository, proposalOutcomes, adminReceipts);
+                workspaceRepository, proposalOutcomes, adminReceipts, bulkMutationReceipts);
+    }
+
+    MailService(
+            MailQueryRepository queries,
+            MailCommandRepository commands,
+            MailProviderCatalog providerCatalog,
+            MailDeliveryCompletionService deliveryCompletion,
+            MailNotificationEvents notificationEvents,
+            MailWorkspaceRepository workspaceRepository,
+            MailProposalOutcomePort proposalOutcomes,
+            MailAdminMutationReceipts adminReceipts) {
+        this(queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                workspaceRepository, proposalOutcomes, adminReceipts, null);
     }
 
     MailService(
@@ -45,7 +59,7 @@ public class MailService extends MailServiceGovernanceSupport {
             MailNotificationEvents notificationEvents,
             MailWorkspaceRepository workspaceRepository) {
         this(queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
-                workspaceRepository, null, null);
+                workspaceRepository, null, null, null);
     }
 
     MailService(
@@ -55,7 +69,7 @@ public class MailService extends MailServiceGovernanceSupport {
             MailDeliveryCompletionService deliveryCompletion,
             MailNotificationEvents notificationEvents) {
         this(queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
-                null, null, null);
+                null, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -66,7 +80,13 @@ public class MailService extends MailServiceGovernanceSupport {
     @Transactional(readOnly = true)
     public MailDtos.HomeResponse home(Long tenantId, Long userId, UUID accountId) {
         List<MailDtos.AccountSummary> accounts = queries.accounts(tenantId, userId);
-        requireMailbox(accounts);
+        // Home is also the recovery entry point. An unassigned user must receive an explicit,
+        // renderable NO_ACCOUNT state instead of a generic API failure that hides the next action.
+        if (accounts.isEmpty()) {
+            return new MailDtos.HomeResponse(
+                    List.of(), new MailDtos.HomeMetrics(0, 0, 0, 0, 0, 0),
+                    List.of(), List.of(), List.of(), OffsetDateTime.now());
+        }
         if (accountId != null && accounts.stream().noneMatch(account -> account.accountId().equals(accountId))) {
             throw new BaseException(ErrorCode.FORBIDDEN, "The selected mail account is not available.");
         }
@@ -216,9 +236,28 @@ public class MailService extends MailServiceGovernanceSupport {
             UUID threadId,
             String correlationId,
             MailDtos.ThreadActionRequest request) {
+        // Authorize the thread before touching the idempotency ledger.  Otherwise a
+        // foreign-key failure can disclose that an inaccessible thread exists.
         MailDtos.ThreadSummary before = visibleThread(tenantId, userId, threadId);
         requireSharedPermission(
                 tenantId, userId, before, MailQueryRepository.SharedInboxPermission.MANAGE);
+        MailBulkMutationReceipts.Claim bulkClaim = null;
+        if (MailBulkMutationReceipts.bulk(
+                request.bulkIntentId(), request.itemIdempotencyKey())) {
+            if (bulkMutationReceipts == null
+                    || !Set.of(ThreadAction.MARK_READ, ThreadAction.STAR)
+                    .contains(request.action())) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "This action is not supported by governed bulk triage.");
+            }
+            bulkClaim = bulkMutationReceipts.claim(
+                    tenantId, userId, threadId, request.action().name(), request.version(),
+                    request.bulkIntentId(), request.itemIdempotencyKey());
+            if (!bulkClaim.created()) {
+                return detail(tenantId, userId, visibleThread(tenantId, userId, threadId));
+            }
+        }
         if (commands.applyAction(
                 tenantId, userId, threadId, request.action(), request.version()) == 0) {
             conflict();
@@ -228,6 +267,13 @@ public class MailService extends MailServiceGovernanceSupport {
                 tenantId, userId, threadId, correlationId,
                 "mail.thread." + eventSegment(request.action()),
                 before, after);
+        if (bulkClaim != null && bulkMutationReceipts.complete(
+                tenantId, userId, bulkClaim.receipt().receiptId(),
+                after.version(), false) != 1) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The Mail bulk item receipt changed before completion.");
+        }
         return detail(tenantId, userId, after);
     }
 

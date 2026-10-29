@@ -76,15 +76,24 @@ final class CalendarSql01 {
          ORDER BY attendee_type, attendee_name, attendee_email
         """;
 
+    static final String ATTENDEES_BY_EVENTS_SELECT_CAL_EVENT_ATTENDEES = """
+        SELECT event_id, attendee_user_id, attendee_person_public_id, attendee_email,
+               attendee_name, attendee_type, response_status
+          FROM cal_event_attendees
+         WHERE tenant_id = ? AND event_id = ANY (?::uuid[])
+         ORDER BY event_id, attendee_type, attendee_name, attendee_email
+        """;
+
     static final String INSERT_EVENT_INSERT_CAL_EVENTS = """
         INSERT INTO cal_events (
             event_id, tenant_id, calendar_id, organizer_user_id,
             organizer_person_public_id, organizer_name, title, description, event_type,
             starts_at, ends_at, time_zone, all_day, location,
             conference_url, visibility, recurrence_pattern,
-            recurrence_interval, recurrence_until, response_required, importance,
+            recurrence_interval, recurrence_until, recurrence_days, recurrence_count,
+            response_required, importance,
             source_type, idempotency_key, request_fingerprint, created_by, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 'NATIVE', ?, ?, ?, ?)
         """;
 
@@ -108,58 +117,71 @@ final class CalendarSql01 {
 
     static final String BUSY_SLOTS_WITH_CAL_EVENTS = """
         WITH relevant_events AS (
-            SELECT subject.person_public_id,
-                   event.starts_at,
-                   event.ends_at,
-                   event.time_zone,
-                   event.recurrence_pattern,
-                   event.recurrence_interval,
-                   event.recurrence_until
-          FROM cal_events event
-          LEFT JOIN cal_identity_links organizer_identity
-            ON organizer_identity.tenant_id = event.tenant_id
-           AND organizer_identity.user_id = event.organizer_user_id
-          JOIN LATERAL (
-              SELECT COALESCE(
-                         event.organizer_person_public_id,
-                         organizer_identity.person_public_id) AS person_public_id
-              WHERE COALESCE(
-                        event.organizer_person_public_id,
-                        organizer_identity.person_public_id) = ANY (?::uuid[])
-              UNION
-              SELECT attendee.attendee_person_public_id
-                FROM cal_event_attendees attendee
-               WHERE attendee.event_id = event.event_id
-                 AND attendee.response_status <> 'DECLINED'
-                 AND attendee.attendee_person_public_id = ANY (?::uuid[])
-          ) subject ON TRUE
-         WHERE event.tenant_id = ? AND event.status <> 'CANCELLED'
-           AND event.deleted_at IS NULL
-           AND event.starts_at < ?
-        ), occurrences AS (
-            SELECT event.person_public_id,
-                   occurrence.local_starts_at AT TIME ZONE event.time_zone AS starts_at,
-                   (occurrence.local_starts_at AT TIME ZONE event.time_zone)
-                       + (event.ends_at - event.starts_at) AS ends_at
+            SELECT event.tenant_id, event.event_id, subject.person_public_id,
+                   event.starts_at, event.ends_at, event.time_zone,
+                   event.recurrence_pattern, event.recurrence_interval,
+                   event.recurrence_until, event.recurrence_count,
+                   event.recurrence_days
+              FROM cal_events event
+              LEFT JOIN cal_identity_links organizer_identity
+                ON organizer_identity.tenant_id = event.tenant_id
+               AND organizer_identity.user_id = event.organizer_user_id
+              JOIN LATERAL (
+                  SELECT COALESCE(
+                             event.organizer_person_public_id,
+                             organizer_identity.person_public_id) AS person_public_id
+                   WHERE COALESCE(
+                            event.organizer_person_public_id,
+                            organizer_identity.person_public_id) = ANY (?::uuid[])
+                  UNION
+                  SELECT attendee.attendee_person_public_id
+                    FROM cal_event_attendees attendee
+                   WHERE attendee.event_id = event.event_id
+                     AND attendee.response_status <> 'DECLINED'
+                     AND attendee.attendee_person_public_id = ANY (?::uuid[])
+              ) subject ON TRUE
+             WHERE event.tenant_id = ? AND event.status <> 'CANCELLED'
+               AND event.deleted_at IS NULL
+               AND (
+                   event.starts_at < ?
+                   OR EXISTS (
+                       SELECT 1
+                         FROM cal_event_occurrence_overrides moved
+                        WHERE moved.tenant_id = event.tenant_id
+                          AND moved.event_id = event.event_id
+                          AND moved.override_kind = 'MODIFIED'
+                          AND moved.starts_at < ? AND moved.ends_at > ?))
+        ), base_occurrences AS (
+            SELECT event.tenant_id, event.event_id, event.person_public_id,
+                   occurrence.original_starts_at,
+                   occurrence.starts_at, occurrence.ends_at
               FROM relevant_events event
-              CROSS JOIN LATERAL generate_series(
-                  event.starts_at AT TIME ZONE event.time_zone,
-                  LEAST(
-                      ?::timestamptz AT TIME ZONE event.time_zone,
-                      COALESCE(
-                          event.recurrence_until + TIME '23:59:59',
-                          ?::timestamptz AT TIME ZONE event.time_zone)),
-                  CASE event.recurrence_pattern
-                      WHEN 'DAILY' THEN make_interval(days => event.recurrence_interval)
-                      WHEN 'WEEKLY' THEN make_interval(days => 7 * event.recurrence_interval)
-                      WHEN 'MONTHLY' THEN make_interval(months => event.recurrence_interval)
-                      ELSE INTERVAL '100 years'
-                  END
-              ) occurrence(local_starts_at)
+              CROSS JOIN LATERAL cal_project_recurrences(
+                  event.starts_at, event.ends_at, event.time_zone,
+                  event.recurrence_pattern, event.recurrence_interval,
+                  event.recurrence_until, event.recurrence_count,
+                  event.recurrence_days,
+                  ?::timestamptz, ?::timestamptz, 4000) occurrence
+        ), occurrences AS (
+            SELECT base.person_public_id, base.starts_at, base.ends_at
+              FROM base_occurrences base
+              LEFT JOIN cal_event_occurrence_overrides override
+                ON override.tenant_id = base.tenant_id
+               AND override.event_id = base.event_id
+               AND override.original_starts_at = base.original_starts_at
+             WHERE override.event_id IS NULL
+            UNION ALL
+            SELECT event.person_public_id, override.starts_at, override.ends_at
+              FROM relevant_events event
+              JOIN cal_event_occurrence_overrides override
+                ON override.tenant_id = event.tenant_id
+               AND override.event_id = event.event_id
+               AND override.override_kind = 'MODIFIED'
         )
         SELECT person_public_id, starts_at, ends_at
           FROM occurrences
-         WHERE starts_at < ? AND ends_at > ?
+         WHERE starts_at IS NOT NULL AND ends_at IS NOT NULL
+           AND starts_at < ? AND ends_at > ?
          ORDER BY person_public_id, starts_at
         """;
 
@@ -190,7 +212,8 @@ final class CalendarSql01 {
            SET title = ?, description = ?, event_type = ?, starts_at = ?, ends_at = ?,
                time_zone = ?, all_day = ?, location = ?, conference_url = ?,
                visibility = ?, recurrence_pattern = ?, recurrence_interval = ?,
-               recurrence_until = ?, response_required = ?, importance = ?,
+               recurrence_until = ?, recurrence_days = ?, recurrence_count = ?,
+               response_required = ?, importance = ?,
                version = version + 1,
                updated_at = CURRENT_TIMESTAMP, updated_by = ?
          WHERE tenant_id = ? AND event_id = ?
@@ -212,6 +235,20 @@ final class CalendarSql01 {
                               AND grant_row.principal_person_public_id = ?)
                           OR (grant_row.principal_type = 'GROUP'
                               AND grant_row.principal_group_ref = ANY (?::uuid[]))))
+               OR EXISTS (
+                   SELECT 1
+                     FROM cal_calendars calendar
+                     JOIN cal_calendar_delegations delegation
+                       ON delegation.tenant_id = calendar.tenant_id
+                      AND delegation.owner_person_public_id =
+                          calendar.owner_person_public_id
+                    WHERE calendar.tenant_id = cal_events.tenant_id
+                      AND calendar.calendar_id = cal_events.calendar_id
+                      AND delegation.delegate_person_public_id = ?
+                      AND delegation.can_edit_schedule
+                      AND delegation.status = 'ACTIVE'
+                      AND delegation.valid_from <= CURRENT_TIMESTAMP
+                      AND delegation.valid_until > CURRENT_TIMESTAMP)
            )
            AND status <> 'CANCELLED' AND version = ?
         """;
@@ -254,29 +291,18 @@ final class CalendarSql01 {
                    SELECT 1
                      FROM cal_resource_bookings booking
                      JOIN cal_events event ON event.event_id = booking.event_id
-                     CROSS JOIN LATERAL generate_series(
-                         booking.starts_at AT TIME ZONE event.time_zone,
-                         LEAST(
-                             ?::timestamptz AT TIME ZONE event.time_zone,
-                             COALESCE(
-                                 event.recurrence_until + TIME '23:59:59',
-                                 ?::timestamptz AT TIME ZONE event.time_zone)),
-                         CASE event.recurrence_pattern
-                             WHEN 'DAILY' THEN make_interval(days => event.recurrence_interval)
-                             WHEN 'WEEKLY' THEN make_interval(
-                                 days => 7 * event.recurrence_interval)
-                             WHEN 'MONTHLY' THEN make_interval(
-                                 months => event.recurrence_interval)
-                             ELSE INTERVAL '100 years'
-                         END
-                     ) occurrence(local_starts_at)
+                     CROSS JOIN LATERAL cal_project_recurrences(
+                         booking.starts_at, booking.ends_at, event.time_zone,
+                         event.recurrence_pattern, event.recurrence_interval,
+                         event.recurrence_until, event.recurrence_count,
+                         event.recurrence_days,
+                         ?::timestamptz, ?::timestamptz, 4000) occurrence
                     WHERE booking.tenant_id = resource.tenant_id
                       AND booking.resource_id = resource.resource_id
                       AND booking.booking_status IN ('PENDING', 'CONFIRMED')
                       AND event.status <> 'CANCELLED'
-                      AND (occurrence.local_starts_at AT TIME ZONE event.time_zone) < ?
-                      AND (occurrence.local_starts_at AT TIME ZONE event.time_zone)
-                          + (booking.ends_at - booking.starts_at) > ?
+                      AND occurrence.starts_at < ?
+                      AND occurrence.ends_at > ?
                ) AS available
           FROM cal_resources resource
          WHERE resource.tenant_id = ?
@@ -288,27 +314,18 @@ final class CalendarSql01 {
         SELECT COUNT(*)
           FROM cal_resource_bookings booking
           JOIN cal_events event ON event.event_id = booking.event_id
-          CROSS JOIN LATERAL generate_series(
-              booking.starts_at AT TIME ZONE event.time_zone,
-              LEAST(
-                  ?::timestamptz AT TIME ZONE event.time_zone,
-                  COALESCE(
-                      event.recurrence_until + TIME '23:59:59',
-                      ?::timestamptz AT TIME ZONE event.time_zone)),
-              CASE event.recurrence_pattern
-                  WHEN 'DAILY' THEN make_interval(days => event.recurrence_interval)
-                  WHEN 'WEEKLY' THEN make_interval(days => 7 * event.recurrence_interval)
-                  WHEN 'MONTHLY' THEN make_interval(months => event.recurrence_interval)
-                  ELSE INTERVAL '100 years'
-              END
-          ) occurrence(local_starts_at)
+          CROSS JOIN LATERAL cal_project_recurrences(
+              booking.starts_at, booking.ends_at, event.time_zone,
+              event.recurrence_pattern, event.recurrence_interval,
+              event.recurrence_until, event.recurrence_count,
+              event.recurrence_days,
+              ?::timestamptz, ?::timestamptz, 4000) occurrence
          WHERE booking.tenant_id = ? AND booking.resource_id = ?
            AND booking.booking_status IN ('PENDING', 'CONFIRMED')
            AND event.status <> 'CANCELLED'
            AND (?::uuid IS NULL OR booking.event_id <> ?::uuid)
-           AND (occurrence.local_starts_at AT TIME ZONE event.time_zone) < ?
-           AND (occurrence.local_starts_at AT TIME ZONE event.time_zone)
-               + (booking.ends_at - booking.starts_at) > ?
+           AND occurrence.starts_at < ?
+           AND occurrence.ends_at > ?
         """;
 
     static final String INSERT_BOOKING_INSERT_CAL_RESOURCE_BOOKINGS = """
@@ -424,24 +441,14 @@ final class CalendarSql01 {
     static final String ADMIN_STATS_WITH_CAL_EVENTS = """
         WITH event_occurrences AS (
             SELECT event.event_id, event.organizer_user_id,
-                   occurrence.local_starts_at AT TIME ZONE event.time_zone AS starts_at,
-                   (occurrence.local_starts_at AT TIME ZONE event.time_zone)
-                       + (event.ends_at - event.starts_at) AS ends_at
+                   occurrence.starts_at, occurrence.ends_at
               FROM cal_events event
-              CROSS JOIN LATERAL generate_series(
-                  event.starts_at AT TIME ZONE event.time_zone,
-                  LEAST(
-                      ?::timestamptz AT TIME ZONE event.time_zone,
-                      COALESCE(
-                          event.recurrence_until + TIME '23:59:59',
-                          ?::timestamptz AT TIME ZONE event.time_zone)),
-                  CASE event.recurrence_pattern
-                      WHEN 'DAILY' THEN make_interval(days => event.recurrence_interval)
-                      WHEN 'WEEKLY' THEN make_interval(days => 7 * event.recurrence_interval)
-                      WHEN 'MONTHLY' THEN make_interval(months => event.recurrence_interval)
-                      ELSE INTERVAL '100 years'
-                  END
-              ) occurrence(local_starts_at)
+              CROSS JOIN LATERAL cal_project_recurrences(
+                  event.starts_at, event.ends_at, event.time_zone,
+                  event.recurrence_pattern, event.recurrence_interval,
+                  event.recurrence_until, event.recurrence_count,
+                  event.recurrence_days,
+                  ?::timestamptz, ?::timestamptz, 4000) occurrence
              WHERE event.tenant_id = ? AND event.status <> 'CANCELLED'
                AND event.starts_at < ?
         ), booking_occurrences AS (

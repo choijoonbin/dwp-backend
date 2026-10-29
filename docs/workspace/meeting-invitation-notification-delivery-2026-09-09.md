@@ -2,7 +2,7 @@
 
 Status: implemented behind a disabled-by-default production flag
 
-Last reviewed: 2026-09-09
+Last reviewed: 2026-10-28
 
 ## Boundary
 
@@ -72,14 +72,16 @@ or explicitly approved loopback HTTP for local development, a dedicated trimmed 
 24 characters, bounded connect/request timeouts, a bounded response size, valid batch/attempt
 limits, and a lease longer than the request timeout. Redirect following is disabled.
 
-`scripts/devctl.py up meeting` resolves the supported local profile to Auth, Notification, and
-Meeting. It waits for Auth and Notification readiness before starting Meeting, points the delivery
-client to the local Notification service, and derives the Notification producer-token binding from
-the same dedicated Meeting client token. This prevents the supported Meeting profile from running
-an enabled dispatcher against an absent Notification process. Notification also receives the exact
-producer allowlist and producer-to-app binding. Production remains disabled until deployment
-secrets, service routing, capacity, alerting, and recovery exercises are configured outside this
-repository.
+`scripts/devctl.py up meeting` resolves the supported local profile to Auth, People, Provider,
+Notification, and Meeting. It waits for those four dependencies before starting Meeting. Auth,
+People, and Provider supply the gateway's fail-closed product-surface authority path used by a
+fresh Meeting browser session; Notification owns invitation delivery. The launcher points the
+delivery client to the local Notification service and derives the Notification producer-token
+binding from the same dedicated Meeting client token. This prevents the supported Meeting profile
+from depending on stale processes from another profile or running an enabled dispatcher against an
+absent Notification process. Notification also receives the exact producer allowlist and
+producer-to-app binding. Production remains disabled until deployment secrets, service routing,
+capacity, alerting, and recovery exercises are configured outside this repository.
 
 ## Evidence
 

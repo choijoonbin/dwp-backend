@@ -84,12 +84,41 @@ dwp:
       typing-key-prefix: ${DWP_MESSAGING_TYPING_KEY_PREFIX:dwp:messaging:typing:v1}
       typing-ttl: ${DWP_MESSAGING_TYPING_TTL:8s}
       shard-count: ${DWP_MESSAGING_REDIS_SHARD_COUNT:32}
+      readiness-probe-timeout: ${DWP_MESSAGING_REDIS_READINESS_PROBE_TIMEOUT:PT1S}
     presence:
       enabled: ${DWP_MESSAGING_PRESENCE_ENABLED:true}
       ttl: ${DWP_MESSAGING_PRESENCE_TTL:75s}
       refresh-after: ${DWP_MESSAGING_PRESENCE_REFRESH_AFTER:20s}
       key-prefix: ${DWP_MESSAGING_PRESENCE_KEY_PREFIX:dwp:messaging:presence:v1}
       active-user-warning-threshold: ${DWP_MESSAGING_PRESENCE_ACTIVE_USER_WARNING_THRESHOLD:${DWP_MESSAGING_PRESENCE_MAXIMUM_ACTIVE_USERS:5000}}
+    readiness:
+      initial-delay: ${DWP_MESSAGING_READINESS_INITIAL_DELAY:PT10S}
+      interval: ${DWP_MESSAGING_READINESS_INTERVAL:PT1M}
+      maximum-age: ${DWP_MESSAGING_READINESS_MAXIMUM_AGE:PT3M}
+      notification-outbox-maximum-age: ${DWP_MESSAGING_NOTIFICATION_OUTBOX_MAXIMUM_AGE:PT5M}
+      notification-outbox-warning-threshold: ${DWP_MESSAGING_NOTIFICATION_OUTBOX_WARNING_THRESHOLD:1000}
+    retention:
+      enabled: ${DWP_MESSAGING_RETENTION_ENABLED:false}
+      mode: ${DWP_MESSAGING_RETENTION_MODE:DRY_RUN}
+      paused: ${DWP_MESSAGING_RETENTION_PAUSED:false}
+      hold-authority-ready: ${DWP_MESSAGING_RETENTION_HOLD_AUTHORITY_READY:false}
+      downstream-lifecycle-ready: ${DWP_MESSAGING_RETENTION_DOWNSTREAM_LIFECYCLE_READY:false}
+      batch-size: ${DWP_MESSAGING_RETENTION_BATCH_SIZE:100}
+      maximum-batches-per-run: ${DWP_MESSAGING_RETENTION_MAXIMUM_BATCHES_PER_RUN:10}
+      maximum-attachment-deletes-per-run: ${DWP_MESSAGING_RETENTION_MAXIMUM_ATTACHMENT_DELETES_PER_RUN:1000}
+      lease-duration: ${DWP_MESSAGING_RETENTION_LEASE_DURATION:PT15M}
+      evidence-maximum-age: ${DWP_MESSAGING_RETENTION_EVIDENCE_MAXIMUM_AGE:PT2H}
+      initial-delay: ${DWP_MESSAGING_RETENTION_INITIAL_DELAY:PT5M}
+      interval: ${DWP_MESSAGING_RETENTION_INTERVAL:PT1H}
+    scheduled-delivery:
+      enabled: ${DWP_MESSAGING_SCHEDULED_DELIVERY_ENABLED:true}
+      batch-size: ${DWP_MESSAGING_SCHEDULED_DELIVERY_BATCH_SIZE:20}
+      maximum-attempts: ${DWP_MESSAGING_SCHEDULED_DELIVERY_MAXIMUM_ATTEMPTS:5}
+      poll-ms: ${DWP_MESSAGING_SCHEDULED_DELIVERY_POLL_MS:5000}
+      heartbeat-maximum-age: ${DWP_MESSAGING_SCHEDULED_DELIVERY_HEARTBEAT_MAXIMUM_AGE:PT2M}
+      overdue-maximum-age: ${DWP_MESSAGING_SCHEDULED_DELIVERY_OVERDUE_MAXIMUM_AGE:PT2M}
+      health-initial-delay: ${DWP_MESSAGING_SCHEDULED_DELIVERY_HEALTH_INITIAL_DELAY:PT10S}
+      health-interval: ${DWP_MESSAGING_SCHEDULED_DELIVERY_HEALTH_INTERVAL:PT1M}
     meeting:
       provider: ${DWP_MESSAGING_MEETING_PROVIDER:disabled}
       token-ttl: ${DWP_MESSAGING_MEETING_TOKEN_TTL:PT5M}
@@ -134,6 +163,22 @@ management:
       group:
         presence:
           include: messagingPresenceHealth
+          show-components: always
+          show-details: always
+        retention:
+          include: messagingRetentionHealth
+          show-components: always
+          show-details: always
+        scheduled-delivery:
+          include: messagingScheduledDeliveryHealth
+          show-components: always
+          show-details: always
+        messaging-operations:
+          include: messagingPresenceHealth,messagingRetentionHealth,messagingScheduledDeliveryHealth,messagingProviderReadinessHealth
+          show-components: always
+          show-details: always
+        messaging-providers:
+          include: messagingProviderReadinessHealth
           show-components: always
           show-details: always
 

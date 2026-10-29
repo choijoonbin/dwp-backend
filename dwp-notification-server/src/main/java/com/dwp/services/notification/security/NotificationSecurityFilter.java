@@ -8,6 +8,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -34,25 +35,40 @@ public class NotificationSecurityFilter extends OncePerRequestFilter {
     static final String ROLES_HEADER = "X-DWP-Roles";
     static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
     static final String SOURCE_SERVICE_HEADER = "X-DWP-Source-Service";
+    static final String SERVICE_KEY_ID_HEADER = "X-DWP-Service-Key-ID";
 
     private final String gatewayToken;
     private final String gatewaySource;
     private final Set<String> allowedProducers;
     private final Map<String, String> producerTokens;
+    private final Map<String, Map<String, String>> producerTokenKeyrings;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public NotificationSecurityFilter(
             @Value("${dwp.notification.service-token:}") String gatewayToken,
             @Value("${dwp.notification.gateway-source:dwp-gateway}") String gatewaySource,
             @Value("${dwp.notification.allowed-producers:}") String allowedProducers,
             @Value("${dwp.notification.producer-tokens:}") String producerTokens,
+            @Value("${dwp.notification.producer-token-keyrings:}")
+            String producerTokenKeyrings,
             ObjectMapper objectMapper) {
         this.gatewayToken = gatewayToken == null ? "" : gatewayToken.trim();
         this.gatewaySource = gatewaySource == null ? "" : gatewaySource.trim();
         this.allowedProducers = parse(allowedProducers);
         this.producerTokens = parseBindings(producerTokens);
+        this.producerTokenKeyrings = parseKeyrings(producerTokenKeyrings);
         this.objectMapper = objectMapper;
         validateIdentityConfiguration();
+    }
+
+    public NotificationSecurityFilter(
+            String gatewayToken,
+            String gatewaySource,
+            String allowedProducers,
+            String producerTokens,
+            ObjectMapper objectMapper) {
+        this(gatewayToken, gatewaySource, allowedProducers, producerTokens, "", objectMapper);
     }
 
     @Override
@@ -90,7 +106,9 @@ public class NotificationSecurityFilter extends OncePerRequestFilter {
 
         if (internal) {
             if (!validProducerIdentity(
-                    sourceService, request.getHeader(SERVICE_TOKEN_HEADER))) {
+                    sourceService,
+                    request.getHeader(SERVICE_KEY_ID_HEADER),
+                    request.getHeader(SERVICE_TOKEN_HEADER))) {
                 writeError(response, NotificationErrorCode.FORBIDDEN);
                 return;
             }
@@ -195,8 +213,49 @@ public class NotificationSecurityFilter extends OncePerRequestFilter {
         return Map.copyOf(bindings);
     }
 
-    private boolean validProducerIdentity(String sourceService, String presentedToken) {
+    private Map<String, Map<String, String>> parseKeyrings(String value) {
+        if (value == null || value.isBlank()) return Map.of();
+        Map<String, Map<String, String>> keyrings = new HashMap<>();
+        for (String entry : value.split(",")) {
+            String[] binding = entry.trim().split("=", 2);
+            if (binding.length != 2 || binding[0].isBlank() || binding[1].isBlank()) {
+                throw new IllegalArgumentException(
+                        "Producer token keyrings must use source-service=key-id:token entries.");
+            }
+            Map<String, String> keys = new HashMap<>();
+            for (String encodedKey : binding[1].split("\\|")) {
+                String[] key = encodedKey.trim().split(":", 2);
+                if (key.length != 2
+                        || !key[0].matches("[a-z0-9][a-z0-9._-]{0,63}")
+                        || key[1].isBlank()
+                        || !key[1].equals(key[1].trim())
+                        || keys.putIfAbsent(key[0], key[1]) != null) {
+                    throw new IllegalArgumentException(
+                            "Producer token keyrings contain an invalid or duplicate key ID.");
+                }
+            }
+            if (keyrings.putIfAbsent(binding[0].trim(), Map.copyOf(keys)) != null) {
+                throw new IllegalArgumentException("Producer token keyring source is duplicated.");
+            }
+        }
+        return Map.copyOf(keyrings);
+    }
+
+    private boolean validProducerIdentity(
+            String sourceService,
+            String presentedKeyId,
+            String presentedToken) {
         if (sourceService == null || !allowedProducers.contains(sourceService)) return false;
+        if (presentedKeyId != null) {
+            if (!presentedKeyId.equals(presentedKeyId.trim())
+                    || !presentedKeyId.matches("[a-z0-9][a-z0-9._-]{0,63}")) {
+                return false;
+            }
+            String expected = producerTokenKeyrings
+                    .getOrDefault(sourceService, Map.of())
+                    .get(presentedKeyId);
+            return expected != null && constantTimeEquals(expected, presentedToken);
+        }
         String expectedToken = producerTokens.get(sourceService);
         return expectedToken != null
                 && !expectedToken.isBlank()
@@ -208,12 +267,18 @@ public class NotificationSecurityFilter extends OncePerRequestFilter {
             throw new IllegalStateException(
                     "Notification gateway identity must use a non-empty source and a 24+ character token.");
         }
-        if (!producerTokens.keySet().equals(allowedProducers)) {
+        Set<String> configuredProducers = new java.util.HashSet<>(producerTokens.keySet());
+        configuredProducers.addAll(producerTokenKeyrings.keySet());
+        if (!configuredProducers.equals(allowedProducers)) {
             throw new IllegalStateException(
-                    "Every allowlisted notification producer must have exactly one token binding.");
+                    "Every allowlisted notification producer must have a token or keyring binding.");
         }
-        Set<String> distinctTokens = Set.copyOf(producerTokens.values());
-        if (distinctTokens.size() != producerTokens.size()
+        java.util.List<String> configuredTokens = new java.util.ArrayList<>(
+                producerTokens.values());
+        producerTokenKeyrings.values().forEach(keyring ->
+                configuredTokens.addAll(keyring.values()));
+        Set<String> distinctTokens = new java.util.HashSet<>(configuredTokens);
+        if (distinctTokens.size() != configuredTokens.size()
                 || distinctTokens.contains(gatewayToken)
                 || distinctTokens.stream().anyMatch(token -> token.length() < 24)) {
             throw new IllegalStateException(

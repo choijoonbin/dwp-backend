@@ -21,15 +21,19 @@ import java.util.UUID;
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Evidence is unavailable or its source is no longer accessible", content = @io.swagger.v3.oas.annotations.media.Content)})
 public class ActivityEvidenceController {
     private final ActivityEvidenceService service;
+    private final ActivityMetrics metrics;
 
-    public ActivityEvidenceController(ActivityEvidenceService service) { this.service = service; }
+    public ActivityEvidenceController(ActivityEvidenceService service, ActivityMetrics metrics) {
+        this.service = service;
+        this.metrics = metrics;
+    }
 
     @GetMapping("/events/{id}/evidence")
     @Operation(summary = "Read an authorized native activity audit receipt", description = "Rechecks current source ACL. Audit hash and checkpoint require ADMIN.AUDIT_VIEW:VIEW; other viewers receive RESTRICTED without audit data.")
     public ResponseEntity<ApiResponse<ActivityEvidenceDtos.Evidence>> evidence(
             @RequestHeader("X-DWP-Tenant-ID") Long tenant, @RequestHeader("X-DWP-User-ID") Long user,
             @RequestHeader("X-DWP-Permissions") String permissions, @PathVariable UUID id) {
-        return noStore(service.evidence(tenant, user, permissions, id));
+        return noStore(metrics.evidence(() -> service.evidence(tenant, user, permissions, id)));
     }
 
     @GetMapping("/sources/status")
@@ -37,7 +41,7 @@ public class ActivityEvidenceController {
     public ResponseEntity<ApiResponse<ActivityEvidenceDtos.SourceStatuses>> sources(
             @RequestHeader("X-DWP-Tenant-ID") Long tenant, @RequestHeader("X-DWP-User-ID") Long user,
             @RequestHeader("X-DWP-Permissions") String permissions) {
-        return noStore(service.sources(tenant, user, permissions));
+        return noStore(metrics.sources(() -> service.sources(tenant, user, permissions)));
     }
 
     @GetMapping("/audit/evidence/{auditRecordId}")
@@ -45,7 +49,8 @@ public class ActivityEvidenceController {
     public ResponseEntity<ApiResponse<ActivityEvidenceDtos.Evidence>> agentEvidence(
             @RequestHeader("X-DWP-Tenant-ID") Long tenant, @RequestHeader("X-DWP-User-ID") Long user,
             @RequestHeader("X-DWP-Permissions") String permissions, @PathVariable UUID auditRecordId) {
-        return noStore(service.agentEvidence(tenant, user, permissions, auditRecordId));
+        return noStore(metrics.agentEvidence(
+                () -> service.agentEvidence(tenant, user, permissions, auditRecordId)));
     }
 
     private <T> ResponseEntity<ApiResponse<T>> noStore(T value) {

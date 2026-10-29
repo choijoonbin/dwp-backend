@@ -13,7 +13,11 @@ import java.util.UUID;
 @RequestMapping("/v1/workspace/activity")
 public class ActivityController {
     private final ActivityService service;
-    public ActivityController(ActivityService service) { this.service = service; }
+    private final ActivityMetrics metrics;
+    public ActivityController(ActivityService service, ActivityMetrics metrics) {
+        this.service = service;
+        this.metrics = metrics;
+    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<WorkspaceDtos.ActivityFeed>> list(
@@ -29,8 +33,10 @@ public class ActivityController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to,
             @RequestParam(required = false) String cursor, @RequestParam(defaultValue = "50") Integer limit,
             @RequestParam(defaultValue = "false") Boolean includeUsage) {
-        return noStore(service.list(tenant, user, permissions, locale, new ActivityQuery(
-                actor, state, query, source, objectType, objectId, executionId, from, to, cursor, limit, includeUsage)));
+        return noStore(metrics.list(() -> service.list(
+                tenant, user, permissions, locale, new ActivityQuery(
+                        actor, state, query, source, objectType, objectId, executionId,
+                        from, to, cursor, limit, includeUsage))));
     }
 
     @GetMapping("/events/{id}")
@@ -39,7 +45,7 @@ public class ActivityController {
             @RequestHeader("X-DWP-Permissions") String permissions,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @PathVariable UUID id) {
-        return noStore(service.detail(tenant, user, permissions, locale, id));
+        return noStore(metrics.detail(() -> service.detail(tenant, user, permissions, locale, id)));
     }
 
     @GetMapping("/executions/summary")
@@ -47,7 +53,7 @@ public class ActivityController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenant, @RequestHeader("X-DWP-User-ID") Long user,
             @RequestHeader("X-DWP-Permissions") String permissions,
             @RequestHeader(value = "Accept-Language", required = false) String locale) {
-        return noStore(service.summary(tenant, user, permissions, locale));
+        return noStore(metrics.summary(() -> service.summary(tenant, user, permissions, locale)));
     }
 
     private <T> ResponseEntity<ApiResponse<T>> noStore(T value) {

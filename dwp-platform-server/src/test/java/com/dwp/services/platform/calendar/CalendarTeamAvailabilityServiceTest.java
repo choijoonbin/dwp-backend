@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -103,6 +104,23 @@ class CalendarTeamAvailabilityServiceTest {
         assertThat(member.status()).isEqualTo(Status.AVAILABLE);
         assertThat(member.busyMinutes()).isEqualTo(60);
         assertThat(member.busyWindows().getFirst().startsAt()).isEqualTo(NOW.plusHours(2));
+    }
+
+    @Test
+    void projectsWeeklyByDayAndStopsAtCount() {
+        ScheduleRow row = new ScheduleRow(
+                MEMBER, UUID.randomUUID(),
+                OffsetDateTime.parse("2026-08-31T00:00:00Z"),
+                OffsetDateTime.parse("2026-08-31T01:00:00Z"),
+                "Asia/Seoul", "WEEKLY", 1, null,
+                List.of(DayOfWeek.MONDAY, DayOfWeek.FRIDAY), 2, Status.FOCUS);
+        schedules(row);
+
+        Member member = service.snapshot(ACTOR, "Asia/Seoul").members().getFirst();
+
+        assertThat(member.busyMinutes()).isEqualTo(60);
+        assertThat(member.busyWindows().getFirst().startsAt())
+                .isEqualTo(OffsetDateTime.parse("2026-09-04T00:00:00Z"));
     }
 
     @Test

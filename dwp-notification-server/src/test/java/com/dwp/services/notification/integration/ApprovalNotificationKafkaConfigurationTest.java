@@ -19,4 +19,30 @@ class ApprovalNotificationKafkaConfigurationTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("at least 1");
     }
+
+    @Test
+    void acceptsDistinctCanonicalInputAndDeadLetterTopics() {
+        ApprovalNotificationKafkaConfiguration.validateTopics(
+                "dwp.approval.events.v1", "dwp.approval.events.v1.DLT");
+    }
+
+    @Test
+    void rejectsEqualInputAndDeadLetterTopics() {
+        assertThatThrownBy(() -> ApprovalNotificationKafkaConfiguration.validateTopics(
+                "dwp.approval.events.v1", "dwp.approval.events.v1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must differ");
+    }
+
+    @Test
+    void rejectsBlankOrWhitespacePaddedTopics() {
+        assertThatThrownBy(() -> ApprovalNotificationKafkaConfiguration.validateTopics(
+                " ", "dwp.approval.events.v1.DLT"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("canonical Kafka topic");
+        assertThatThrownBy(() -> ApprovalNotificationKafkaConfiguration.validateTopics(
+                "dwp.approval.events.v1", " dwp.approval.events.v1.DLT "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("canonical Kafka topic");
+    }
 }

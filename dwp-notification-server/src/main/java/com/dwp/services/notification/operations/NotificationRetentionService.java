@@ -1,6 +1,7 @@
 package com.dwp.services.notification.operations;
 
 import com.dwp.services.notification.operations.NotificationRetentionRepository.PurgeResult;
+import com.dwp.services.notification.operations.NotificationRetentionRepository.RetentionInputs;
 import com.dwp.services.notification.realtime.NotificationChangeCause;
 import com.dwp.services.notification.realtime.NotificationChangePublisher;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
@@ -37,6 +38,9 @@ public class NotificationRetentionService {
             Duration qualityFactTtl,
             @Value("${dwp.notification.retention.batch-size:100}") int batchSize) {
         if (defaultTtl.isNegative()
+                || (!defaultTtl.isZero()
+                    && (defaultTtl.compareTo(Duration.ofDays(1)) < 0
+                        || defaultTtl.compareTo(Duration.ofDays(365)) > 0))
                 || admissionReceiptTtl.compareTo(Duration.ofDays(1)) < 0
                 || qualityFactTtl.compareTo(Duration.ofDays(30)) < 0
                 || batchSize < 1 || batchSize > 100) {
@@ -62,12 +66,36 @@ public class NotificationRetentionService {
                 admissionReceiptTtl, Duration.ofDays(180), batchSize);
     }
 
-    public void applyDefaultExpiry(
+    public void applyEffectiveExpiry(
             long tenantId,
             UUID notificationId,
+            UUID typeVersionId,
             Instant lastActivityAt) {
-        if (defaultTtl.isZero()) return;
-        repository.extendExpiry(tenantId, notificationId, lastActivityAt.plus(defaultTtl));
+        RetentionDecision decision = decision(
+                repository.retentionInputs(tenantId, typeVersionId));
+        if (decision == null) return;
+        repository.applyExpiry(
+                tenantId,
+                notificationId,
+                lastActivityAt.plus(decision.ttl()),
+                decision.source(),
+                decision.ttl().toSeconds());
+    }
+
+    RetentionDecision decision(RetentionInputs inputs) {
+        if (inputs.contractOverrideTtlSeconds() != null) {
+            return new RetentionDecision(
+                    "CONTRACT_OVERRIDE",
+                    Duration.ofSeconds(inputs.contractOverrideTtlSeconds()));
+        }
+        if (inputs.tenantDefaultTtlSeconds() != null) {
+            return new RetentionDecision(
+                    "TENANT_DEFAULT",
+                    Duration.ofSeconds(inputs.tenantDefaultTtlSeconds()));
+        }
+        return defaultTtl.isZero()
+                ? null
+                : new RetentionDecision("PLATFORM_DEFAULT", defaultTtl);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -85,5 +113,8 @@ public class NotificationRetentionService {
         changePublisher.publishAfterCommit(
                 result.signals(), NotificationChangeCause.SYSTEM_RECONCILIATION);
         return result;
+    }
+
+    record RetentionDecision(String source, Duration ttl) {
     }
 }

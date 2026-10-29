@@ -61,7 +61,8 @@ class DwpSandboxMailConnector implements MailConnectorPort {
     @Override
     public SubscriptionReceipt renewSubscription(SubscriptionRequest request) {
         UUID stable = UUID.nameUUIDFromBytes(
-                request.callback().toString().getBytes(StandardCharsets.UTF_8));
+                (request.providerAccountReference() + ':' + request.callback())
+                        .getBytes(StandardCharsets.UTF_8));
         return new SubscriptionReceipt(
                 "sandbox:subscription:" + stable,
                 request.requestedUntil());

@@ -143,7 +143,12 @@ class WorkplaceBookingCommandPostgresTest {
                    SET personal_data_expires_at=CURRENT_TIMESTAMP - INTERVAL '1 day'
                  WHERE tenant_id=? AND booking_id=?
                 """, fixture.tenantId(), created.bookingId());
-        assertThat(tx(() -> new WorkplacePrivacyRepository(jdbc).anonymizeExpired(10)))
+        WorkplacePrivacyRepository privacy = new WorkplacePrivacyRepository(jdbc);
+        assertThat(privacy.retentionBacklog(OffsetDateTime.now(), 2555)).satisfies(backlog -> {
+            assertThat(backlog.bookings()).isGreaterThanOrEqualTo(1);
+            assertThat(backlog.oldestBookingExpiredAt()).isNotNull();
+        });
+        assertThat(tx(() -> privacy.anonymizeExpired(10)))
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM wp_booking_commands

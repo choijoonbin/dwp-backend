@@ -267,7 +267,8 @@ class CompanyCalendarAdminService {
                 new CalendarDtos.EventCapabilities(
                         true, !deleted && row.status() != EventStatus.CANCELLED,
                         !deleted && row.status() != EventStatus.CANCELLED,
-                        restorable, false, false), row.version());
+                        restorable, false, false), row.version(),
+                row.recurrenceDays(), row.recurrenceCount());
     }
 
     private CalendarDtos.CreateEventRequest companyCommand(
@@ -281,7 +282,8 @@ class CompanyCalendarAdminService {
                 request.conferenceUrl(), request.visibility(), request.recurrence(),
                 request.recurrenceInterval(), request.recurrenceUntil(),
                 request.responseRequired(), request.attendees(), request.resourceId(),
-                request.idempotencyKey(), calendarId, request.importance());
+                request.idempotencyKey(), calendarId, request.importance(),
+                request.recurrenceDays(), request.recurrenceCount());
     }
 
     private void validateEventCommand(
@@ -292,7 +294,8 @@ class CompanyCalendarAdminService {
         calendarService.validateEvent(
                 tenantId, request.startsAt(), request.endsAt(), request.timeZone(),
                 request.type(), request.description(), request.recurrence(),
-                request.recurrenceUntil(), request.attendees());
+                request.recurrenceInterval(), request.recurrenceUntil(),
+                request.recurrenceCount(), request.recurrenceDays(), request.attendees());
     }
 
     private void validateEventCommand(
@@ -303,7 +306,8 @@ class CompanyCalendarAdminService {
         calendarService.validateEvent(
                 tenantId, request.startsAt(), request.endsAt(), request.timeZone(),
                 request.type(), request.description(), request.recurrence(),
-                request.recurrenceUntil(), request.attendees());
+                request.recurrenceInterval(), request.recurrenceUntil(),
+                request.recurrenceCount(), request.recurrenceDays(), request.attendees());
     }
 
     private CompanyCalendarAdminRepository.CompanyCalendarState requireCalendar(

@@ -32,17 +32,26 @@ class MessagingPrivacyReceiptControllerTest {
 
     @Test
     void getAndPutPreferenceSerializeVersionAndRequireExplicitChoice() throws Exception {
-        when(privacy.preference()).thenReturn(new MessagingPrivacyDtos.PrivacyPreference(true, 0));
+        when(privacy.preference())
+                .thenReturn(new MessagingPrivacyDtos.PrivacyPreference(true, true, 0));
         when(privacy.update(new MessagingPrivacyDtos.UpdatePrivacyPreferenceRequest(false, 0L)))
-                .thenReturn(new MessagingPrivacyDtos.PrivacyPreference(false, 1));
+                .thenReturn(new MessagingPrivacyDtos.PrivacyPreference(false, true, 1));
+        when(privacy.update(new MessagingPrivacyDtos.UpdatePrivacyPreferenceRequest(null, false, 1L)))
+                .thenReturn(new MessagingPrivacyDtos.PrivacyPreference(false, false, 2));
         mvc.perform(auth(get("/v1/privacy-preferences")))
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.data.readReceiptsEnabled").value(true))
+                .andExpect(jsonPath("$.data.presenceSharingEnabled").value(true))
                 .andExpect(jsonPath("$.data.version").value(0));
         mvc.perform(auth(put("/v1/privacy-preferences")).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"readReceiptsEnabled\":false,\"version\":0}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.version").value(1))
-                .andExpect(jsonPath("$.data.readReceiptsEnabled").value(false));
+                .andExpect(jsonPath("$.data.readReceiptsEnabled").value(false))
+                .andExpect(jsonPath("$.data.presenceSharingEnabled").value(true));
+        mvc.perform(auth(put("/v1/privacy-preferences")).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"presenceSharingEnabled\":false,\"version\":1}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.version").value(2))
+                .andExpect(jsonPath("$.data.presenceSharingEnabled").value(false));
         for (String body : List.of("{}", "{\"version\":0}", "{\"readReceiptsEnabled\":false}",
                 "{\"readReceiptsEnabled\":true,\"version\":-1}")) {
             mvc.perform(auth(put("/v1/privacy-preferences")).contentType(MediaType.APPLICATION_JSON).content(body))

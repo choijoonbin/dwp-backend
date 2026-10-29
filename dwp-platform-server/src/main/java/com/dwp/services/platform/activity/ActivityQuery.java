@@ -18,14 +18,16 @@ public record ActivityQuery(
     public ActivityQuery normalized() {
         String validActor = clean(actor, 16);
         String validState = clean(state, 24);
+        String validQuery = clean(query, 200);
         if (validActor != null && !Set.of("AGENT", "PERSON", "SYSTEM").contains(validActor)
                 || validState != null && !Set.of("RUNNING", "NEEDS_INPUT", "COMPLETED",
                     "POLICY_BLOCKED", "FAILED", "CANCELLED", "UNKNOWN").contains(validState)
                 || limit != null && (limit < 1 || limit > 100)
-                || from != null && to != null && !from.isBefore(to)) {
+                || from != null && to != null && !from.isBefore(to)
+                || validQuery != null && validQuery.codePointCount(0, validQuery.length()) < 3) {
             throw invalid();
         }
-        return new ActivityQuery(validActor, validState, clean(query, 200), clean(source, 120),
+        return new ActivityQuery(validActor, validState, validQuery, clean(source, 120),
                 clean(objectType, 80), clean(objectId, 240), clean(executionId, 240),
                 from, to, clean(cursor, 2048), limit == null ? 50 : limit,
                 Boolean.TRUE.equals(includeUsage));

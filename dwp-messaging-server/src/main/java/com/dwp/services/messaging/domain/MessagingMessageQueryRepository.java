@@ -95,12 +95,23 @@ class MessagingMessageQueryRepository {
         return attachReactions(tenantId, userId, result);
     }
 
-    long replyCount(long tenantId, UUID conversationId, UUID rootMessageId) {
+    long replyCount(long tenantId, UUID conversationId, long userId, UUID rootMessageId) {
         Long count = jdbc.queryForObject("""
                 SELECT COUNT(*)
-                  FROM msg_messages
-                 WHERE tenant_id = ? AND conversation_id = ? AND reply_to_message_id = ?
-                """, Long.class, tenantId, conversationId, rootMessageId);
+                  FROM msg_messages reply
+                  JOIN msg_conversation_members member
+                    ON member.tenant_id = reply.tenant_id
+                   AND member.conversation_id = reply.conversation_id
+                   AND member.user_id = ?
+                   AND member.lifecycle_state = 'ACTIVE'
+                   AND reply.sequence >= member.history_start_sequence
+                  JOIN msg_conversations conversation
+                    ON conversation.tenant_id = reply.tenant_id
+                   AND conversation.conversation_id = reply.conversation_id
+                   AND conversation.lifecycle_state = 'ACTIVE'
+                 WHERE reply.tenant_id = ? AND reply.conversation_id = ?
+                   AND reply.reply_to_message_id = ?
+                """, Long.class, userId, tenantId, conversationId, rootMessageId);
         return count == null ? 0 : count;
     }
 
@@ -152,22 +163,32 @@ class MessagingMessageQueryRepository {
         List<SavedRow> rows = jdbc.query(messageSelect() + """
                  WHERE message.tenant_id = ?
                    AND saved.created_at IS NOT NULL
+                   AND saved.state <> 'COMPLETED'
+                   AND (saved.state <> 'SNOOZED'
+                        OR COALESCE(saved.reminder_at, saved.snoozed_until) <= CURRENT_TIMESTAMP)
                    AND conversation.lifecycle_state = 'ACTIVE'
                  ORDER BY saved.created_at DESC, saved.message_id DESC
                  LIMIT ? OFFSET ?
                 """, (row, ignored) -> new SavedRow(
-                message(row, List.of()),
+                message(row, List.of(), protectedClassification(row)),
                 row.getString("conversation_name"),
                 row.getString("conversation_type"),
-                row.getObject("saved_at", OffsetDateTime.class)),
+                row.getObject("saved_at", OffsetDateTime.class),
+                protectedClassification(row)),
                 userId, tenantId, pageSize, page * pageSize);
         Map<UUID, MessagingDtos.MessageSummary> enriched = attachReactions(
-                tenantId, userId, rows.stream().map(SavedRow::message).toList()).stream()
+                tenantId, userId, rows.stream()
+                        .filter(row -> !row.protectedContent())
+                        .map(SavedRow::message)
+                        .toList()).stream()
                 .collect(LinkedHashMap::new, (map, item) -> map.put(item.messageId(), item), Map::putAll);
         List<MessagingDtos.SavedItemSummary> items = rows.stream()
                 .map(row -> new MessagingDtos.SavedItemSummary(
-                        enriched.get(row.message().messageId()),
-                        row.conversationName(), row.conversationType(), row.savedAt()))
+                        row.protectedContent()
+                                ? row.message()
+                                : enriched.get(row.message().messageId()),
+                        row.conversationName(), row.conversationType(), row.savedAt(),
+                        row.protectedContent()))
                 .toList();
         return new MessagingDtos.SavedItemPage(items, savedItemCount(tenantId, userId), page, pageSize);
     }
@@ -179,17 +200,20 @@ class MessagingMessageQueryRepository {
                    AND saved.created_at IS NOT NULL
                    AND conversation.lifecycle_state = 'ACTIVE'
                 """, (row, ignored) -> new SavedRow(
-                message(row, List.of()),
+                message(row, List.of(), protectedClassification(row)),
                 row.getString("conversation_name"),
                 row.getString("conversation_type"),
-                row.getObject("saved_at", OffsetDateTime.class)),
+                row.getObject("saved_at", OffsetDateTime.class),
+                protectedClassification(row)),
                 userId, tenantId, messageId);
         if (rows.isEmpty()) return Optional.empty();
         SavedRow row = rows.getFirst();
-        MessagingDtos.MessageSummary enriched = attachReactions(
-                tenantId, userId, List.of(row.message())).getFirst();
+        MessagingDtos.MessageSummary enriched = row.protectedContent()
+                ? row.message()
+                : attachReactions(tenantId, userId, List.of(row.message())).getFirst();
         return Optional.of(new MessagingDtos.SavedItemSummary(
-                enriched, row.conversationName(), row.conversationType(), row.savedAt()));
+                enriched, row.conversationName(), row.conversationType(), row.savedAt(),
+                row.protectedContent()));
     }
 
     private long savedItemCount(long tenantId, long userId) {
@@ -210,6 +234,9 @@ class MessagingMessageQueryRepository {
                    AND member.lifecycle_state = 'ACTIVE'
                    AND message.sequence >= member.history_start_sequence
                  WHERE saved.tenant_id = ? AND saved.user_id = ?
+                   AND saved.state <> 'COMPLETED'
+                   AND (saved.state <> 'SNOOZED'
+                        OR COALESCE(saved.reminder_at, saved.snoozed_until) <= CURRENT_TIMESTAMP)
                 """, Long.class, tenantId, userId);
         return count == null ? 0 : count;
     }
@@ -226,7 +253,8 @@ class MessagingMessageQueryRepository {
                        (SELECT COUNT(*) FROM msg_messages reply
                          WHERE reply.tenant_id = message.tenant_id
                            AND reply.conversation_id = message.conversation_id
-                           AND reply.reply_to_message_id = message.message_id) AS reply_count,
+                           AND reply.reply_to_message_id = message.message_id
+                           AND reply.sequence >= member.history_start_sequence) AS reply_count,
                        root.message_id AS root_message_id,
                        root.sender_name AS root_sender_name,
                        CASE WHEN root.deleted_at IS NULL THEN root.body ELSE '' END AS root_body,
@@ -234,6 +262,7 @@ class MessagingMessageQueryRepository {
                        root.created_at AS root_created_at,
                        conversation.name AS conversation_name,
                        conversation.conversation_type AS conversation_type,
+                       conversation.data_classification AS conversation_classification,
                        saved.created_at AS saved_at
                   FROM msg_messages message
                   JOIN msg_conversation_members member
@@ -259,12 +288,19 @@ class MessagingMessageQueryRepository {
 
     private MessagingDtos.MessageSummary message(
             ResultSet row, List<MessagingDtos.ReactionSummary> reactions) throws SQLException {
+        return message(row, reactions, false);
+    }
+
+    private MessagingDtos.MessageSummary message(
+            ResultSet row,
+            List<MessagingDtos.ReactionSummary> reactions,
+            boolean redactProtectedContent) throws SQLException {
         UUID rootMessageId = row.getObject("root_message_id", UUID.class);
         MessagingDtos.ThreadRootPreview root = rootMessageId == null ? null
                 : new MessagingDtos.ThreadRootPreview(
                         rootMessageId,
                         row.getString("root_sender_name"),
-                        row.getString("root_body"),
+                        redactProtectedContent ? "" : row.getString("root_body"),
                         row.getObject("root_deleted_at", OffsetDateTime.class),
                         row.getObject("root_created_at", OffsetDateTime.class));
         return new MessagingDtos.MessageSummary(
@@ -274,7 +310,7 @@ class MessagingMessageQueryRepository {
                 row.getLong("sender_user_id"),
                 row.getObject("sender_person_public_id", UUID.class),
                 row.getString("sender_name"),
-                row.getString("body"),
+                redactProtectedContent ? "" : row.getString("body"),
                 row.getString("content_type"),
                 row.getString("message_kind"),
                 row.getObject("reply_to_message_id", UUID.class),
@@ -369,10 +405,16 @@ class MessagingMessageQueryRepository {
         }, arguments.toArray());
     }
 
+    private boolean protectedClassification(ResultSet row) throws SQLException {
+        String classification = row.getString("conversation_classification");
+        return "CONFIDENTIAL".equals(classification) || "RESTRICTED".equals(classification);
+    }
+
     private record SavedRow(
             MessagingDtos.MessageSummary message,
             String conversationName,
             String conversationType,
-            OffsetDateTime savedAt) {
+            OffsetDateTime savedAt,
+            boolean protectedContent) {
     }
 }

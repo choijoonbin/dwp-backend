@@ -38,12 +38,14 @@ public class NotificationAttentionContextRepository {
                    AND (
                        (:scopeKind = 'RESOURCE'
                         AND kind IN ('PROJECT', 'WORK_ITEM')
+                        AND CHAR_LENGTH(context_key) BETWEEN 1 AND 300
                         AND context_key ~
-                            '^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,299}$')
+                            '^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$')
                        OR (:scopeKind = 'TOPIC_TOKEN'
                            AND kind = 'TOPIC'
+                           AND CHAR_LENGTH(context_key) BETWEEN 1 AND 160
                            AND context_key ~
-                               '^[a-z0-9][a-z0-9._-]{0,159}$')
+                               '^[a-z0-9][a-z0-9._-]*$')
                    )
                  ORDER BY context_key_hash,
                           context_key,

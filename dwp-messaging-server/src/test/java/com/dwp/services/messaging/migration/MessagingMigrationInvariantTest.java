@@ -106,6 +106,71 @@ class MessagingMigrationInvariantTest {
                 .contains("Blank text is valid only for attachment-only messages");
     }
 
+    @Test
+    void governsRetentionWithFailClosedHoldsLeasesAndAttachmentDeletionEvidence()
+            throws IOException {
+        String migration = resource(
+                "db/migration/V18__govern_message_retention_execution.sql");
+
+        assertThat(migration)
+                .contains("retention_purged_at TIMESTAMPTZ")
+                .contains("CREATE TABLE msg_retention_holds")
+                .contains("CREATE UNIQUE INDEX ux_msg_retention_running_tenant")
+                .contains("CREATE TABLE msg_retention_attachment_deletions")
+                .contains("state IN ('PENDING', 'COMPLETED')")
+                .contains("Content purge timestamp")
+                .contains("ENFORCE is blocked unless hold authority readiness is explicit");
+    }
+
+    @Test
+    void indexesPeopleDirectoryKeysetAndFilterSearches() throws IOException {
+        String migration = resource("db/migration/V20__scale_messaging_people_directory.sql");
+
+        assertThat(migration)
+                .contains("ix_msg_people_directory_page")
+                .contains("tenant_id, display_name, user_id")
+                .contains("ix_msg_people_job_title_search")
+                .contains("ix_msg_people_organization_search")
+                .contains("gin_trgm_ops");
+    }
+
+    @Test
+    void governsContinuityPayloadRetentionAndWorkerEvidence() throws IOException {
+        String migration = resource(
+                "db/migration/V22__govern_continuity_retention_and_scheduled_operations.sql");
+
+        assertThat(migration)
+                .contains("payload_purged_at TIMESTAMPTZ")
+                .contains("status IN ('SENT', 'FAILED', 'CANCELLED')")
+                .contains("body = ''")
+                .contains("CREATE TABLE msg_scheduled_delivery_worker_heartbeats")
+                .contains("last_completed_at TIMESTAMPTZ")
+                .contains("Payload-free, cross-instance scheduled delivery cycle evidence");
+    }
+
+    @Test
+    void indexesTenantScopedConversationKeysetTraversal() throws IOException {
+        String migration = resource(
+                "db/migration/V23__add_conversation_keyset_indexes.sql");
+
+        assertThat(migration)
+                .contains("ix_msg_members_conversation_keyset")
+                .contains("tenant_id, user_id, pinned DESC, favorite DESC, conversation_id")
+                .contains("WHERE lifecycle_state = 'ACTIVE'")
+                .contains("ix_msg_conversations_activity_keyset")
+                .contains("tenant_id, last_message_at DESC NULLS LAST, conversation_id");
+    }
+
+    @Test
+    void addsDurableSelfOwnedPresenceSharingConsent() throws IOException {
+        String migration = resource("db/migration/V25__add_presence_sharing_privacy.sql");
+
+        assertThat(migration)
+                .contains("presence_sharing_enabled BOOLEAN NOT NULL DEFAULT TRUE")
+                .contains("FALSE is enforced before every heartbeat")
+                .contains("withdraws any current lease");
+    }
+
     private String resource(String path) throws IOException {
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(path)) {
             if (input == null) throw new IOException("Missing test resource: " + path);

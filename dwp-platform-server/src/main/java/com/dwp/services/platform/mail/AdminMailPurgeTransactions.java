@@ -21,15 +21,18 @@ class AdminMailPurgeTransactions {
 
     private final AdminMailCompletionRepository repository;
     private final AdminMailPurgeGuard guard;
+    private final MailProviderPurgeRepository providerPurge;
     private final TransactionTemplate nested;
 
     @Autowired
     AdminMailPurgeTransactions(
             AdminMailCompletionRepository repository,
             PlatformTransactionManager transactionManager,
-            AdminMailPurgeGuard guard) {
+            AdminMailPurgeGuard guard,
+            MailProviderPurgeRepository providerPurge) {
         this.repository = repository;
         this.guard = guard;
+        this.providerPurge = providerPurge;
         this.nested = new TransactionTemplate(transactionManager);
         this.nested.setPropagationBehavior(TransactionDefinition.PROPAGATION_NESTED);
     }
@@ -37,7 +40,7 @@ class AdminMailPurgeTransactions {
     AdminMailPurgeTransactions(
             AdminMailCompletionRepository repository,
             PlatformTransactionManager transactionManager) {
-        this(repository, transactionManager, new AdminMailPurgeGuard(repository));
+        this(repository, transactionManager, new AdminMailPurgeGuard(repository), null);
     }
 
     AdminMailCompletionRepository.DeleteCounts deleteCandidates(
@@ -57,6 +60,7 @@ class AdminMailPurgeTransactions {
         return Objects.requireNonNull(nested.execute(status -> {
             repository.lockRetentionLifecycle(job.tenantId());
             guard.requireSafe(job);
+            if (providerPurge != null) providerPurge.stage(job);
             AdminMailCompletionRepository.PurgePreviewRow preview = repository
                     .purgePreview(job.tenantId(), job.snapshotId())
                     .orElseThrow(() -> new AdminMailPurgeBlockedException(

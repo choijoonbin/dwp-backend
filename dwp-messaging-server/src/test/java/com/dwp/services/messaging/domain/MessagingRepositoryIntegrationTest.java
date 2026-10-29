@@ -287,6 +287,93 @@ class MessagingRepositoryIntegrationTest {
     }
 
     @Test
+    void protectedConversationListsNeverExposeTheLastMessageBody() {
+        UUID conversationId = createConversation("integration:protected-preview");
+        createMember(conversationId, USER_ID);
+        sendAs(OTHER_USER_ID, conversationId, UUID.randomUUID(), "sensitive preview", null);
+        MessagingQueryRepository queries = new MessagingQueryRepository(
+                jdbc, new MessagingMessageQueryRepository(jdbc));
+
+        for (String classification : List.of("CONFIDENTIAL", "RESTRICTED")) {
+            jdbc.update("""
+                    UPDATE msg_conversations
+                       SET data_classification = ?
+                     WHERE tenant_id = ? AND conversation_id = ?
+                    """, classification, TENANT_ID, conversationId);
+
+            MessagingDtos.ConversationSummary conversation = queries.conversation(
+                    TENANT_ID, USER_ID, conversationId).orElseThrow();
+            assertThat(conversation.lastMessage()).isNotNull();
+            assertThat(conversation.lastMessage().body()).isEmpty();
+            assertThat(queries.conversations(TENANT_ID, USER_ID, "ALL", "", 0, 20))
+                    .filteredOn(item -> item.conversationId().equals(conversationId))
+                    .singleElement()
+                    .satisfies(item -> assertThat(item.lastMessage().body()).isEmpty());
+        }
+    }
+
+    @Test
+    void protectedSavedItemsExposeOnlyMetadataAndAProtectionFlag() {
+        UUID conversationId = createConversation("integration:protected-saved");
+        createMember(conversationId, USER_ID);
+        MessagingCommandRepository.MessageInsertResult root = sendAs(
+                OTHER_USER_ID, conversationId, UUID.randomUUID(), "protected root", null);
+        MessagingCommandRepository.MessageInsertResult reply = sendAs(
+                OTHER_USER_ID, conversationId, UUID.randomUUID(), "protected saved reply",
+                root.messageId());
+        jdbc.update("""
+                UPDATE msg_conversations
+                   SET data_classification = 'CONFIDENTIAL'
+                 WHERE tenant_id = ? AND conversation_id = ?
+                """, TENANT_ID, conversationId);
+        jdbc.update("""
+                INSERT INTO msg_saved_items (tenant_id, user_id, message_id)
+                VALUES (?, ?, ?)
+                """, TENANT_ID, USER_ID, reply.messageId());
+
+        MessagingDtos.SavedItemSummary item = new MessagingMessageQueryRepository(jdbc)
+                .savedItems(TENANT_ID, USER_ID, 0, 10)
+                .items().stream()
+                .filter(candidate -> candidate.message().messageId().equals(reply.messageId()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(item.protectedContent()).isTrue();
+        assertThat(item.message().body()).isEmpty();
+        assertThat(item.message().rootPreview()).isNotNull();
+        assertThat(item.message().rootPreview().body()).isEmpty();
+        assertThat(item.message().attachments()).isEmpty();
+        assertThat(item.message().mentions()).isEmpty();
+    }
+
+    @Test
+    void adminConversationProjectionIsTenantWideAndMessageContentFree() {
+        UUID joined = createConversation("integration:admin-joined");
+        createMember(joined, USER_ID);
+        sendAs(OTHER_USER_ID, joined, UUID.randomUUID(), "joined secret", null);
+        UUID notJoined = createConversation("integration:admin-not-joined");
+        sendAs(OTHER_USER_ID, notJoined, UUID.randomUUID(), "non-member secret", null);
+
+        List<MessagingDtos.ConversationSummary> governed = new MessagingQueryRepository(
+                jdbc, new MessagingMessageQueryRepository(jdbc))
+                .adminConversations(TENANT_ID, 100);
+
+        assertThat(governed)
+                .filteredOn(item -> item.conversationId().equals(joined)
+                        || item.conversationId().equals(notJoined))
+                .extracting(MessagingDtos.ConversationSummary::conversationId)
+                .containsExactlyInAnyOrder(joined, notJoined);
+        assertThat(governed)
+                .filteredOn(item -> item.conversationId().equals(joined)
+                        || item.conversationId().equals(notJoined))
+                .allSatisfy(item -> {
+                    assertThat(item.lastMessage()).isNull();
+                    assertThat(item.topic()).isNull();
+                    assertThat(item.unreadCount()).isZero();
+                });
+    }
+
+    @Test
     void mentionScopeReturnsOnlyUnreadMentionedConversations() {
         UUID mentionedConversation = createConversation("integration:mention-scope");
         UUID ordinaryConversation = createConversation("integration:mention-scope-ordinary");

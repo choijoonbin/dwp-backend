@@ -20,14 +20,16 @@ final class CalendarAccessPolicy {
             CalendarRepository.CalendarRow row) {
         CalendarAccessLevel level = row.accessLevel();
         boolean full = level != CalendarAccessLevel.VIEW_FREE_BUSY
+                && level != CalendarAccessLevel.EVENT_ATTENDEE
                 && level != CalendarAccessLevel.NONE;
         boolean write = level == CalendarAccessLevel.OWNER
                 || level == CalendarAccessLevel.MANAGE
                 || level == CalendarAccessLevel.EDIT;
+        boolean create = write || level == CalendarAccessLevel.EVENT_ATTENDEE;
         boolean manage = level == CalendarAccessLevel.OWNER
                 || level == CalendarAccessLevel.MANAGE;
         return new CalendarDtos.CalendarCapabilities(
-                full, write, manage, manage,
+                full, create, manage, manage,
                 level == CalendarAccessLevel.OWNER
                         && row.type() == CalendarType.PERSONAL,
                 row.subscriptionPolicy() != CalendarSubscriptionPolicy.REQUIRED);
@@ -48,7 +50,8 @@ final class CalendarAccessPolicy {
         }
         if (decision.accessLevel() != CalendarAccessLevel.OWNER
                 && decision.accessLevel() != CalendarAccessLevel.MANAGE
-                && decision.accessLevel() != CalendarAccessLevel.EDIT) {
+                && decision.accessLevel() != CalendarAccessLevel.EDIT
+                && decision.accessLevel() != CalendarAccessLevel.EVENT_ATTENDEE) {
             throw new BaseException(ErrorCode.FORBIDDEN, "This calendar is read-only.");
         }
         return calendarId;

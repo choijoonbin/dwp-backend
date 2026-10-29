@@ -22,12 +22,14 @@ class MailInboundMessageServiceTest {
     private MailDeliveryRepository deliveries;
     @Mock
     private MailNotificationEvents notificationEvents;
+    @Mock
+    private MailIncomingRuleRepository incomingRules;
 
     private MailInboundMessageService service;
 
     @BeforeEach
     void setUp() {
-        service = new MailInboundMessageService(deliveries, notificationEvents);
+        service = new MailInboundMessageService(deliveries, notificationEvents, incomingRules);
     }
 
     @Test
@@ -45,6 +47,7 @@ class MailInboundMessageServiceTest {
         verify(deliveries).markFollowUpsReplied(
                 tenantId, threadId, messageId, receivedAt);
         verify(notificationEvents).newMailReceived(tenantId, threadId, messageId);
+        verify(incomingRules).enqueue(tenantId, threadId, messageId);
     }
 
     @Test
@@ -66,6 +69,6 @@ class MailInboundMessageServiceTest {
                 42L, threadId, messageId, null))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        verifyNoInteractions(deliveries, notificationEvents);
+        verifyNoInteractions(deliveries, notificationEvents, incomingRules);
     }
 }

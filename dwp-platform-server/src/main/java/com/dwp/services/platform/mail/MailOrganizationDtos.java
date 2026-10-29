@@ -125,7 +125,20 @@ public final class MailOrganizationDtos {
     public record LifecycleRequest(
             @NotNull LifecycleAction action,
             UUID targetFolderId,
-            @NotNull @Min(0) Long version) {
+            @NotNull @Min(0) Long version,
+            UUID bulkIntentId,
+            UUID itemIdempotencyKey) {
+
+        public LifecycleRequest(
+                LifecycleAction action,
+                UUID targetFolderId,
+                Long version) {
+            this(action, targetFolderId, version, null, null);
+        }
+
+        public LifecycleRequest {
+            MailBulkMutationReceipts.bulk(bulkIntentId, itemIdempotencyKey);
+        }
     }
 
     public record LifecycleResult(

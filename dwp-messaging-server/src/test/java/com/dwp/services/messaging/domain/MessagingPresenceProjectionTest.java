@@ -1,5 +1,7 @@
 package com.dwp.services.messaging.domain;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.messaging.presence.MessagingPresenceService;
 import com.dwp.services.messaging.realtime.MessagingEventRecorder;
 import com.dwp.services.messaging.security.MessagingRequestContext;
@@ -16,6 +18,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -116,6 +119,138 @@ class MessagingPresenceProjectionTest {
 
         assertThat(service.people(" kim ", 999)).isEqualTo(resolved);
         verify(presence).resolvePeople(1, directory);
+    }
+
+    @Test
+    void peoplePageUsesTenantKeysetFiltersAndFiltersOnlyAuthoritativePresence() {
+        List<MessagingDtos.PersonSummary> directory = List.of(
+                person(200, "UNKNOWN"), person(300, "UNKNOWN"));
+        List<MessagingDtos.PersonSummary> resolved = List.of(
+                person(200, "OFFLINE"), person(300, "AVAILABLE"));
+        MessagingQueryRepository.PeoplePage directoryPage =
+                new MessagingQueryRepository.PeoplePage(directory, 4, true);
+        MessagingPresenceService.PresenceSnapshot snapshot =
+                MessagingPresenceService.PresenceSnapshot.authoritative(Set.of(300L));
+        MessagingDtos.PresenceMetadata metadata = new MessagingDtos.PresenceMetadata(
+                "LIVE", OffsetDateTime.parse("2026-10-27T06:00:00Z"), 75, 20);
+        when(queries.peoplePage(1, 100, "kim", "risk", "analyst", null, 0, 2))
+                .thenReturn(directoryPage);
+        when(presence.snapshot(1, List.of(200L, 300L))).thenReturn(snapshot);
+        when(presence.resolvePeople(snapshot, directory)).thenReturn(resolved);
+        when(presence.metadata(snapshot)).thenReturn(metadata);
+
+        MessagingDtos.PersonPage response = service.peoplePage(
+                " kim ", " Risk ", " Analyst ", "available", null, 0, 2);
+
+        assertThat(response.items()).extracting(MessagingDtos.PersonSummary::userId)
+                .containsExactly(300L);
+        assertThat(response.total()).isEqualTo(4);
+        assertThat(response.hasMore()).isTrue();
+        assertThat(response.nextOffset()).isEqualTo(2);
+        assertThat(response.presence()).isEqualTo(metadata);
+        assertThat(MessagingPeopleCursor.decode(
+                response.nextCursor(), 1, 100, "kim", "risk", "analyst", "AVAILABLE"))
+                .isEqualTo(new MessagingPeopleCursor.Cursor(
+                        "Person 300", directory.get(1).personPublicId()));
+    }
+
+    @Test
+    void peoplePageFailsClosedForOfflineFilterWhenPresenceAuthorityIsUnavailable() {
+        List<MessagingDtos.PersonSummary> directory = List.of(person(200, "OFFLINE"));
+        MessagingQueryRepository.PeoplePage directoryPage =
+                new MessagingQueryRepository.PeoplePage(directory, 1, false);
+        MessagingPresenceService.PresenceSnapshot snapshot =
+                MessagingPresenceService.PresenceSnapshot.unavailable();
+        List<MessagingDtos.PersonSummary> unknown = List.of(person(200, "UNKNOWN"));
+        MessagingDtos.PresenceMetadata metadata = new MessagingDtos.PresenceMetadata(
+                "UNAVAILABLE", OffsetDateTime.parse("2026-10-27T06:00:00Z"), 75, 20);
+        when(queries.peoplePage(1, 100, "", "", "", null, 0, 30))
+                .thenReturn(directoryPage);
+        when(presence.snapshot(1, List.of(200L))).thenReturn(snapshot);
+        when(presence.resolvePeople(snapshot, directory)).thenReturn(unknown);
+        when(presence.metadata(snapshot)).thenReturn(metadata);
+
+        MessagingDtos.PersonPage response = service.peoplePage(
+                "", "", "", "OFFLINE", "", 0, 30);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.total()).isOne();
+        assertThat(response.presence().authority()).isEqualTo("UNAVAILABLE");
+    }
+
+    @Test
+    void peoplePageRejectsUntrustedPagingAndPresenceInputs() {
+        assertThatThrownBy(() -> service.peoplePage(
+                "", "", "", "BUSY", null, 0, 30))
+                .isInstanceOfSatisfying(BaseException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        assertThatThrownBy(() -> service.peoplePage(
+                "", "", "", "ALL", "not-a-cursor", 0, 30))
+                .isInstanceOfSatisfying(BaseException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        assertThatThrownBy(() -> service.peoplePage(
+                "", "", "", "ALL", null, -1, 30))
+                .isInstanceOfSatisfying(BaseException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+    }
+
+    @Test
+    void peopleCursorRoundTripsUnicodeAndBindsActorTenantAndFilters() {
+        UUID personPublicId = UUID.randomUUID();
+        MessagingDtos.PersonSummary person = new MessagingDtos.PersonSummary(
+                902,
+                personPublicId,
+                "jun@example.com",
+                "최준빈 책임",
+                "Engineer",
+                "DWP",
+                "UNKNOWN");
+
+        String cursor = MessagingPeopleCursor.encode(
+                person, 1, 100, "jun", "dwp", "engineer", "ALL");
+
+        assertThat(MessagingPeopleCursor.decode(
+                cursor, 1, 100, "jun", "dwp", "engineer", "ALL"))
+                .isEqualTo(new MessagingPeopleCursor.Cursor("최준빈 책임", personPublicId));
+        assertThatThrownBy(() -> MessagingPeopleCursor.decode(
+                cursor, 2, 100, "jun", "dwp", "engineer", "ALL"))
+                .isInstanceOf(BaseException.class);
+        assertThatThrownBy(() -> MessagingPeopleCursor.decode(
+                cursor, 1, 101, "jun", "dwp", "engineer", "ALL"))
+                .isInstanceOf(BaseException.class);
+        assertThatThrownBy(() -> MessagingPeopleCursor.decode(
+                cursor, 1, 100, "other", "dwp", "engineer", "ALL"))
+                .isInstanceOf(BaseException.class);
+        assertThatThrownBy(() -> MessagingPeopleCursor.decode(
+                "QQ.0902", 1, 100, "jun", "dwp", "engineer", "ALL"))
+                .isInstanceOf(BaseException.class);
+    }
+
+    @Test
+    void peopleCursorTakesPriorityOverTheOffsetFallback() {
+        MessagingDtos.PersonSummary after = person(200, "UNKNOWN");
+        String cursor = MessagingPeopleCursor.encode(after, 1, 100, "", "", "", "ALL");
+        MessagingPeopleCursor.Cursor decoded = MessagingPeopleCursor.decode(
+                cursor, 1, 100, "", "", "", "ALL");
+        MessagingQueryRepository.PeoplePage directoryPage =
+                new MessagingQueryRepository.PeoplePage(List.of(), 0, false);
+        MessagingPresenceService.PresenceSnapshot snapshot =
+                MessagingPresenceService.PresenceSnapshot.authoritative(Set.of());
+        when(queries.peoplePage(1, 100, "", "", "", decoded, 0, 30))
+                .thenReturn(directoryPage);
+        when(presence.snapshot(1, List.of())).thenReturn(snapshot);
+        when(presence.resolvePeople(snapshot, List.of())).thenReturn(List.of());
+        when(presence.metadata(snapshot)).thenReturn(new MessagingDtos.PresenceMetadata(
+                "LIVE", OffsetDateTime.parse("2026-10-27T06:00:00Z"), 75, 20));
+
+        MessagingDtos.PersonPage response = service.peoplePage(
+                "", "", "", "ALL", cursor, -1, 30);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.nextOffset()).isNull();
     }
 
     @Test

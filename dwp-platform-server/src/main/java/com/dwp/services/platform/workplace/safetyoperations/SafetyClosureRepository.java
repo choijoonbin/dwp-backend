@@ -32,7 +32,8 @@ public class SafetyClosureRepository extends SafetyRepositorySupport {
                     JOIN wp_safety_dispatch_batches b ON b.tenant_id=a.tenant_id
                      AND b.dispatch_batch_id=a.dispatch_batch_id
                    WHERE b.tenant_id=? AND b.incident_id=?
-                     AND a.attempt_state IN ('DELIVERY_FAILED','RESULT_UNKNOWN','OFFLINE_QUEUED')),0) failed_unknown
+                     AND a.attempt_state IN ('DELIVERY_FAILED','RESULT_UNKNOWN','OFFLINE_QUEUED',
+                                             'MANUAL_REVIEW_REQUIRED')),0) failed_unknown
                   FROM wp_safety_audience_members m
                   LEFT JOIN wp_safety_responses r
                     ON r.tenant_id=m.tenant_id AND r.incident_id=?

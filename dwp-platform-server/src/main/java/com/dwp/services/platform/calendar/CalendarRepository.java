@@ -10,10 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -113,7 +115,26 @@ public class CalendarRepository {
                 CalendarSql01.VISIBLE_EVENTS_SELECT_CAL_EVENTS,
                 (result, ignored) -> rows.event(result, ResourceRow::new, EventRow::new),
                 userId, personPublicId, CalendarVerifiedGroups.databaseArray(verifiedGroupRefs),
-                korean, korean, tenantId, to, from, to, from);
+                korean, korean, tenantId, to, from, to, from, from);
+    }
+
+    List<EventRow> visibleEventCandidates(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String verifiedGroupRefs,
+            OffsetDateTime from,
+            OffsetDateTime to,
+            boolean korean,
+            OffsetDateTime afterStartsAt,
+            UUID afterEventId,
+            int limit) {
+        return jdbc.query(
+                CalendarAccessSql.VISIBLE_EVENT_CANDIDATES,
+                (result, ignored) -> rows.event(result, ResourceRow::new, EventRow::new),
+                userId, personPublicId, CalendarVerifiedGroups.databaseArray(verifiedGroupRefs),
+                korean, korean, tenantId, to, from, to, from, from,
+                afterStartsAt, afterStartsAt, afterStartsAt, afterEventId, limit);
     }
 
     Optional<EventRow> event(
@@ -128,13 +149,11 @@ public class CalendarRepository {
             String verifiedGroupRefs,
             UUID eventId,
             boolean korean) {
-        OffsetDateTime farPast = OffsetDateTime.now().minusYears(20);
-        OffsetDateTime farFuture = OffsetDateTime.now().plusYears(20);
-        return visibleEvents(
-                tenantId, userId, personPublicId, verifiedGroupRefs,
-                farPast, farFuture, korean).stream()
-                .filter(value -> value.eventId().equals(eventId))
-                .findFirst();
+        return jdbc.query(
+                CalendarAccessSql.VISIBLE_EVENT_BY_ID,
+                (result, ignored) -> rows.event(result, ResourceRow::new, EventRow::new),
+                userId, personPublicId, CalendarVerifiedGroups.databaseArray(verifiedGroupRefs),
+                korean, korean, tenantId, eventId).stream().findFirst();
     }
 
     void lockEventIdempotency(Long tenantId, Long userId, UUID idempotencyKey) {
@@ -163,6 +182,24 @@ public class CalendarRepository {
                 ResponseStatus.valueOf(result.getString("response_status"))), tenantId, eventId);
     }
 
+    Map<UUID, List<AttendeeRow>> attendeesByEvents(Long tenantId, List<UUID> eventIds) {
+        if (eventIds.isEmpty()) return Map.of();
+        Map<UUID, List<AttendeeRow>> result = new LinkedHashMap<>();
+        jdbc.query(CalendarSql01.ATTENDEES_BY_EVENTS_SELECT_CAL_EVENT_ATTENDEES, row -> {
+            UUID eventId = row.getObject("event_id", UUID.class);
+            result.computeIfAbsent(eventId, ignored -> new java.util.ArrayList<>()).add(
+                    new AttendeeRow(
+                            nullableLong(row, "attendee_user_id"),
+                            row.getObject("attendee_person_public_id", UUID.class),
+                            row.getString("attendee_email"),
+                            row.getString("attendee_name"),
+                            AttendeeType.valueOf(row.getString("attendee_type")),
+                            ResponseStatus.valueOf(row.getString("response_status"))));
+        }, tenantId, eventIds.toArray(UUID[]::new));
+        result.replaceAll((ignored, values) -> List.copyOf(values));
+        return Map.copyOf(result);
+    }
+
     UUID insertEvent(
             Long tenantId,
             Long userId,
@@ -171,7 +208,20 @@ public class CalendarRepository {
             UUID calendarId,
             String requestFingerprint,
             CalendarDtos.CreateEventRequest value) {
-        UUID eventId = UUID.randomUUID();
+        return insertEvent(
+                tenantId, userId, personPublicId, organizerName, calendarId,
+                requestFingerprint, value, UUID.randomUUID());
+    }
+
+    UUID insertEvent(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String organizerName,
+            UUID calendarId,
+            String requestFingerprint,
+            CalendarDtos.CreateEventRequest value,
+            UUID eventId) {
         jdbc.update(CalendarSql01.INSERT_EVENT_INSERT_CAL_EVENTS, eventId, tenantId, calendarId, userId, personPublicId,
                 organizerName == null || organizerName.isBlank()
                         ? "User " + userId : organizerName.trim(), value.title().trim(),
@@ -179,10 +229,32 @@ public class CalendarRepository {
                 value.endsAt(), value.timeZone(), value.allDay(), blankToNull(value.location()),
                 blankToNull(value.conferenceUrl()), value.visibility().name(),
                 value.recurrence().name(), value.recurrenceInterval(), value.recurrenceUntil(),
+                recurrenceDays(value.recurrenceDays()), value.recurrenceCount(),
                 value.responseRequired(), importance(value.importance()).name(),
                 value.idempotencyKey(), requestFingerprint, userId, userId);
         upsertAttendees(tenantId, eventId, value.attendees(), false);
         return eventId;
+    }
+
+    void insertSplitEvent(
+            Long tenantId,
+            Long actorId,
+            CalendarRepository.EventRow source,
+            String requestFingerprint,
+            CalendarDtos.CreateEventRequest value,
+            UUID eventId) {
+        jdbc.update(CalendarSql01.INSERT_EVENT_INSERT_CAL_EVENTS,
+                eventId, tenantId, source.calendarId(), source.organizerUserId(),
+                source.organizerPersonPublicId(), source.organizerName(),
+                value.title().trim(), blankToNull(value.description()), value.type().name(),
+                value.startsAt(), value.endsAt(), value.timeZone(), value.allDay(),
+                blankToNull(value.location()), blankToNull(value.conferenceUrl()),
+                value.visibility().name(), value.recurrence().name(),
+                value.recurrenceInterval(), value.recurrenceUntil(),
+                recurrenceDays(value.recurrenceDays()), value.recurrenceCount(),
+                value.responseRequired(), importance(value.importance()).name(),
+                value.idempotencyKey(), requestFingerprint, actorId, actorId);
+        upsertAttendees(tenantId, eventId, value.attendees(), false);
     }
 
     void replaceAttendees(
@@ -222,7 +294,7 @@ public class CalendarRepository {
                 result.getObject("person_public_id", UUID.class),
                 result.getObject("starts_at", OffsetDateTime.class),
                 result.getObject("ends_at", OffsetDateTime.class)),
-                ids, ids, tenantId, to, to, to, to, from);
+                ids, ids, tenantId, to, to, from, from, to, to, from);
     }
 
     Set<UUID> knownPersonPublicIds(Long tenantId, List<UUID> personPublicIds) {
@@ -274,11 +346,82 @@ public class CalendarRepository {
                 .stream().findFirst();
     }
 
+    boolean lockActiveCreateDelegation(
+            Long tenantId,
+            UUID calendarId,
+            UUID delegatePersonPublicId) {
+        if (delegatePersonPublicId == null) return false;
+        return !jdbc.query("""
+                SELECT delegation.delegation_id
+                  FROM cal_calendars calendar
+                  JOIN cal_calendar_delegations delegation
+                    ON delegation.tenant_id = calendar.tenant_id
+                   AND delegation.owner_person_public_id = calendar.owner_person_public_id
+                 WHERE calendar.tenant_id = ? AND calendar.calendar_id = ?
+                   AND calendar.lifecycle_state = 'ACTIVE'
+                   AND delegation.delegate_person_public_id = ?
+                   AND delegation.can_create
+                   AND delegation.status = 'ACTIVE'
+                   AND delegation.valid_from <= CURRENT_TIMESTAMP
+                   AND delegation.valid_until > CURRENT_TIMESTAMP
+                 ORDER BY delegation.updated_at DESC, delegation.delegation_id
+                 LIMIT 1
+                   FOR UPDATE OF delegation
+                """, (row, ignored) -> row.getObject("delegation_id", UUID.class),
+                tenantId, calendarId, delegatePersonPublicId).isEmpty();
+    }
+
+    boolean hasDirectCreateAccess(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String verifiedGroupRefs,
+            UUID calendarId) {
+        Boolean allowed = jdbc.queryForObject("""
+                SELECT (
+                    calendar.owner_person_public_id = ?
+                    OR (calendar.owner_person_public_id IS NULL
+                        AND calendar.owner_user_id = ?)
+                    OR EXISTS (
+                        SELECT 1
+                          FROM cal_calendar_access_grants grant_row
+                         WHERE grant_row.tenant_id = calendar.tenant_id
+                           AND grant_row.calendar_id = calendar.calendar_id
+                           AND grant_row.lifecycle_state = 'ACTIVE'
+                           AND (grant_row.valid_until IS NULL
+                                OR grant_row.valid_until > CURRENT_TIMESTAMP)
+                           AND grant_row.access_level IN ('EDIT', 'MANAGE')
+                           AND (
+                               grant_row.principal_type = 'TENANT'
+                               OR (grant_row.principal_type = 'PERSON'
+                                   AND grant_row.principal_person_public_id = ?)
+                               OR (grant_row.principal_type = 'GROUP'
+                                   AND grant_row.principal_group_ref = ANY (?::uuid[])))))
+                  FROM cal_calendars calendar
+                 WHERE calendar.tenant_id = ? AND calendar.calendar_id = ?
+                   AND calendar.lifecycle_state = 'ACTIVE'
+                """, Boolean.class,
+                personPublicId, userId, personPublicId,
+                CalendarVerifiedGroups.databaseArray(verifiedGroupRefs), tenantId, calendarId);
+        return Boolean.TRUE.equals(allowed);
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void linkIdentity(Long tenantId, Long userId, UUID personPublicId) {
         if (userId == null || personPublicId == null) return;
         jdbc.update(CalendarSql01.LINK_IDENTITY_DELETE_CAL_IDENTITY_LINKS, tenantId, personPublicId, userId);
         jdbc.update(CalendarSql01.LINK_IDENTITY_INSERT_CAL_IDENTITY_LINKS, tenantId, userId, personPublicId);
+    }
+
+    boolean identityMatches(Long tenantId, Long userId, UUID personPublicId) {
+        if (tenantId == null || userId == null || personPublicId == null) return false;
+        Boolean matches = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                      FROM cal_identity_links
+                     WHERE tenant_id = ? AND user_id = ? AND person_public_id = ?)
+                """, Boolean.class, tenantId, userId, personPublicId);
+        return Boolean.TRUE.equals(matches);
     }
 
     int updateEvent(
@@ -301,10 +444,12 @@ public class CalendarRepository {
                 value.startsAt(), value.endsAt(), value.timeZone(), value.allDay(),
                 blankToNull(value.location()), blankToNull(value.conferenceUrl()),
                 value.visibility().name(), value.recurrence().name(), value.recurrenceInterval(),
-                value.recurrenceUntil(), value.responseRequired(),
+                value.recurrenceUntil(), recurrenceDays(value.recurrenceDays()),
+                value.recurrenceCount(), value.responseRequired(),
                 importance(value.importance()).name(), userId, tenantId, eventId,
                 personPublicId, userId, personPublicId,
-                CalendarVerifiedGroups.databaseArray(verifiedGroupRefs), value.version());
+                CalendarVerifiedGroups.databaseArray(verifiedGroupRefs), personPublicId,
+                value.version());
     }
 
     int cancelEvent(
@@ -334,7 +479,7 @@ public class CalendarRepository {
         return jdbc.query(CalendarSql01.RESOURCES_SELECT_CAL_RESOURCE_BOOKINGS, (result, ignored) ->
                 rows.closureAvailability(rows.resource(result, ResourceRow::new), closed,
                         ResourceRow::new),
-                korean, to, to, to, from, tenantId, includeRetired);
+                korean, from, to, to, from, tenantId, includeRetired);
     }
     Optional<ResourceRow> resource(Long tenantId, UUID resourceId, boolean korean) {
         OffsetDateTime now = OffsetDateTime.now();
@@ -349,7 +494,7 @@ public class CalendarRepository {
             OffsetDateTime from,
             OffsetDateTime to,
             UUID excludingEventId) {
-        Long count = jdbc.queryForObject(CalendarSql01.RESOURCE_CONFLICT_SELECT_CAL_RESOURCE_BOOKINGS, Long.class, to, to, tenantId, resourceId,
+        Long count = jdbc.queryForObject(CalendarSql01.RESOURCE_CONFLICT_SELECT_CAL_RESOURCE_BOOKINGS, Long.class, from, to, tenantId, resourceId,
                 excludingEventId, excludingEventId, to, from);
         return count != null && count > 0;
     }
@@ -467,7 +612,7 @@ public class CalendarRepository {
                 result.getLong("pending_bookings"),
                 result.getLong("events_this_week"),
                 result.getLong("conflicted_users")),
-                weekEnd, weekEnd, tenantId, weekEnd, tenantId,
+                weekStart, weekEnd, tenantId, weekEnd, tenantId,
                 tenantId, tenantId, weekEnd, weekStart, tenantId,
                 weekEnd, weekStart, weekEnd, weekStart);
     }
@@ -504,6 +649,12 @@ public class CalendarRepository {
 
     private static EventImportance importance(EventImportance value) {
         return value == null ? EventImportance.NORMAL : value;
+    }
+
+    private static Integer[] recurrenceDays(List<DayOfWeek> values) {
+        if (values == null || values.isEmpty()) return null;
+        return values.stream().distinct().sorted()
+                .map(DayOfWeek::getValue).toArray(Integer[]::new);
     }
 
     record CalendarRow(
@@ -572,7 +723,50 @@ public class CalendarRepository {
             boolean starred,
             long preferenceVersion,
             CalendarAccessLevel accessLevel,
-            long version) {
+            long version,
+            List<DayOfWeek> recurrenceDays,
+            Integer recurrenceCount) {
+
+        EventRow(
+                UUID eventId,
+                UUID calendarId,
+                String calendarName,
+                String calendarColor,
+                Long organizerUserId,
+                UUID organizerPersonPublicId,
+                String organizerName,
+                String organizerEmail,
+                String title,
+                String description,
+                EventType type,
+                OffsetDateTime startsAt,
+                OffsetDateTime endsAt,
+                String timeZone,
+                boolean allDay,
+                String location,
+                String conferenceUrl,
+                EventStatus status,
+                EventVisibility visibility,
+                RecurrencePattern recurrence,
+                int recurrenceInterval,
+                LocalDate recurrenceUntil,
+                boolean responseRequired,
+                ResponseStatus myResponse,
+                ResourceRow resource,
+                EventImportance importance,
+                EventDetailLevel detailLevel,
+                boolean starred,
+                long preferenceVersion,
+                CalendarAccessLevel accessLevel,
+                long version) {
+            this(eventId, calendarId, calendarName, calendarColor, organizerUserId,
+                    organizerPersonPublicId, organizerName, organizerEmail, title,
+                    description, type, startsAt, endsAt, timeZone, allDay, location,
+                    conferenceUrl, status, visibility, recurrence, recurrenceInterval,
+                    recurrenceUntil, responseRequired, myResponse, resource, importance,
+                    detailLevel, starred, preferenceVersion, accessLevel, version,
+                    List.of(), null);
+        }
 
         EventRow(
                 UUID eventId,
@@ -607,7 +801,7 @@ public class CalendarRepository {
                     conferenceUrl, status, visibility, recurrence, recurrenceInterval,
                     recurrenceUntil, responseRequired, myResponse, resource,
                     EventImportance.NORMAL, EventDetailLevel.FULL, false,
-                    0, CalendarAccessLevel.OWNER, version);
+                    0, CalendarAccessLevel.OWNER, version, List.of(), null);
         }
     }
 

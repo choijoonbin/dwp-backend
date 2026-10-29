@@ -61,6 +61,7 @@ springdoc:
   paths-to-exclude: /internal/**
 
 dwp:
+  environment: ${DWP_ENVIRONMENT:}
   identity-sync:
     auth-url: ${SERVICE_AUTH_URL:http://localhost:8001}
     token: ${DWP_IDENTITY_SYNC_TOKEN:}
@@ -68,6 +69,8 @@ dwp:
     relay-database-role: dwp_notification_audit_relay
   notification:
     product-authorization-v4-enabled: ${DWP_NOTIFICATION_PRODUCT_AUTHORIZATION_V4_ENABLED:false}
+    product-authorization-v4-bundle-status: ${DWP_NOTIFICATION_PRODUCT_AUTHORIZATION_V4_BUNDLE_STATUS:DRAFT}
+    product-authorization-v4-rollout-revision: ${DWP_NOTIFICATION_PRODUCT_AUTHORIZATION_V4_ROLLOUT_REVISION:}
     attention:
       max-active-rules: ${DWP_NOTIFICATION_MAX_ACTIVE_ATTENTION_RULES:500}
       minimum-analytics-cohort: ${DWP_NOTIFICATION_MINIMUM_ANALYTICS_COHORT:10}
@@ -88,8 +91,9 @@ dwp:
     home-runtime-service-token: ${DWP_NOTIFICATION_HOME_RUNTIME_SERVICE_TOKEN:}
     gateway-source: ${DWP_NOTIFICATION_GATEWAY_SOURCE:dwp-gateway}
     producer-tokens: ${DWP_NOTIFICATION_PRODUCER_TOKENS:}
+    producer-token-keyrings: ${DWP_NOTIFICATION_PRODUCER_TOKEN_KEYRINGS:}
     producer-app-bindings: >-
-      ${DWP_NOTIFICATION_PRODUCER_APP_BINDINGS:dwp-approval-server=approvals,dwp-people-server=hcm|people,dwp-platform-server=platform|workplace|mail,dwp-space-server=space,dwp-messaging-server=messaging,dwp-meeting-server=meetings}
+      ${DWP_NOTIFICATION_PRODUCER_APP_BINDINGS:dwp-approval-server=approvals,dwp-people-server=hcm|people,dwp-platform-server=platform|workplace|mail|calendar,dwp-space-server=space,dwp-messaging-server=messaging,dwp-meeting-server=meetings}
     cursor-secret: ${DWP_NOTIFICATION_CURSOR_SECRET:}
     cursor-ttl: ${DWP_NOTIFICATION_CURSOR_TTL:24h}
     sse-timeout: ${DWP_NOTIFICATION_SSE_TIMEOUT:30m}
@@ -106,7 +110,7 @@ dwp:
       window: ${DWP_NOTIFICATION_ADMISSION_WINDOW:PT1H}
     recipient-entitlements:
       app-view-bindings: >-
-        ${DWP_NOTIFICATION_APP_VIEW_BINDINGS:approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW,mail=APP.MAIL:VIEW}
+        ${DWP_NOTIFICATION_APP_VIEW_BINDINGS:approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW,mail=APP.MAIL:VIEW,calendar=APP.CALENDAR:VIEW}
     retention:
       enabled: ${DWP_NOTIFICATION_RETENTION_ENABLED:true}
       default-ttl: ${DWP_NOTIFICATION_DEFAULT_RETENTION_TTL:P0D}
@@ -134,6 +138,11 @@ dwp:
       batch-size: ${DWP_NOTIFICATION_OUTBOX_BATCH_SIZE:50}
       fixed-delay: ${DWP_NOTIFICATION_OUTBOX_FIXED_DELAY:1s}
       initial-delay: ${DWP_NOTIFICATION_OUTBOX_INITIAL_DELAY:5s}
+      health:
+        startup-grace: ${DWP_NOTIFICATION_OUTBOX_HEALTH_STARTUP_GRACE:PT30S}
+        stale-after: ${DWP_NOTIFICATION_OUTBOX_HEALTH_STALE_AFTER:PT2M}
+        oldest-age-threshold: ${DWP_NOTIFICATION_OUTBOX_HEALTH_OLDEST_AGE_THRESHOLD:PT15M}
+        backlog-threshold: ${DWP_NOTIFICATION_OUTBOX_HEALTH_BACKLOG_THRESHOLD:10000}
     allowed-producers: ${DWP_NOTIFICATION_ALLOWED_PRODUCERS:dwp-approval-server,dwp-people-server,dwp-platform-server,dwp-space-server,dwp-messaging-server,dwp-meeting-server}
     domain-events:
       enabled: ${DWP_NOTIFICATION_DOMAIN_EVENTS_ENABLED:false}
@@ -143,7 +152,7 @@ dwp:
       retry-interval: ${DWP_NOTIFICATION_DOMAIN_EVENT_RETRY_INTERVAL:1s}
       maximum-attempts: ${DWP_NOTIFICATION_DOMAIN_EVENT_MAX_ATTEMPTS:4}
       producer-sources: ${DWP_NOTIFICATION_DOMAIN_EVENT_SOURCES:urn:dwp:messaging=dwp-messaging-server,urn:dwp:meetings=dwp-meeting-server,urn:dwp:platform:workplace=dwp-platform-server,urn:dwp:platform:mail=dwp-platform-server}
-      exact-source-event-onboardings: ${DWP_NOTIFICATION_DOMAIN_EVENT_EXACT_ONBOARDINGS:urn:dwp:people:hrm:dwp-experience=dwp-people-server:EmployeeChangeAppliedNotificationRequested.v1}
+      exact-source-event-onboardings: ${DWP_NOTIFICATION_DOMAIN_EVENT_EXACT_ONBOARDINGS:urn:dwp:people:hrm:dwp-experience=dwp-people-server:EmployeeChangeAppliedNotificationRequested.v1,urn:dwp:platform:calendar=dwp-platform-server:calendar.event-reminder.due.v1}
     approval-pilot:
       enabled: ${DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED:false}
       topic: ${DWP_NOTIFICATION_APPROVAL_PILOT_TOPIC:dwp.approval.events.v1}
@@ -164,7 +173,9 @@ management:
         enabled: true
       group:
         readiness:
-          include: readinessState,notificationAttentionAuditRelayLifecycle
+          include: readinessState,notificationAttentionAuditRelayLifecycle,notificationOutboxOperationalMonitor
+        external-capabilities:
+          include: notificationExternalCapabilityReadiness,notificationProductAuthorizationReadiness
 
 logging:
   level:

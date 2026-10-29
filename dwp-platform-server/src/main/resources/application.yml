@@ -47,6 +47,9 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
     validate-on-migrate: true
+    # Session advisory locking is required by V342's non-transactional concurrent index build.
+    postgresql:
+      transactional-lock: false
 
 dwp:
   hris:
@@ -217,6 +220,13 @@ dwp:
   platform:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
     runtime-service-token: ${DWP_PLATFORM_RUNTIME_SERVICE_TOKEN:}
+    calendar:
+      events:
+        # Production startup fails closed unless this is at least 32 bytes.
+        cursor-secret: ${DWP_PLATFORM_CALENDAR_EVENTS_CURSOR_SECRET:}
+      reminders:
+        # Keep EMAIL dark until Notification has an attested external provider adapter.
+        email-enabled: ${DWP_PLATFORM_CALENDAR_REMINDER_EMAIL_ENABLED:false}
     step-up:
       public-key-pem: ${DWP_PLATFORM_STEP_UP_PUBLIC_KEY_PEM:}
       issuer: ${DWP_PLATFORM_STEP_UP_ISSUER:}
@@ -240,6 +250,9 @@ dwp:
     activity:
       # Local UI evidence stays SAMPLE and is invisible unless the server is explicitly opted in.
       local-fixtures-enabled: ${DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED:false}
+      metrics:
+        # Keep product telemetry dark until the bounded dimensions are registered and approved.
+        enabled: ${DWP_PLATFORM_ACTIVITY_METRICS_ENABLED:false}
     # Authority remains disabled unless the exact, expiring Wave 6 evidence seal also matches.
     widget-registry-enabled: ${DWP_WIDGET_REGISTRY_ENABLED:false}
     widget-registry-authority:
@@ -325,6 +338,8 @@ dwp:
           key-id: ${DWP_DWAION_HOME_IDENTITY_KEY_ID:platform-dwaion-home-v1}
     product-authorization-approvals-v2-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED:false}
     product-authorization-dwaion-v6-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_DWAION_V6_ENABLED:false}
+    product-authorization-mail-v4-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_MAIL_V4_ENABLED:false}
+    product-authorization-workplace-v4-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_WORKPLACE_V4_ENABLED:false}
     product-surface-telemetry:
       collection-enabled: ${DWP_PRODUCT_SURFACE_TELEMETRY_COLLECTION_ENABLED:false}
       maintenance-enabled: ${DWP_PRODUCT_SURFACE_TELEMETRY_MAINTENANCE_ENABLED:true}
@@ -361,6 +376,72 @@ dwp:
         authorize-base-url: ${DWP_MS_GRAPH_AUTHORIZE_BASE_URL:https://login.microsoftonline.com}
         api-base-url: ${DWP_MS_GRAPH_API_BASE_URL:https://graph.microsoft.com}
     mail:
+      sync-worker:
+        enabled: ${DWP_MAIL_SYNC_WORKER_ENABLED:true}
+        batch-size: ${DWP_MAIL_SYNC_WORKER_BATCH_SIZE:10}
+        lease-seconds: ${DWP_MAIL_SYNC_WORKER_LEASE_SECONDS:120}
+        maximum-attempts: ${DWP_MAIL_SYNC_WORKER_MAXIMUM_ATTEMPTS:5}
+        poll-delay-ms: ${DWP_MAIL_SYNC_WORKER_POLL_DELAY_MS:1000}
+        worker-id: ${DWP_MAIL_SYNC_WORKER_ID:${HOSTNAME:local}}
+      webhooks:
+        maximum-body-bytes: ${DWP_MAIL_WEBHOOK_MAXIMUM_BODY_BYTES:1048576}
+      subscriptions:
+        enabled: ${DWP_MAIL_SUBSCRIPTIONS_ENABLED:false}
+        callback-base-url: ${DWP_MAIL_SUBSCRIPTION_CALLBACK_BASE_URL:}
+        requested-lifetime: ${DWP_MAIL_SUBSCRIPTION_REQUESTED_LIFETIME:P5D}
+        renewal-lead: ${DWP_MAIL_SUBSCRIPTION_RENEWAL_LEAD:PT30M}
+        batch-size: ${DWP_MAIL_SUBSCRIPTION_BATCH_SIZE:20}
+        lease-seconds: ${DWP_MAIL_SUBSCRIPTION_LEASE_SECONDS:60}
+        maximum-attempts: ${DWP_MAIL_SUBSCRIPTION_MAXIMUM_ATTEMPTS:5}
+        poll-delay-ms: ${DWP_MAIL_SUBSCRIPTION_POLL_DELAY_MS:30000}
+        worker-id: ${DWP_MAIL_SUBSCRIPTION_WORKER_ID:${HOSTNAME:local}}
+      providers:
+        microsoft-graph:
+          enabled: ${DWP_MAIL_MICROSOFT_GRAPH_ENABLED:false}
+          base-url: ${DWP_MAIL_MICROSOFT_GRAPH_BASE_URL:https://graph.microsoft.com}
+          allowed-hosts: ${DWP_MAIL_MICROSOFT_GRAPH_ALLOWED_HOSTS:graph.microsoft.com}
+          allow-insecure-localhost: ${DWP_MAIL_MICROSOFT_GRAPH_ALLOW_INSECURE_LOCALHOST:false}
+          maximum-response-bytes: ${DWP_MAIL_MICROSOFT_GRAPH_MAXIMUM_RESPONSE_BYTES:8388608}
+          maximum-request-bytes: ${DWP_MAIL_MICROSOFT_GRAPH_MAXIMUM_REQUEST_BYTES:33554432}
+        google-gmail:
+          enabled: ${DWP_MAIL_GOOGLE_GMAIL_ENABLED:false}
+          base-url: ${DWP_MAIL_GOOGLE_GMAIL_BASE_URL:https://gmail.googleapis.com}
+          allowed-hosts: ${DWP_MAIL_GOOGLE_GMAIL_ALLOWED_HOSTS:gmail.googleapis.com}
+          allow-insecure-localhost: ${DWP_MAIL_GOOGLE_GMAIL_ALLOW_INSECURE_LOCALHOST:false}
+          maximum-response-bytes: ${DWP_MAIL_GOOGLE_GMAIL_MAXIMUM_RESPONSE_BYTES:8388608}
+          maximum-request-bytes: ${DWP_MAIL_GOOGLE_GMAIL_MAXIMUM_REQUEST_BYTES:33554432}
+          topic-name: ${DWP_MAIL_GOOGLE_GMAIL_TOPIC_NAME:}
+          subscription-name: ${DWP_MAIL_GOOGLE_GMAIL_SUBSCRIPTION_NAME:}
+          push-audience: ${DWP_MAIL_GOOGLE_GMAIL_PUSH_AUDIENCE:}
+      token-broker:
+        enabled: ${DWP_MAIL_TOKEN_BROKER_ENABLED:false}
+        base-url: ${DWP_MAIL_TOKEN_BROKER_BASE_URL:}
+        allowed-hosts: ${DWP_MAIL_TOKEN_BROKER_ALLOWED_HOSTS:}
+        allow-insecure-localhost: ${DWP_MAIL_TOKEN_BROKER_ALLOW_INSECURE_LOCALHOST:false}
+        maximum-response-bytes: ${DWP_MAIL_TOKEN_BROKER_MAXIMUM_RESPONSE_BYTES:32768}
+      event-stream:
+        maximum-clients: ${DWP_MAIL_EVENT_STREAM_MAXIMUM_CLIENTS:200}
+        batch-size: ${DWP_MAIL_EVENT_STREAM_BATCH_SIZE:250}
+        timeout-ms: ${DWP_MAIL_EVENT_STREAM_TIMEOUT_MS:300000}
+        heartbeat-ms: ${DWP_MAIL_EVENT_STREAM_HEARTBEAT_MS:15000}
+        poll-delay-ms: ${DWP_MAIL_EVENT_STREAM_POLL_DELAY_MS:1000}
+      provider-payload:
+        maximum-messages: ${DWP_MAIL_PROVIDER_MAXIMUM_MESSAGES:500}
+        maximum-recipients: ${DWP_MAIL_PROVIDER_MAXIMUM_RECIPIENTS:500}
+        maximum-body-bytes: ${DWP_MAIL_PROVIDER_MAXIMUM_BODY_BYTES:10485760}
+        maximum-metadata-entries: ${DWP_MAIL_PROVIDER_MAXIMUM_METADATA_ENTRIES:100}
+        maximum-metadata-bytes: ${DWP_MAIL_PROVIDER_MAXIMUM_METADATA_BYTES:65536}
+        maximum-attachments: ${DWP_MAIL_PROVIDER_MAXIMUM_ATTACHMENTS:100}
+        maximum-attachment-bytes: ${DWP_MAIL_PROVIDER_MAXIMUM_ATTACHMENT_BYTES:157286400}
+      attachments:
+        enabled: ${DWP_MAIL_ATTACHMENTS_ENABLED:false}
+        trusted-scanner:
+          enabled: ${DWP_MAIL_TRUSTED_SCANNER_ENABLED:false}
+          base-url: ${DWP_MAIL_TRUSTED_SCANNER_BASE_URL:}
+          service-token: ${DWP_MAIL_TRUSTED_SCANNER_SERVICE_TOKEN:}
+          timeout: ${DWP_MAIL_TRUSTED_SCANNER_TIMEOUT:PT5S}
+          maximum-response-bytes: ${DWP_MAIL_TRUSTED_SCANNER_MAXIMUM_RESPONSE_BYTES:32768}
+          maximum-request-bytes: ${DWP_MAIL_TRUSTED_SCANNER_MAXIMUM_REQUEST_BYTES:157286400}
       delivery:
         enabled: ${DWP_MAIL_DELIVERY_ENABLED:true}
         batch-size: ${DWP_MAIL_DELIVERY_BATCH_SIZE:25}
@@ -368,6 +449,13 @@ dwp:
         maximum-attempts: ${DWP_MAIL_DELIVERY_MAXIMUM_ATTEMPTS:5}
         poll-delay-ms: ${DWP_MAIL_DELIVERY_POLL_DELAY_MS:1000}
         worker-id: ${DWP_MAIL_DELIVERY_WORKER_ID:${HOSTNAME:local}}
+      incoming-rules:
+        enabled: ${DWP_MAIL_INCOMING_RULES_ENABLED:true}
+        batch-size: ${DWP_MAIL_INCOMING_RULES_BATCH_SIZE:50}
+        lease-seconds: ${DWP_MAIL_INCOMING_RULES_LEASE_SECONDS:30}
+        maximum-attempts: ${DWP_MAIL_INCOMING_RULES_MAXIMUM_ATTEMPTS:5}
+        poll-delay-ms: ${DWP_MAIL_INCOMING_RULES_POLL_DELAY_MS:1000}
+        worker-id: ${DWP_MAIL_INCOMING_RULES_WORKER_ID:${HOSTNAME:local}}
 
 management:
   endpoints:

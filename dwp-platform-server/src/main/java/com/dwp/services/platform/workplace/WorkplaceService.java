@@ -25,6 +25,7 @@ public class WorkplaceService {
 
     private static final Duration MAX_EXPLORE_SPAN = Duration.ofDays(31);
     private static final Duration MAX_BOOKING_HISTORY_SPAN = Duration.ofDays(400);
+    static final int MAX_BOOKING_HISTORY_RESULTS = 2000;
 
     private final WorkplaceCatalogRepository catalog;
     private final WorkplaceBookingRepository bookings;
@@ -141,7 +142,14 @@ public class WorkplaceService {
                 "Workplace booking history is limited to 400 days.");
         WorkplaceCatalogRepository.PolicyRow policy = catalog.policy(tenantId);
         OffsetDateTime now = OffsetDateTime.now();
-        return bookings.bookings(tenantId, userId, from, to, korean(locale)).stream()
+        List<WorkplaceBookingRepository.BookingRow> history = bookings.bookings(
+                tenantId, userId, from, to, korean(locale),
+                MAX_BOOKING_HISTORY_RESULTS + 1);
+        if (history.size() > MAX_BOOKING_HISTORY_RESULTS) {
+            throw invalid("Workplace booking history is limited to 2000 records. "
+                    + "Narrow the requested time range.");
+        }
+        return history.stream()
                 .filter(value -> bookingAccess.canView(
                         tenantId, userId, verifiedGroupRefs, value))
                 .map(value -> booking(value, policy, now))
@@ -549,18 +557,23 @@ public class WorkplaceService {
     }
 
     @Transactional
-    public int maintainBookingLifecycle() {
-        if (!bookings.tryLifecycleLock()) return 0;
+    public LifecycleBatch maintainBookingLifecycle(int batchSize, int perTenantLimit) {
+        if (!bookings.tryLifecycleLock()) return LifecycleBatch.lockContended();
         OffsetDateTime now = OffsetDateTime.now();
         List<WorkplaceBookingRepository.LifecycleBookingRow> noShows =
-                bookings.releaseNoShows(now);
+                bookings.releaseNoShows(now, batchSize, perTenantLimit);
         noShows.forEach(value -> recordLifecycleEvent(
                 WorkplaceDomainEvents.NO_SHOW, value, "workplace:no-show-sweep"));
         List<WorkplaceBookingRepository.LifecycleBookingRow> completed =
-                bookings.completeEndedBookings(now);
+                bookings.completeEndedBookings(now, batchSize, perTenantLimit);
         completed.forEach(value -> recordLifecycleEvent(
                 WorkplaceDomainEvents.COMPLETED, value, "workplace:lifecycle-sweep"));
-        return noShows.size() + completed.size();
+        return new LifecycleBatch(true, noShows.size(), completed.size());
+    }
+
+    @Transactional(readOnly = true)
+    public WorkplaceBookingRepository.LifecycleBacklog bookingLifecycleBacklog() {
+        return bookings.lifecycleBacklog(OffsetDateTime.now());
     }
 
     private WorkplaceCatalogRepository.PolicyRow effectivePolicy(
@@ -592,6 +605,16 @@ public class WorkplaceService {
                         value.endsAt(),
                         value.status().name(),
                         value.version()));
+    }
+
+    public record LifecycleBatch(boolean lockAcquired, int noShows, int completed) {
+        static LifecycleBatch lockContended() {
+            return new LifecycleBatch(false, 0, 0);
+        }
+
+        int total() {
+            return noShows + completed;
+        }
     }
 
     private WorkplaceDtos.Policy policy(WorkplaceCatalogRepository.PolicyRow value) {

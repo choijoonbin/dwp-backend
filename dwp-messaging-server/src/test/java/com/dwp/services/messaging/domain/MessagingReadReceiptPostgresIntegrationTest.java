@@ -4,6 +4,8 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.messaging.privacy.MessagingPrivacyDtos;
 import com.dwp.services.messaging.privacy.MessagingPrivacyService;
+import com.dwp.services.messaging.presence.MessagingPresenceLeaseControl;
+import com.dwp.services.messaging.presence.MessagingPresenceSharingPolicy;
 import com.dwp.services.messaging.receipt.MessagingReceiptDtos;
 import com.dwp.services.messaging.receipt.MessagingReceiptService;
 import com.dwp.services.messaging.realtime.MessagingEventRecorder;
@@ -32,9 +34,13 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyLong;
 
 @EnabledIfEnvironmentVariable(named = "DWP_MESSAGING_INTEGRATION_DB_URL", matches = ".+")
 class MessagingReadReceiptPostgresIntegrationTest {
@@ -44,11 +50,13 @@ class MessagingReadReceiptPostgresIntegrationTest {
     private static JdbcTemplate jdbc;
     private static AnnotationConfigApplicationContext context;
     private static TransactionTemplate transaction;
+    private static MessagingPresenceLeaseControl presenceLeases;
     private MessagingPrivacyService privacy;
     private MessagingReceiptService receipts;
     private MessagingRealtimeRepository events;
     private MessagingQueryRepository queries;
     private MessagingCommandRepository commands;
+    private MessagingPresenceSharingPolicy presenceSharingPolicy;
     private UUID conversation;
     private UUID root;
     private UUID reply;
@@ -73,6 +81,8 @@ class MessagingReadReceiptPostgresIntegrationTest {
         context.registerBean(DataSourceTransactionManager.class, () -> manager);
         context.registerBean(ObjectMapper.class, () -> new ObjectMapper().findAndRegisterModules());
         context.registerBean(MessagingRealtimePublisher.class, () -> mock(MessagingRealtimePublisher.class));
+        presenceLeases = mock(MessagingPresenceLeaseControl.class);
+        context.registerBean(MessagingPresenceLeaseControl.class, () -> presenceLeases);
         context.register(MessagingRealtimeRepository.class, MessagingEventRecorder.class);
         context.scan("com.dwp.services.messaging.privacy", "com.dwp.services.messaging.receipt");
         context.refresh();
@@ -86,6 +96,8 @@ class MessagingReadReceiptPostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
+        reset(presenceLeases);
+        when(presenceLeases.withdraw(anyLong(), anyLong())).thenReturn(true);
         jdbc.update("DELETE FROM msg_conversations WHERE tenant_id = ?", TENANT);
         jdbc.update("DELETE FROM msg_people_snapshot WHERE tenant_id IN (?, ?)", TENANT, TENANT + 1);
         jdbc.update("DELETE FROM msg_user_privacy_preferences WHERE tenant_id IN (?, ?)", TENANT, TENANT + 1);
@@ -110,6 +122,7 @@ class MessagingReadReceiptPostgresIntegrationTest {
         events = context.getBean(MessagingRealtimeRepository.class);
         queries = new MessagingQueryRepository(jdbc, new MessagingMessageQueryRepository(jdbc));
         commands = new MessagingCommandRepository(jdbc);
+        presenceSharingPolicy = context.getBean(MessagingPresenceSharingPolicy.class);
         as(SENDER);
     }
 
@@ -158,6 +171,89 @@ class MessagingReadReceiptPostgresIntegrationTest {
         as(SENDER);
         privacy.update(new MessagingPrivacyDtos.UpdatePrivacyPreferenceRequest(false, 0L));
         assertThat(status(root, READER)).isEqualTo(MessagingReceiptDtos.Status.READ);
+    }
+
+    @Test
+    void presenceOptOutIsDurableAndLegacyReadReceiptUpdatesPreserveIt() {
+        as(READER);
+
+        assertThat(privacy.update(
+                new MessagingPrivacyDtos.UpdatePrivacyPreferenceRequest(null, false, 0L)))
+                .isEqualTo(new MessagingPrivacyDtos.PrivacyPreference(true, false, 1));
+        assertThat(privacy.update(
+                new MessagingPrivacyDtos.UpdatePrivacyPreferenceRequest(false, 1L)))
+                .isEqualTo(new MessagingPrivacyDtos.PrivacyPreference(false, false, 2));
+
+        assertThat(privacy.preference())
+                .isEqualTo(new MessagingPrivacyDtos.PrivacyPreference(false, false, 2));
+        assertThat(jdbc.queryForObject("""
+                SELECT presence_sharing_enabled FROM msg_user_privacy_preferences
+                 WHERE tenant_id = ? AND user_id = ?
+                """, Boolean.class, TENANT, READER)).isFalse();
+    }
+
+    @Test
+    void presenceOptOutRollsBackWhenTheCurrentLeaseCannotBeWithdrawn() {
+        as(READER);
+        when(presenceLeases.withdraw(TENANT, READER)).thenReturn(false);
+
+        assertThatThrownBy(() -> privacy.update(
+                new MessagingPrivacyDtos.UpdatePrivacyPreferenceRequest(null, false, 0L)))
+                .isInstanceOfSatisfying(BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+
+        assertThat(privacy.preference())
+                .isEqualTo(new MessagingPrivacyDtos.PrivacyPreference(true, true, 0));
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM msg_user_privacy_preferences
+                 WHERE tenant_id = ? AND user_id = ?
+                """, Integer.class, TENANT, READER)).isZero();
+    }
+
+    @Test
+    void optOutSerializesBehindAnInFlightHeartbeatAndWithdrawsAfterItsRenewal() throws Exception {
+        CountDownLatch renewalEntered = new CountDownLatch(1);
+        CountDownLatch releaseRenewal = new CountDownLatch(1);
+        CountDownLatch updateStarted = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var heartbeat = executor.submit(() -> presenceSharingPolicy.enforce(
+                    TENANT,
+                    READER,
+                    () -> {
+                        renewalEntered.countDown();
+                        try {
+                            return releaseRenewal.await(10, TimeUnit.SECONDS);
+                        } catch (InterruptedException exception) {
+                            Thread.currentThread().interrupt();
+                            return false;
+                        }
+                    },
+                    () -> false));
+            assertThat(renewalEntered.await(10, TimeUnit.SECONDS)).isTrue();
+            var optOut = executor.submit(() -> {
+                as(READER);
+                updateStarted.countDown();
+                try {
+                    return privacy.update(
+                            new MessagingPrivacyDtos.UpdatePrivacyPreferenceRequest(null, false, 0L));
+                } finally {
+                    MessagingRequestContext.clear();
+                }
+            });
+            assertThat(updateStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> optOut.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            releaseRenewal.countDown();
+            assertThat(heartbeat.get(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(optOut.get(10, TimeUnit.SECONDS))
+                    .isEqualTo(new MessagingPrivacyDtos.PrivacyPreference(true, false, 1));
+        }
+
+        as(READER);
+        assertThat(privacy.preference())
+                .isEqualTo(new MessagingPrivacyDtos.PrivacyPreference(true, false, 1));
     }
 
     @Test

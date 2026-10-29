@@ -18,7 +18,8 @@ class MessagingHomeAssetRepository {
                 SELECT attachment.attachment_id, attachment.normalized_filename,
                        COALESCE(attachment.detected_content_type, attachment.declared_content_type) AS content_type,
                        attachment.size_bytes, message.message_id, message.conversation_id,
-                       message.created_at, message.sender_name, COALESCE(conversation.name, '') AS conversation_name
+                       message.created_at, message.sender_name, COALESCE(conversation.name, '') AS conversation_name,
+                       (conversation.data_classification IN ('CONFIDENTIAL', 'RESTRICTED')) AS protected_content
                 """ + visibleMessages() + """
                   JOIN msg_attachments attachment
                     ON attachment.tenant_id = message.tenant_id
@@ -33,15 +34,21 @@ class MessagingHomeAssetRepository {
                 "file:" + row.getObject("attachment_id", UUID.class), MessagingHomeDtos.AssetKind.FILE,
                 row.getObject("conversation_id", UUID.class), row.getString("conversation_name"),
                 row.getObject("message_id", UUID.class), row.getObject("created_at", OffsetDateTime.class),
-                row.getString("sender_name"), row.getString("normalized_filename"),
-                row.getObject("attachment_id", UUID.class), null, row.getString("content_type"),
-                row.getLong("size_bytes")), tenantId, userId, limit);
+                row.getString("sender_name"),
+                row.getBoolean("protected_content") ? null : row.getString("normalized_filename"),
+                row.getBoolean("protected_content"), row.getObject("attachment_id", UUID.class), null,
+                row.getBoolean("protected_content") ? null : row.getString("content_type"),
+                row.getBoolean("protected_content") ? null : row.getLong("size_bytes")),
+                tenantId, userId, limit);
     }
 
     List<LinkMessage> linkMessages(long tenantId, long userId) {
         return jdbc.query("""
-                SELECT message.message_id, message.conversation_id, message.body,
-                       message.created_at, message.sender_name, COALESCE(conversation.name, '') AS conversation_name
+                SELECT message.message_id, message.conversation_id,
+                       CASE WHEN conversation.data_classification NOT IN ('CONFIDENTIAL', 'RESTRICTED')
+                            THEN message.body END AS body,
+                       message.created_at, message.sender_name, COALESCE(conversation.name, '') AS conversation_name,
+                       (conversation.data_classification IN ('CONFIDENTIAL', 'RESTRICTED')) AS protected_content
                 """ + visibleMessages() + """
                  WHERE message.tenant_id = ? AND member.user_id = ?
                    AND message.deleted_at IS NULL AND message.message_kind = 'USER'
@@ -50,8 +57,10 @@ class MessagingHomeAssetRepository {
                  LIMIT 100
                 """, (row, ignored) -> new LinkMessage(
                 row.getObject("message_id", UUID.class), row.getObject("conversation_id", UUID.class),
-                row.getString("conversation_name"), row.getString("body"),
-                row.getObject("created_at", OffsetDateTime.class), row.getString("sender_name")),
+                row.getString("conversation_name"),
+                row.getBoolean("protected_content") ? null : row.getString("body"),
+                row.getObject("created_at", OffsetDateTime.class), row.getString("sender_name"),
+                row.getBoolean("protected_content")),
                 tenantId, userId);
     }
 
@@ -74,5 +83,6 @@ class MessagingHomeAssetRepository {
     }
 
     record LinkMessage(UUID messageId, UUID conversationId, String conversationName,
-                       String body, OffsetDateTime sharedAt, String senderName) { }
+                       String body, OffsetDateTime sharedAt, String senderName,
+                       boolean protectedContent) { }
 }

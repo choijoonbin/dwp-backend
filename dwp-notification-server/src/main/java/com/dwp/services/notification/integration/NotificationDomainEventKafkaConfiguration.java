@@ -27,15 +27,15 @@ public class NotificationDomainEventKafkaConfiguration {
             notificationDomainEventKafkaListenerContainerFactory(
                     ConsumerFactory<String, String> consumerFactory,
                     KafkaTemplate<Object, Object> kafkaTemplate,
+                    @Value("${dwp.notification.domain-events.topic:"
+                            + "dwp.domain-events.v1}") String inputTopic,
                     @Value("${dwp.notification.domain-events.dead-letter-topic:"
                             + "dwp.domain-events.v1.DLT}") String deadLetterTopic,
                     @Value("${dwp.notification.domain-events.retry-interval:1s}")
                     Duration retryInterval,
                     @Value("${dwp.notification.domain-events.maximum-attempts:4}")
                     int maximumAttempts) {
-        if (deadLetterTopic == null || deadLetterTopic.isBlank()) {
-            throw new IllegalArgumentException("Notification domain-event DLT is required.");
-        }
+        validateTopics(inputTopic, deadLetterTopic);
         if (maximumAttempts < 1) {
             throw new IllegalArgumentException(
                     "Notification domain-event maximum attempts must be at least 1.");
@@ -43,7 +43,7 @@ public class NotificationDomainEventKafkaConfiguration {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (ConsumerRecord<?, ?> record, Exception exception) -> new TopicPartition(
-                        deadLetterTopic.trim(), record.partition()));
+                        deadLetterTopic, record.partition()));
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
                 recoverer,
                 new FixedBackOff(retryInterval.toMillis(), maximumAttempts - 1L));
@@ -55,5 +55,10 @@ public class NotificationDomainEventKafkaConfiguration {
         factory.setCommonErrorHandler(errorHandler);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
         return factory;
+    }
+
+    static void validateTopics(String inputTopic, String deadLetterTopic) {
+        NotificationKafkaTopicBoundary.requireDistinctCanonicalTopics(
+                inputTopic, deadLetterTopic, "Notification domain-event");
     }
 }

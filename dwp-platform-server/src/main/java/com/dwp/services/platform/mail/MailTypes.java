@@ -76,6 +76,9 @@ public final class MailTypes {
         QUEUED,
         SENDING,
         RETRYING,
+        PROVIDER_ACCEPTED,
+        RESULT_UNKNOWN,
+        DELIVERED,
         SENT,
         FAILED
     }

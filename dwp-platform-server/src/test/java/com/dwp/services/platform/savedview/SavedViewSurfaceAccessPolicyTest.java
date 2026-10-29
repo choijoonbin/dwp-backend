@@ -35,6 +35,15 @@ class SavedViewSurfaceAccessPolicyTest {
         assertThatCode(() -> policy.requireUse(
                 "calendar.schedule", "APP.CALENDAR:VIEW"))
                 .doesNotThrowAnyException();
+        assertThatCode(() -> policy.requireRead(
+                "notifications.work", "APP.NOTIFICATIONS:VIEW"))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> policy.requireWrite(
+                "notifications.work", "APP.NOTIFICATIONS:VIEW"))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> policy.requireUse(
+                "notifications.work", "APP.NOTIFICATIONS:VIEW"))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -79,6 +88,24 @@ class SavedViewSurfaceAccessPolicyTest {
                     assertThat(exception.getMessage())
                             .contains(SavedViewSurfaceAccessPolicy.TARGET_NOT_ENTITLED_MESSAGE);
                 });
+    }
+
+    @Test
+    void notificationTargetEligibilityUsesTheExactNotificationPermission() {
+        SavedViewSubjectDirectory.Subject target = new SavedViewSubjectDirectory.Subject(
+                3L, 17L, UUID.randomUUID(), UUID.randomUUID(), "Target", null, null,
+                "ACTIVE", "TENANT", List.of("WORKSPACE_MEMBER"), List.of(),
+                List.of("APP.NOTIFICATIONS:VIEW"));
+
+        assertThat(policy.requiredPermission("notifications.work"))
+                .isEqualTo("APP.NOTIFICATIONS:VIEW");
+        assertThat(policy.targetEntitled("notifications.work", target)).isTrue();
+        assertThatCode(() -> policy.requireEligibleTarget("notifications.work", target))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> policy.requireEligibleTarget("workspace.work", target))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.SAVED_VIEW_TARGET_INELIGIBLE));
     }
 
     private void assertActorForbidden(String permissions) {

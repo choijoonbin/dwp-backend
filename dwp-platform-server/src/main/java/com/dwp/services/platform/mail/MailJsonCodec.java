@@ -19,6 +19,10 @@ class MailJsonCodec {
     };
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {
     };
+    private static final TypeReference<List<MailOrganizationDtos.RuleCondition>> RULE_CONDITIONS =
+            new TypeReference<>() { };
+    private static final TypeReference<List<MailOrganizationDtos.RuleAction>> RULE_ACTIONS =
+            new TypeReference<>() { };
 
     private final ObjectMapper objectMapper;
 
@@ -36,6 +40,14 @@ class MailJsonCodec {
 
     List<String> stringList(String value) {
         return read(value, STRING_LIST, List.of());
+    }
+
+    List<MailOrganizationDtos.RuleCondition> ruleConditions(String value) {
+        return read(value, RULE_CONDITIONS, List.of());
+    }
+
+    List<MailOrganizationDtos.RuleAction> ruleActions(String value) {
+        return read(value, RULE_ACTIONS, List.of());
     }
 
     Map<String, Object> map(String value) {

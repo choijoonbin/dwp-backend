@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 abstract class PlatformSecurityPolicySupport extends OncePerRequestFilter {
@@ -38,6 +39,7 @@ abstract class PlatformSecurityPolicySupport extends OncePerRequestFilter {
     static final String ROLLOUT_COHORT_HEADER = PlatformSecurityHeaders.ROLLOUT_COHORT;
     static final String ROLLOUT_REVISION_HEADER = PlatformSecurityHeaders.ROLLOUT_REVISION;
     static final String ROLLOUT_STATE_HEADER = PlatformSecurityHeaders.ROLLOUT_STATE;
+    static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
     static final String CONTROL_PLANE_HEADER = "X-DWP-Control-Plane";
     static final String WIDGET_OWNER_SCOPE_HEADER =
             "X-DWP-Widget-Owner-Product-Keys";
@@ -239,6 +241,21 @@ abstract class PlatformSecurityPolicySupport extends OncePerRequestFilter {
     }
 
     protected boolean hasCalendarAuthority(HttpServletRequest request) {
+        if (pathFamily(request.getRequestURI(), "/v2/calendar")) {
+            return hasAuthority(
+                    request.getHeader(PERMISSIONS_HEADER), "APP.CALENDAR", "VIEW");
+        }
+        if (isCanonicalCalendarBookingPath(request.getRequestURI())) {
+            return hasAuthority(
+                    request.getHeader(PERMISSIONS_HEADER), "APP.CALENDAR", "VIEW");
+        }
+        if (isCanonicalCalendarReminderPath(request.getRequestURI())
+                && ("GET".equals(request.getMethod())
+                || "HEAD".equals(request.getMethod())
+                || "PUT".equals(request.getMethod()))) {
+            return hasAuthority(
+                    request.getHeader(PERMISSIONS_HEADER), "APP.CALENDAR", "VIEW");
+        }
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
             case "POST" -> request.getRequestURI().endsWith("/events") ? "CREATE" : "UPDATE";
@@ -247,6 +264,68 @@ abstract class PlatformSecurityPolicySupport extends OncePerRequestFilter {
         };
         return hasAuthority(
                 request.getHeader(PERMISSIONS_HEADER), "APP.CALENDAR", requiredPermission);
+    }
+
+    protected boolean hasCanonicalCalendarV2Identity(HttpServletRequest request) {
+        return exactPositiveLongHeader(request, TENANT_HEADER) != null
+                && exactPositiveLongHeader(request, USER_HEADER) != null
+                && exactUuidHeader(request, PERSON_PUBLIC_ID_HEADER) != null;
+    }
+
+    protected boolean isCanonicalCalendarReminderPath(String path) {
+        if (path == null || path.indexOf('%') >= 0 || path.indexOf(';') >= 0
+                || path.indexOf('\\') >= 0 || path.indexOf('?') >= 0
+                || path.indexOf('#') >= 0) {
+            return false;
+        }
+        String prefix = "/v1/calendar/events/";
+        String suffix = "/reminders";
+        if (!path.startsWith(prefix) || !path.endsWith(suffix)) return false;
+        String eventId = path.substring(prefix.length(), path.length() - suffix.length());
+        if (eventId.indexOf('/') >= 0) return false;
+        try {
+            UUID parsed = UUID.fromString(eventId);
+            return parsed.toString().equals(eventId);
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
+    protected boolean isCanonicalCalendarBookingPath(String path) {
+        return path != null && path.indexOf('%') < 0 && path.indexOf(';') < 0
+                && path.indexOf('\\') < 0 && path.indexOf('?') < 0
+                && path.indexOf('#') < 0
+                && pathFamily(path, "/v1/calendar/booking");
+    }
+
+    private Long exactPositiveLongHeader(HttpServletRequest request, String name) {
+        String value = exactSecurityHeader(request, name);
+        if (value == null || !value.matches("[1-9][0-9]*")) return null;
+        return positiveLong(value);
+    }
+
+    private UUID exactUuidHeader(HttpServletRequest request, String name) {
+        String value = exactSecurityHeader(request, name);
+        if (value == null) return null;
+        try {
+            UUID parsed = UUID.fromString(value);
+            return parsed.toString().equals(value) ? parsed : null;
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
+    private String exactSecurityHeader(HttpServletRequest request, String name) {
+        var values = request.getHeaders(name);
+        List<String> headers = values == null ? List.of() : Collections.list(values);
+        if (headers.size() != 1) return null;
+        String value = headers.getFirst();
+        if (value == null || value.isBlank() || value.length() > 200
+                || !value.equals(value.trim()) || value.indexOf(',') >= 0
+                || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) {
+            return null;
+        }
+        return value;
     }
 
     protected boolean hasRoomsAuthority(HttpServletRequest request) {

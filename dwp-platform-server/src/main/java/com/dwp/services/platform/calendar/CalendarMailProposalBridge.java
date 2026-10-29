@@ -71,6 +71,11 @@ final class CalendarMailProposalBridge {
         payload.put("recurrenceInterval", request.recurrenceInterval());
         payload.put("recurrenceUntil", request.recurrenceUntil() == null
                 ? null : request.recurrenceUntil().toString());
+        payload.put("recurrenceDays", request.recurrenceDays() == null
+                ? java.util.List.of()
+                : request.recurrenceDays().stream().distinct().sorted()
+                        .map(java.time.DayOfWeek::name).toList());
+        payload.put("recurrenceCount", request.recurrenceCount());
         payload.put("responseRequired", request.responseRequired());
         payload.put("attendees", request.attendees().stream()
                 .map(CalendarDtos.AttendeeInput::email)

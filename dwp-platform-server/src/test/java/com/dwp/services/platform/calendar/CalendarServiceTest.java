@@ -15,6 +15,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.time.Duration;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -34,7 +35,9 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -223,10 +226,12 @@ class CalendarServiceTest {
                 "EventSummary create(Long,Long,UUID,String,String,String,String,CreateEventRequest):false",
                 "EventSummary create(Long,Long,UUID,String,String,String,String,CreateEventRequest,MailProposalHandoffBinding):false",
                 "EventSummary create(Long,Long,UUID,String,String,String,String,CreateEventRequest,MailProposalHandoffBinding,Binding,Identity):false",
+                "EventSummary create(Long,Long,UUID,String,String,String,String,CreateEventRequest,MailProposalHandoffBinding,Binding,Identity,String):false",
                 "EventSummary respond(Long,Long,UUID,UUID,String,String,RespondRequest):false",
                 "EventSummary respond(Long,Long,UUID,UUID,String,String,String,RespondRequest):false",
                 "EventSummary update(Long,Long,UUID,UUID,String,String,UpdateEventRequest):false",
                 "EventSummary update(Long,Long,UUID,UUID,String,String,String,UpdateEventRequest):false",
+                "EventSummary update(Long,Long,UUID,UUID,String,String,String,UpdateEventRequest,String):false",
                 "HomeResponse home(Long,Long,UUID,String,String):true",
                 "HomeResponse home(Long,Long,UUID,String,String,String):true",
                 "List calendars(Long,Long,UUID,String):true",
@@ -242,7 +247,8 @@ class CalendarServiceTest {
                 "ResourceSummary saveWorkplaceManagedResource(Long,Long,UUID,String,String,ResourceRequest):false",
                 "SchedulingEvaluationResponse evaluateScheduling(Long,Long,UUID,String,String,SchedulingEvaluationRequest):true",
                 "void cancel(Long,Long,UUID,UUID,String,String,String,VersionRequest):false",
-                "void cancel(Long,Long,UUID,UUID,String,String,VersionRequest):false");
+                "void cancel(Long,Long,UUID,UUID,String,String,VersionRequest):false",
+                "void cancelOccurrence(Long,Long,UUID,UUID,String,String,String,CancelOccurrenceRequest):false");
 
         List<String> actual = Arrays.stream(CalendarService.class.getDeclaredMethods())
                 .filter(method -> Modifier.isPublic(method.getModifiers()))
@@ -323,7 +329,6 @@ class CalendarServiceTest {
         when(repository.visibleEvents(
                 eq(1L), eq(7L), eq(personId), any(), any(), eq(false)))
                 .thenReturn(List.of(row));
-        when(repository.attendees(1L, eventId)).thenReturn(List.of());
 
         List<CalendarDtos.EventSummary> events = service.events(
                 1L, 7L, personId,
@@ -374,7 +379,6 @@ class CalendarServiceTest {
                 .thenReturn(List.of(event(
                         eventId, future, future.plusMinutes(30), "Asia/Seoul",
                         CalendarTypes.RecurrencePattern.NONE, null)));
-        when(repository.attendees(1L, eventId)).thenReturn(List.of());
         when(repository.resources(eq(1L), any(), any(), eq(true), eq(false)))
                 .thenReturn(List.of());
 
@@ -441,9 +445,13 @@ class CalendarServiceTest {
                 .thenReturn(Optional.of(existing));
         when(repository.attendees(1L, eventId)).thenReturn(List.of());
 
+        CalendarSchedulingV2TokenVerifier tokens = mock(
+                CalendarSchedulingV2TokenVerifier.class);
+        service.setSchedulingV2Tokens(tokens);
         CalendarDtos.EventSummary replay = service.create(
                 1L, 7L, personId, "사용자", "ko-KR", "corr",
-                "a5a5a5a5-1111-2222-3333-444444444444", request);
+                "a5a5a5a5-1111-2222-3333-444444444444", request,
+                null, null, null, "already-consumed-token");
 
         assertThat(replay.eventId()).isEqualTo(eventId);
         verify(roomAccess).requireBook(
@@ -451,6 +459,127 @@ class CalendarServiceTest {
         verify(roomBookingPolicy, never()).validateLockedCreate(
                 any(), any(), any(), any());
         verify(repository, never()).ensurePersonalCalendar(any(), any(), any());
+        verifyNoInteractions(tokens);
+    }
+
+    @Test
+    void tokenBackedUpdateFailsClosedWhenDelegateIsNotTheOrganizer() {
+        UUID delegatePerson = UUID.randomUUID();
+        UUID organizerPerson = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        OffsetDateTime startsAt = OffsetDateTime.now().plusDays(2)
+                .withSecond(0).withNano(0);
+        CalendarRepository.EventRow before = event(
+                eventId, startsAt, startsAt.plusMinutes(30), "Asia/Seoul",
+                CalendarTypes.RecurrencePattern.NONE, null, 8L, organizerPerson);
+        when(repository.event(1L, 7L, delegatePerson, eventId, true))
+                .thenReturn(Optional.of(before));
+        CalendarSchedulingV2TokenVerifier tokens = mock(
+                CalendarSchedulingV2TokenVerifier.class);
+        service.setSchedulingV2Tokens(tokens);
+        CalendarDtos.UpdateEventRequest request = new CalendarDtos.UpdateEventRequest(
+                "회의", "안건", CalendarTypes.EventType.MEETING,
+                startsAt, startsAt.plusMinutes(30), "Asia/Seoul", false,
+                null, null, CalendarTypes.EventVisibility.DEFAULT,
+                CalendarTypes.RecurrencePattern.NONE, 1, null, true,
+                List.of(), null, before.version());
+
+        assertThatThrownBy(() -> service.update(
+                1L, 7L, delegatePerson, eventId, "ko-KR", "corr", null,
+                request, "delegate-token"))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class)
+                .hasMessageContaining("organizer");
+
+        verifyNoInteractions(tokens);
+        verify(repository, never()).updateEvent(
+                any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void changingOnlyByDayAndCountInvalidatesOccurrenceOverrides() {
+        UUID personId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        OffsetDateTime startsAt = OffsetDateTime.parse("2026-08-24T09:00:00+09:00");
+        CalendarRepository.EventRow before = recurrence(
+                event(eventId, startsAt, startsAt.plusMinutes(30), "Asia/Seoul",
+                        CalendarTypes.RecurrencePattern.WEEKLY, null, 7L, personId),
+                List.of(DayOfWeek.MONDAY), 4);
+        CalendarRepository.EventRow updated = recurrence(
+                before, List.of(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY), 5);
+        CalendarOccurrenceProjector projector = new CalendarOccurrenceProjector(repository);
+        CalendarOccurrenceCommandService commands = mock(
+                CalendarOccurrenceCommandService.class);
+        CalendarService mutationService = new CalendarService(
+                repository, roomAccess, schedulingHorizon, roomBookingPolicy,
+                null, projector, commands);
+        CalendarDtos.UpdateEventRequest request = new CalendarDtos.UpdateEventRequest(
+                before.title(), before.description(), before.type(), startsAt,
+                startsAt.plusMinutes(30), before.timeZone(), false,
+                before.location(), before.conferenceUrl(), before.visibility(),
+                CalendarTypes.RecurrencePattern.WEEKLY, 1, null, true,
+                List.of(), null, before.version(), before.importance(), null,
+                null, null, List.of(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY), 5);
+        when(repository.event(1L, 7L, personId, eventId, false))
+                .thenReturn(Optional.of(before), Optional.of(updated));
+        when(repository.policy(1L)).thenReturn(policy());
+        when(repository.updateEvent(1L, 7L, personId, eventId, request)).thenReturn(1);
+
+        mutationService.update(
+                1L, 7L, personId, eventId, "en", "corr", null, request);
+
+        verify(commands).discardOverridesAfterSeriesScheduleChange(1L, eventId);
+    }
+
+    @Test
+    void firstOccurrenceSplitCancelsSourceBookingBeforeFollowingBookingInsert() {
+        UUID personId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        OffsetDateTime startsAt = OffsetDateTime.parse("2026-08-24T09:00:00+09:00");
+        LocalDate until = LocalDate.of(2026, 8, 28);
+        CalendarRepository.EventRow source = withResource(
+                event(eventId, startsAt, startsAt.plusMinutes(30), "Asia/Seoul",
+                        CalendarTypes.RecurrencePattern.DAILY, until, 7L, personId),
+                resourceId);
+        CalendarOccurrenceProjector projector = new CalendarOccurrenceProjector(repository);
+        CalendarOccurrenceCommandService commands = mock(
+                CalendarOccurrenceCommandService.class);
+        CalendarService mutationService = new CalendarService(
+                repository, roomAccess, schedulingHorizon, roomBookingPolicy,
+                null, projector, commands);
+        CalendarDtos.UpdateEventRequest request = new CalendarDtos.UpdateEventRequest(
+                source.title(), source.description(), source.type(), startsAt,
+                startsAt.plusMinutes(30), source.timeZone(), false,
+                source.location(), source.conferenceUrl(), source.visibility(),
+                source.recurrence(), 1, until, source.responseRequired(),
+                List.of(), resourceId, source.version(), source.importance(),
+                CalendarDtos.RecurrenceEditScope.THIS_AND_FOLLOWING,
+                startsAt, UUID.randomUUID(), null, null);
+        when(repository.event(1L, 7L, personId, eventId, false))
+                .thenReturn(Optional.of(source));
+        when(repository.event(
+                eq(1L), eq(7L), eq(personId),
+                org.mockito.ArgumentMatchers.<UUID>argThat(id -> !eventId.equals(id)),
+                eq(false))).thenReturn(Optional.of(source));
+        when(repository.policy(1L)).thenReturn(policy());
+        when(repository.resource(1L, resourceId, false)).thenReturn(Optional.of(
+                resource(resourceId)));
+        when(commands.advanceSeriesVersion(
+                1L, eventId, source.version(), 7L, personId, null)).thenReturn(1);
+        when(commands.closeSeriesBefore(
+                1L, eventId, source.version() + 1, startsAt,
+                null, true, 7L)).thenReturn(1);
+
+        mutationService.update(
+                1L, 7L, personId, eventId, "en", "corr", null, request);
+
+        org.mockito.InOrder bookingOrder = inOrder(repository);
+        bookingOrder.verify(repository).cancelBookings(1L, 7L, eventId);
+        bookingOrder.verify(repository).insertSplitEvent(
+                eq(1L), eq(7L), eq(source), any(),
+                any(CalendarDtos.CreateEventRequest.class), any());
+        bookingOrder.verify(repository).insertBooking(
+                eq(1L), eq(7L), any(), any(), eq(startsAt), eq(startsAt.plusMinutes(30)));
     }
 
     @Test
@@ -525,7 +654,6 @@ class CalendarServiceTest {
         when(repository.visibleEvents(
                 1L, 7L, personId, "groups", from, to, true))
                 .thenReturn(List.of(eventWithResource(eventId, resourceId, personId)));
-        when(repository.attendees(1L, eventId)).thenReturn(List.of());
         when(roomAccess.viewableResourceIds(
                 1L, 7L, "groups", java.util.Set.of(resourceId)))
                 .thenReturn(java.util.Set.of());
@@ -574,6 +702,12 @@ class CalendarServiceTest {
         CalendarRepository.EventRow base = event(
                 eventId, startsAt, startsAt.plusMinutes(30), "Asia/Seoul",
                 CalendarTypes.RecurrencePattern.NONE, null, 7L, personId);
+        return withResource(base, resourceId);
+    }
+
+    private CalendarRepository.EventRow withResource(
+            CalendarRepository.EventRow base,
+            UUID resourceId) {
         return new CalendarRepository.EventRow(
                 base.eventId(), base.calendarId(), base.calendarName(), base.calendarColor(),
                 base.organizerUserId(), base.organizerPersonPublicId(), base.organizerName(),
@@ -582,6 +716,22 @@ class CalendarServiceTest {
                 base.conferenceUrl(), base.status(), base.visibility(), base.recurrence(),
                 base.recurrenceInterval(), base.recurrenceUntil(), base.responseRequired(),
                 base.myResponse(), resource(resourceId), base.version());
+    }
+
+    private CalendarRepository.EventRow recurrence(
+            CalendarRepository.EventRow source,
+            List<DayOfWeek> days,
+            Integer count) {
+        return new CalendarRepository.EventRow(
+                source.eventId(), source.calendarId(), source.calendarName(), source.calendarColor(),
+                source.organizerUserId(), source.organizerPersonPublicId(), source.organizerName(),
+                source.organizerEmail(), source.title(), source.description(), source.type(),
+                source.startsAt(), source.endsAt(), source.timeZone(), source.allDay(),
+                source.location(), source.conferenceUrl(), source.status(), source.visibility(),
+                source.recurrence(), source.recurrenceInterval(), source.recurrenceUntil(),
+                source.responseRequired(), source.myResponse(), source.resource(), source.importance(),
+                source.detailLevel(), source.starred(), source.preferenceVersion(),
+                source.accessLevel(), source.version(), days, count);
     }
 
     private CalendarRepository.ResourceRow resource(UUID resourceId) {

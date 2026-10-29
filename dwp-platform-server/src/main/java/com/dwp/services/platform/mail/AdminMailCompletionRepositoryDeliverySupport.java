@@ -354,9 +354,11 @@ class AdminMailCompletionRepositoryDeliverySupport extends AdminMailCompletionRe
                 UPDATE mail_delivery_outbox
                    SET delivery_status = 'FAILED', lease_owner = NULL, lease_expires_at = NULL,
                        last_error_code = 'ADMIN_RECONCILED_EXPIRED_LEASE',
+                       reconciliation_state = 'NOT_REQUIRED',
                        version = version + 1, updated_at = CURRENT_TIMESTAMP
                  WHERE tenant_id = ? AND delivery_id = ? AND version = ?
-                   AND delivery_status = 'LEASED' AND lease_expires_at < CURRENT_TIMESTAMP
+                   AND ((delivery_status = 'LEASED' AND lease_expires_at < CURRENT_TIMESTAMP)
+                        OR delivery_status = 'RESULT_UNKNOWN')
                    AND accepted_at IS NULL AND provider_message_ref IS NULL
                    AND request_fingerprint IS NOT NULL
                 """, tenantId, deliveryId, version);

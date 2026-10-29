@@ -92,6 +92,59 @@ class MessagingPresenceServiceTest {
     }
 
     @Test
+    void privacyOptOutWithdrawsTheExistingLeaseAndAcceptsWithoutRenewingIt() {
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ZSetOperations<String, String> leases = mock(ZSetOperations.class);
+        when(redis.opsForZSet()).thenReturn(leases);
+        when(leases.remove(KEY, "700")).thenReturn(1L);
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
+        MessagingRequestContext.set(subject(42, 700));
+        MessagingPresenceService service = new MessagingPresenceService(
+                redis,
+                true,
+                Duration.ofSeconds(75),
+                Duration.ofSeconds(20),
+                "dwp:messaging:presence:v1",
+                5_000,
+                (tenantId, userId) -> false,
+                meters,
+                Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThat(service.heartbeat()).isTrue();
+
+        verify(leases).remove(KEY, "700");
+        assertThat(meters.get("dwp.messaging.presence.heartbeat.total")
+                .tag("result", "success")
+                .counter()
+                .count()).isEqualTo(1);
+    }
+
+    @Test
+    void privacyAuthorityFailureFailsClosedAndRemovesAnyOlderLease() {
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ZSetOperations<String, String> leases = mock(ZSetOperations.class);
+        when(redis.opsForZSet()).thenReturn(leases);
+        when(leases.remove(KEY, "700")).thenReturn(1L);
+        MessagingRequestContext.set(subject(42, 700));
+        MessagingPresenceService service = new MessagingPresenceService(
+                redis,
+                true,
+                Duration.ofSeconds(75),
+                Duration.ofSeconds(20),
+                "dwp:messaging:presence:v1",
+                5_000,
+                (tenantId, userId) -> { throw new IllegalStateException("privacy db unavailable"); },
+                new SimpleMeterRegistry(),
+                Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThat(service.heartbeat()).isFalse();
+
+        verify(leases).remove(KEY, "700");
+    }
+
+    @Test
     void snapshotScoresOnlyRequestedUsersInOneBoundedBatch() {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")

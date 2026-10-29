@@ -27,8 +27,10 @@ public final class SafetyOperationsDtos {
         ACCEPTED, DISPATCHING, PARTIAL, SUCCEEDED, FAILED, RESULT_UNKNOWN
     }
     public enum AttemptState {
-        QUEUED, DISPATCHING, DELIVERED, DELIVERY_FAILED, OFFLINE_QUEUED, RESULT_UNKNOWN
+        QUEUED, DISPATCHING, DELIVERED, DELIVERY_FAILED, OFFLINE_QUEUED,
+        MANUAL_REVIEW_REQUIRED, RESULT_UNKNOWN
     }
+    public enum DispatchReviewState { NONE, MANUAL_REVIEW_REQUIRED }
     public enum SafetyResponseState { SAFE, NEEDS_HELP }
     public enum MessageDirection { USER_TO_COMMAND, COMMAND_TO_USER, COMMAND_BROADCAST }
     public enum CommandState { ACCEPTED, RUNNING, SUCCEEDED, FAILED, RESULT_UNKNOWN }
@@ -118,6 +120,8 @@ public final class SafetyOperationsDtos {
             int failedCount,
             int unknownCount,
             List<DeliveryChannel> channels,
+            DispatchReviewState reviewState,
+            int manualReviewCount,
             OffsetDateTime updatedAt) { }
 
     public record ResponseSummary(int safe, int needsHelp, int noResponse) { }

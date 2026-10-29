@@ -10,6 +10,7 @@ import org.flywaydb.core.api.MigrationVersion;
 import org.flywaydb.core.api.MigrationInfo;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.flywaydb.core.api.output.ValidateResult;
+import org.flywaydb.database.postgresql.PostgreSQLConfigurationExtension;
 
 final class FlywayControl {
     private static final String REQUIRED_VERSION = "12.11.0";
@@ -141,6 +142,10 @@ final class FlywayControl {
                 .callbacks(new org.flywaydb.core.api.callback.Callback[0])
                 .skipDefaultCallbacks(privilegedNotification)
                 .skipDefaultResolvers(false);
+        // Platform V342 uses CREATE INDEX CONCURRENTLY outside a migration transaction.
+        // A transactional advisory lock keeps a separate snapshot open and self-blocks it.
+        configuration.getConfigurationExtension(PostgreSQLConfigurationExtension.class)
+                .setTransactionalLock(false);
         if (target != null) {
             configuration.target(target);
         }

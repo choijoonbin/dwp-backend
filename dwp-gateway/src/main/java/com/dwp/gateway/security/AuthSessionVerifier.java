@@ -309,6 +309,9 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/calendar")) {
             return "APP.CALENDAR";
         }
+        if (pathFamily(path, "/api/platform/v2/calendar")) {
+            return "APP.CALENDAR";
+        }
         if (path.startsWith("/api/platform/v1/rooms")) {
             return "APP.ROOMS,APP.WORKPLACE";
         }

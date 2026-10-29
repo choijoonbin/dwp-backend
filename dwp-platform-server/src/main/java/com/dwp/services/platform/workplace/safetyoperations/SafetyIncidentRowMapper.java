@@ -94,6 +94,7 @@ final class SafetyIncidentRowMapper extends SafetyRepositorySupport {
 
     static boolean terminal(AttemptState state) {
         return state == AttemptState.DELIVERED || state == AttemptState.DELIVERY_FAILED
+                || state == AttemptState.MANUAL_REVIEW_REQUIRED
                 || state == AttemptState.RESULT_UNKNOWN;
     }
 

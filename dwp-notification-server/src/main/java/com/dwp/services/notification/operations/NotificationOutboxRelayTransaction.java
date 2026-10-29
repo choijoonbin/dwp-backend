@@ -1,6 +1,7 @@
 package com.dwp.services.notification.operations;
 
 import com.dwp.services.notification.operations.NotificationOutboxRepository.OutboxEvent;
+import com.dwp.services.notification.operations.NotificationOutboxRepository.OutboxStatus;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -68,5 +69,11 @@ public class NotificationOutboxRelayTransaction {
     public int cleanupPublished(long tenantId, Instant cutoff, int batchSize) {
         databaseScope.applyWorker(tenantId);
         return repository.cleanupPublished(tenantId, cutoff, batchSize);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public OutboxStatus status(long tenantId) {
+        databaseScope.applyWorker(tenantId);
+        return repository.status(tenantId);
     }
 }

@@ -251,7 +251,9 @@ public class NotificationStreamService {
                         envelope.arrivalIds().stream().map(UUID::toString).toList())));
     }
 
-    @Scheduled(fixedDelayString = "${dwp.notification.sse-heartbeat:15s}")
+    @Scheduled(
+            fixedDelayString = "${dwp.notification.sse-heartbeat:15s}",
+            scheduler = "notificationSseTaskScheduler")
     void heartbeat() {
         clients.forEach((key, connected) -> {
             for (Client client : List.copyOf(connected)) {

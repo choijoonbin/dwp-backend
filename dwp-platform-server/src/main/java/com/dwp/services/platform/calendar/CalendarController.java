@@ -104,6 +104,8 @@ public class CalendarController {
             @RequestHeader(value = "X-DWP-DWAI-ON-Proposal-ID", required = false) UUID dwaionProposalId,
             @RequestHeader(value = "X-DWP-DWAI-ON-Action-Key", required = false) String dwaionActionKey,
             @RequestHeader(value = "X-DWP-DWAI-ON-Handoff-Version", required = false) Long dwaionHandoffVersion,
+            @RequestHeader(value = "X-DWP-Calendar-Hard-Recheck-Token", required = false)
+                    String hardRecheckToken,
             @Valid @RequestBody CalendarDtos.CreateEventRequest request) {
         PlatformDwaionHandoff.Binding dwaionBinding = PlatformDwaionHandoff.Binding.optional(
                 dwaionHandoffId, dwaionProposalId, dwaionActionKey, dwaionHandoffVersion,
@@ -115,7 +117,8 @@ public class CalendarController {
                         mailProposalId, mailCommandId, mailProposalVersion),
                 dwaionBinding,
                 dwaionBinding == null ? null : new PlatformDwaionHandoff.Identity(
-                        authSessionId, personPublicId, roles, permissions)));
+                        authSessionId, personPublicId, roles, permissions),
+                hardRecheckToken));
     }
 
     @PutMapping("/events/{eventId}")
@@ -126,11 +129,13 @@ public class CalendarController {
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
+            @RequestHeader(value = "X-DWP-Calendar-Hard-Recheck-Token", required = false)
+                    String hardRecheckToken,
             @PathVariable UUID eventId,
             @Valid @RequestBody CalendarDtos.UpdateEventRequest request) {
         return ApiResponse.success(service.update(
                 tenantId, userId, personPublicId, eventId,
-                locale, correlationId, groupRefs, request));
+                locale, correlationId, groupRefs, request, hardRecheckToken));
     }
 
     @PostMapping("/events/{eventId}/response")
@@ -160,6 +165,24 @@ public class CalendarController {
             @PathVariable UUID eventId,
             @Valid @RequestBody CalendarDtos.VersionRequest request) {
         service.cancel(
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, groupRefs, request);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/events/{eventId}/occurrences/cancel")
+    @Operation(operationId = "cancelCalendarEventOccurrence")
+    public ApiResponse<Void> cancelOccurrence(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Person-Public-ID", required = false)
+                    UUID personPublicId,
+            @RequestHeader(value = "Accept-Language", required = false) String locale,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
+            @PathVariable UUID eventId,
+            @Valid @RequestBody CalendarDtos.CancelOccurrenceRequest request) {
+        service.cancelOccurrence(
                 tenantId, userId, personPublicId, eventId,
                 locale, correlationId, groupRefs, request);
         return ApiResponse.success(null);

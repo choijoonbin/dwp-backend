@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
@@ -69,6 +70,16 @@ final class S3AttachmentStorage implements AttachmentStorage {
             s3.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key(objectKey)).build());
         } catch (S3Exception exception) {
             throw external("The rejected attachment could not be removed.", exception);
+        }
+    }
+
+    @Override
+    public ProviderHealth health() {
+        try {
+            s3.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
+            return ProviderHealth.ready();
+        } catch (RuntimeException exception) {
+            return ProviderHealth.unavailable("S3_BUCKET_UNAVAILABLE");
         }
     }
 

@@ -31,12 +31,15 @@ class MailLifecycleServiceTest {
     private MailQueryRepository queries;
     @Mock
     private MailCommandRepository evidence;
+    @Mock
+    private MailBulkMutationReceipts bulkMutationReceipts;
 
     private MailLifecycleService service;
 
     @BeforeEach
     void setUp() {
-        service = new MailLifecycleService(lifecycle, queries, evidence);
+        service = new MailLifecycleService(
+                lifecycle, queries, evidence, bulkMutationReceipts);
     }
 
     @Test
@@ -65,6 +68,45 @@ class MailLifecycleServiceTest {
         verify(evidence).audit(
                 eq(1L), eq(7L), eq("mail.thread.trash"), eq("MAIL_THREAD"),
                 eq(threadId.toString()), eq("corr-trash"), anyMap(), anyMap());
+    }
+
+    @Test
+    void bulkArchiveUsesOneIntentAndCompletesItsItemReceipt() {
+        UUID threadId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        UUID inboxId = UUID.randomUUID();
+        UUID archiveId = UUID.randomUUID();
+        UUID intentId = UUID.randomUUID();
+        UUID itemKey = UUID.randomUUID();
+        UUID receiptId = UUID.randomUUID();
+        var before = new MailLifecycleRepository.LifecycleThread(
+                threadId, accountId, inboxId, "INBOX", null, "OPEN", 3L,
+                true, false, false, false);
+        var target = new MailLifecycleRepository.FolderTarget(
+                archiveId, accountId, "ARCHIVE", "Archive");
+        when(bulkMutationReceipts.claim(
+                1L, 7L, threadId, "ARCHIVE", 3L, intentId, itemKey))
+                .thenReturn(new MailBulkMutationReceipts.Claim(
+                        true, new MailBulkMutationReceipts.Receipt(
+                        receiptId, threadId, "ARCHIVE", 3L, intentId, itemKey,
+                        "b".repeat(64), "PENDING", null, false)));
+        when(lifecycle.visibleThread(1L, 7L, threadId)).thenReturn(Optional.of(before));
+        when(lifecycle.systemTarget(1L, 7L, accountId, "ARCHIVE"))
+                .thenReturn(Optional.of(target));
+        when(lifecycle.move(
+                1L, 7L, before, target, "ARCHIVED", inboxId, 3L)).thenReturn(1);
+        when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(
+                thread(threadId, accountId, "ARCHIVE", WorkflowState.ARCHIVED, 4L)));
+        when(bulkMutationReceipts.complete(
+                1L, 7L, receiptId, 4L, false)).thenReturn(1);
+
+        MailOrganizationDtos.LifecycleResult result = service.apply(
+                1L, 7L, threadId, "corr-bulk-archive",
+                new MailOrganizationDtos.LifecycleRequest(
+                        LifecycleAction.ARCHIVE, null, 3L, intentId, itemKey));
+
+        assertThat(result.thread().version()).isEqualTo(4L);
+        verify(bulkMutationReceipts).complete(1L, 7L, receiptId, 4L, false);
     }
 
     @Test

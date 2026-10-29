@@ -21,25 +21,30 @@ public class ApprovalNotificationKafkaConfiguration {
     @Bean
     DefaultErrorHandler notificationApprovalKafkaErrorHandler(
             KafkaTemplate<Object, Object> kafkaTemplate,
+            @Value("${dwp.notification.approval-pilot.topic:"
+                    + "dwp.approval.events.v1}") String inputTopic,
             @Value("${dwp.notification.approval-pilot.dead-letter-topic:"
                     + "dwp.approval.events.v1.DLT}") String deadLetterTopic,
             @Value("${dwp.notification.approval-pilot.retry-interval:1s}")
             Duration retryInterval,
             @Value("${dwp.notification.approval-pilot.maximum-attempts:4}")
             int maximumAttempts) {
-        if (deadLetterTopic == null || deadLetterTopic.isBlank()) {
-            throw new IllegalArgumentException("Approval notification DLT must be configured.");
-        }
+        validateTopics(inputTopic, deadLetterTopic);
         long retryCount = retryCount(maximumAttempts);
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, exception) -> new TopicPartition(
-                        deadLetterTopic.trim(), record.partition()));
+                        deadLetterTopic, record.partition()));
         DefaultErrorHandler handler = new DefaultErrorHandler(
                 recoverer,
                 new FixedBackOff(retryInterval.toMillis(), retryCount));
         handler.addNotRetryableExceptions(ApprovalNotificationEventException.class);
         return handler;
+    }
+
+    static void validateTopics(String inputTopic, String deadLetterTopic) {
+        NotificationKafkaTopicBoundary.requireDistinctCanonicalTopics(
+                inputTopic, deadLetterTopic, "Approval notification");
     }
 
     static long retryCount(int maximumAttempts) {
