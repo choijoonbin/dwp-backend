@@ -120,13 +120,20 @@ class ProductAuthorizationV51Test(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(GENERATOR.ContractError):
                 GENERATOR.build_snapshots(source)
 
-    def test_latest_auth_seed_and_service_peps_pin_v51(self) -> None:
+    def test_current_alias_is_v62_and_v51_service_peps_remain_pinned(self) -> None:
         alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
         seed = json.loads((AUTH / "product-surfaces-v1.generated.json").read_text())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual(self.v51, alias)
-        self.assertEqual(self.v51, seed)
-        self.assertEqual((51, V51_CHECKSUM, 51), (
+        latest = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v62.json").read_text()
+        )
+        historical_seed = json.loads(
+            (AUTH / "product-surfaces-v1.bundle-v51.generated.json").read_text()
+        )
+        self.assertEqual(latest, alias)
+        self.assertEqual(latest, seed)
+        self.assertEqual(self.v51, historical_seed)
+        self.assertEqual((62, latest["checksum"], 62), (
             index["latestVersion"], index["latestChecksum"], len(index["versions"]),
         ))
         for service in ("people", "time", "platform", "payroll"):

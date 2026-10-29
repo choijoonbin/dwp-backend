@@ -100,9 +100,9 @@ class JdbcPay004Store implements Pay004Store {
                                 result.getObject("case_id", UUID.class),
                                 result.getObject("worker_id", UUID.class),
                                 result.getLong("case_revision"),
-                                RetirementYearEndCase.State.valueOf(
+                                RetirementYearEndCaseContract.State.valueOf(
                                         result.getString("lifecycle_state")),
-                                RetirementYearEndCase.CountryPackState.valueOf(
+                                RetirementYearEndCaseContract.CountryPackState.valueOf(
                                         result.getString("country_pack_state")),
                                 result.getObject("effective_on", Date.class)
                                         .toLocalDate(),

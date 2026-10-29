@@ -1,6 +1,6 @@
 package com.dwp.services.people.hris.employeeservice.employeechange.approvalbridge;
 
-import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalBridgeV2;
+import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalVerificationContractV2;
 import com.dwp.platform.contracts.hris.approval.v2.HrisWorkloadProofV2;
 import java.time.Instant;
 import java.util.UUID;
@@ -35,7 +35,7 @@ final class EmployeeChangeApprovalReplayStore implements HrisWorkloadProofV2.Rep
 
     @Override
     public boolean reserve(
-            HrisApprovalBridgeV2.Endpoint endpoint,
+            HrisApprovalVerificationContractV2 endpoint,
             HrisWorkloadProofV2.ProofClaims claims) {
         Boolean result = requiresNew.execute(status -> {
             EmployeeChangeTenantScope.setLocal(jdbc, claims.tenantId());

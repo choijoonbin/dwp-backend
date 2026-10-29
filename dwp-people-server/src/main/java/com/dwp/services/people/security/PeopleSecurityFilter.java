@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 public class PeopleSecurityFilter extends OncePerRequestFilter {
 
     static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
+    static final String HRIS_NAVIGATION_LEGAL_ENTITY_TOKEN_HEADER =
+            "X-DWP-Hris-Navigation-Legal-Entity-Token";
     static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
     static final String USER_HEADER = "X-DWP-User-ID";
     static final String TENANT_HEADER = "X-DWP-Tenant-ID";
@@ -58,6 +60,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     private static final Set<String> WORKFORCE_ROLES =
             Set.of("ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
     private final String serviceToken;
+    private final String hrisNavigationLegalEntityToken;
     private final ObjectMapper objectMapper;
     private final boolean employeeChangeEnabled;
 
@@ -66,10 +69,21 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
             @Value("${dwp.people.service-token:}") String serviceToken,
             ObjectMapper objectMapper,
             @Value("${dwp.hris.employee-change.enabled:false}")
-            boolean employeeChangeEnabled) {
+            boolean employeeChangeEnabled,
+            @Value("${dwp.hris.navigation-policy.legal-entity-owner.token:}")
+            String hrisNavigationLegalEntityToken) {
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
+        this.hrisNavigationLegalEntityToken = hrisNavigationLegalEntityToken == null
+                ? "" : hrisNavigationLegalEntityToken.trim();
         this.objectMapper = objectMapper;
         this.employeeChangeEnabled = employeeChangeEnabled;
+    }
+
+    PeopleSecurityFilter(
+            String serviceToken,
+            ObjectMapper objectMapper,
+            boolean employeeChangeEnabled) {
+        this(serviceToken, objectMapper, employeeChangeEnabled, serviceToken);
     }
 
     PeopleSecurityFilter(String serviceToken, ObjectMapper objectMapper) {
@@ -125,15 +139,35 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                     "Verified HRIS approval workload authority is required.");
             return;
         }
-        if (serviceToken.isBlank()) {
-            writeError(response, ErrorCode.EXTERNAL_SERVICE_ERROR,
-                    "People service identity is not configured.");
-            return;
-        }
-        if (!constantTimeEquals(serviceToken, request.getHeader(SERVICE_TOKEN_HEADER))) {
-            writeError(response, ErrorCode.UNAUTHORIZED,
-                    "Trusted people service identity is required.");
-            return;
+        boolean legalEntityOwnerRequest = HRIS_NAVIGATION_LEGAL_ENTITY_VERIFY_PATH.equals(
+                request.getRequestURI());
+        if (legalEntityOwnerRequest) {
+            if (hrisNavigationLegalEntityToken.isBlank()) {
+                writeError(response, ErrorCode.EXTERNAL_SERVICE_ERROR,
+                        "HRIS legal-entity owner identity is not configured.");
+                return;
+            }
+            if (!constantTimeEquals(hrisNavigationLegalEntityToken,
+                    exactHeader(request, HRIS_NAVIGATION_LEGAL_ENTITY_TOKEN_HEADER))
+                    || exactHeader(request, SERVICE_TOKEN_HEADER) != null
+                    || !PLATFORM_SERVICE_IDENTITY.equals(
+                    exactHeader(request, SERVICE_IDENTITY_HEADER))) {
+                writeError(response, ErrorCode.UNAUTHORIZED,
+                        "One exact trusted Platform legal-entity owner identity is required.");
+                return;
+            }
+        } else {
+            if (serviceToken.isBlank()) {
+                writeError(response, ErrorCode.EXTERNAL_SERVICE_ERROR,
+                        "People service identity is not configured.");
+                return;
+            }
+            if (!constantTimeEquals(serviceToken,
+                    request.getHeader(SERVICE_TOKEN_HEADER))) {
+                writeError(response, ErrorCode.UNAUTHORIZED,
+                        "Trusted people service identity is required.");
+                return;
+            }
         }
         if (PRODUCT_SURFACE_ELIGIBILITY_PATH.equals(request.getRequestURI())
                 && !exactEligibilityAudience(request)) {
@@ -141,16 +175,6 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                     "One exact trusted eligibility service identity is required.");
             return;
         }
-        if (HRIS_NAVIGATION_LEGAL_ENTITY_VERIFY_PATH.equals(request.getRequestURI())
-                && (!constantTimeEquals(serviceToken,
-                        exactHeader(request, SERVICE_TOKEN_HEADER))
-                    || !PLATFORM_SERVICE_IDENTITY.equals(
-                        exactHeader(request, SERVICE_IDENTITY_HEADER)))) {
-            writeError(response, ErrorCode.UNAUTHORIZED,
-                    "One exact trusted Platform service identity is required.");
-            return;
-        }
-
         Long actorId = positiveLong(request.getHeader(USER_HEADER));
         Long tenantId = positiveLong(request.getHeader(TENANT_HEADER));
         Set<String> roles = parseRoles(request.getHeader(ROLES_HEADER));

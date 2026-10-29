@@ -30,7 +30,7 @@ public final class Hrm013WorkloadCredentialProvider {
     public AtomicGrantCredentialLease requireCurrent(
             long tenantId, String bindingId, String purpose,
             String callerWorkloadId, String ownerWorkloadId,
-            ServiceRole serviceRole) {
+            Hrm013CredentialRole serviceRole) {
         AtomicGrantCredentialLease lease = source.load(
                 tenantId, bindingId, purpose, serviceRole);
         if (lease == null || lease.tenantId() != tenantId
@@ -143,21 +143,19 @@ public final class Hrm013WorkloadCredentialProvider {
 
     @FunctionalInterface public interface LeaseSource {
         AtomicGrantCredentialLease load(
-                long tenantId, String bindingId, String purpose, ServiceRole role);
+                long tenantId, String bindingId, String purpose, Hrm013CredentialRole role);
     }
 
     @FunctionalInterface public interface NonExportableSigner {
         byte[] sign(byte[] exactInput) throws Exception;
     }
 
-    public enum ServiceRole { CALLER, OWNER }
-
     public record AtomicGrantCredentialLease(
             UUID leaseId, long leaseVersion, long tenantId, UUID grantSetId,
             long grantRevision, long tenantGrantRevision, long authorizationRevision,
             String bindingId, String purpose, String callerWorkloadId,
             String callerSpiffeId, String ownerWorkloadId, String ownerSpiffeId,
-            ServiceRole serviceRole, String businessSigningKeyId,
+            Hrm013CredentialRole serviceRole, String businessSigningKeyId,
             String businessKeyVersionId, String businessPublicJwkThumbprint,
             NonExportableSigner businessPrivateKeyHandle,
             Instant notBefore, Instant expiresAt, String leaseDigest) {

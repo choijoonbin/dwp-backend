@@ -309,6 +309,68 @@ final class OidcPolicy {
         self.assertTrue(any("Java files owned by sourceService" in value
                             for value in violations))
 
+    def test_accepts_wired_internal_http_support_markers(self) -> None:
+        internal_source = self.client_source.replace(
+            'policy.requireAllowedEndpoint("https://idp.example.test");',
+            'policy.requireAllowedEndpoint("/internal/platform/v1/evaluate");\n'
+            '        OutboundHttpHeaders.propagateObservability(new HttpHeaders());\n'
+            '        String token = "X-DWP-Product-Surface-Token";'
+        )
+        self.write(self.CLIENT, internal_source)
+        self.entry.update({
+            "classification": "internal-composite-client",
+            "interfaceType": "internal-http",
+            "targetServices": ["dwp-platform-server"],
+            "purpose": "Call an exact Platform owner endpoint.",
+            "auth": "Dedicated product-surface credential.",
+            "requiredMarkers": [
+                "/internal/platform/v1/evaluate",
+                "X-DWP-Product-Surface-Token",
+                "OutboundHttpHeaders.propagateObservability",
+                "dwp.auth.oidc.allowed-hosts",
+            ],
+            "forbiddenMarkers": ["/api/"],
+        })
+
+        self.assertEqual([], CHECKER_MODULE.policy_manifest_violations(self.policy))
+        self.assertEqual([], CHECKER_MODULE.http_client_policy_violations(self.policy))
+
+    def test_accepts_reverse_wired_internal_transport_factory(self) -> None:
+        self.write(self.CLIENT, '''package com.dwp.services.auth.service;
+final class OidcClient { private final OidcPolicy policy = null; }
+''')
+        factory_source = self.configuration_source.replace(
+            "final class OidcPolicy {",
+            "import java.net.http.HttpClient;\nfinal class OidcPolicy {"
+        ) + '''
+// executable contract markers live in this transport factory.
+final class InternalFactoryMarkers {
+    String path = "/internal/platform/v1/evaluate";
+    String token = "X-DWP-Product-Surface-Token";
+    void trace() { OutboundHttpHeaders.propagateObservability(new HttpHeaders()); }
+}
+'''
+        self.write(self.CONFIGURATION, factory_source)
+        self.entry.update({
+            "classification": "internal-transport-factory",
+            "interfaceType": "internal-http",
+            "targetServices": ["dwp-platform-server"],
+            "path": self.CONFIGURATION,
+            "requiredMarkerSources": [self.CLIENT],
+            "purpose": "Build the bounded transport used by the internal client.",
+            "auth": "Dedicated product-surface credential.",
+            "requiredMarkers": [
+                "/internal/platform/v1/evaluate",
+                "X-DWP-Product-Surface-Token",
+                "OutboundHttpHeaders.propagateObservability",
+                "OidcPolicy",
+            ],
+            "forbiddenMarkers": ["/api/"],
+        })
+
+        self.assertEqual([], CHECKER_MODULE.policy_manifest_violations(self.policy))
+        self.assertEqual([], CHECKER_MODULE.http_client_policy_violations(self.policy))
+
 
 class MailProposalOutcomeBoundaryTest(unittest.TestCase):
 
@@ -694,6 +756,7 @@ class MeetingOwnerTokenBoundaryTest(unittest.TestCase):
         })
         self.policy["crossDatabaseExceptions"] = []
         self.policy["metadataScanners"] = []
+        self.policy["internalOwnerEndpoints"] = []
         self.entries = {entry["id"]: entry for entry in self.policy["httpClients"]}
         self.sources = {}
         for entry in self.policy["httpClients"]:
@@ -888,16 +951,16 @@ final class UnregisteredMeetingClient {
     def test_auth_owner_must_route_and_validate_exact_meeting_authority_credentials(self) -> None:
         relative = self.entries[self.CONTRACT_IDS[1]]["ownerToken"]["securitySource"]
         cases = [
-            ("MEETING_SERVICE_IDENTITY.equals(identity)", "GATEWAY_SERVICE_IDENTITY.equals(identity)"),
-            ("GATEWAY_SERVICE_IDENTITY.equals(identity)", "true"),
-            ("PLATFORM_SERVICE_IDENTITY.equals(identity)", "true"),
+            ("MEETING_SERVICE_IDENTITY.equals(identity)",
+             "(MEETING_SERVICE_IDENTITY.equals(identity) || GATEWAY_SERVICE_IDENTITY.equals(identity))"),
             ("MEETING_FOLLOWUP_PATH)", "OTHER_PATH)"),
             ('"POST".equals(request.getMethod())', '"GET".equals(request.getMethod())'),
             ("MEETING_FOLLOWUP_PATH.equals(request.getRequestURI())", "true"),
             ("absentHeader(request, TOKEN_HEADER)", "true"),
+            ("absentHeader(request, HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER)", "true"),
             ("matches(expectedMeetingFollowupToken, meetingFollowupToken)", "true"),
             ("request, MEETING_FOLLOWUP_TOKEN_HEADER", "request, TOKEN_HEADER"),
-            ("if (!productSurfaceCaller && !meeting)", "if (false)"),
+            ("if (!meeting)", "if (false)"),
             ("MessageDigest.isEqual(", "insecureEquals("),
             ("values.size() != 1", "false"),
         ]
@@ -945,7 +1008,7 @@ final class UnregisteredMeetingClient {
     def test_auth_denial_must_set_unauthorized_status_and_return_before_filter_chain(self) -> None:
         relative = self.entries[self.CONTRACT_IDS[1]]["ownerToken"]["securitySource"]
         source = self.sources[relative]
-        start = source.index("if (!productSurfaceCaller && !meeting) {")
+        start = source.index("if (!meeting) {")
         end = source.index("\n            filterChain.doFilter(request, response);", start)
         guard = source[start:end]
         status = "response.setStatus(ErrorCode.UNAUTHORIZED.getHttpStatus().value());"
@@ -962,12 +1025,10 @@ final class UnregisteredMeetingClient {
         auth = self.entries[self.CONTRACT_IDS[1]]["ownerToken"]["securitySource"]
         notification = self.entries[self.CONTRACT_IDS[0]]["ownerToken"]["securitySource"]
         meeting_match = "matches(expectedMeetingFollowupToken, meetingFollowupToken);"
-        gateway_match = "matches(expectedToken, productSurfaceToken);"
         producer_match = "constantTimeEquals(expectedToken, presentedToken);"
         cases = [
             (auth, meeting_match, meeting_match[:-1] + " || true;"),
             (auth, meeting_match, meeting_match[:-1] + " || productSurfaceCaller;"),
-            (auth, gateway_match, gateway_match[:-1] + " || true;"),
             (auth, "actual.getBytes(StandardCharsets.UTF_8));",
              "actual.getBytes(StandardCharsets.UTF_8)) || true;"),
             (notification, producer_match, producer_match[:-1] + " || true;"),

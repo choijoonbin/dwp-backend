@@ -1,13 +1,11 @@
 package com.dwp.services.payroll.configuration;
 
 import static com.dwp.services.payroll.configuration.PayrollConfigurationValueValidation.*;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.*;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonValue;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -36,63 +34,6 @@ public final class PayrollConfigurationModels {
     public static final int AST_REGISTRY_VERSION = PayrollConfigurationValueValidation.AST_REGISTRY_VERSION;
 
     private PayrollConfigurationModels() {
-    }
-
-    public enum PayValueType {
-        BOOLEAN,
-        NUMBER,
-        RATE,
-        MONEY,
-        QUANTITY_MINUTE,
-        QUANTITY_HOUR,
-        QUANTITY_DAY,
-        UNIT_PRICE_PER_MINUTE,
-        UNIT_PRICE_PER_HOUR,
-        UNIT_PRICE_PER_DAY;
-
-        boolean numeric() {
-            return this != BOOLEAN;
-        }
-
-        boolean currencyBearing() {
-            return this == MONEY || name().startsWith("UNIT_PRICE_");
-        }
-    }
-
-    public enum FormulaOperator {
-        LITERAL,
-        INPUT,
-        ADD,
-        SUBTRACT,
-        MULTIPLY,
-        DIVIDE,
-        MIN,
-        MAX,
-        COMPARE_EQ,
-        COMPARE_LT,
-        AND,
-        OR,
-        IF,
-        ROUND,
-        CONVERT_MINUTE_HOUR,
-        LOOKUP,
-        SUM,
-        DATE_DIFFERENCE;
-
-        @JsonCreator
-        public static FormulaOperator fromJson(String value) {
-            try {
-                return FormulaOperator.valueOf(value);
-            } catch (IllegalArgumentException | NullPointerException exception) {
-                throw new IllegalArgumentException(
-                        "FUNCTION_NOT_ALLOWED: formula operator is not allowlisted", exception);
-            }
-        }
-
-        @JsonValue
-        public String jsonValue() {
-            return name();
-        }
     }
 
     public enum Lifecycle {
@@ -138,60 +79,6 @@ public final class PayrollConfigurationModels {
         TIMEOUT,
         SANDBOX_VIOLATION,
         FUNCTION_NOT_ALLOWED
-    }
-
-    public record OwnerRef(
-            @NotBlank String owner,
-            @NotBlank String schemaId,
-            @NotNull UUID publicId,
-            @Min(0) long revision,
-            @NotBlank @Pattern(regexp = "[0-9a-f]{64}") String contentHash,
-            Instant validFrom,
-            Instant validToExclusive) {
-
-        public OwnerRef {
-            owner = PayrollConfigurationValueValidation.normalizeOwner(owner);
-            schemaId = PayrollConfigurationValueValidation.ownerRefSchemaId(schemaId, publicId, revision);
-            contentHash = PayrollConfigurationValueValidation.ownerRefContentHash(contentHash, validFrom, validToExclusive);
-        }
-    }
-
-    public record FormulaNode(
-            @NotBlank @Pattern(regexp = "[A-Za-z][A-Za-z0-9_]{0,63}") String nodeId,
-            @NotNull FormulaOperator operator,
-            @NotNull @Size(max = 3) List<@NotBlank String> arguments,
-            @NotNull PayValueType returnType,
-            Object value,
-            String currency,
-            String inputKey,
-            @Valid OwnerRef roundingRef,
-            @Valid OwnerRef lookupRef,
-            String collectionInputKey) {
-
-        public FormulaNode {
-            nodeId = requireCode(nodeId, "nodeId");
-            Objects.requireNonNull(operator, "operator");
-            arguments = PayrollConfigurationValueValidation.formulaNodeArguments(arguments, returnType);
-            currency = normalizeCurrency(currency);
-            inputKey = normalizeInputKey(inputKey, "inputKey");
-            collectionInputKey = normalizeInputKey(collectionInputKey, "collectionInputKey");
-        }
-    }
-
-    @JsonDeserialize(using = PayFormulaAstDeserializer.class)
-    public record PayFormulaAst(
-            @NotBlank String registryId,
-            @Positive int registryVersion,
-            @NotNull PayValueType declaredReturnType,
-            @NotBlank String rootNodeId,
-            @NotNull @Size(min = 1, max = 2048) List<@Valid FormulaNode> nodes) {
-
-        public PayFormulaAst {
-            registryId = PayrollConfigurationValueValidation.payFormulaAstRegistryId(registryId, registryVersion, declaredReturnType);
-            rootNodeId = requireCode(rootNodeId, "rootNodeId");
-            nodes = PayrollConfigurationWorkbenchValidation.payFormulaAstNodes(
-                    nodes);
-        }
     }
 
     public record RoundingPolicy(

@@ -44,13 +44,13 @@ class PayrollCalculationSecurityContractTest {
             UUID.fromString("00000000-0000-0000-0000-000000001101");
 
     @Test
-    void v41RoutesCapabilitiesPurposeAndPopulationsAreExact() {
+    void v62RoutesCapabilitiesPurposeAndPopulationsAreExact() {
         PayrollV41PepRegistry registry = registry();
-        assertThat(PayrollV41PepRegistry.AUTHORIZATION_VERSION).isEqualTo(41);
+        assertThat(PayrollV41PepRegistry.AUTHORIZATION_VERSION).isEqualTo(62);
         assertThat(PayrollV41PepRegistry.PROJECTION_CHECKSUM)
-                .isEqualTo("211067fd8550388691f08ac5172257bbd7164a2942d39119415dc55a6e209206");
+                .isEqualTo("cacfb42a68eaff23952c34e9b86a0e2f36f52930b5b851d6cdfc4f9aa687965c");
         assertThat(PayrollV41PepRegistry.REGISTRY_CHECKSUM)
-                .isEqualTo("026157acf598ebabf156b40e3c084c40d52346ebfd2019e2476f30ecdd2b8d93");
+                .isEqualTo("cb370fd02a896452a64187fca8afb8bb3e3d281e490fba02e76f7a3c0d7f9770");
 
         assertRoute(registry, "POST", "/v1/runs/" + RUN_ID + "/attempts",
                 "/v1/runs/{runId}/attempts",
@@ -59,7 +59,9 @@ class PayrollCalculationSecurityContractTest {
                 Map.of("hcm.operations.payroll-run.execute",
                         "ACTION.HRIS_PAYROLL_RUN:EXECUTE"),
                 "PAYROLL_PROCESSING", Set.of("LEGAL_ENTITY", "PAY_GROUP"),
-                Set.of("PAY_INPUT", "PAY_RESULT"), false, false);
+                Set.of("PAY_INPUT", "PAY_RESULT"), true, false);
+        assertThat(registry.binding(PayrollCalculationRoute.CALCULATE)
+                .activeAccessModes()).containsExactly("ELEVATED");
         assertRoute(registry, "GET", "/v1/runs/" + RUN_ID,
                 "/v1/runs/{runId}",
                 PayrollCalculationAuthority.Action.RUN_VIEW,

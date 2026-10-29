@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -113,26 +115,35 @@ class GovernedHttpMeetingInvitationNotificationGatewayTest {
                                 "x-dwp-source-service", "traceparent", "tracestate"));
     }
 
-    @Test
-    void preparationContractsExactlyMatchTheRegisteredNotificationSourceTypes()
+    @ParameterizedTest
+    @CsvSource({
+            "MEETING_SCHEDULED,meetings.meeting.scheduled.v1,"
+                    + "MEETINGS.INVITATION_CREATED,true",
+            "MEETING_RESCHEDULED,meetings.meeting.rescheduled.v1,"
+                    + "MEETINGS.INVITATION_RESCHEDULED,true",
+            "MEETING_CANCELLED,meetings.meeting.cancelled.v1,"
+                    + "MEETINGS.INVITATION_CANCELLED,false",
+            "PREPARATION_MATERIAL_ADDED,meetings.meeting.preparation-material-added.v1,"
+                    + "MEETINGS.PREPARATION_MATERIAL_ADDED,false",
+            "PREPARATION_MATERIAL_REMOVED,meetings.meeting.preparation-material-removed.v1,"
+                    + "MEETINGS.PREPARATION_MATERIAL_REMOVED,false"
+    })
+    void eventContractsExactlyMatchTheRegisteredNotificationSourceTypes(
+            String eventType,
+            String sourceEventType,
+            String typeKey,
+            boolean actionRequired)
             throws Exception {
         CapturingHttpClient client = new CapturingHttpClient();
         client.respond(201, "application/json", response(false, 1, NOTIFICATION_ID)
                 .getBytes(StandardCharsets.UTF_8));
 
-        adapter(client).deliver(claim("PREPARATION_MATERIAL_ADDED"));
-        assertThat(mapper.readTree(client.requestBody()).path("sourceEventType").asText())
-                .isEqualTo("meetings.meeting.preparation-material-added.v1");
-        assertThat(mapper.readTree(client.requestBody()).path("typeKey").asText())
-                .isEqualTo("MEETINGS.PREPARATION_MATERIAL_ADDED");
-        assertThat(mapper.readTree(client.requestBody()).path("actionRequired").asBoolean())
-                .isFalse();
+        adapter(client).deliver(claim(eventType));
 
-        adapter(client).deliver(claim("PREPARATION_MATERIAL_REMOVED"));
-        assertThat(mapper.readTree(client.requestBody()).path("sourceEventType").asText())
-                .isEqualTo("meetings.meeting.preparation-material-removed.v1");
-        assertThat(mapper.readTree(client.requestBody()).path("typeKey").asText())
-                .isEqualTo("MEETINGS.PREPARATION_MATERIAL_REMOVED");
+        JsonNode request = mapper.readTree(client.requestBody());
+        assertThat(request.path("sourceEventType").asText()).isEqualTo(sourceEventType);
+        assertThat(request.path("typeKey").asText()).isEqualTo(typeKey);
+        assertThat(request.path("actionRequired").asBoolean()).isEqualTo(actionRequired);
     }
 
     @Test
@@ -241,6 +252,23 @@ class GovernedHttpMeetingInvitationNotificationGatewayTest {
                 .extracting("failureCode").isEqualTo("NOTIFICATION_RESPONSE_INVALID");
         assertThat(client.responseBytesRead()).isZero();
         assertThat(client.responseClosed()).isTrue();
+
+        client.respond(201, "application/json", new byte[1_025]);
+        assertThatThrownBy(() -> new GovernedHttpMeetingInvitationNotificationGateway(
+                small, mapper, client).deliver(claim("MEETING_SCHEDULED")))
+                .isInstanceOf(MeetingInvitationDeliveryException.class)
+                .extracting("failureCode").isEqualTo("NOTIFICATION_RESPONSE_INVALID");
+        assertThat(client.responseBytesRead()).isEqualTo(1_025);
+        assertThat(client.responseClosed()).isTrue();
+
+        client.respond(201, "application/json", response(false, 1, NOTIFICATION_ID)
+                .replace("\"success\":true}", "\"success\":true,\"unexpected\":true}")
+                .getBytes(StandardCharsets.UTF_8));
+        assertFailure(client, "NOTIFICATION_RESPONSE_INVALID", false);
+
+        client.respond(201, "application/json", (response(false, 1, NOTIFICATION_ID) + " true")
+                .getBytes(StandardCharsets.UTF_8));
+        assertFailure(client, "NOTIFICATION_RESPONSE_INVALID", false);
     }
 
     @Test
@@ -260,11 +288,48 @@ class GovernedHttpMeetingInvitationNotificationGatewayTest {
         assertThatThrownBy(() -> new GovernedHttpMeetingInvitationNotificationGateway(
                 properties, mapper, new CapturingHttpClient()))
                 .isInstanceOf(IllegalArgumentException.class);
+
+        properties.setServiceToken("x".repeat(31));
+        assertThatThrownBy(() -> new GovernedHttpMeetingInvitationNotificationGateway(
+                properties, mapper, new CapturingHttpClient()))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        properties.setServiceToken("meeting-notification-service\ntoken");
+        assertThatThrownBy(() -> new GovernedHttpMeetingInvitationNotificationGateway(
+                properties, mapper, new CapturingHttpClient()))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        properties.setServiceToken("meeting-notification,service-token");
+        assertThatThrownBy(() -> new GovernedHttpMeetingInvitationNotificationGateway(
+                properties, mapper, new CapturingHttpClient()))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        properties.setServiceToken("x".repeat(513));
+        assertThatThrownBy(() -> new GovernedHttpMeetingInvitationNotificationGateway(
+                properties, mapper, new CapturingHttpClient()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsUnsupportedEventBeforeAnyRemoteRequest() {
+        CapturingHttpClient client = new CapturingHttpClient();
+
+        assertFailure(client, "NOTIFICATION_REQUEST_INVALID", false, "UNSUPPORTED_EVENT");
+
+        assertThat(client.sendCount()).isZero();
     }
 
     private void assertFailure(
             CapturingHttpClient client, String code, boolean retryable) {
-        assertThatThrownBy(() -> adapter(client).deliver(claim("MEETING_SCHEDULED")))
+        assertFailure(client, code, retryable, "MEETING_SCHEDULED");
+    }
+
+    private void assertFailure(
+            CapturingHttpClient client,
+            String code,
+            boolean retryable,
+            String eventType) {
+        assertThatThrownBy(() -> adapter(client).deliver(claim(eventType)))
                 .isInstanceOfSatisfying(MeetingInvitationDeliveryException.class, error -> {
                     assertThat(error.failureCode()).isEqualTo(code);
                     assertThat(error.retryable()).isEqualTo(retryable);

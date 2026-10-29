@@ -57,7 +57,7 @@ class CompensationPlanSnapshotOwnerHttpClientTest {
         String path = CompensationPlanSnapshotOwnerHttpClient.PATH_PREFIX + SNAPSHOT;
         String compact = tokens.issue(
                 request,
-                new CompensationPlanSnapshotOwnerHttpClient.OwnerGrant(3, 9),
+                new CompensationPlanOwnerWorkloadContract.OwnerGrant(3, 9),
                 path,
                 NOW);
 

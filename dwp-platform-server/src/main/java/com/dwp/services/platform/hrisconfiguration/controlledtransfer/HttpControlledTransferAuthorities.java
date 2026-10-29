@@ -2,6 +2,7 @@ package com.dwp.services.platform.hrisconfiguration.controlledtransfer;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.http.OutboundHttpHeaders;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -37,6 +38,8 @@ final class HttpControlledTransferAuthorities implements
             "/internal/security/v1/controlled-transfers/malware-scans:verify";
     static final String EGRESS_PATH =
             "/internal/security/v1/controlled-transfers/egress-policies:authorize";
+    static final String AUTHORITY_TOKEN_HEADER =
+            "X-DWP-Controlled-Transfer-Authority-Token";
     private static final String SERVICE_IDENTITY = "dwp-platform-server";
     private static final long MAX_TIMEOUT_MILLIS = 5_000;
 
@@ -88,8 +91,10 @@ final class HttpControlledTransferAuthorities implements
             T result = authority.post().uri(path)
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
-                    .header("X-DWP-Service-Token", serviceToken)
+                    .header(AUTHORITY_TOKEN_HEADER, serviceToken)
                     .header("X-DWP-Service-Identity", SERVICE_IDENTITY)
+                    .headers(headers ->
+                            OutboundHttpHeaders.propagateObservability(headers))
                     .body(body)
                     .retrieve()
                     .body(responseType);

@@ -141,7 +141,8 @@ final class AuthHrisExperienceRecipientAuthority
         }
 
         ResponseEntity<String> response = auth.post().uri(AUTHORITY_PATH)
-                .headers(OutboundHttpHeaders::propagateObservability)
+                .headers(headers ->
+                        OutboundHttpHeaders.propagateObservability(headers))
                 .header(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY)
                 .header(RECIPIENT_TOKEN_HEADER, token)
                 .contentType(MediaType.APPLICATION_JSON)

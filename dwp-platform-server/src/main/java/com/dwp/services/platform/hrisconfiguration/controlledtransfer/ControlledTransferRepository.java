@@ -3,7 +3,6 @@ package com.dwp.services.platform.hrisconfiguration.controlledtransfer;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.hrisconfiguration.controlledtransfer.ControlledTransferDtos.*;
@@ -20,30 +19,6 @@ interface ControlledTransferRepository {
             String filter,
             Cursor cursor,
             int limit);
-
-    record AccessSeal(
-            long tenantId,
-            UUID subjectPrincipalPublicId,
-            String populationScopeDigest,
-            String populationKind,
-            Set<String> projectionFieldGroups,
-            long fieldPolicyRevision,
-            long authorizationRevision,
-            String routeContractKey,
-            String contextKey,
-            String contextScopeKey,
-            String decisionRevision,
-            String purposeCode,
-            String authorityDigest,
-            OffsetDateTime authorityFreshUntil,
-            UUID correlationId,
-            String idempotencyKey) {
-
-        public AccessSeal {
-            projectionFieldGroups = projectionFieldGroups == null
-                    ? Set.of() : Set.copyOf(projectionFieldGroups);
-        }
-    }
 
     record ReplayProbe(
             AccessSeal access,

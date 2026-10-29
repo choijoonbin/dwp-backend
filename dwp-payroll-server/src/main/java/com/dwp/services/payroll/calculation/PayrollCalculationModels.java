@@ -1,8 +1,11 @@
 package com.dwp.services.payroll.calculation;
 
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.Category;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.FormulaBinding;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.RoundingStage;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.dwp.services.payroll.security.PayrollStepUpEvidence;
 
 import java.math.BigDecimal;
@@ -46,29 +49,6 @@ final class PayrollCalculationModels {
 
         String originatingAction() {
             return originatingAction;
-        }
-    }
-
-    @JsonPropertyOrder({"reasonCode", "approvalReceiptId", "comment"})
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonDeserialize(using = ActionCommandDeserializer.class)
-    record ActionCommand(
-            String reasonCode,
-            String approvalReceiptId,
-            String comment) {
-
-        ActionCommand {
-            codePoints(reasonCode, 1, 64, "reasonCode");
-            if (approvalReceiptId != null) {
-                if (!approvalReceiptId.matches(
-                        "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
-                                + "[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}")) {
-                    throw new IllegalArgumentException(
-                            "approvalReceiptId must be a UUID");
-                }
-                UUID.fromString(approvalReceiptId);
-            }
-            codePoints(comment, 0, 1000, "comment");
         }
     }
 
@@ -238,13 +218,10 @@ final class PayrollCalculationModels {
             String payloadDigest) {
     }
 
-    record FormulaBinding(UUID formulaId, long version, String astDigest) {
-    }
-
     record QuantizationBinding(
             int sequence,
             Integer parentSequence,
-            PayrollCalculationSemanticMappingPort.RoundingStage stage,
+            RoundingStage stage,
             FormulaBinding formula,
             int scale,
             java.math.RoundingMode mode,
@@ -279,7 +256,7 @@ final class PayrollCalculationModels {
             UUID elementId,
             long elementVersion,
             String elementSemanticDigest,
-            PayrollCalculationSemanticMappingPort.Category category,
+            Category category,
             String valueCurrencyMappingId,
             String valueCurrencyMappingDigest,
             List<FormulaBinding> formulaDependencies,
@@ -333,7 +310,7 @@ final class PayrollCalculationModels {
             UUID formulaId,
             long formulaVersion,
             String formulaAstDigest,
-            PayrollCalculationSemanticMappingPort.Category category,
+            Category category,
             String currency,
             BigDecimal amount,
             String formulaInputDigest,
@@ -358,7 +335,7 @@ final class PayrollCalculationModels {
             int sequence,
             UUID parentTraceId,
             String semanticBindingDigest,
-            PayrollCalculationSemanticMappingPort.RoundingStage stage,
+            RoundingStage stage,
             UUID formulaId,
             Long formulaVersion,
             String formulaAstDigest,
@@ -474,18 +451,6 @@ final class PayrollCalculationModels {
         if (value == null) return null;
         if (value.isBlank()) return null;
         return normalizeRequired(value, maximum, field);
-    }
-
-    private static void codePoints(
-            String value, int minimum, int maximum, String field) {
-        if (value == null) {
-            if (minimum == 0) return;
-            throw new IllegalArgumentException(field + " is required");
-        }
-        int length = value.codePointCount(0, value.length());
-        if (length < minimum || length > maximum) {
-            throw new IllegalArgumentException(field + " length is invalid");
-        }
     }
 
     static void digest(String value, String field) {

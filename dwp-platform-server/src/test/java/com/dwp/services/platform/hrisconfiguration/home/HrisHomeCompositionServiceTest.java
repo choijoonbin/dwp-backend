@@ -288,7 +288,7 @@ class HrisHomeCompositionServiceTest {
         HrisHomeContributionMaterializationV1 people = defaults().get(Module.HRM);
         Map<Module, OwnerAuthority> owners = Map.of(Module.HRM, owner(people));
         AtomicInteger checks = new AtomicInteger();
-        HrisHomeCompositionPorts.CurrentAuthorityGuard guard = expected -> {
+        HrisHomeAuthorityContract.CurrentAuthorityGuard guard = expected -> {
             assertThat(expected.tenantId()).isEqualTo(TENANT_ID);
             assertThat(expected.subjectPrincipalPublicId()).isEqualTo(SUBJECT);
             assertThat(expected.browserAudience()).isEqualTo(BrowserAudience.SELF);
@@ -482,7 +482,7 @@ class HrisHomeCompositionServiceTest {
 
     private CurrentViewAuthority authority(
             Map<Module, OwnerAuthority> owners,
-            HrisHomeCompositionPorts.CurrentAuthorityGuard guard) {
+            HrisHomeAuthorityContract.CurrentAuthorityGuard guard) {
         return new CurrentViewAuthority(
                 TENANT_ID, SUBJECT, BrowserAudience.SELF,
                 101, "f".repeat(64), 102, 103, 104, owners, guard);

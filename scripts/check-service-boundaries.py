@@ -180,6 +180,13 @@ INTERNAL_PURPOSE_TOKEN_HEADERS = PURPOSE_TOKEN_HEADERS | {
     "X-DWP-Work-Source-Token",
     "X-DWP-Product-Surface-Token",
     "X-DWP-Workflow-Worker-Token",
+    "X-DWP-Controlled-Transfer-Authority-Token",
+    "X-DWP-Hris-Navigation-Legal-Entity-Token",
+    "X-DWP-Hris-Origin-Authority-Token",
+    "X-DWP-Hris-Recipient-Authority-Token",
+    "HrisReferenceConfigurationProofIssuerV1",
+    "HrisWorkloadProofV2",
+    "Hrm013WorkloadProofV1",
 }
 MAIL_PROPOSAL_OUTCOME_CLIENT = {
     "id": "people-platform-mail-proposal-outcomes",
@@ -1279,30 +1286,28 @@ def owner_token_source_violations(entry: dict[str, Any], source: str) -> list[st
         }
         patterns = {
             "security configuration registration": r"@Configuration\s+public\s+class\s+ProductSurfaceInternalSecurityConfig",
-            "security chain bean": r"@Bean\s+@Order\(\s*0\s*\)\s+SecurityFilterChain\s+productSurfaceInternalSecurityFilterChain\(",
+            "security chain bean": r"@Bean\s+@Order\(\s*0\s*\)\s+SecurityFilterChain\s+meetingFollowupInternalSecurityFilterChain\(",
+            "dedicated filter class": (
+                r"static\s+final\s+class\s+MeetingFollowupTokenFilter\s+extends\s+OncePerRequestFilter"
+            ),
             "dedicated filter installation": (
-                r"\.addFilterBefore\(\s*new\s+ProductSurfaceTokenFilter\("
-                r"\s*productSurfaceToken\s*,\s*meetingFollowupAuthorityToken\s*,\s*objectMapper\s*\)"
+                r"\.addFilterBefore\(\s*new\s+MeetingFollowupTokenFilter\("
+                r"\s*meetingFollowupAuthorityToken\s*,\s*objectMapper\s*\)"
                 r"\s*,\s*AnonymousAuthenticationFilter\.class\s*\)"
             ),
-            "security chain route": r"\.securityMatcher\([^)]*\bMEETING_FOLLOWUP_PATH\s*\)",
+            "security chain route": r"\.securityMatcher\(\s*MEETING_FOLLOWUP_PATH\s*\)",
             "Meeting identity binding": r"\bMEETING_SERVICE_IDENTITY\.equals\(\s*identity\s*\)",
             "exact owner route": r"\bMEETING_FOLLOWUP_PATH\.equals\(\s*request\.getRequestURI\(\)\s*\)",
-            "Gateway credential exclusion": r"\babsentHeader\(\s*request\s*,\s*TOKEN_HEADER\s*\)",
+            "product-surface credential exclusion": r"\babsentHeader\(\s*request\s*,\s*TOKEN_HEADER\s*\)",
+            "HRIS credential exclusion": r"\babsentHeader\(\s*request\s*,\s*HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER\s*\)",
             "dedicated credential comparison": r"\bmatches\(\s*expectedMeetingFollowupToken\s*,\s*meetingFollowupToken\s*\)",
             "dedicated credential input": r"\bexactHeader\(\s*request\s*,\s*MEETING_FOLLOWUP_TOKEN_HEADER\s*\)",
-            "conjunctive product-surface caller exclusion": (
-                r"\bboolean\s+productSurfaceCaller\s*=\s*\(\s*"
-                r"GATEWAY_SERVICE_IDENTITY\.equals\(\s*identity\s*\)"
-                r"\s*\|\|\s*PLATFORM_SERVICE_IDENTITY\.equals\(\s*identity\s*\)\s*\)"
-                r"\s*&&\s*!MEETING_FOLLOWUP_PATH\.equals\(\s*request\.getRequestURI\(\)\s*\)"
-                r"\s*&&\s*absentHeader\(\s*request\s*,\s*MEETING_FOLLOWUP_TOKEN_HEADER\s*\)"
-                r"\s*&&\s*matches\(\s*expectedToken\s*,\s*productSurfaceToken\s*\)\s*;"
-            ),
             "unverified identity rejection": (
-                r"\bif\s*\(\s*!productSurfaceCaller\s*&&\s*!meeting\s*\)\s*\{"
+                r"\bif\s*\(\s*!meeting\s*\)\s*\{"
                 r"\s*response\.setStatus\(\s*ErrorCode\.UNAUTHORIZED\.getHttpStatus\(\)\.value\(\)\s*\)"
-                r"[\s\S]*?\breturn\s*;\s*\}\s*filterChain\.doFilter\(\s*request\s*,\s*response\s*\)"
+                r"[\s\S]*?\breturn\s*;\s*\}\s*request\.setAttribute\("
+                r"\s*AUTHENTICATED_SERVICE_IDENTITY_ATTRIBUTE\s*,\s*identity\s*\)\s*;"
+                r"\s*filterChain\.doFilter\(\s*request\s*,\s*response\s*\)"
             ),
             "constant-time credential comparison": (
                 r"\breturn\s*!expected\.isBlank\(\)\s*&&\s*actual\s*!=\s*null"
@@ -1316,6 +1321,7 @@ def owner_token_source_violations(entry: dict[str, Any], source: str) -> list[st
             r'\s*&&\s*"POST"\.equals\(\s*request\.getMethod\(\)\s*\)'
             r'\s*&&\s*MEETING_FOLLOWUP_PATH\.equals\(\s*request\.getRequestURI\(\)\s*\)'
             r'\s*&&\s*absentHeader\(\s*request\s*,\s*TOKEN_HEADER\s*\)'
+            r'\s*&&\s*absentHeader\(\s*request\s*,\s*HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER\s*\)'
             r'\s*&&\s*matches\(\s*expectedMeetingFollowupToken\s*,\s*meetingFollowupToken\s*\)\s*;',
             security
         ):
@@ -1511,9 +1517,9 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                 )
                 required_marker_sources = entry.get("requiredMarkerSources")
                 if required_marker_sources is not None:
-                    if interface_type != "external-connector":
+                    if interface_type not in {"external-connector", "internal-http"}:
                         violations.append(
-                            f"{section}:{entry_id} requiredMarkerSources is only valid for external-connector"
+                            f"{section}:{entry_id} requiredMarkerSources is only valid for HTTP client contracts"
                         )
                     if (not isinstance(required_marker_sources, list)
                             or not required_marker_sources
@@ -1897,7 +1903,9 @@ def http_client_policy_violations(policy: dict[str, Any]) -> list[str]:
                 support_source = java_without_comments(
                     support_file.read_text(encoding="utf-8")
                 )
-                if not re.search(rf"\b{re.escape(support_path.stem)}\b", client_code):
+                support_code = JAVA_NON_CODE_RE.sub(" ", support_source)
+                if (not re.search(rf"\b{re.escape(support_path.stem)}\b", client_code)
+                        and not re.search(rf"\b{re.escape(relative.stem)}\b", support_code)):
                     violations.append(
                         f"{relative} ({contract['classification']}) does not wire required marker source {support_path}"
                     )

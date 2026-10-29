@@ -92,7 +92,7 @@ final class EmploymentEventPublicationEvidence {
 
     void appendApprovalRequest(
             long tenantId,
-            EmploymentEventRepository.EventRow event,
+            EmploymentEventPublicationContract.EventView event,
             UUID correlationId,
             String payloadJson) {
         UUID outboxId = UUID.nameUUIDFromBytes(
@@ -117,7 +117,7 @@ final class EmploymentEventPublicationEvidence {
             long tenantId,
             long actor,
             String action,
-            EmploymentEventRepository.EventRow event,
+            EmploymentEventPublicationContract.EventView event,
             UUID correlationId) {
         int inserted = jdbc.update("""
                 INSERT INTO sys_people_audit_events(
@@ -139,12 +139,12 @@ final class EmploymentEventPublicationEvidence {
     void appendPublication(
             long tenantId,
             long actor,
-            EmploymentEventRepository.EventRow event,
+            EmploymentEventPublicationContract.EventView event,
             EmploymentEventDtos.NormalizedCommand command,
-            EmploymentEventRepository.PreflightSnapshot snapshot,
-            EmploymentEventRepository.WorkerRow worker,
-            EmploymentEventRepository.RelationshipRow relationship,
-            EmploymentEventRepository.AssignmentRow assignment,
+            EmploymentEventPublicationContract.PreflightView snapshot,
+            EmploymentEventPublicationContract.WorkerView worker,
+            EmploymentEventPublicationContract.RelationshipView relationship,
+            EmploymentEventPublicationContract.AssignmentView assignment,
             UUID correlationId) {
         UUID originatingCorrelationId = event.originatingCorrelationId();
         if (originatingCorrelationId == null) {
@@ -187,12 +187,12 @@ final class EmploymentEventPublicationEvidence {
 
     private void appendSemanticEvents(
             long tenantId,
-            EmploymentEventRepository.EventRow event,
+            EmploymentEventPublicationContract.EventView event,
             EmploymentEventDtos.NormalizedCommand command,
-            EmploymentEventRepository.PreflightSnapshot snapshot,
-            EmploymentEventRepository.WorkerRow worker,
-            EmploymentEventRepository.RelationshipRow relationship,
-            EmploymentEventRepository.AssignmentRow assignment,
+            EmploymentEventPublicationContract.PreflightView snapshot,
+            EmploymentEventPublicationContract.WorkerView worker,
+            EmploymentEventPublicationContract.RelationshipView relationship,
+            EmploymentEventPublicationContract.AssignmentView assignment,
             UUID correlationId) {
         Instant occurredAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
         String assignmentType = "CONCURRENT_EMPLOYMENT".equals(event.eventType())

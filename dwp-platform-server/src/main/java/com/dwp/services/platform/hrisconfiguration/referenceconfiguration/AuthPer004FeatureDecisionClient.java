@@ -2,6 +2,7 @@ package com.dwp.services.platform.hrisconfiguration.referenceconfiguration;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.dwp.platform.contracts.hris.referenceconfiguration.HrisReferenceConfigurationProofIssuerV1;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -32,6 +33,8 @@ import static com.dwp.platform.contracts.hris.referenceconfiguration.HrisReferen
 /** Canonical Auth lookup only: no gateway token, redirect, TLS downgrade or query-grant dependency. */
 @Component
 class AuthPer004FeatureDecisionClient implements FeatureDecisionPort {
+    private static final String FEATURE_PATH =
+            "/internal/auth/v1/hris-performance-feature-decisions:query";
     private final ObjectMapper mapper;
     private final SigningKeyProvider keys;
     private final URI endpoint;
@@ -46,6 +49,7 @@ class AuthPer004FeatureDecisionClient implements FeatureDecisionPort {
     }
     AuthPer004FeatureDecisionClient(ObjectMapper mapper, SigningKeyProvider keys, URI endpoint, HttpClient client, Clock clock) {
         this.mapper = mapper; this.keys = keys; this.endpoint = endpoint; this.client = client; this.clock = clock;
+        if (!FEATURE_PATH.equals(Endpoint.FEATURE.path(null))) throw unavailable();
         if (endpoint != null && (!"https".equals(endpoint.getScheme()) || endpoint.getUserInfo() != null
                 || endpoint.getQuery() != null || endpoint.getFragment() != null
                 || !Endpoint.FEATURE.path(null).equals(endpoint.getRawPath()))) throw unavailable();
@@ -63,10 +67,14 @@ class AuthPer004FeatureDecisionClient implements FeatureDecisionPort {
             byte[] body = mapper.writeValueAsBytes(binding);
             String proof = HrisReferenceConfigurationProofIssuerV1.issue(mapper, clock, Endpoint.FEATURE,
                     Endpoint.FEATURE.path(null), binding.tenantId(), body, keys.current(Endpoint.FEATURE));
-            HttpRequest request = HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(2))
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(endpoint)
+                    .timeout(Duration.ofSeconds(2))
                     .header("Content-Type", "application/json").header("Accept", "application/json")
                     .header(SERVICE_IDENTITY_HEADER, Endpoint.FEATURE.callerWorkloadId())
-                    .header(WORKLOAD_PROOF_HEADER, proof).POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
+                    .header(WORKLOAD_PROOF_HEADER, proof);
+            OutboundHttpHeaders.propagateObservability(requestBuilder);
+            HttpRequest request = requestBuilder
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
             var pending = client.sendAsync(request, ignored -> new BoundedBody());
             HttpResponse<byte[]> response;
             try { response = pending.get(2, java.util.concurrent.TimeUnit.SECONDS); }

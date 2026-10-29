@@ -197,22 +197,27 @@ class ProductAuthorizationV59Test(unittest.TestCase):
             ],
         )
 
-    def test_latest_alias_index_fixture_and_service_projections_share_lineage(self) -> None:
+    def test_current_alias_is_v62_and_v59_service_projections_preserve_lineage(self) -> None:
         auth = ROOT / "dwp-auth-server/src/main/resources/product-authorization"
-        for path in (
-            CONTRACTS / "product-surfaces-v1.json",
-            auth / "product-surfaces-v1.generated.json",
-            auth / "product-surfaces-v1.bundle-v59.generated.json",
-        ):
-            self.assertEqual(self.bundle, json.loads(path.read_text()), str(path))
+        latest = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v62.json").read_text()
+        )
+        for path in (CONTRACTS / "product-surfaces-v1.json",
+                     auth / "product-surfaces-v1.generated.json"):
+            self.assertEqual(latest, json.loads(path.read_text()), str(path))
+        historical_seed = auth / "product-surfaces-v1.bundle-v59.generated.json"
+        self.assertEqual(self.bundle, json.loads(historical_seed.read_text()))
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual((59, CHECKSUM, 59), (
+        self.assertEqual((62, latest["checksum"], 62), (
             index["latestVersion"], index["latestChecksum"], len(index["versions"])
         ))
+        historical = next(value for value in index["versions"] if value["version"] == 59)
+        self.assertEqual(CHECKSUM, historical["checksum"])
         fixture = json.loads((CONTRACTS / "pilot-fixtures.v1.generated.json").read_text())
-        self.assertEqual(59, fixture["registryLineage"]["latestAliasVersion"])
+        self.assertEqual(62, fixture["registryLineage"]["latestAliasVersion"])
         self.assertEqual(
-            {"bundleKey": "product-surfaces", "version": 59, "sha256": CHECKSUM},
+            {"bundleKey": "product-surfaces", "version": 62,
+             "sha256": latest["checksum"]},
             fixture["registryLineage"]["versions"][-1],
         )
         expected_counts = {

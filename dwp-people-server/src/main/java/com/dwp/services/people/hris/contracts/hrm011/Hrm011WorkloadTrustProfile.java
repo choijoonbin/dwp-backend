@@ -132,7 +132,7 @@ final class Hrm011WorkloadTrustProfile {
 
     Hrm011WorkloadRequestContext.VerifiedRequest authenticate(
             HttpServletRequest servletRequest,
-            Hrm011WorkloadIngress.SnapshotRequest request,
+            Hrm011WorkloadContract.SnapshotRequest request,
             String bindingId,
             String expectedPath,
             String queryFingerprint) {
@@ -188,7 +188,7 @@ final class Hrm011WorkloadTrustProfile {
                 || !cursorMatches) {
             throw Failure.denied("EXACT_HRM011_WORKLOAD_CLAIMS_REQUIRED");
         }
-        var trusted = new Hrm011WorkloadIngress.TrustedWorkload(
+        var trusted = new Hrm011WorkloadContract.TrustedWorkload(
                 tenantId, EXPECTED_SUBJECT, EXPECTED_AUDIENCE,
                 request.purposeCode(), true, true, true, true,
                 grant.policyRevision());

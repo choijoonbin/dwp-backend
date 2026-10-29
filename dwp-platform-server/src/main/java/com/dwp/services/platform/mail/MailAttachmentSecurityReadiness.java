@@ -2,36 +2,53 @@ package com.dwp.services.platform.mail;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Component
 class MailAttachmentSecurityReadiness {
 
+    private static final Set<String> NON_PUBLIC_DNS_SUFFIXES = Set.of(
+            "local", "localhost", "test", "internal", "corp", "mail", "lan", "home",
+            "arpa", "invalid", "example", "localdomain", "onion", "alt", "svc");
+
     private final List<MailAttachmentScanner> scanners;
     private final boolean attachmentFeatureEnabled;
-    private final String environment;
+    private final Environment environment;
 
     MailAttachmentSecurityReadiness(
             List<MailAttachmentScanner> scanners,
             @Value("${dwp.platform.mail.attachments.enabled:false}")
             boolean attachmentFeatureEnabled,
-            @Value("${DWP_ENVIRONMENT:local}") String environment) {
+            Environment environment) {
         this.scanners = scanners == null ? List.of() : List.copyOf(scanners);
         this.attachmentFeatureEnabled = attachmentFeatureEnabled;
-        this.environment = environment == null ? "local" : environment;
+        this.environment = environment;
     }
 
     @PostConstruct
     void validateProduction() {
-        String normalized = environment.trim().toLowerCase(Locale.ROOT);
-        if (("prod".equals(normalized) || "production".equals(normalized))
-                && attachmentFeatureEnabled && scanners.isEmpty()) {
+        if (!production()) return;
+        if (attachmentFeatureEnabled && scanners.isEmpty()) {
             throw new IllegalStateException(
                     "Production Mail attachments require a trusted scanner owner.");
+        }
+        if (scanners.isEmpty()) return;
+        if (!productionScannerEndpoint(environment.getProperty(
+                "dwp.platform.mail.attachments.trusted-scanner.base-url", ""))) {
+            throw new IllegalStateException(
+                    "Production Mail attachments require a non-local HTTPS scanner endpoint.");
+        }
+        if (!productionScannerSecret(environment.getProperty(
+                "dwp.platform.mail.attachments.trusted-scanner.service-token", ""))) {
+            throw new IllegalStateException(
+                    "Production Mail attachments require a strong non-placeholder scanner token.");
         }
     }
 
@@ -64,6 +81,88 @@ class MailAttachmentSecurityReadiness {
             latest = readiness;
         }
         return new Snapshot(true, true, latest.owner(), latest.checkedAt(), null);
+    }
+
+    private boolean production() {
+        return productionValue(environment.getProperty("dwp.environment"))
+                || productionValue(environment.getProperty("DWP_ENVIRONMENT"));
+    }
+
+    private static boolean productionValue(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        return "prod".equals(normalized) || "production".equals(normalized);
+    }
+
+    private static boolean productionScannerEndpoint(String raw) {
+        String value = raw == null ? "" : raw.strip();
+        if (!value.equals(raw)) return false;
+        try {
+            URI uri = URI.create(value);
+            String path = uri.getRawPath();
+            return "https".equalsIgnoreCase(uri.getScheme())
+                    && productionDnsHost(uri.getHost())
+                    && uri.getUserInfo() == null
+                    && uri.getRawQuery() == null
+                    && uri.getRawFragment() == null
+                    && (path == null || path.isEmpty() || "/".equals(path));
+        } catch (RuntimeException invalid) {
+            return false;
+        }
+    }
+
+    private static boolean productionDnsHost(String raw) {
+        if (raw == null) return false;
+        String host = raw.toLowerCase(Locale.ROOT);
+        if (NON_PUBLIC_DNS_SUFFIXES.stream().anyMatch(suffix ->
+                host.equals(suffix) || host.endsWith("." + suffix))) {
+            return false;
+        }
+        return !documentationDomain(host) && publicDnsName(host);
+    }
+
+    private static boolean documentationDomain(String host) {
+        return host.equals("example.com")
+                || host.endsWith(".example.com")
+                || host.equals("example.net")
+                || host.endsWith(".example.net")
+                || host.equals("example.org")
+                || host.endsWith(".example.org");
+    }
+
+    private static boolean publicDnsName(String host) {
+        if (host.contains(":")) return false;
+        String[] labels = host.split("\\.", -1);
+        if (labels.length < 2) return false;
+        for (String label : labels) {
+            if (!label.matches("[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")) {
+                return false;
+            }
+        }
+        String suffix = labels[labels.length - 1];
+        return suffix.matches("[a-z]{2,63}")
+                || suffix.matches("xn--[a-z0-9](?:[a-z0-9-]{0,57}[a-z0-9])");
+    }
+
+    private static boolean productionScannerSecret(String raw) {
+        if (raw == null) return false;
+        String normalized = raw.toLowerCase(Locale.ROOT);
+        boolean placeholder = normalized.contains("placeholder")
+                || normalized.contains("change-me")
+                || normalized.contains("changeme")
+                || normalized.contains("changeit")
+                || normalized.contains("replace-me")
+                || normalized.contains("dummy")
+                || normalized.contains("fixture")
+                || normalized.contains("example")
+                || normalized.startsWith("test-")
+                || normalized.startsWith("dev-")
+                || normalized.startsWith("local-")
+                || normalized.contains("${");
+        boolean invalidCharacter = raw.chars().anyMatch(character ->
+                character < 0x21 || character > 0x7e);
+        return raw.length() >= 32 && raw.length() <= 512
+                && raw.chars().distinct().count() >= 8
+                && !invalidCharacter && !placeholder;
     }
 
     record Snapshot(

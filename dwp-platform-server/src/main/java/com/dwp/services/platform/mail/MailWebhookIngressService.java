@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Service
-class MailWebhookIngressService {
+class MailWebhookIngressService implements MailWebhookIngressUseCase {
 
     private static final Set<String> PROVIDERS = Set.of(
             "MICROSOFT_GRAPH", "GOOGLE_GMAIL", "NAVER_WORKS", "JMAP", "IMAP_SMTP");
@@ -37,14 +37,15 @@ class MailWebhookIngressService {
         this.maximumAttempts = positive(maximumAttempts, "maximumAttempts");
     }
 
-    MailSyncJobRepository.WebhookEnqueue accept(
+    MailWebhookIngressUseCase.Accepted accept(
             String rawProvider,
             Map<String, List<String>> headers,
             byte[] body) {
         return acceptVerified(verify(rawProvider, headers, body));
     }
 
-    MailWebhookVerificationPort.Verification verify(
+    @Override
+    public MailWebhookVerificationPort.Verification verify(
             String rawProvider,
             Map<String, List<String>> headers,
             byte[] body) {
@@ -91,7 +92,8 @@ class MailWebhookIngressService {
         return receipt;
     }
 
-    MailSyncJobRepository.WebhookEnqueue acceptVerified(
+    @Override
+    public MailWebhookIngressUseCase.Accepted acceptVerified(
             MailWebhookVerificationPort.Verification receipt) {
         if (receipt == null || !receipt.verified()) {
             metrics.webhook("rejected");
@@ -101,7 +103,8 @@ class MailWebhookIngressService {
         MailSyncJobRepository.WebhookEnqueue accepted = syncJobs
                 .enqueueVerifiedWebhook(receipt, maximumAttempts);
         metrics.webhook("accepted");
-        return accepted;
+        return new MailWebhookIngressUseCase.Accepted(
+                accepted.operationId(), accepted.jobId());
     }
 
     private static int positive(int value, String name) {

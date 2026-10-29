@@ -1180,6 +1180,197 @@
       ]
     },
     {
+      "id": "platform-mail-provider-http-transport",
+      "classification": "external-mail-provider-transport",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "google-gmail",
+        "microsoft-graph"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProviderHttpTransport.java",
+      "purpose": "Send bounded Mail provider requests only to the configured exact HTTPS origin after explicit host allowlist validation, without following redirects.",
+      "auth": "Uses only a short-lived provider bearer lease; browser cookies and DWP service tokens are forbidden, and token characters are cleared after every call.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "validatedOrigin",
+        "HttpClient.Redirect.NEVER",
+        ".connectTimeout(Duration.ofSeconds(10))",
+        "requestFactory.setReadTimeout(Duration.ofSeconds(30))",
+        "CALLER_HEADERS",
+        "safeHeader",
+        "maximumResponseBytes",
+        "maximumRequestBytes",
+        "readNBytes(maximumResponseBytes + 1)",
+        "Arrays.fill(token, '\\0')"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "X-DWP-Approval-Retention-Execution-Token",
+        "RestClient.builder()"
+      ]
+    },
+    {
+      "id": "platform-mail-microsoft-graph-adapter",
+      "classification": "external-mail-microsoft-graph-connector",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "microsoft-graph"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MicrosoftGraphMailConnector.java",
+      "requiredMarkerSources": [
+        "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProviderHttpTransport.java"
+      ],
+      "purpose": "Execute Microsoft Graph Mail readiness, delta sync, send, subscription, attachment, and purge operations through the shared bounded provider transport.",
+      "auth": "Leases a short-lived Graph access token from the Mail token owner for each operation; refresh tokens, browser cookies, and DWP service tokens are forbidden.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "dwp.platform.mail.providers.microsoft-graph.allowed-hosts",
+        "dwp.platform.mail.providers.microsoft-graph.allow-insecure-localhost:false",
+        "MailProviderTokenBroker",
+        "new MailProviderHttpTransport",
+        "validatedOrigin",
+        "HttpClient.Redirect.NEVER",
+        "maximumResponseBytes",
+        "maximumRequestBytes",
+        "client-request-id",
+        "DeliveryOutcome.PROVIDER_ACCEPTED",
+        "MailProviderException.Category.RESULT_UNKNOWN",
+        "Arrays.fill(token, '\\0')"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "X-DWP-Approval-Retention-Execution-Token",
+        "RestClient.builder()"
+      ]
+    },
+    {
+      "id": "platform-mail-google-gmail-adapter",
+      "classification": "external-mail-google-gmail-connector",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "google-gmail"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/GmailMailConnector.java",
+      "requiredMarkerSources": [
+        "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProviderHttpTransport.java"
+      ],
+      "purpose": "Execute Gmail readiness, history sync, send, watch subscription, attachment, and purge operations through the shared bounded provider transport.",
+      "auth": "Leases a short-lived Gmail access token from the Mail token owner for each operation; refresh tokens, browser cookies, and DWP service tokens are forbidden.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "dwp.platform.mail.providers.google-gmail.allowed-hosts",
+        "dwp.platform.mail.providers.google-gmail.allow-insecure-localhost:false",
+        "MailProviderTokenBroker",
+        "new MailProviderHttpTransport",
+        "validatedOrigin",
+        "HttpClient.Redirect.NEVER",
+        "maximumResponseBytes",
+        "maximumRequestBytes",
+        "Idempotency-Key",
+        "DeliveryOutcome.PROVIDER_ACCEPTED",
+        "MailProviderException.Category.RESULT_UNKNOWN",
+        "Arrays.fill(token, '\\0')"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "X-DWP-Approval-Retention-Execution-Token",
+        "RestClient.builder()"
+      ]
+    },
+    {
+      "id": "platform-mail-provider-token-broker",
+      "classification": "external-mail-provider-token-broker",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "mail-provider-token-broker"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/RemoteMailProviderTokenOwner.java",
+      "purpose": "Lease a bounded, short-lived provider access token from an allowlisted HTTPS broker using only an opaque approved Secret Store reference.",
+      "auth": "Uses the deployment-owned TLS identity and opaque Secret Store reference; browser credentials, provider refresh tokens, and DWP service tokens are forbidden.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "dwp.platform.mail.token-broker.allowed-hosts",
+        "dwp.platform.mail.token-broker.allow-insecure-localhost:false",
+        "validatedOrigin",
+        "HttpClient.Redirect.NEVER",
+        ".connectTimeout(Duration.ofSeconds(10))",
+        "requestFactory.setReadTimeout(Duration.ofSeconds(20))",
+        "/v1/mail/provider-token:lease",
+        "SECRET_SCHEMES",
+        "readNBytes(maximumResponseBytes + 1)",
+        "Arrays.fill(response.accessToken(), '\\0')"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "X-DWP-Approval-Retention-Execution-Token",
+        "RestClient.builder()"
+      ]
+    },
+    {
+      "id": "platform-mail-trusted-attachment-scanner",
+      "classification": "external-mail-attachment-scanner",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "trusted-attachment-scanner"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/TrustedHttpMailAttachmentScanner.java",
+      "purpose": "Scan bounded attachment bytes and obtain a typed readiness receipt from one operator-pinned HTTPS scanner origin without redirects.",
+      "auth": "Uses only the scanner-specific bearer service token; browser cookies and DWP service tokens are forbidden.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "validatedOrigin",
+        "HttpClient.Redirect.NEVER",
+        ".connectTimeout(requirePositive(timeout, \"timeout\"))",
+        ".timeout(timeout)",
+        "/v1/scan",
+        "/health/ready",
+        "readNBytes(maximumResponseBytes + 1)",
+        "DeserializationFeature.FAIL_ON_TRAILING_TOKENS",
+        "receipt.size() != 1",
+        "safeSecret",
+        "X-Content-SHA256"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "X-DWP-Approval-Retention-Execution-Token"
+      ]
+    },
+    {
       "id": "people-workday-rest-adapter",
       "classification": "external-hris-connector",
       "interfaceType": "external-connector",
@@ -1943,6 +2134,487 @@
         "X-DWP-Approval-Signature-Source-Token",
         "X-DWP-Notification-Approval-System-Sla-Token",
         "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "platform-controlled-transfer-authorities",
+      "classification": "hris-controlled-transfer-owner-authority",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-platform-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/controlledtransfer/HttpControlledTransferAuthorities.java",
+      "purpose": "Resolve bounded object metadata, malware scan and egress authority records for a controlled HRIS transfer before disclosure.",
+      "auth": "Uses a dedicated controlled-transfer authority token and exact Platform service identity; generic service and browser credentials are not sent.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/object/v1/controlled-transfers/metadata:resolve",
+        "/internal/security/v1/controlled-transfers/malware-scans:verify",
+        "/internal/security/v1/controlled-transfers/egress-policies:authorize",
+        "X-DWP-Controlled-Transfer-Authority-Token",
+        "X-DWP-Service-Identity",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "requestFactory.setReadTimeout(timeout)"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Authorization",
+        "Cookie"
+      ]
+    },
+    {
+      "id": "platform-hris-explorer-authority-transport",
+      "classification": "hris-explorer-current-authority-transport",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-auth-server",
+        "dwp-people-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/explorer/AuthHrisExplorerAuthorityClient.java",
+      "requiredMarkerSources": [
+        "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/explorer/AuthHrisExplorerAuthorityRules.java"
+      ],
+      "purpose": "Resolve current Auth identity and product-surface authority and intersect it with current People eligibility for the HRIS Explorer.",
+      "auth": "Uses disjoint product-surface, identity-sync and People owner credentials with an exact Platform service identity.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/product-surface-authority/evaluate",
+        "/internal/identity/v1/tenants/{tenantId}/users/{userId}",
+        "/internal/people/v1/product-surface-eligibility/evaluate",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Service-Token",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Cookie"
+      ]
+    },
+    {
+      "id": "platform-hris-explorer-evidence-query",
+      "classification": "hris-explorer-authority-evidence-query",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-auth-server",
+        "dwp-people-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/explorer/AuthHrisExplorerAuthorityEvidenceQuery.java",
+      "requiredMarkerSources": [
+        "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/explorer/AuthHrisExplorerAuthorityClient.java",
+        "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/explorer/AuthHrisExplorerAuthorityRules.java"
+      ],
+      "purpose": "Compose a closed Explorer evidence snapshot from the exact Auth, Identity and People internal transports.",
+      "auth": "Uses disjoint product-surface, identity-sync and People owner credentials through the wired Explorer transport.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/product-surface-authority/evaluate",
+        "/internal/people/v1/product-surface-eligibility/evaluate",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Identity-Sync-Token",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Cookie"
+      ]
+    },
+    {
+      "id": "platform-hris-explorer-transport-rules",
+      "classification": "hris-explorer-bounded-transport-factory",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-auth-server",
+        "dwp-people-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/explorer/AuthHrisExplorerAuthorityRules.java",
+      "requiredMarkerSources": [
+        "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/explorer/AuthHrisExplorerAuthorityClient.java"
+      ],
+      "purpose": "Build the no-redirect bounded transport and centralize exact Explorer owner endpoints and credentials.",
+      "auth": "Provides only the exact product-surface, identity-sync and People owner headers consumed by the wired transport.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/product-surface-authority/evaluate",
+        "/internal/identity/v1/tenants/{tenantId}/users/{userId}",
+        "/internal/people/v1/product-surface-eligibility/evaluate",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Identity-Sync-Token",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Cookie"
+      ]
+    },
+    {
+      "id": "platform-auth-navigation-policy-authority",
+      "classification": "hris-navigation-policy-current-authority",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/navigationpolicy/AuthNavigationPolicyAuthorityDecisionProvider.java",
+      "purpose": "Resolve one current Auth-owned HRIS navigation policy decision snapshot.",
+      "auth": "Uses the dedicated product-surface token and exact Platform service identity.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/hris-navigation-policy-decisions/evaluate",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Service-Identity",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "FAIL_ON_TRAILING_TOKENS"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Authorization",
+        "Cookie"
+      ]
+    },
+    {
+      "id": "platform-people-legal-entity-context-owner",
+      "classification": "hris-navigation-legal-entity-owner-refetch",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-people-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/navigationpolicy/PeopleLegalEntityContextResolver.java",
+      "purpose": "Refetch and bind the current People-owned legal-employer context instead of trusting browser-supplied owner evidence.",
+      "auth": "Uses a dedicated HRIS navigation legal-entity credential and exact Platform service identity verified by People.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/people/v1/hris/navigation/legal-entity-context/verify",
+        "X-DWP-Hris-Navigation-Legal-Entity-Token",
+        "X-DWP-Service-Identity",
+        "OutboundHttpHeaders.propagateObservability",
+        "people-owner-sha256:"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "platform-auth-per004-feature-decision",
+      "classification": "per004-current-feature-decision",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/referenceconfiguration/AuthPer004FeatureDecisionClient.java",
+      "purpose": "Resolve a current operation- and body-bound PER004 feature decision from Auth.",
+      "auth": "Uses a short-lived asymmetric HrisReferenceConfigurationProofIssuerV1 workload proof and exact caller workload identity.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/hris-performance-feature-decisions:query",
+        "HrisReferenceConfigurationProofIssuerV1",
+        "WORKLOAD_PROOF_HEADER",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "new BoundedBody()"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Cookie",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "people-approval-employee-change-request-relay",
+      "classification": "hris-employee-change-approval-request-outbox",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-people-server",
+      "targetServices": [
+        "dwp-approval-server"
+      ],
+      "path": "dwp-people-server/src/main/java/com/dwp/services/people/hris/employeeservice/employeechange/approvalbridge/EmployeeChangeApprovalRequestRelay.java",
+      "purpose": "Deliver the frozen employee-change Approval request through a leased durable outbox and verify the exact receipt binding.",
+      "auth": "Uses HrisWorkloadProofV2 over the exact frozen body and Approval owner path with an exact People workload identity.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/hris-approval/v1/approval-requests",
+        "HrisWorkloadProofV2",
+        "WORKLOAD_PROOF_HEADER",
+        "OutboundHttpHeaders.propagateObservability",
+        "headers.clear()",
+        "RESULT_UNKNOWN"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "people-auth-hris-origin-receipt-authority",
+      "classification": "hris-experience-origin-receipt-authority",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-people-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-people-server/src/main/java/com/dwp/services/people/hris/experience/AuthHrisExperienceOriginReceiptAuthoritySource.java",
+      "requiredMarkerSources": [
+        "dwp-people-server/src/main/java/com/dwp/services/people/hris/experience/HrisOriginAuthorityClientConfiguration.java"
+      ],
+      "purpose": "Resolve current Auth-origin authority and intersect it with current People eligibility before issuing an HRIS experience receipt.",
+      "auth": "Uses the dedicated HRIS origin authority token and exact People service identity.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/product-surface-authority/evaluate",
+        "X-DWP-Hris-Origin-Authority-Token",
+        "X-DWP-Service-Identity",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Cookie",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "people-auth-hris-recipient-authority",
+      "classification": "hris-experience-recipient-authority",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-people-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-people-server/src/main/java/com/dwp/services/people/hris/experience/HrisExperienceRecipientAuthority.java",
+      "purpose": "Resolve the one current authorized recipient for an HRIS experience command.",
+      "auth": "Uses the dedicated HRIS recipient authority token and exact People service identity.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/hris-recipient-authority/resolve",
+        "X-DWP-Hris-Recipient-Authority-Token",
+        "X-DWP-Service-Identity",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "people-hris-origin-authority-client-factory",
+      "classification": "hris-experience-origin-bounded-transport-factory",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-people-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-people-server/src/main/java/com/dwp/services/people/hris/experience/HrisOriginAuthorityClientConfiguration.java",
+      "requiredMarkerSources": [
+        "dwp-people-server/src/main/java/com/dwp/services/people/hris/experience/AuthHrisExperienceOriginReceiptAuthoritySource.java"
+      ],
+      "purpose": "Build the bounded no-redirect Auth origin-authority transport used by the wired People authority source.",
+      "auth": "Carries only the dedicated HRIS origin authority token and exact People identity supplied by the wired authority source.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/product-surface-authority/evaluate",
+        "X-DWP-Hris-Origin-Authority-Token",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "requestFactory.setReadTimeout(timeout)"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Cookie",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "people-platform-per004-owner-transport",
+      "classification": "per004-reference-configuration-owner-transport",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-people-server",
+      "targetServices": [
+        "dwp-platform-server"
+      ],
+      "path": "dwp-people-server/src/main/java/com/dwp/services/people/hris/performance/per004/Per004PlatformInternalClient.java",
+      "purpose": "Query exact Platform-owned PER004 projections and authoritative create lookups.",
+      "auth": "Uses a short-lived asymmetric HrisReferenceConfigurationProofIssuerV1 workload proof and exact People caller workload identity.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/hris-reference-configuration/v1/owner-projections:query",
+        "/internal/hris-reference-configuration/v1/authoritative-create-lookups:query",
+        "HrisReferenceConfigurationProofIssuerV1",
+        "WORKLOAD_PROOF_HEADER",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "new BoundedBody(maxResponseBytes)"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "people-auth-hrm012-receipt-first-step-up",
+      "classification": "hrm012-post-receipt-step-up-authority",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-people-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-people-server/src/main/java/com/dwp/services/people/security/Hrm012ReceiptFirstStepUpClient.java",
+      "purpose": "Verify current HRM-012 step-up authority only after durable receipt and hash precedence.",
+      "auth": "Uses the dedicated HRIS origin authority token, exact People service identity and receipt correlation binding.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/hris/hrm012/receipt-first-step-up/verify",
+        "X-DWP-Hris-Origin-Authority-Token",
+        "X-DWP-Service-Identity",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "X-Correlation-ID"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "approval-people-employee-change-decision-relay",
+      "classification": "hris-employee-change-decision-outbox",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-people-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/hrisbridge/HrisApprovalDecisionRelay.java",
+      "purpose": "Deliver a frozen Approval decision callback to People through a leased durable outbox and verify the exact command receipt.",
+      "auth": "Uses HrisWorkloadProofV2 over the exact frozen callback and exact Approval workload identity.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/hris-people/v1/employee-change-requests/",
+        "HrisWorkloadProofV2",
+        "WORKLOAD_PROOF_HEADER",
+        "OutboundHttpHeaders.propagateObservability",
+        "headers.clear()",
+        "RESULT_UNKNOWN"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "approval-hrm013-mutual-tls-workload-transport",
+      "classification": "hrm013-mutual-tls-signed-workload-transport",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server",
+        "dwp-people-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/hrisbridge/separation/HrisSeparationWorkloadCredentialProvider.java",
+      "requiredMarkerSources": [
+        "dwp-approval-server/src/main/java/com/dwp/services/approval/hrisbridge/separation/AuthHrm013ServiceAuthorityClient.java",
+        "dwp-approval-server/src/main/java/com/dwp/services/approval/hrisbridge/separation/HrisSeparationDecisionRelay.java",
+        "dwp-approval-server/src/main/java/com/dwp/services/approval/hrisbridge/separation/Hrm013RequesterIdentityClient.java"
+      ],
+      "purpose": "Build the no-redirect mutual-TLS transport used for exact HRM-013 Auth authority, requester identity and People callback calls.",
+      "auth": "Uses current Hrm013WorkloadProofV1 asymmetric proofs, workload certificate/private-key leases and pinned SPIFFE peer identities.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/",
+        "Hrm013WorkloadProofV1",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "SSLContext",
+        "setEndpointIdentificationAlgorithm(\"HTTPS\")",
+        "requirePeer"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "Cookie",
+        "X-DWP-Service-Token"
       ]
     }
   ],

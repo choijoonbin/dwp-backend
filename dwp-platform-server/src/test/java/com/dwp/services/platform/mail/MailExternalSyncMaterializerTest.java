@@ -78,7 +78,7 @@ class MailExternalSyncMaterializerTest {
                         "attachment-1", "content-1", "report.txt", "text/plain",
                         content.length, PAYLOAD_SHA256, content, Map.of())));
 
-        MailExternalSyncMaterializer.SyncResult result = materializer.materialize(
+        MailSyncResult result = materializer.materialize(
                 7, 91, expectedAccount,
                 new MailConnectorPort.SyncBatch(List.of(message), "cursor-2", false, false));
 
@@ -117,7 +117,7 @@ class MailExternalSyncMaterializerTest {
                         "attachment-2", "provider-fetch-token", "remote.pdf",
                         "application/pdf", 4096, null, null, Map.of("inline", "false"))));
 
-        MailExternalSyncMaterializer.SyncResult result = materializer.materialize(
+        MailSyncResult result = materializer.materialize(
                 7, 91, expectedAccount,
                 new MailConnectorPort.SyncBatch(List.of(message), "cursor-2", false, false));
 
@@ -153,7 +153,7 @@ class MailExternalSyncMaterializerTest {
                 .thenReturn(Optional.of(new AdminMailCompletionRepository.InboundIdentity(
                         UUID.randomUUID(), UUID.randomUUID())));
 
-        MailExternalSyncMaterializer.SyncResult result = materializer.materialize(
+        MailSyncResult result = materializer.materialize(
                 7, 91, expectedAccount,
                 new MailConnectorPort.SyncBatch(
                         List.of(providerMessage(List.of())), "cursor-2", false, false));
@@ -207,7 +207,7 @@ class MailExternalSyncMaterializerTest {
                 7, 91, expectedAccount,
                 new MailConnectorPort.SyncBatch(
                         List.of(providerMessage(List.of())), "cursor-2", false, false)))
-                .isInstanceOf(MailExternalSyncMaterializer.SyncFailure.class)
+                .isInstanceOf(MailSyncMaterializationFailure.class)
                 .hasMessageContaining("SYNC_CURSOR_CONFLICT");
         verify(repository, never()).materializeInboundMessage(
                 anyLong(), anyLong(), any(), any(), any(), any());
@@ -217,7 +217,7 @@ class MailExternalSyncMaterializerTest {
 
     @Test
     void partialBatchCommitsItsNextCursorForContinuation() {
-        MailExternalSyncMaterializer.SyncResult result = materializer.materialize(
+        MailSyncResult result = materializer.materialize(
                 7, 91, expectedAccount,
                 new MailConnectorPort.SyncBatch(List.of(), "cursor-2", false, true));
 
@@ -269,7 +269,7 @@ class MailExternalSyncMaterializerTest {
                         "attachment-race", null, "report.txt", "text/plain",
                         content.length, PAYLOAD_SHA256, content, Map.of())));
 
-        MailExternalSyncMaterializer.SyncResult result = materializer.materialize(
+        MailSyncResult result = materializer.materialize(
                 7, 91, expectedAccount,
                 new MailConnectorPort.SyncBatch(
                         List.of(message), "cursor-2", false, false));

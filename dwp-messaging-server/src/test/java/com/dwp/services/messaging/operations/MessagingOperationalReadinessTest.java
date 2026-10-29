@@ -23,6 +23,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -185,7 +187,98 @@ class MessagingOperationalReadinessTest {
                 .containsExactly(false, false, "DEGRADED", "REALTIME_FANOUT_ACK_TIMEOUT");
     }
 
+    @Test
+    void fallbackSearchTelemetryAndMeetingNeverClaimUnverifiedReadiness() {
+        when(meeting.capability()).thenReturn(new MeetingProviderCapability(
+                true, "livekit", null, true, true, true, true, 300));
+
+        MessagingDtos.RuntimeReadiness snapshot = readiness().snapshot(91);
+
+        assertThat(capability(snapshot, "SEARCH"))
+                .extracting(
+                        MessagingDtos.RuntimeCapability::required,
+                        MessagingDtos.RuntimeCapability::configured,
+                        MessagingDtos.RuntimeCapability::effective,
+                        MessagingDtos.RuntimeCapability::state,
+                        MessagingDtos.RuntimeCapability::reasonCode)
+                .containsExactly(true, true, true, "DEGRADED", "SQL_FALLBACK_ACTIVE");
+        assertThat(capability(snapshot, "OBSERVABILITY"))
+                .extracting(
+                        MessagingDtos.RuntimeCapability::required,
+                        MessagingDtos.RuntimeCapability::configured,
+                        MessagingDtos.RuntimeCapability::effective,
+                        MessagingDtos.RuntimeCapability::state,
+                        MessagingDtos.RuntimeCapability::reasonCode)
+                .containsExactly(
+                        true, true, false, "DEGRADED", "TELEMETRY_EXPORT_UNVERIFIED");
+        assertThat(capability(snapshot, "MEETING"))
+                .extracting(
+                        MessagingDtos.RuntimeCapability::required,
+                        MessagingDtos.RuntimeCapability::configured,
+                        MessagingDtos.RuntimeCapability::effective,
+                        MessagingDtos.RuntimeCapability::state,
+                        MessagingDtos.RuntimeCapability::reasonCode)
+                .containsExactly(
+                        false, true, false, "DEGRADED",
+                        "MEETING_PROVIDER_CONNECTIVITY_UNVERIFIED");
+    }
+
+    @Test
+    void providerProbeFailuresAreConvertedToFailClosedCapabilities() {
+        doThrow(new IllegalStateException("storage unavailable")).when(storage).health();
+        doThrow(new IllegalStateException("scanner unavailable")).when(scanner).health();
+        when(presenceHealth.health()).thenReturn(Health.unknown().build());
+        doThrow(new IllegalStateException("fanout unavailable")).when(fanout).probe(VERIFIED_AT);
+        MessagingOperationalReadiness readiness = readiness();
+
+        readiness.refreshProviderEvidence();
+        MessagingDtos.RuntimeReadiness snapshot = readiness.snapshot(91);
+
+        assertThat(capability(snapshot, "ATTACHMENT_STORAGE").reasonCode())
+                .isEqualTo("ATTACHMENT_STORAGE_PROBE_FAILED");
+        assertThat(capability(snapshot, "ATTACHMENT_SCANNER").reasonCode())
+                .isEqualTo("ATTACHMENT_SCANNER_PROBE_FAILED");
+        assertThat(capability(snapshot, "PRESENCE").reasonCode())
+                .isEqualTo("PRESENCE_AUTHORITY_UNAVAILABLE");
+        assertThat(capability(snapshot, "REALTIME_FANOUT").reasonCode())
+                .isEqualTo("REALTIME_FANOUT_PROBE_FAILED");
+        assertThat(snapshot.overallState()).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void appliesConfiguredRetentionEvidenceMaximumAgeToAdminReadiness() {
+        OffsetDateTime staleEvidence = VERIFIED_AT.minusMinutes(30);
+        when(retention.status(91)).thenReturn(new MessagingRetentionService.RetentionStatus(
+                true, "ENFORCING", null, staleEvidence, staleEvidence, "COMPLETED",
+                "ENFORCING", 4, 4, 0, 0));
+
+        MessagingDtos.RuntimeCapability retentionCapability = capability(
+                readiness(Duration.ofMinutes(15)).snapshot(91), "RETENTION_ENFORCEMENT");
+
+        assertThat(retentionCapability)
+                .extracting(
+                        MessagingDtos.RuntimeCapability::effective,
+                        MessagingDtos.RuntimeCapability::state,
+                        MessagingDtos.RuntimeCapability::reasonCode,
+                        MessagingDtos.RuntimeCapability::freshness)
+                .containsExactly(false, "DEGRADED", "RETENTION_EVIDENCE_STALE", "STALE");
+    }
+
+    @Test
+    void rejectsUnsafeRetentionEvidenceMaximumAge() {
+        assertThatThrownBy(() -> readiness(Duration.ofSeconds(59)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1 minute to 24 hours");
+        assertThatThrownBy(() -> readiness(Duration.ofHours(25)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1 minute to 24 hours");
+    }
+
     private MessagingOperationalReadiness readiness() {
+        return readiness(Duration.ofHours(2));
+    }
+
+    private MessagingOperationalReadiness readiness(Duration retentionEvidenceMaximumAge) {
         AttachmentProperties properties = new AttachmentProperties(
                 "local", Path.of(".dwp-data/messaging-attachments"), "clamav",
                 Duration.ofMinutes(10), Duration.ofMinutes(1), 100, 2,
@@ -193,7 +286,7 @@ class MessagingOperationalReadinessTest {
         return new MessagingOperationalReadiness(
                 storage, scanner, properties, meeting, presence, presenceHealth, retention,
                 scheduled, delivery, fanout,
-                true, Duration.ofMinutes(3), CLOCK);
+                true, Duration.ofMinutes(3), retentionEvidenceMaximumAge, CLOCK);
     }
 
     private MessagingDtos.RuntimeCapability capability(

@@ -1,5 +1,6 @@
 package com.dwp.services.platform.mail;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,7 +53,7 @@ class TrustedHttpMailAttachmentScanner implements MailAttachmentScanner {
             int maximumResponseBytes,
             @Value("${dwp.platform.mail.attachments.trusted-scanner.maximum-request-bytes:157286400}")
             long maximumRequestBytes) {
-        this(objectMapper, metrics, trustedBase(baseUrl), serviceToken, timeout,
+        this(objectMapper, metrics, validatedOrigin(baseUrl), serviceToken, timeout,
                 maximumResponseBytes, maximumRequestBytes,
                 HttpClient.newBuilder()
                         .connectTimeout(requirePositive(timeout, "timeout"))
@@ -77,9 +78,9 @@ class TrustedHttpMailAttachmentScanner implements MailAttachmentScanner {
         }
         this.objectMapper = objectMapper;
         this.metrics = metrics;
-        URI trustedBase = trustedBase(base == null ? "" : base.toString());
-        this.scanEndpoint = trustedBase.resolve("./v1/scan");
-        this.readinessEndpoint = trustedBase.resolve("./health/ready");
+        URI validatedBase = validatedOrigin(base == null ? "" : base.toString());
+        this.scanEndpoint = validatedBase.resolve("./v1/scan");
+        this.readinessEndpoint = validatedBase.resolve("./health/ready");
         this.serviceToken = serviceToken;
         this.timeout = requirePositive(timeout, "timeout");
         this.maximumResponseBytes = maximumResponseBytes;
@@ -153,6 +154,15 @@ class TrustedHttpMailAttachmentScanner implements MailAttachmentScanner {
                 return new Readiness(false, "TRUSTED_HTTP_SCANNER", checkedAt,
                         "SCANNER_READINESS_UNAVAILABLE");
             }
+            JsonNode receipt = objectMapper.readerFor(JsonNode.class)
+                    .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .readTree(body);
+            if (receipt == null || !receipt.isObject() || receipt.size() != 1
+                    || !receipt.path("ready").isBoolean()
+                    || !receipt.path("ready").booleanValue()) {
+                return new Readiness(false, "TRUSTED_HTTP_SCANNER", checkedAt,
+                        "SCANNER_READINESS_INVALID_RESPONSE");
+            }
             return new Readiness(true, "TRUSTED_HTTP_SCANNER", checkedAt, null);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
@@ -191,7 +201,7 @@ class TrustedHttpMailAttachmentScanner implements MailAttachmentScanner {
         return Duration.ofNanos(System.nanoTime() - startedAt);
     }
 
-    private static URI trustedBase(String raw) {
+    private static URI validatedOrigin(String raw) {
         URI base;
         try {
             base = URI.create(raw == null ? "" : raw.trim());

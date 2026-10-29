@@ -2,6 +2,7 @@ package com.dwp.services.platform.hrisconfiguration.navigationpolicy;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.http.OutboundHttpHeaders;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -18,6 +19,8 @@ public final class PeopleLegalEntityContextResolver implements LegalEntityContex
 
     static final String PATH =
             "/internal/people/v1/hris/navigation/legal-entity-context/verify";
+    static final String AUTHORITY_TOKEN_HEADER =
+            "X-DWP-Hris-Navigation-Legal-Entity-Token";
     private static final String PLATFORM_IDENTITY = "dwp-platform-server";
 
     private final RestClient people;
@@ -59,12 +62,13 @@ public final class PeopleLegalEntityContextResolver implements LegalEntityContex
             result = people.post().uri(PATH)
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
-                    .header("X-DWP-Service-Token", serviceToken)
+                    .header(AUTHORITY_TOKEN_HEADER, serviceToken)
                     .header("X-DWP-Service-Identity", PLATFORM_IDENTITY)
                     .header("X-DWP-Tenant-ID", Long.toString(request.tenantId()))
                     .header("X-DWP-User-ID", Long.toString(request.actorId()))
                     .header("X-DWP-Person-Public-ID", request.personPublicId().toString())
                     .headers(headers -> {
+                        OutboundHttpHeaders.propagateObservability(headers);
                         if (canonicalCsv(request.roles())) {
                             headers.set("X-DWP-Roles", request.roles());
                         }

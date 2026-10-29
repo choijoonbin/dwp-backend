@@ -20,7 +20,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-import static com.dwp.services.payroll.calculation.PayrollCalculationModels.ActionCommand;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.Attempt;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.AttemptState;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.AttemptStatus;
@@ -82,6 +81,21 @@ class PayrollCalculationService {
             long expectedVersion,
             UUID correlationId,
             ActionCommand command) {
+        return calculate(
+                actor, runId, runId.toString(), idempotencyKey, expectedVersion,
+                correlationId, command, null);
+    }
+
+    @Transactional
+    PayrollCommandReceipt calculate(
+            PayrollCalculationAuthority.Actor actor,
+            UUID runId,
+            String runIdText,
+            String idempotencyKey,
+            long expectedVersion,
+            UUID correlationId,
+            ActionCommand command,
+            PayrollStepUpHeaders headers) {
         actor.require(PayrollCalculationAuthority.Action.CALCULATE);
         String key = idempotencyKey(idempotencyKey);
         String requestDigest = canonical.requestDigest(
@@ -106,6 +120,22 @@ class PayrollCalculationService {
             }
             throw conflict("Payroll run is not ready for calculation.");
         }
+        UUID lexicalRunId;
+        try {
+            lexicalRunId = UUID.fromString(runIdText);
+        } catch (RuntimeException exception) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE, "runId is not a UUID.");
+        }
+        if (!runId.equals(lexicalRunId)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "runId path text does not identify the requested run.");
+        }
+        PayrollStepUpEvidence stepUpEvidence = highRisk.require(
+                actor, runId, expectedVersion,
+                "/api/payroll/v1/runs/" + runIdText + "/attempts",
+                command, headers);
 
         int attemptNo = current.latestAttemptNo() + 1;
         Instant now = clock.instant();
@@ -140,7 +170,7 @@ class PayrollCalculationService {
                 ReceiptStatus.ACCEPTED, correlation, runRevision,
                 "payroll-run:" + runId, now);
         PersistedReceipt persisted = persisted(actor, runId, key,
-                CommandType.RUN_CALCULATE, publicReceipt, null);
+                CommandType.RUN_CALCULATE, publicReceipt, stepUpEvidence);
 
         // AC-01: the V50 copy and all source/formula digests are durable before
         // the attempt identity is allowed by its reverse foreign key.

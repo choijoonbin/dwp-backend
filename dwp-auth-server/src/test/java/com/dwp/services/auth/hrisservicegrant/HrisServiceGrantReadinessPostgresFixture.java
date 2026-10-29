@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.dwp.platform.contracts.hris.separation.v1.HrisServiceGrantAuthorityV1;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013WorkloadProofV1;
 import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantQuiesceService.GrantBinding;
-import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantRotationReadinessVerifier.ReadinessItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;

@@ -122,13 +122,17 @@ class ProductAuthorizationV42Test(unittest.TestCase):
                     route["servicePepBindings"][0]["queryParameterConstraints"],
                 ))
 
-    def test_latest_alias_index_and_owner_projections_are_v42(self) -> None:
+    def test_current_alias_is_v62_and_historical_v42_owner_projections_are_pinned(self) -> None:
         alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
         seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual(self.v42, alias)
-        self.assertEqual(self.v42, seed)
-        self.assertEqual((42, V42_SHA256), (index["latestVersion"], index["latestChecksum"]))
+        latest = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v62.json").read_text()
+        )
+        self.assertEqual(latest, alias)
+        self.assertEqual(latest, seed)
+        self.assertEqual((62, latest["checksum"]),
+                         (index["latestVersion"], index["latestChecksum"]))
         expected = {
             "dwp-people-server/src/main/resources/product-authorization/hcm-people-pep-v42.generated.json": (97, 124, {"PAGE": 30, "DATA": 19, "ACTION": 48}),
             "dwp-time-server/src/main/resources/product-authorization/hcm-time-pep-v42.generated.json": (20, 20, {"PAGE": 3, "DATA": 5, "ACTION": 12}),

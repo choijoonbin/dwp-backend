@@ -6,7 +6,6 @@ import com.dwp.platform.contracts.hris.separation.v1.Hrm013WorkloadProofV1;
 import com.dwp.services.auth.hris.separation.hrm013.Hrm013IdentityWorkloadCredentialProvider;
 import com.dwp.services.auth.hris.separation.hrm013.Hrm013IdentityWorkloadCredentialProvider.AtomicGrantCredentialLease;
 import com.dwp.services.auth.hris.separation.hrm013.Hrm013IdentityWorkloadCredentialProvider.CredentialRole;
-import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantRotationReadinessVerifier.ReadinessItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;

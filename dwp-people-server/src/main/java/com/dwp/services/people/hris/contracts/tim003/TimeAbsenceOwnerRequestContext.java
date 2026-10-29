@@ -27,7 +27,7 @@ public final class TimeAbsenceOwnerRequestContext {
             HttpServletRequest request) {
         Object value = request.getAttribute(ATTRIBUTE);
         if (value instanceof TimeAbsenceOwnerContract.VerifiedRequest verified
-                && TimeAbsenceOwnerIngressFilter.matchesVerifiedRequest(request, verified)) {
+                && TimeAbsenceOwnerRouteContract.matchesVerifiedRequest(request, verified)) {
             return verified;
         }
         throw new IllegalStateException(

@@ -16,7 +16,6 @@ import java.util.UUID;
 
 import static com.dwp.platform.contracts.hris.referenceconfiguration.HrisReferenceConfigurationV1.*;
 import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationDtos.*;
-import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationService.*;
 
 /** Additive PER boundary. Missing providers fail before receipt disclosure, mutation or owner calls. */
 @Component
@@ -56,8 +55,13 @@ class Per004ConfigurationRuntime {
                 || !body.payload().digest().matches("^(sha256:)?[a-fA-F0-9]{64}$")) throw invalid();
     }
 
-    void guard(AccessContext access, CommandContext command, UUID configurationId,
-               Domain domain, String action, String schemaKey) {
+    void guard(
+            ReferenceConfigurationContext.Access access,
+            ReferenceConfigurationContext.Command command,
+            UUID configurationId,
+            Domain domain,
+            String action,
+            String schemaKey) {
         if (domain != Domain.PER) return;
         String route = route(action);
         if (route == null) {
@@ -78,8 +82,14 @@ class Per004ConfigurationRuntime {
         }
     }
 
-    long create(ReferenceConfigurationRepository repository, AccessContext access, CommandContext command,
-                UUID id, CreateVersionCommand body, UUID platformReceiptId, String requestDigest) {
+    long create(
+            ReferenceConfigurationRepository repository,
+            ReferenceConfigurationContext.Access access,
+            ReferenceConfigurationContext.Command command,
+            UUID id,
+            CreateVersionCommand body,
+            UUID platformReceiptId,
+            String requestDigest) {
         if (owners == null || evidence == null) throw unavailable();
         evidence.checkCreateEligible(access.tenantId(), access.scope(), id, body.schemaKey());
         PrepareRequest request = new PrepareRequest(access.tenantId(), id, access.subjectPublicId(), body.schemaKey(),
@@ -104,7 +114,11 @@ class Per004ConfigurationRuntime {
         return version;
     }
 
-    boolean ownerTransition(AccessContext access, VersionDetail detail, String commandType, Object body) {
+    boolean ownerTransition(
+            ReferenceConfigurationContext.Access access,
+            VersionDetail detail,
+            String commandType,
+            Object body) {
         if (!typedOwner(detail.domain().name(), detail.schemaKey())
                 || !(commandType.equals("VALIDATE_VERSION") || commandType.equals("SIMULATE_VERSION"))) return false;
         if (owners == null || evidence == null) throw unavailable();
@@ -152,7 +166,9 @@ class Per004ConfigurationRuntime {
         if (!tuple.equals(receipt.tuple())) throw unavailable();
         return receipt;
     }
-    private OwnerTuple tuple(AccessContext access, VersionDetail detail) {
+    private OwnerTuple tuple(
+            ReferenceConfigurationContext.Access access,
+            VersionDetail detail) {
         return new OwnerTuple(access.tenantId(), detail.configurationId(), detail.version(), "PER", detail.schemaKey(),
                 detail.schemaVersion(), detail.payloadReference(), detail.payloadDigest(), access.scope().digest());
     }

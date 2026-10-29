@@ -3,6 +3,8 @@ package com.dwp.services.platform.mail;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
@@ -82,5 +84,70 @@ class TrustedHttpMailAttachmentScannerTest {
 
         assertThat(result.verdict()).isEqualTo(MailAttachmentScanner.Verdict.REJECTED);
         assertThat(result.evidence()).isEqualTo("SCANNER_INVALID_RESPONSE");
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void readinessRequiresExactTypedReceipt() throws Exception {
+        HttpClient client = mock(HttpClient.class);
+        HttpResponse response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(new ByteArrayInputStream(
+                "<html>healthy</html>".getBytes(StandardCharsets.UTF_8)));
+        doReturn(response).when(client).send(any(), any());
+        TrustedHttpMailAttachmentScanner scanner = new TrustedHttpMailAttachmentScanner(
+                new ObjectMapper(), new MailMetrics(new SimpleMeterRegistry()),
+                URI.create("https://scanner.example/"), "secret-token",
+                Duration.ofSeconds(1), 1024, 4096, client);
+
+        MailAttachmentScanner.Readiness readiness = scanner.readiness();
+
+        assertThat(readiness.ready()).isFalse();
+        assertThat(readiness.errorCode()).isEqualTo("SCANNER_READINESS_UNAVAILABLE");
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void readinessAcceptsOnlyReadyTrueJsonReceipt() throws Exception {
+        HttpClient client = mock(HttpClient.class);
+        HttpResponse response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(new ByteArrayInputStream(
+                " \n{\"ready\":true}\r\n\t".getBytes(StandardCharsets.UTF_8)));
+        doReturn(response).when(client).send(any(), any());
+        TrustedHttpMailAttachmentScanner scanner = new TrustedHttpMailAttachmentScanner(
+                new ObjectMapper(), new MailMetrics(new SimpleMeterRegistry()),
+                URI.create("https://scanner.example/"), "secret-token",
+                Duration.ofSeconds(1), 1024, 4096, client);
+
+        MailAttachmentScanner.Readiness readiness = scanner.readiness();
+
+        assertThat(readiness.ready()).isTrue();
+        assertThat(readiness.errorCode()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"ready\":true}{\"ready\":false}",
+            "{\"ready\":true} false",
+            "{\"ready\":true}garbage"
+    })
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void readinessRejectsTrailingDocumentsTokensAndGarbage(String body) throws Exception {
+        HttpClient client = mock(HttpClient.class);
+        HttpResponse response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(new ByteArrayInputStream(
+                body.getBytes(StandardCharsets.UTF_8)));
+        doReturn(response).when(client).send(any(), any());
+        TrustedHttpMailAttachmentScanner scanner = new TrustedHttpMailAttachmentScanner(
+                new ObjectMapper(), new MailMetrics(new SimpleMeterRegistry()),
+                URI.create("https://scanner.example/"), "secret-token",
+                Duration.ofSeconds(1), 1024, 4096, client);
+
+        MailAttachmentScanner.Readiness readiness = scanner.readiness();
+
+        assertThat(readiness.ready()).isFalse();
+        assertThat(readiness.errorCode()).isEqualTo("SCANNER_READINESS_UNAVAILABLE");
     }
 }

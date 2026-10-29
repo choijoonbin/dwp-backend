@@ -3,6 +3,9 @@ package com.dwp.services.platform.hrisconfiguration.home;
 import com.dwp.platform.contracts.hris.generated.CanonicalHrisJson;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1;
 import com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1.Module;
+import com.dwp.services.platform.hrisconfiguration.home.HrisHomeAuthorityContract.CurrentAuthorityGuard;
+import com.dwp.services.platform.hrisconfiguration.home.HrisHomeAuthorityContract.CurrentAuthoritySnapshot;
+import com.dwp.services.platform.hrisconfiguration.home.HrisHomeAuthorityContract.OwnerAuthoritySnapshot;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
@@ -57,7 +60,7 @@ public final class HrisHomeCompositionDtos {
             long authorizationRevision,
             long compositionRevision,
             Map<Module, OwnerAuthority> owners,
-            HrisHomeCompositionPorts.CurrentAuthorityGuard guard) {
+            CurrentAuthorityGuard guard) {
 
         public CurrentViewAuthority {
             if (tenantId < 1 || browserScopeRevision < 1 || browserFieldPolicyRevision < 1
@@ -82,6 +85,23 @@ public final class HrisHomeCompositionDtos {
             });
             owners = Map.copyOf(copy);
             Objects.requireNonNull(guard, "guard");
+        }
+
+        CurrentAuthoritySnapshot snapshot() {
+            LinkedHashMap<Module, OwnerAuthoritySnapshot> ownerSnapshots =
+                    new LinkedHashMap<>();
+            owners.forEach((module, owner) -> ownerSnapshots.put(module,
+                    new OwnerAuthoritySnapshot(
+                            owner.module(), owner.widgetKey(), owner.capability(),
+                            owner.browserAudience(), owner.ownerPopulationScope(),
+                            owner.scopeRevision(), owner.populationScopeDigest(),
+                            owner.effectivePermissionRevision(), owner.fieldPolicyRevision(),
+                            owner.fieldCeilings())));
+            return new CurrentAuthoritySnapshot(
+                    tenantId, subjectPrincipalPublicId, browserAudience,
+                    browserScopeRevision, browserPopulationScopeDigest,
+                    browserFieldPolicyRevision, authorizationRevision,
+                    compositionRevision, ownerSnapshots);
         }
     }
 

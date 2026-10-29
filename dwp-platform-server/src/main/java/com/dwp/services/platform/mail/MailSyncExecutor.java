@@ -42,24 +42,25 @@ class MailSyncExecutor {
         this(repository, connectors, materializer, null);
     }
 
-    ExecutionResult execute(MailSyncJobRepository.SyncJob job) {
+    MailSyncExecutionResult execute(MailSyncJob job) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
-            throw new SyncWorkFailure("SYNC_NETWORK_TRANSACTION_ACTIVE", true);
+            throw new MailSyncWorkFailure("SYNC_NETWORK_TRANSACTION_ACTIVE", true);
         }
         AdminMailCompletionRepository.ConnectionRow connection = repository
                 .connection(job.tenantId(), job.connectionId())
-                .orElseThrow(() -> new SyncWorkFailure("SYNC_CONNECTION_UNAVAILABLE", true));
+                .orElseThrow(() -> new MailSyncWorkFailure(
+                        "SYNC_CONNECTION_UNAVAILABLE", true));
         if (connection.version() != job.connectionVersion()) {
-            throw new SyncWorkFailure("CONNECTION_VERSION_CONFLICT", true);
+            throw new MailSyncWorkFailure("CONNECTION_VERSION_CONFLICT", true);
         }
         MailTypes.ProviderType provider;
         try {
             provider = MailTypes.ProviderType.valueOf(connection.providerType());
         } catch (IllegalArgumentException invalid) {
-            throw new SyncWorkFailure("PROVIDER_TYPE_UNSUPPORTED", true);
+            throw new MailSyncWorkFailure("PROVIDER_TYPE_UNSUPPORTED", true);
         }
         MailConnectorPort connector = connectors.connector(provider)
-                .orElseThrow(() -> new SyncWorkFailure(
+                .orElseThrow(() -> new MailSyncWorkFailure(
                         "CONNECTOR_ADAPTER_UNAVAILABLE", false));
         MailConnectorPort.ConnectionContext context;
         try {
@@ -69,12 +70,12 @@ class MailSyncExecutor {
                             Set.of("ADMIN.MAIL:MANAGE"), correlation(job.correlationId())),
                     connection.id(), connection.secretReference(), connection.mailDomain());
         } catch (RuntimeException invalidSecret) {
-            throw new SyncWorkFailure("CREDENTIAL_REFERENCE_INVALID", true);
+            throw new MailSyncWorkFailure("CREDENTIAL_REFERENCE_INVALID", true);
         }
         List<AdminMailCompletionRepository.AccountRow> accounts = repository
                 .connectionAccounts(job.tenantId(), connection.id());
         if (accounts.isEmpty()) {
-            throw new SyncWorkFailure("NO_ACTIVE_ACCOUNT", true);
+            throw new MailSyncWorkFailure("NO_ACTIVE_ACCOUNT", true);
         }
         int batches = 0;
         int inserted = 0;
@@ -94,16 +95,16 @@ class MailSyncExecutor {
                 } catch (MailSyncProviderException providerFailure) {
                     throw providerFailure(job, pageAccount, providerFailure);
                 } catch (RuntimeException providerFailure) {
-                    throw new SyncWorkFailure("SYNC_PROVIDER_UNAVAILABLE", false);
+                    throw new MailSyncWorkFailure("SYNC_PROVIDER_UNAVAILABLE", false);
                 }
                 if (batch.cursorResetRequired()) {
                     throw resetFailure(job, pageAccount, batch.nextCursor());
                 }
-                MailExternalSyncMaterializer.SyncResult result;
+                MailSyncResult result;
                 try {
                     result = materializer.materialize(
                             job.tenantId(), job.actorId(), pageAccount, batch);
-                } catch (MailExternalSyncMaterializer.SyncFailure failure) {
+                } catch (MailSyncMaterializationFailure failure) {
                     boolean terminal = Set.of(
                             "PROVIDER_BATCH_INVALID",
                             "PROVIDER_BATCH_MESSAGE_LIMIT_EXCEEDED",
@@ -113,7 +114,7 @@ class MailSyncExecutor {
                             "PROVIDER_ATTACHMENT_COUNT_EXCEEDED",
                             "PROVIDER_ATTACHMENT_BYTES_EXCEEDED",
                             "SYNC_CURSOR_RESET_REQUIRED").contains(failure.code());
-                    throw new SyncWorkFailure(failure.code(), terminal);
+                    throw new MailSyncWorkFailure(failure.code(), terminal);
                 }
                 batches++;
                 inserted += result.inserted();
@@ -124,7 +125,7 @@ class MailSyncExecutor {
                     break;
                 }
                 if (Objects.equals(pageAccount.cursor(), batch.nextCursor())) {
-                    throw new SyncWorkFailure("SYNC_CURSOR_DID_NOT_ADVANCE", true);
+                    throw new MailSyncWorkFailure("SYNC_CURSOR_DID_NOT_ADVANCE", true);
                 }
                 pageAccount = new AdminMailCompletionRepository.AccountRow(
                         pageAccount.id(), pageAccount.email(),
@@ -132,48 +133,48 @@ class MailSyncExecutor {
                         pageAccount.cursorGeneration() + 1);
             }
             if (!complete) {
-                return new ExecutionResult(
+                return new MailSyncExecutionResult(
                         accountsProcessed, batches, inserted, duplicates, blocked, true);
             }
         }
-        return new ExecutionResult(
+        return new MailSyncExecutionResult(
                 accounts.size(), batches, inserted, duplicates, blocked, false);
     }
 
-    private SyncWorkFailure providerFailure(
-            MailSyncJobRepository.SyncJob job,
+    private MailSyncWorkFailure providerFailure(
+            MailSyncJob job,
             AdminMailCompletionRepository.AccountRow account,
             MailSyncProviderException failure) {
         return switch (failure.category()) {
-            case AUTHENTICATION -> new SyncWorkFailure(
+            case AUTHENTICATION -> new MailSyncWorkFailure(
                     failure.errorCode(), true, "AUTHENTICATION", null, Map.of());
-            case RATE_LIMIT -> new SyncWorkFailure(
+            case RATE_LIMIT -> new MailSyncWorkFailure(
                     failure.errorCode(), false, "RATE_LIMIT",
                     java.time.OffsetDateTime.ofInstant(
                             failure.retryAfter(), java.time.ZoneOffset.UTC), Map.of());
             case CURSOR_RESET -> resetFailure(job, account, failure.resetCursor());
-            case TRANSIENT -> new SyncWorkFailure(
+            case TRANSIENT -> new MailSyncWorkFailure(
                     failure.errorCode(), false, "TRANSIENT", null, Map.of());
-            case PERMANENT -> new SyncWorkFailure(
+            case PERMANENT -> new MailSyncWorkFailure(
                     failure.errorCode(), true, "PERMANENT", null, Map.of());
         };
     }
 
-    private SyncWorkFailure resetFailure(
-            MailSyncJobRepository.SyncJob job,
+    private MailSyncWorkFailure resetFailure(
+            MailSyncJob job,
             AdminMailCompletionRepository.AccountRow account,
             String resetCursor) {
         if ("RECOVERY".equals(job.triggerKind())) {
-            return new SyncWorkFailure(
+            return new MailSyncWorkFailure(
                     "SYNC_CURSOR_RESET_REPEATED", true,
                     "CURSOR_RESET", null, Map.of());
         }
         if (syncJobs == null) {
-            return new SyncWorkFailure("SYNC_CURSOR_RESET_REQUIRED", true);
+            return new MailSyncWorkFailure("SYNC_CURSOR_RESET_REQUIRED", true);
         }
         MailSyncJobRepository.ResetTransition transition =
                 syncJobs.resetCursorAndEnqueueRecovery(job, account, resetCursor);
-        return new SyncWorkFailure(
+        return new MailSyncWorkFailure(
                 "SYNC_CURSOR_RESET_REQUIRED", true, "CURSOR_RESET",
                 null, transition.evidence());
     }
@@ -182,69 +183,4 @@ class MailSyncExecutor {
         return value == null || value.isBlank() ? "mail-sync-worker" : value;
     }
 
-    record ExecutionResult(
-            int accounts,
-            int batches,
-            int insertedMessages,
-            int duplicateMessages,
-            int blockedAttachments,
-            boolean continuationRequired) {
-
-        ExecutionResult(
-                int accounts,
-                int batches,
-                int insertedMessages,
-                int duplicateMessages,
-                int blockedAttachments) {
-            this(accounts, batches, insertedMessages, duplicateMessages,
-                    blockedAttachments, false);
-        }
-    }
-
-    static final class SyncWorkFailure extends RuntimeException {
-        private static final long serialVersionUID = 1L;
-        private final String code;
-        private final boolean terminal;
-        private final String classification;
-        private final java.time.OffsetDateTime retryAt;
-        private final transient Map<String, Object> resetEvidence;
-
-        SyncWorkFailure(String code, boolean terminal) {
-            this(code, terminal, terminal ? "PERMANENT" : "TRANSIENT", null, Map.of());
-        }
-
-        SyncWorkFailure(
-                String code,
-                boolean terminal,
-                String classification,
-                java.time.OffsetDateTime retryAt,
-                Map<String, Object> resetEvidence) {
-            super(code);
-            this.code = code;
-            this.terminal = terminal;
-            this.classification = classification;
-            this.retryAt = retryAt;
-            this.resetEvidence = resetEvidence == null ? Map.of() : Map.copyOf(resetEvidence);
-        }
-
-        String code() {
-            return code;
-        }
-
-        boolean terminal() {
-            return terminal;
-        }
-
-        String classification() {
-            return classification;
-        }
-
-        java.time.OffsetDateTime retryAt() {
-            return retryAt;
-        }
-
-        Map<String, Object> resetEvidence() {
-            return resetEvidence;
-        }
-    }
 }

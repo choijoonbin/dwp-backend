@@ -68,12 +68,21 @@ class ProductAuthorizationV55Test(unittest.TestCase):
                     profile["responseProjectionBindings"][0]["projectionPolicyKey"],
                     profile["responseProjectionBindings"][0]["responseSchemaKey"]))
 
-    def test_latest_seed_index_and_four_owner_peps_have_exact_lineage(self) -> None:
-        for path in (CONTRACTS / "product-surfaces-v1.json", AUTH / "product-surfaces-v1.generated.json",
-                     AUTH / "product-surfaces-v1.bundle-v55.generated.json"):
-            self.assertEqual(self.bundle, json.loads(path.read_text()))
+    def test_current_alias_is_v62_and_v55_owner_peps_preserve_lineage(self) -> None:
+        latest = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v62.json").read_text()
+        )
+        for path in (CONTRACTS / "product-surfaces-v1.json",
+                     AUTH / "product-surfaces-v1.generated.json"):
+            self.assertEqual(latest, json.loads(path.read_text()))
+        self.assertEqual(
+            self.bundle,
+            json.loads((AUTH / "product-surfaces-v1.bundle-v55.generated.json").read_text()),
+        )
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual((55, CHECKSUM, 55), (index["latestVersion"], index["latestChecksum"], len(index["versions"])))
+        self.assertEqual((62, latest["checksum"], 62), (index["latestVersion"], index["latestChecksum"], len(index["versions"])))
+        historical = next(value for value in index["versions"] if value["version"] == 55)
+        self.assertEqual(CHECKSUM, historical["checksum"])
         self.assertEqual(index, json.loads((AUTH / "product-surfaces-v1.index.generated.json").read_text()))
         for service in ("people", "time", "platform", "payroll"):
             pep = json.loads((ROOT / f"dwp-{service}-server/src/main/resources/product-authorization/"
@@ -81,7 +90,11 @@ class ProductAuthorizationV55Test(unittest.TestCase):
             self.assertEqual((55, CHECKSUM), (pep["registryRef"]["version"], pep["registryRef"]["sha256"]))
             present = {route["routeContractKey"] for route in pep["routes"]}
             self.assertEqual(ROUTES if service == "people" else set(), ROUTES & present)
-        self.assertIn(CHECKSUM, (CONTRACTS / "pilot-fixtures.v1.generated.json").read_text())
+        fixture = json.loads((CONTRACTS / "pilot-fixtures.v1.generated.json").read_text())
+        self.assertEqual(62, fixture["registryLineage"]["latestAliasVersion"])
+        self.assertIn(CHECKSUM, {
+            value["sha256"] for value in fixture["registryLineage"]["versions"]
+        })
 
 
 if __name__ == "__main__":

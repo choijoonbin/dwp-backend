@@ -82,6 +82,29 @@ class PayrollStepUpVerifierContractTest {
     }
 
     @Test
+    void calculationAttemptUsesTheV62ElevatedCommandProofBoundary() throws Exception {
+        String path = "/api/payroll/v1/runs/" + RUN_ID + "/attempts";
+        PayrollCalculationAuthority.Actor actor = calculationActor("ELEVATED");
+        Map<String, Object> payload = Map.of("reasonCode", "CALCULATE");
+        ProductSurfaceStepUpChallengeVerifier.CommandBinding binding = binding(
+                actor, payload, path, "POST", 4, DECISION, "calculate-key");
+        PayrollStepUpHeaders headers = new PayrollStepUpHeaders(
+                token(binding, AUDIENCE, NOW.plusSeconds(300), keyPair),
+                "calculate-key", DECISION, 4);
+
+        PayrollStepUpEvidence evidence = guard.require(
+                actor, RUN_ID, 4, path, payload, headers);
+
+        assertThat(evidence.challengeId()).isEqualTo("pay-challenge-1");
+        assertCode(() -> guard.require(
+                        calculationActor("NORMAL"), RUN_ID, 4, path, payload, headers),
+                ErrorCode.FORBIDDEN);
+        assertCode(() -> guard.require(
+                        actor, RUN_ID, 4, path, payload, null),
+                ErrorCode.STEP_UP_REQUIRED);
+    }
+
+    @Test
     void preservesUppercaseRunIdPathAndTargetLexicalForm() throws Exception {
         PayrollCalculationAuthority.Actor actor = actor(3, 17, DECISION);
         Map<String, Object> payload = Map.of("reasonCode", "APPROVE");
@@ -322,7 +345,7 @@ class PayrollStepUpVerifierContractTest {
             String targetId) {
         return new ProductSurfaceStepUpChallengeVerifier.CommandBinding(
                 actor.actorId(), actor.tenantId(),
-                PayrollCalculationRoute.APPROVE.routeContractKey(),
+                actor.subject().routeContractKey(),
                 actor.subject().contextKey(), "STEPUP-MGMT-HIGH-V1",
                 actor.subject().capabilityContractKey(),
                 actor.subject().contextScopeKey(), "PAYROLL_RUN", targetId,
@@ -357,6 +380,29 @@ class PayrollStepUpVerifierContractTest {
                 Set.of(new PayrollCalculationAuthority.PopulationTuple(
                         legalEntity, payGroup, "LEGAL_ENTITY", scopeKey)),
                 "projection-41", "c".repeat(64)));
+    }
+
+    private PayrollCalculationAuthority.Actor calculationActor(String accessMode) {
+        String scopeKey = "hcm-scope-" + "a".repeat(40);
+        UUID legalEntity = UUID.fromString(
+                "00000000-0000-0000-0000-000000001103");
+        UUID payGroup = UUID.fromString(
+                "00000000-0000-0000-0000-000000001104");
+        PayrollCalculationAuthority.Subject subject =
+                new PayrollCalculationAuthority.Subject(
+                        3, 17,
+                        UUID.fromString("00000000-0000-0000-0000-000000001105"),
+                        PayrollCalculationAuthority.Action.CALCULATE,
+                        PayrollCalculationRoute.CALCULATE.routeContractKey(),
+                        "hcm.operations.payroll-run.execute", "PAYROLL_PROCESSING",
+                        "hcm.operations.payroll-run.execute", scopeKey, "LEGAL_ENTITY",
+                        7, 62, DECISION, NOW.plusSeconds(300), accessMode,
+                        Set.of("APP.HCM:VIEW", "ACTION.HRIS_PAYROLL_RUN:EXECUTE"));
+        return new PayrollCalculationAuthority.Actor(
+                subject, new PayrollCalculationAuthority.Scope(
+                Set.of(new PayrollCalculationAuthority.PopulationTuple(
+                        legalEntity, payGroup, "LEGAL_ENTITY", scopeKey)),
+                "projection-62", "c".repeat(64)));
     }
 
     private String token(

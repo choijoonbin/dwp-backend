@@ -1,5 +1,7 @@
 package com.dwp.services.payroll.statutory.pay003;
 
+import static com.dwp.services.payroll.statutory.pay003.Pay003ValueValidation.*;
+
 import com.dwp.services.payroll.foundation.PlainBigDecimalSerializer;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -27,9 +29,6 @@ final class Pay003Models {
     static final String ACTIVATE_ACTION = "PAY_COUNTRY_PACK_ACTIVATE";
     static final String ACTIVATE_ACTION_KEY =
             "hris.action.pay.country.pack.activate";
-    static final String ACTIVATION_PURPOSE = "STATUTORY_CONFIGURATION";
-    static final String CONFIGURATION_PURPOSE = "PAYROLL_CONFIGURATION";
-    static final String OPERATIONS_PURPOSE = "PAYROLL_OPERATIONS";
     static final List<String> STATUTORY_GROUPS = List.of(
             "COUNTRY_PACK_METADATA", "STATUTORY_RULE", "ACTIVATION_STATUS");
     static final List<String> RESULT_GROUPS = List.of(
@@ -191,7 +190,9 @@ final class Pay003Models {
                     || !version.matches("[A-Za-z0-9._:-]{1,64}")) {
                 throw new IllegalArgumentException("metadata value is invalid");
             }
-            if (digest != null) Pay003Models.digest(digest, "metadata digest");
+            if (digest != null) {
+                Pay003ValueValidation.digest(digest, "metadata digest");
+            }
         }
     }
 
@@ -482,7 +483,7 @@ final class Pay003Models {
             Objects.requireNonNull(receiptId, "receiptId");
             if (!"COUNTRY_PACK_ACTIVATE".equals(commandType)
                     || !ACTIVATE_ACTION.equals(originatingAction)
-                    || !ACTIVATION_PURPOSE.equals(purposeCode)
+                    || !Pay003Contract.ACTIVATION_PURPOSE.equals(purposeCode)
                     || !Set.of("ACCEPTED", "SUCCEEDED").contains(status)
                     || aggregateVersion < 1 || fieldPolicyRevision < 1
                     || authorizationRevision < 1) {
@@ -665,31 +666,8 @@ final class Pay003Models {
             UUID eventId,
             long activationRevision,
             Instant occurredAt,
-            Pay003Ports.StepUpEvidence stepUpEvidence,
+            Pay003StepUpEvidence stepUpEvidence,
             PayrollCommandReceipt response) {
     }
 
-    static void token(String value, int maximum, String name) {
-        if (value == null || value.isBlank() || value.length() > maximum
-                || !value.equals(value.strip())
-                || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) {
-            throw new IllegalArgumentException(name + " is invalid");
-        }
-    }
-
-    static void digest(String value, String name) {
-        if (value == null || !value.matches("[0-9a-f]{64}")) {
-            throw new IllegalArgumentException(name + " is invalid");
-        }
-    }
-
-    static String canonicalUuid(String value, String name) {
-        try {
-            String canonical = UUID.fromString(value).toString();
-            if (!canonical.equals(value)) throw new IllegalArgumentException();
-            return canonical;
-        } catch (RuntimeException exception) {
-            throw new IllegalArgumentException(name + " is not a canonical UUID");
-        }
-    }
 }

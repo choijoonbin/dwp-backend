@@ -1,6 +1,5 @@
 package com.dwp.gateway.productsurface;
 
-import com.dwp.gateway.filter.ProductSurfaceDecisionContextFilter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -175,7 +174,8 @@ class TenantFeatureActivationV268RouteParityTest {
     }
 
     private static Set<String> privateSet(String name) throws Exception {
-        Field field = ProductSurfaceDecisionContextFilter.class.getDeclaredField(name);
+        Field field = Class.forName("com.dwp.gateway.filter.ProductSurfaceRoutePolicies")
+                .getDeclaredField(name);
         field.setAccessible(true);
         @SuppressWarnings("unchecked")
         Set<String> value = (Set<String>) field.get(null);
@@ -183,7 +183,8 @@ class TenantFeatureActivationV268RouteParityTest {
     }
 
     private static Map<String, String> privateMap(String name) throws Exception {
-        Field field = ProductSurfaceDecisionContextFilter.class.getDeclaredField(name);
+        Field field = Class.forName("com.dwp.gateway.filter.ProductSurfaceRoutePolicies")
+                .getDeclaredField(name);
         field.setAccessible(true);
         @SuppressWarnings("unchecked")
         Map<String, String> value = (Map<String, String>) field.get(null);

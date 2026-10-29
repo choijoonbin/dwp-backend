@@ -107,13 +107,20 @@ public class ApprovalController {
     }
 
     @PostMapping("/hris/separation-waiver-tasks/{taskId}/approve")
+    @Operation(summary = "Approve an HRIS separation waiver with command-bound step-up")
     public ApiResponse<ApprovalDtos.TaskDetail> approveHrisSeparationWaiver(
             @PathVariable UUID taskId,
             @Valid @RequestBody ApprovalDtos.DecisionRequest request,
+            @Parameter(schema = @Schema(minLength = 1, maxLength = 120,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$"))
             @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Parameter(schema = @Schema(format = "uuid"))
             @RequestHeader("X-Correlation-ID") String correlationId,
+            @Parameter(schema = @Schema(minLength = 1))
             @RequestHeader("X-DWP-Step-Up-Challenge") String challenge,
+            @Parameter(schema = @Schema(minLength = 1, maxLength = 200))
             @RequestHeader("X-DWP-Expected-Decision-Revision") String decisionRevision,
+            @Parameter(schema = @Schema(minimum = "0"))
             @RequestHeader("X-DWP-Expected-Object-Version") Long expectedVersion) {
         if (workflowMetadata == null) {
             throw new com.dwp.core.exception.BaseException(

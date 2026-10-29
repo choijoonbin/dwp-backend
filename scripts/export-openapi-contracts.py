@@ -23,9 +23,13 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v62.json"
+)
+PRODUCT_AUTHORIZATION_VERSION = 62
+HISTORICAL_PRODUCT_AUTHORIZATION_REGISTRY = (
     ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v44.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 44
+HISTORICAL_PRODUCT_AUTHORIZATION_VERSION = 44
 HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY = (
     ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v38.json"
 )
@@ -374,13 +378,6 @@ WAVE5_TIM_TRANSPORT_SHA256 = (
     "96f3a6b0d7c6e7f228442f956daab0cfa44ce78dd65c8b477192ec77d0145db4"
 )
 WAVE5_HRIS_CONTROL_ROUTE_KEYS = frozenset(WAVE5_HRIS_CONTROL_OPERATION_CONTRACTS)
-WAVE5_STRICT_MUTATION_OPERATIONS = frozenset({
-    ("/api/people/v1/hris/performance/reviews/{reviewId}", "patch"),
-    ("/api/people/v1/hris/performance/reviews/{reviewId}/submit", "post"),
-    ("/api/time/v1/timecards/{timecardId}/corrections", "post"),
-    ("/api/time/v1/timecards/{timecardId}/submit", "post"),
-    ("/api/time/v1/timecards/{timecardId}/decisions", "post"),
-})
 SYS012_WORK_EXPLORER_OPERATIONS = {
     "route.hcm.utility.explorer.page": (
         "get", "/v1/hris/explorer", "getHrisWorkExplorer", "SYS-API-027",
@@ -1507,6 +1504,13 @@ def load_product_authorization_registry() -> dict[str, Any]:
     )
 
 
+def load_historical_product_authorization_registry() -> dict[str, Any]:
+    return load_authorization_registry(
+        HISTORICAL_PRODUCT_AUTHORIZATION_REGISTRY,
+        HISTORICAL_PRODUCT_AUTHORIZATION_VERSION,
+    )
+
+
 def load_hrm_employee_change_authorization_registry() -> dict[str, Any]:
     return load_authorization_registry(
         HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY,
@@ -1527,6 +1531,12 @@ def product_governed_operations() -> dict[tuple[str, str], bool]:
         )
         bindings = route.get("gatewayApiBindings")
         if not isinstance(bindings, list) or not bindings:
+            if (
+                route.get("bindingMode") == "AUTHORIZATION_ONLY"
+                and bindings == []
+                and route.get("servicePepBindings") == []
+            ):
+                continue
             raise RuntimeError(
                 f"Active PRODUCT route has no Gateway binding: {route.get('routeContractKey')}"
             )
@@ -1675,14 +1685,6 @@ def add_product_governance_contract(document: dict[str, Any]) -> None:
                     )
             else:
                 canonical_revision = copy.deepcopy(EXPECTED_DECISION_REVISION_PARAMETER)
-            if (actual_path, method) in WAVE5_STRICT_MUTATION_OPERATIONS:
-                canonical_revision = copy.deepcopy(
-                    revision_collisions[0][1]
-                    if revision_collisions
-                    else EXPECTED_DECISION_REVISION_PARAMETER
-                )
-                canonical_revision["required"] = True
-                canonical_revision.pop("x-dwp-conditional-required", None)
             if actual_path in HOME_RUNTIME_MUTATION_PATHS and not command_proof_required:
                 canonical_revision["description"] = (
                     "Required and fail-closed for the Home Runtime authority states "
@@ -1966,7 +1968,7 @@ def validate_payroll_run_contract(
         if route.get("routeContractKey") in PAYROLL_RUN_ROUTE_KEYS
     }
     if set(routes) != PAYROLL_RUN_ROUTE_KEYS:
-        raise RuntimeError("Payroll-run v41 authorization routes are not exact")
+        raise RuntimeError("Payroll-run v62 authorization routes are not exact")
 
     expected_owner_operations: set[tuple[str, str]] = set()
     expected_gateway_operations: set[tuple[str, str]] = set()
@@ -1983,7 +1985,7 @@ def validate_payroll_run_contract(
             or not isinstance(gateway_bindings, list)
             or len(gateway_bindings) != 1
         ):
-            raise RuntimeError(f"Payroll-run v41 route is invalid: {route_key}")
+            raise RuntimeError(f"Payroll-run v62 route is invalid: {route_key}")
         owner = owner_bindings[0]
         browser = gateway_bindings[0]
         expected_method, expected_owner_path, _, _, _ = (
@@ -2001,7 +2003,7 @@ def validate_payroll_run_contract(
             or not isinstance(owner_path, str)
             or prefixed("/api/payroll")(owner_path) != browser_path
         ):
-            raise RuntimeError(f"Payroll-run v41 binding drift: {route_key}")
+            raise RuntimeError(f"Payroll-run v62 binding drift: {route_key}")
         expected_owner_operations.add((method, owner_path))
         expected_gateway_operations.add((method, browser_path))
 
@@ -2014,9 +2016,10 @@ def validate_payroll_run_contract(
         if method in HTTP_METHODS
     }
     if actual_overlay != expected_owner_operations:
-        raise RuntimeError("Payroll-run v41 design-time operations are not exact")
+        raise RuntimeError("Payroll-run v62 design-time operations are not exact")
 
     proof_routes = {
+        "route.hcm.operations.payroll-run-calculate.action",
         "route.hcm.operations.payroll-run-approve.action",
         "route.hcm.operations.payroll-run-finalize.action",
     }
@@ -2041,7 +2044,7 @@ def validate_payroll_run_contract(
             or owner_operation.get("operationId") != operation_id
             or browser_operation.get("operationId") != f"payroll_{operation_id}"
         ):
-            raise RuntimeError(f"Payroll-run v41 OpenAPI operation drift: {route_key}")
+            raise RuntimeError(f"Payroll-run v62 OpenAPI operation drift: {route_key}")
         for label, operation in (("owner", owner_operation), ("gateway", browser_operation)):
             if (
                 operation.get("x-dwp-runtime-default") != "OFF"
@@ -2049,12 +2052,12 @@ def validate_payroll_run_contract(
                 or operation.get("x-dwp-purpose-code") != purpose
             ):
                 raise RuntimeError(
-                    f"Payroll-run v41 {label} contract metadata drift: {route_key}"
+                    f"Payroll-run v62 {label} contract metadata drift: {route_key}"
                 )
         owner_parameters = parameters(owner_operation)
         browser_parameters = parameters(browser_operation)
         if ("query", "contextscopekey") not in browser_parameters:
-            raise RuntimeError(f"Payroll-run v41 scope selector missing: {route_key}")
+            raise RuntimeError(f"Payroll-run v62 scope selector missing: {route_key}")
 
         if route_key in proof_routes:
             expected_step_up = [{
@@ -2083,9 +2086,9 @@ def validate_payroll_run_contract(
                     for key in proof_headers
                 )
             ):
-                raise RuntimeError(f"Payroll-run v41 step-up proof drift: {route_key}")
+                raise RuntimeError(f"Payroll-run v62 step-up proof drift: {route_key}")
         elif route.get("stepUpCommandBindings"):
-            raise RuntimeError(f"Payroll-run v41 unexpected step-up: {route_key}")
+            raise RuntimeError(f"Payroll-run v62 unexpected step-up: {route_key}")
 
     receipt = payroll_document["paths"]["/v1/command-receipts/{receiptId}"]["get"]
     if (
@@ -2263,7 +2266,14 @@ def validate_wave5_hris_control_contract(
                 not mutation_headers <= set(values)
                 or any(values[key].get("required") is not True
                        for key in mutation_headers)
-                for values in (source_parameters, owner_parameters, browser_parameters)
+                for values in (source_parameters, owner_parameters)
+            ) or (
+                not mutation_headers <= set(browser_parameters)
+                or any(browser_parameters[key].get("required") is not True
+                       for key in mutation_headers
+                       if key != ("header", "x-dwp-expected-decision-revision"))
+                or browser_parameters[("header", "x-dwp-expected-decision-revision")]
+                != EXPECTED_DECISION_REVISION_PARAMETER
             ):
                 raise RuntimeError(f"Wave5 HRIS mutation header drift: {route_key}")
         if (
@@ -2502,7 +2512,7 @@ def validate_sys012_work_explorer_contract(
         platform_document: dict[str, Any],
         gateway_document: dict[str, Any]) -> None:
     """Seal SYS-012's exact default-off owner and browser transport carrier."""
-    registry = load_product_authorization_registry()
+    registry = load_historical_product_authorization_registry()
     if (
         registry.get("version") != 44
         or len(registry.get("capabilities", [])) != 258
@@ -2747,7 +2757,7 @@ def validate_sys009_controlled_transfer_contract(
         platform_document: dict[str, Any],
         gateway_document: dict[str, Any]) -> None:
     """Seal SYS-009's exact default-off transfer transport and v44 authority."""
-    registry = load_product_authorization_registry()
+    registry = load_historical_product_authorization_registry()
     if (
         registry.get("version") != 44
         or len(registry.get("capabilities", [])) != 258

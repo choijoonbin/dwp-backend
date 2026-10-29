@@ -35,6 +35,8 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${DWP_MESSAGING_REDIS_SSL_ENABLED:false}
       timeout: ${DWP_MESSAGING_REDIS_TIMEOUT:2s}
       connect-timeout: ${DWP_MESSAGING_REDIS_CONNECT_TIMEOUT:2s}
   flyway:

@@ -54,7 +54,8 @@ final class AuthHrisExplorerAuthorityClient {
         Object body = requestBody.get();
         try {
             String response = people.post().uri(PEOPLE_PATH)
-                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .headers(headers ->
+                            OutboundHttpHeaders.propagateObservability(headers))
                     .header(SERVICE_TOKEN_HEADER, peopleServiceToken)
                     .header(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY)
                     .header(USER_HEADER, Long.toString(request.actorId()))
@@ -75,7 +76,8 @@ final class AuthHrisExplorerAuthorityClient {
         }
         try {
             String response = auth.post().uri(AUTHORITY_PATH)
-                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .headers(headers ->
+                            OutboundHttpHeaders.propagateObservability(headers))
                     .header(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY)
                     .header(PRODUCT_TOKEN_HEADER, productSurfaceToken)
                     .accept(MediaType.APPLICATION_JSON)
@@ -95,7 +97,8 @@ final class AuthHrisExplorerAuthorityClient {
         try {
             String response = auth.get()
                     .uri(IDENTITY_PATH, request.tenantId(), request.actorId())
-                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .headers(headers ->
+                            OutboundHttpHeaders.propagateObservability(headers))
                     .header(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY)
                     .header(IDENTITY_TOKEN_HEADER, identitySyncToken)
                     .accept(MediaType.APPLICATION_JSON)

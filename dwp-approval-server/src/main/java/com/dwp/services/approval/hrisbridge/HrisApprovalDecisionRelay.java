@@ -1,6 +1,8 @@
 package com.dwp.services.approval.hrisbridge;
 
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalBridgeV2;
+import com.dwp.platform.contracts.hris.approval.v2.HrisWorkloadProofV2;
 import com.dwp.platform.contracts.hris.command.v1.CommandReceiptV1;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -27,6 +29,10 @@ import org.springframework.web.client.RestClientResponseException;
 @ConditionalOnProperty(prefix = "dwp.approval.hris-bridge", name = {"enabled", "relay-enabled"},
         havingValue = "true")
 final class HrisApprovalDecisionRelay {
+    private static final String CALLBACK_PATH_PATTERN =
+            "^/internal/hris-people/v1/employee-change-requests/"
+                    + "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-"
+                    + "[89ab][0-9a-f]{3}-[0-9a-f]{12}/approval-decisions$";
     private final NamedParameterJdbcTemplate jdbc;
     private final TransactionTemplate transactions;
     private final RestClient people;
@@ -110,15 +116,19 @@ final class HrisApprovalDecisionRelay {
 
     private void deliver(Delivery delivery) {
         try {
+            if (delivery.path == null || !delivery.path.matches(CALLBACK_PATH_PATTERN)) {
+                throw new IllegalArgumentException("People callback path mismatch.");
+            }
             String proof = signer.sign(delivery.path, delivery.tenantId,
                     delivery.bodySha256);
             byte[] response = people.post().uri(delivery.path).headers(headers -> {
                 headers.clear();
+                OutboundHttpHeaders.propagateObservability(headers);
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-                headers.set(HrisWorkloadProofHeader.SERVICE_IDENTITY,
+                headers.set(HrisWorkloadProofV2.SERVICE_IDENTITY_HEADER,
                         HrisApprovalBridgeV2.DECISION_CALLBACK.callerWorkloadId());
-                headers.set(HrisWorkloadProofHeader.PROOF, proof);
+                headers.set(HrisWorkloadProofV2.WORKLOAD_PROOF_HEADER, proof);
             }).body(delivery.body).retrieve().body(byte[].class);
             CommandReceiptV1 receipt = receipt(response, delivery);
             byte[] exact = response.clone();
@@ -230,8 +240,4 @@ final class HrisApprovalDecisionRelay {
             String bodySha256, String commandDigest, byte[] body,
             UUID correlationId, UUID leaseToken, int attemptCount) { }
 
-    private static final class HrisWorkloadProofHeader {
-        private static final String SERVICE_IDENTITY = "X-DWP-Service-Identity";
-        private static final String PROOF = "X-DWP-Workload-Proof";
-    }
 }

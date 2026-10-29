@@ -26,7 +26,7 @@ class SvcHrm003CompensationSnapshotProviderContractTest {
         Hrm011WorkloadAuditPort audit = mock(Hrm011WorkloadAuditPort.class);
         Hrm011WorkloadIngress ingress = ingress(facts, audit);
         Instant asOf = Instant.parse("2026-10-19T03:00:00Z");
-        var request = new Hrm011WorkloadIngress.SnapshotRequest(
+        var request = new Hrm011WorkloadContract.SnapshotRequest(
                 Hrm011WorkloadIngress.SVC003_PURPOSE, asOf,
                 Hrm011WorkloadIngress.COMPENSATION, 500, null);
 
@@ -72,7 +72,7 @@ class SvcHrm003CompensationSnapshotProviderContractTest {
                 mock(Hrm011WorkloadIngress.PayrollWorkerFactSource.class),
                 new EmploymentContractCanonicalizer(mapper), mapper, audit,
                 "01234567890123456789012345678901");
-        var request = new Hrm011WorkloadIngress.SnapshotRequest(
+        var request = new Hrm011WorkloadContract.SnapshotRequest(
                 Hrm011WorkloadIngress.SVC003_PURPOSE,
                 Instant.parse("2026-10-19T03:00:00Z"),
                 Hrm011WorkloadIngress.COMPENSATION, 1, null);
@@ -91,7 +91,7 @@ class SvcHrm003CompensationSnapshotProviderContractTest {
         Hrm011WorkloadIngress ingress = ingress(
                 mock(Hrm011WorkloadIngress.PayrollWorkerFactSource.class), audit);
 
-        var request = new Hrm011WorkloadIngress.SnapshotRequest(
+        var request = new Hrm011WorkloadContract.SnapshotRequest(
                         Hrm011WorkloadIngress.SVC003_PURPOSE,
                         Instant.parse("2026-10-19T03:00:00Z"),
                         Hrm011WorkloadIngress.COMPENSATION, 500, null);
@@ -112,13 +112,13 @@ class SvcHrm003CompensationSnapshotProviderContractTest {
     }
 
     private Hrm011WorkloadRequestContext.VerifiedRequest verified(
-            Hrm011WorkloadIngress.SnapshotRequest request, String caller) {
+            Hrm011WorkloadContract.SnapshotRequest request, String caller) {
         return new Hrm011WorkloadRequestContext.VerifiedRequest(
                 "GET", Hrm011WorkloadIngressFilter.COMPENSATION_PATH,
                 "fixture-fingerprint", Hrm011WorkloadIngressFilter.COMPENSATION_BINDING,
                 UUID.fromString("22222222-2222-4222-8222-222222222222"),
                 UUID.fromString("11111111-1111-4111-8111-111111111111"), 3,
-                new Hrm011WorkloadIngress.TrustedWorkload(
+                new Hrm011WorkloadContract.TrustedWorkload(
                         71L, caller, Hrm011WorkloadIngress.AUDIENCE,
                         request.purposeCode(), true, true, true, true, 7),
                 request);

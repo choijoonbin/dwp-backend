@@ -12,7 +12,7 @@ import static com.dwp.services.payroll.calculation.PayrollCalculationModels.Calc
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.Checkpoint;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.CommandIdentity;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.EventFact;
-import static com.dwp.services.payroll.calculation.PayrollCalculationModels.FormulaBinding;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.FormulaBinding;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.FrozenSnapshot;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.Lease;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.PersistedReceipt;

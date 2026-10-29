@@ -243,7 +243,7 @@ class PayrollMigrationCleanUpgradeTest extends PayrollMigrationPostgresFixture {
         PayrollCalculationModels.QuantizationBinding binding =
                 new PayrollCalculationModels.QuantizationBinding(
                         1, null,
-                        PayrollCalculationSemanticMappingPort.RoundingStage.ELEMENT,
+                        PayrollCalculationSemanticContract.RoundingStage.ELEMENT,
                         null, 4, java.math.RoundingMode.HALF_EVEN,
                         new BigDecimal("10.0000"), "a".repeat(64));
         JsonMapper mapper = JsonMapper.builder().findAndAddModules().build();
@@ -335,7 +335,7 @@ class PayrollMigrationCleanUpgradeTest extends PayrollMigrationPostgresFixture {
                 .containsExactly(exactPublicLine)
                 .doesNotContain(unrelatedPublicLine);
         assertThat(preparation.snapshot().formulas())
-                .extracting(PayrollCalculationModels.FormulaBinding::formulaId)
+                .extracting(PayrollCalculationSemanticContract.FormulaBinding::formulaId)
                 .containsExactly(exactFormula);
 
         PayrollCalculationStore.Preparation boundPreparation =

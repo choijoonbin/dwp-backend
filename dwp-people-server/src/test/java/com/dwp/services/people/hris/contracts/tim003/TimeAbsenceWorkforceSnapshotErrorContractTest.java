@@ -168,7 +168,7 @@ class TimeAbsenceWorkforceSnapshotErrorContractTest {
                         RELATIONSHIP, 7L, LocalDate.parse("2026-10-21"));
         Instant issuedAt = Instant.parse("2026-10-20T15:00:00Z");
         UUID jti = UUID.fromString("40000000-0000-4000-8000-000000000001");
-        String queryFingerprint = TimeAbsenceOwnerIngressFilter
+        String queryFingerprint = TimeAbsenceOwnerRouteContract
                 .route(servletRequest()).queryFingerprint();
         return new TimeAbsenceOwnerContract.VerifiedRequest(
                 "GET", TimeAbsenceOwnerContract.PATH_PREFIX + RELATIONSHIP,

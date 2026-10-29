@@ -100,20 +100,6 @@ public final class HrisServiceGrantRotationReadinessVerifier {
         }
     }
 
-    /** Exact carried bytes; neither JSON value may be regenerated before verification. */
-    public record ReadinessItem(
-            byte[] receiptBytes, byte[] proofClaimBytes, String readinessProof) {
-        public ReadinessItem {
-            receiptBytes = receiptBytes == null ? null : receiptBytes.clone();
-            proofClaimBytes = proofClaimBytes == null ? null : proofClaimBytes.clone();
-            Objects.requireNonNull(receiptBytes, "receiptBytes");
-            Objects.requireNonNull(proofClaimBytes, "proofClaimBytes");
-            Objects.requireNonNull(readinessProof, "readinessProof");
-        }
-        @Override public byte[] receiptBytes() { return receiptBytes.clone(); }
-        @Override public byte[] proofClaimBytes() { return proofClaimBytes.clone(); }
-    }
-
     /** Verified data that the repository must reserve and recheck in the cutover transaction. */
     public record VerifiedReceipt(
             HrisServiceGrantAuthorityV1.TargetTuple target,

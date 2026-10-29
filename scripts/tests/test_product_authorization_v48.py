@@ -151,14 +151,21 @@ class ProductAuthorizationV48Test(unittest.TestCase):
         )
 
     def test_gateway_assigns_exact_configuration_purpose_to_every_alias(self) -> None:
-        gateway = (
+        gateway_filter = (
             ROOT
             / "dwp-gateway/src/main/java/com/dwp/gateway/filter/ProductSurfaceDecisionContextFilter.java"
         ).read_text()
+        gateway_policies = (
+            ROOT
+            / "dwp-gateway/src/main/java/com/dwp/gateway/filter/ProductSurfaceRoutePolicies.java"
+        ).read_text()
+        self.assertIn("import static com.dwp.gateway.filter.ProductSurfaceRoutePolicies.*;",
+                      gateway_filter)
+        self.assertIn("ownerPurpose(route.routeContractKey())", gateway_filter)
         for key in sorted(key for key in self.routes if key.startswith(PREFIX)):
             marker = f'Map.entry("{key}",'
-            self.assertIn(marker, gateway)
-            tail = gateway.split(marker, 1)[1].split("),", 1)[0]
+            self.assertIn(marker, gateway_policies)
+            tail = gateway_policies.split(marker, 1)[1].split("),", 1)[0]
             self.assertIn('"PAYROLL_CONFIGURATION"', tail)
 
     def test_default_off_owner_and_gateway_openapi_expose_only_settings_prefix(self) -> None:

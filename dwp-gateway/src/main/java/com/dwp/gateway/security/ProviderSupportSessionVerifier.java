@@ -1,6 +1,5 @@
 package com.dwp.gateway.security;
 
-import com.dwp.gateway.filter.VerifiedIdentityFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -54,11 +53,13 @@ public class ProviderSupportSessionVerifier implements SupportSessionVerifier {
                 .headers(headers -> {
                     headers.set(SERVICE_TOKEN_HEADER, serviceToken);
                     headers.set(VALIDATION_TOKEN_HEADER, validationToken);
-                    copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.USER_HEADER);
-                    copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.TENANT_HEADER);
-                    copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.ROLES_HEADER);
-                    copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.AUTH_SESSION_ID_HEADER);
-                    copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.IDENTITY_PLANE_HEADER);
+                    copyHeader(request.getHeaders(), headers, GatewayIdentityContext.USER_HEADER);
+                    copyHeader(request.getHeaders(), headers, GatewayIdentityContext.TENANT_HEADER);
+                    copyHeader(request.getHeaders(), headers, GatewayIdentityContext.ROLES_HEADER);
+                    copyHeader(request.getHeaders(), headers,
+                            GatewayIdentityContext.AUTH_SESSION_ID_HEADER);
+                    copyHeader(request.getHeaders(), headers,
+                            GatewayIdentityContext.IDENTITY_PLANE_HEADER);
                     copyHeader(request.getHeaders(), headers, CORRELATION_HEADER);
                     copyHeader(request.getHeaders(), headers, TRACE_PARENT_HEADER);
                     copyHeader(request.getHeaders(), headers, TRACE_STATE_HEADER);
@@ -100,23 +101,25 @@ public class ProviderSupportSessionVerifier implements SupportSessionVerifier {
     private record SupportContextEnvelope(Boolean success, VerifiedSupportAccess data) {
     }
 
-    public static final class SupportValidationRejectedException extends RuntimeException {
+    /** @deprecated use the provider-independent validation exception. */
+    @Deprecated(forRemoval = false)
+    public static final class SupportValidationRejectedException
+            extends com.dwp.gateway.security.SupportValidationRejectedException {
         private static final long serialVersionUID = 1L;
-        private final HttpStatusCode statusCode;
 
         public SupportValidationRejectedException(HttpStatusCode statusCode) {
-            this.statusCode = statusCode;
-        }
-
-        public HttpStatusCode statusCode() {
-            return statusCode;
+            super(statusCode);
         }
     }
 
-    public static final class SupportValidationUnavailableException extends RuntimeException {
+    /** @deprecated use the provider-independent validation exception. */
+    @Deprecated(forRemoval = false)
+    public static final class SupportValidationUnavailableException
+            extends com.dwp.gateway.security.SupportValidationUnavailableException {
         private static final long serialVersionUID = 1L;
 
         public SupportValidationUnavailableException() {
+            super();
         }
 
         public SupportValidationUnavailableException(Throwable cause) {

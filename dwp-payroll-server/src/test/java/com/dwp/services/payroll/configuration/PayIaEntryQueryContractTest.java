@@ -26,7 +26,7 @@ import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.FieldDecision;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.FieldDecisionSummary;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.PartialFailure;
-import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.PayValueType;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.PayValueType;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.PolicyFilter;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.PolicyValue;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.Problem;

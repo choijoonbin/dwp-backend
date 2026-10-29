@@ -32,9 +32,9 @@ class ProductAuthorizationFixtureSchemaTest(unittest.TestCase):
             for release in index["versions"]
         ]
 
-        self.assertEqual(59, index["latestVersion"])
+        self.assertEqual(62, index["latestVersion"])
         self.assertEqual(
-            "56582749cebf382c5c2669d83a30fb4c81fcb532db2878b15e6a83ced6898094",
+            "cb370fd02a896452a64187fca8afb8bb3e3d281e490fba02e76f7a3c0d7f9770",
             index["latestChecksum"],
         )
         self.assertEqual(lineage["latestAliasVersion"]["const"], index["latestVersion"])

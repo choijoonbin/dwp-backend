@@ -16,9 +16,11 @@ class GovernedTenantFeatureRouteSetTest {
 
     private static final String AUTHORITY_DECISION_SHA256 =
             "fda6f51622c843b0c0da35f73b550cd6bd33c0ed190ee19058ac15f0e0502284";
-    private static final String SORTED_ROUTE_SET_SHA256 =
+    private static final String HISTORICAL_V49_SORTED_ROUTE_SET_SHA256 =
             "d7d5d971f1d16bb64916a54bdaf70f4d2cd1c188b1e01697e53ea29cab645f9f";
-    private static final Set<String> EXPECTED = Set.of(
+    private static final String CURRENT_SORTED_ROUTE_SET_SHA256 =
+            "5e939f7fc40668958c51b8732176cee67d930dd141681c772fdc83dc28f9d06d";
+    private static final Set<String> HISTORICAL_V49_EXPECTED = Set.of(
             "route.hcm.operations.organization-positions.page",
             "route.hcm.operations.organization-graph.data",
             "route.hcm.configuration.settings-operations.page",
@@ -45,12 +47,16 @@ class GovernedTenantFeatureRouteSetTest {
         Set<String> actual = (Set<String>) field.get(null);
 
         assertThat(AUTHORITY_DECISION_SHA256).hasSize(64);
+        assertThat(HISTORICAL_V49_EXPECTED).hasSize(16);
+        assertThat(digest(HISTORICAL_V49_EXPECTED.stream().sorted().toList()))
+                .isEqualTo(HISTORICAL_V49_SORTED_ROUTE_SET_SHA256);
         assertThat(actual)
-                .as("routes pinned to activation decision %s", AUTHORITY_DECISION_SHA256)
-                .hasSize(16)
-                .containsExactlyInAnyOrderElementsOf(EXPECTED);
+                .as("current closed set includes the v49 activation decision %s",
+                        AUTHORITY_DECISION_SHA256)
+                .hasSize(84)
+                .containsAll(HISTORICAL_V49_EXPECTED);
         assertThat(digest(actual.stream().sorted().toList()))
-                .isEqualTo(SORTED_ROUTE_SET_SHA256);
+                .isEqualTo(CURRENT_SORTED_ROUTE_SET_SHA256);
     }
 
     private String digest(List<String> routes) throws Exception {

@@ -19,6 +19,8 @@ public class MeetingInvitationDeliveryProperties {
     private Duration pollDelay = Duration.ofSeconds(10);
     private Duration retryDelay = Duration.ofSeconds(30);
     private Duration leaseDuration = Duration.ofMinutes(2);
+    private Duration healthStartupGrace = Duration.ofSeconds(30);
+    private Duration healthStaleAfter = Duration.ofMinutes(2);
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -44,6 +46,14 @@ public class MeetingInvitationDeliveryProperties {
     public void setRetryDelay(Duration retryDelay) { this.retryDelay = retryDelay; }
     public Duration getLeaseDuration() { return leaseDuration; }
     public void setLeaseDuration(Duration leaseDuration) { this.leaseDuration = leaseDuration; }
+    public Duration getHealthStartupGrace() { return healthStartupGrace; }
+    public void setHealthStartupGrace(Duration healthStartupGrace) {
+        this.healthStartupGrace = healthStartupGrace;
+    }
+    public Duration getHealthStaleAfter() { return healthStaleAfter; }
+    public void setHealthStaleAfter(Duration healthStaleAfter) {
+        this.healthStaleAfter = healthStaleAfter;
+    }
 
     public boolean validDispatchConfiguration() {
         return batchSize >= 1 && batchSize <= 100
@@ -51,7 +61,12 @@ public class MeetingInvitationDeliveryProperties {
                 && bounded(pollDelay, Duration.ofSeconds(1), Duration.ofHours(1))
                 && bounded(retryDelay, Duration.ofSeconds(1), Duration.ofHours(24))
                 && bounded(leaseDuration, Duration.ofSeconds(30), Duration.ofMinutes(15))
-                && requestTimeout != null && leaseDuration.compareTo(requestTimeout) > 0;
+                && bounded(healthStartupGrace, Duration.ofSeconds(1), Duration.ofHours(2))
+                && bounded(healthStaleAfter, Duration.ofSeconds(2), Duration.ofHours(4))
+                && requestTimeout != null && leaseDuration.compareTo(requestTimeout) > 0
+                && healthStartupGrace.compareTo(pollDelay) >= 0
+                && healthStaleAfter.compareTo(pollDelay) > 0
+                && healthStaleAfter.compareTo(requestTimeout) > 0;
     }
 
     private boolean bounded(Duration value, Duration minimum, Duration maximum) {

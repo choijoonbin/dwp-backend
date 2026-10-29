@@ -142,7 +142,8 @@ class ProductSurfaceContractEligibilityIntegrationTest {
                 new ProductSurfaceContextDtos.ProductCandidate("hcm", "hcm.management"),
                 new ProductSurfaceContextDtos.ProductCandidate("hcm", "hcm.operations"),
                 new ProductSurfaceContextDtos.ProductCandidate("hcm", "hcm.personal"),
-                new ProductSurfaceContextDtos.ProductCandidate("hcm", "hcm.team"));
+                new ProductSurfaceContextDtos.ProductCandidate("hcm", "hcm.team"),
+                new ProductSurfaceContextDtos.ProductCandidate("hcm", "hcm.utility"));
         List<String> rolloutProducts = generatedCatalog().rolloutProductKeys();
         return new ProductSurfaceCandidateCatalog() {
             @Override
@@ -178,6 +179,7 @@ class ProductSurfaceContractEligibilityIntegrationTest {
                 "SURFACE_DENIED",
                 "auth-4",
                 "policy-8",
+                "tenant-control-3",
                 null,
                 productKey,
                 surfaceKey,
@@ -195,7 +197,8 @@ class ProductSurfaceContractEligibilityIntegrationTest {
                 null,
                 null,
                 OffsetDateTime.parse("2026-08-24T01:10:00Z"),
-                "auth-evidence");
+                "auth-evidence",
+                null);
     }
 
     private ProductSurfaceContextDtos.ProductRollout rollout(

@@ -2,6 +2,7 @@ package com.dwp.services.platform.hrisconfiguration.navigationpolicy;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -76,6 +77,8 @@ final class AuthNavigationPolicyAuthorityDecisionProvider
                     .accept(MediaType.APPLICATION_JSON)
                     .header("X-DWP-Service-Identity", SERVICE_IDENTITY)
                     .header("X-DWP-Product-Surface-Token", productSurfaceToken)
+                    .headers(headers ->
+                            OutboundHttpHeaders.propagateObservability(headers))
                     .body(request)
                     .retrieve()
                     .body(byte[].class);

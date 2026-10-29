@@ -197,10 +197,10 @@ public final class Hrm013IdentityWorkloadCredentialProvider {
     /** Fresh caller proof for one exact HRM-008 callback attempt. */
     public SignedProof callbackProof(
             AtomicGrantCredentialLease lease,
-            Hrm013IdentityTaskDispatchStore.ReceiptClaim claim,
+            Hrm013IdentityReceiptProofContext receipt,
             Hrm013SeparationBridgeV1.SeparationTaskReceiptV2 body,
             Instant authorityExpiresAt) {
-        Objects.requireNonNull(lease); Objects.requireNonNull(claim);
+        Objects.requireNonNull(lease); Objects.requireNonNull(receipt);
         Objects.requireNonNull(body); Objects.requireNonNull(authorityExpiresAt);
         if (lease.credentialRole() != CredentialRole.CALLER) {
             throw Hrm013SafeErrorV1.authorityDenied();
@@ -231,10 +231,10 @@ public final class Hrm013IdentityWorkloadCredentialProvider {
         claims.put("tenantId", lease.tenantId());
         claims.put("correlationId", body.correlationId());
         claims.put("requestBodySha256", Hrm013WorkloadProofV1.sha256(
-                claim.exactCallbackBody()));
+                receipt.exactCallbackBody()));
         claims.put("authn", profile.authentication());
         claims.put("cnf", Map.of("x5t#S256", lease.clientCertificateSha256()));
-        claims.put("grantUseMode", claim.authorityMode().grantUseMode().name());
+        claims.put("grantUseMode", receipt.authorityMode().grantUseMode().name());
         claims.put("tenantGrantRevision", lease.tenantGrantRevision());
         claims.put("authorizationRevision", lease.authorizationRevision());
         claims.put("callbackEventId", body.callbackEventId());
@@ -242,7 +242,7 @@ public final class Hrm013IdentityWorkloadCredentialProvider {
         claims.put("taskPublicId", body.taskPublicId());
         claims.put("ownerRevision", body.ownerRevision());
         claims.put("originatingPayloadSha256", body.originatingPayloadSha256());
-        putDrain(claims, claim.drainClaims());
+        putDrain(claims, receipt.drainClaims());
         return new SignedProof(compact(lease, "JWT", claims), expiresAt);
     }
 

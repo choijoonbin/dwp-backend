@@ -22,7 +22,7 @@ class MailProviderPayloadPolicyTest {
 
         assertThatThrownBy(() -> policy.validate(new MailConnectorPort.SyncBatch(
                 List.of(message), "cursor", false, false)))
-                .isInstanceOf(MailExternalSyncMaterializer.SyncFailure.class)
+                .isInstanceOf(MailSyncMaterializationFailure.class)
                 .hasMessage("PROVIDER_RECIPIENT_LIMIT_EXCEEDED");
     }
 
@@ -41,7 +41,7 @@ class MailProviderPayloadPolicyTest {
 
         assertThatThrownBy(() -> policy.validate(new MailConnectorPort.SyncBatch(
                 List.of(message), "cursor", false, false)))
-                .isInstanceOf(MailExternalSyncMaterializer.SyncFailure.class)
+                .isInstanceOf(MailSyncMaterializationFailure.class)
                 .hasMessage("PROVIDER_ATTACHMENT_BYTES_EXCEEDED");
     }
 
@@ -60,7 +60,7 @@ class MailProviderPayloadPolicyTest {
 
         assertThatThrownBy(() -> policy.validate(new MailConnectorPort.SyncBatch(
                 List.of(first, second), "cursor", false, false)))
-                .isInstanceOf(MailExternalSyncMaterializer.SyncFailure.class)
+                .isInstanceOf(MailSyncMaterializationFailure.class)
                 .hasMessage("PROVIDER_BODY_LIMIT_EXCEEDED");
     }
 }

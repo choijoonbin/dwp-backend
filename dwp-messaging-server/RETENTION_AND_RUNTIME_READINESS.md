@@ -1,6 +1,6 @@
 # Messaging retention and runtime readiness
 
-This document defines the production contract implemented by migrations `V18` through `V24` and the Messaging
+This document defines the production contract implemented by migrations `V18` through `V25` and the Messaging
 runtime. It deliberately separates “configured” from “verified effective” so an environment cannot
 claim production readiness merely because a provider name or credential was supplied.
 
@@ -86,6 +86,7 @@ Health groups:
 
 - `/actuator/health/retention`
 - `/actuator/health/presence`
+- `/actuator/health/scheduled-delivery`
 - `/actuator/health/messaging-operations`
 - `/actuator/health/messaging-providers`
 
@@ -161,6 +162,51 @@ Provider verification is evidence-based:
 
 Provider probes are cached and become stale after three minutes by default, avoiding external calls
 inside the admin request transaction.
+
+## Production admission and evidence checklist
+
+The `production` and `prod` profiles apply a Messaging-owned startup guard before traffic is
+accepted. Active profiles, `dwp.environment`, and `DWP_ENVIRONMENT` are independent production
+signals; a local value cannot override a production value from another source. The guard rejects
+local attachment providers, unsafe S3 regions/endpoints, S3 path-style access, loopback or local
+ClamAV/Redis endpoints, disabled Presence or realtime Redis, weak or placeholder Redis secrets, and
+Redis without TLS. It also rejects an `ENFORCING` retention configuration unless both safety
+assertions are present. These checks prove only that production-shaped configuration was supplied;
+they do not replace provider or compliance evidence.
+
+| Capability | Startup/configuration contract | Implemented runtime evidence and state | External release evidence still required |
+| --- | --- | --- | --- |
+| S3 attachment storage | `storage=s3`, non-empty bucket, production region, AWS default or public HTTPS endpoint, path-style disabled, AES256 or KMS request | `HeadBucket` success can report the provider `READY`; failure is `UNAVAILABLE` | Upload/download/delete, IAM boundary, encryption/KMS and lifecycle evidence in the production bucket |
+| ClamAV | `scanner=clamav`, non-local host, bounded port/timeout | `PING/PONG` can report the provider `READY`; scan failures reject content | Clean sample, EICAR rejection, signature freshness and network-policy evidence in the production daemon |
+| Redis Presence/fan-out | Presence and realtime Redis enabled, non-local host, 32–512 character non-placeholder secret, TLS | Production `PING` is required for Presence; a subscriber nonce ACK is required for fan-out `READY` | Reconnect/catch-up, HA failover, credential rotation and sustained-load evidence |
+| OpenTelemetry | SDK enabled and non-local OTLP endpoint through the shared production guard | Configuration remains `DEGRADED` with `TELEMETRY_EXPORT_UNVERIFIED` | Collector receipt plus trace/metric/log pipeline and backend query evidence |
+| Notification lifecycle | Transactional outbox enabled and relay current | Relay lifecycle, DEAD rows and backlog evidence can report outbox `READY` | Consumer materialization, retry/dead-letter handling and deletion/redaction lifecycle evidence |
+| Search lifecycle | PostgreSQL fallback remains the canonical implementation | Always `DEGRADED` with `SQL_FALLBACK_ACTIVE` | Approved production provider, tenant/ACL isolation, indexing freshness, purge tombstone and deletion evidence |
+| Legal Hold authority | Retention defaults disabled/DRY_RUN and `hold-authority-ready=false` | Missing assertion keeps retention `BLOCKED`; the flag is not a probe | Compliance owner, create/release authority, approval/change reference, immutable audit and access review |
+| Downstream retention lifecycle | `downstream-lifecycle-ready=false` by default | Missing assertion keeps retention `BLOCKED`; the flag is not a probe | Notification, search, export/eDiscovery and attachment deletion owners approve a dated lifecycle drill |
+
+The Legal Hold and downstream readiness flags are deployment assertions that reference reviewed
+external evidence. They are not probes and must never be enabled merely because unit or integration
+tests pass. Record the evidence owner, environment, change/approval reference, verification time,
+expiry or next-review time, and rollback owner before changing either flag. A production search
+adapter, Legal Hold administration authority, or telemetry delivery result must not be simulated by
+configuration.
+
+A capability-level `READY` means only that the runtime probe described above is current. It is not
+the release-level certification represented by the external evidence column, and it does not make
+an externally blocked capability or the overall production rollout complete.
+
+Provider evidence must be collected in the target environment and attached to the release record:
+
+1. Run the custom health groups and archive their timestamped capability details.
+2. Exercise S3 upload, clean scan, download, deletion, and KMS/at-rest encryption with non-sensitive
+   fixtures; verify an EICAR fixture is rejected and its quarantined object is removed.
+3. Capture Redis TLS/authentication, Presence `PING`, fan-out nonce ACK, subscriber restart, and
+   durable SSE catch-up evidence.
+4. Confirm the OpenTelemetry Collector received this service's telemetry and that the production
+   backend can query it; enabled SDK configuration alone is insufficient.
+5. Complete a DRY_RUN retention interval, review hold/candidate counts, and execute downstream
+   deletion or redaction drills before certifying either retention safety assertion.
 
 The notification outbox maximum active age defaults to five minutes and the warning threshold to
 1,000 rows. They are configurable through

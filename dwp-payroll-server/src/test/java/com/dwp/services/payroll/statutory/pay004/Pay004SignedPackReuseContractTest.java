@@ -28,14 +28,14 @@ class Pay004SignedPackReuseContractTest {
 
     @Test
     void requiredPackNeverFallsBackToNonPackPolicy() {
-        for (RetirementYearEndCase.CountryPackState state : java.util.List.of(
-                RetirementYearEndCase.CountryPackState.NOT_INSTALLED,
-                RetirementYearEndCase.CountryPackState.DISABLED)) {
+        for (RetirementYearEndCaseContract.CountryPackState state : java.util.List.of(
+                RetirementYearEndCaseContract.CountryPackState.NOT_INSTALLED,
+                RetirementYearEndCaseContract.CountryPackState.DISABLED)) {
             RetirementYearEndCase blocked = Pay004TestFixtures.draft(state)
                     .validate(state, Pay004TestFixtures.SUBJECT,
                             Pay004TestFixtures.NOW.plusSeconds(1));
             assertThat(blocked.state()).isEqualTo(
-                    RetirementYearEndCase.State.BLOCKED_PACK_REQUIRED);
+                    RetirementYearEndCaseContract.State.BLOCKED_PACK_REQUIRED);
         }
     }
 }

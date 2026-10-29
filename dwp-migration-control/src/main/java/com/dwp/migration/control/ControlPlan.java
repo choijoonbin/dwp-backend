@@ -13,7 +13,6 @@ record ControlPlan(
         List<RuntimeRoutine> runtimeRoutineAllowlist,
         List<RuntimeTableDenial> runtimeTableDenials,
         List<String> temporaryMigrationVersions) {
-
     /**
      * Static capability roles are cluster objects and cannot safely be created
      * by a NOCREATEROLE Flyway login. Keep their exact names, introduction

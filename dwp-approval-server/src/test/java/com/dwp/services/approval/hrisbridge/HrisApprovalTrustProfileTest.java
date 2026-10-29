@@ -78,7 +78,8 @@ class HrisApprovalTrustProfileTest {
         assertThat(first).isNotEqualTo(second);
         var admission = HrisWorkloadProofV2.verify(mapper,
                 Clock.fixed(now.plusSeconds(1), ZoneOffset.UTC),
-                HrisApprovalBridgeV2.DECISION_CALLBACK, outbound.path(),
+                HrisApprovalBridgeV2.DECISION_CALLBACK.verificationContract(),
+                outbound.path(),
                 HrisWorkloadProofV2.headers("dwp-approval-server", first),
                 outbound.exactBodyBytes(), kid ->
                         new HrisWorkloadProofV2.VerifiedSigningKey(

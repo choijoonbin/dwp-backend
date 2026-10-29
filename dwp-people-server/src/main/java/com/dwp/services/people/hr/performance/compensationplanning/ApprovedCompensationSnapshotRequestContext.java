@@ -29,7 +29,7 @@ public final class ApprovedCompensationSnapshotRequestContext {
     static VerifiedRequest require(HttpServletRequest request) {
         Object value = request.getAttribute(REQUEST_ATTRIBUTE);
         if (value instanceof VerifiedRequest verified
-                && ApprovedCompensationSnapshotIngressFilter.isExactGet(
+                && ApprovedCompensationSnapshotIngressContract.isExactGet(
                         request.getMethod(), request.getRequestURI())
                 && verified.path().equals(request.getRequestURI())) {
             return verified;

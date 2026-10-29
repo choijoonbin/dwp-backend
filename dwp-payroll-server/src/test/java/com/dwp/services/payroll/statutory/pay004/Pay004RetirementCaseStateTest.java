@@ -12,11 +12,11 @@ class Pay004RetirementCaseStateTest {
 
     @Test
     void stateAndCountryPackSetsAreExact() {
-        assertThat(Arrays.stream(RetirementYearEndCase.State.values())
+        assertThat(Arrays.stream(RetirementYearEndCaseContract.State.values())
                 .map(Enum::name)).containsExactly(
                 "DRAFT", "VALIDATED", "BLOCKED_PACK_REQUIRED", "CALCULATED",
                 "APPROVED", "FINALIZED", "CORRECTED", "CANCELLED");
-        assertThat(Arrays.stream(RetirementYearEndCase.CountryPackState.values())
+        assertThat(Arrays.stream(RetirementYearEndCaseContract.CountryPackState.values())
                 .map(Enum::name)).containsExactly(
                 "NOT_REQUIRED", "NOT_INSTALLED", "DISABLED", "ACTIVE");
     }
@@ -24,9 +24,9 @@ class Pay004RetirementCaseStateTest {
     @Test
     void happyPathIsAppendOnlyAndMakerCheckerProtected() {
         RetirementYearEndCase draft = Pay004TestFixtures.draft(
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED);
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED);
         RetirementYearEndCase validated = draft.validate(
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                 Pay004TestFixtures.SUBJECT, NOW.plusSeconds(1));
         RetirementYearEndCase calculated = validated.calculate(
                 Pay004TestFixtures.nonPackLineage(), Pay004TestFixtures.MAKER,
@@ -38,17 +38,17 @@ class Pay004RetirementCaseStateTest {
         RetirementYearEndCase corrected = finalized.correct(
                 Pay004TestFixtures.CHECKER, NOW.plusSeconds(5));
 
-        assertThat(draft.state()).isEqualTo(RetirementYearEndCase.State.DRAFT);
+        assertThat(draft.state()).isEqualTo(RetirementYearEndCaseContract.State.DRAFT);
         assertThat(validated.state())
-                .isEqualTo(RetirementYearEndCase.State.VALIDATED);
+                .isEqualTo(RetirementYearEndCaseContract.State.VALIDATED);
         assertThat(calculated.state())
-                .isEqualTo(RetirementYearEndCase.State.CALCULATED);
+                .isEqualTo(RetirementYearEndCaseContract.State.CALCULATED);
         assertThat(approved.state())
-                .isEqualTo(RetirementYearEndCase.State.APPROVED);
+                .isEqualTo(RetirementYearEndCaseContract.State.APPROVED);
         assertThat(finalized.state())
-                .isEqualTo(RetirementYearEndCase.State.FINALIZED);
+                .isEqualTo(RetirementYearEndCaseContract.State.FINALIZED);
         assertThat(corrected.state())
-                .isEqualTo(RetirementYearEndCase.State.CORRECTED);
+                .isEqualTo(RetirementYearEndCaseContract.State.CORRECTED);
         assertThat(corrected.revision()).isEqualTo(6);
         assertThat(corrected.predecessorDigest())
                 .isEqualTo(finalized.revisionDigest());
@@ -77,19 +77,19 @@ class Pay004RetirementCaseStateTest {
 
     @Test
     void missingOrDisabledRequiredPackBlocksAndOnlyPreCalculationCanCancel() {
-        for (RetirementYearEndCase.CountryPackState packState :
+        for (RetirementYearEndCaseContract.CountryPackState packState :
                 java.util.List.of(
-                        RetirementYearEndCase.CountryPackState.NOT_INSTALLED,
-                        RetirementYearEndCase.CountryPackState.DISABLED)) {
+                        RetirementYearEndCaseContract.CountryPackState.NOT_INSTALLED,
+                        RetirementYearEndCaseContract.CountryPackState.DISABLED)) {
             RetirementYearEndCase blocked = Pay004TestFixtures.draft(packState)
                     .validate(packState, Pay004TestFixtures.SUBJECT,
                             NOW.plusSeconds(1));
             assertThat(blocked.state()).isEqualTo(
-                    RetirementYearEndCase.State.BLOCKED_PACK_REQUIRED);
+                    RetirementYearEndCaseContract.State.BLOCKED_PACK_REQUIRED);
             RetirementYearEndCase cancelled = blocked.cancel(
                     Pay004TestFixtures.SUBJECT, NOW.plusSeconds(2));
             assertThat(cancelled.state())
-                    .isEqualTo(RetirementYearEndCase.State.CANCELLED);
+                    .isEqualTo(RetirementYearEndCaseContract.State.CANCELLED);
             assertThat(cancelled.terminal()).isTrue();
         }
     }
@@ -97,12 +97,12 @@ class Pay004RetirementCaseStateTest {
     @Test
     void illegalTransitionsAndNonMonotonicTimeFailClosed() {
         RetirementYearEndCase draft = Pay004TestFixtures.draft(
-                RetirementYearEndCase.CountryPackState.ACTIVE);
+                RetirementYearEndCaseContract.CountryPackState.ACTIVE);
         assertThatThrownBy(() -> draft.approve(
                 Pay004TestFixtures.CHECKER, NOW.plusSeconds(1)))
                 .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> draft.validate(
-                RetirementYearEndCase.CountryPackState.ACTIVE,
+                RetirementYearEndCaseContract.CountryPackState.ACTIVE,
                 Pay004TestFixtures.SUBJECT,
                 NOW))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -111,11 +111,11 @@ class Pay004RetirementCaseStateTest {
     @Test
     void caseRevisionDigestIsComputedFromCanonicalImmutableFacts() {
         RetirementYearEndCase first = Pay004TestFixtures.draft(
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED);
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED);
         RetirementYearEndCase same = Pay004TestFixtures.draft(
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED);
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED);
         RetirementYearEndCase changedState = first.validate(
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                 Pay004TestFixtures.SUBJECT, NOW.plusSeconds(1));
 
         assertThat(first.revisionDigest())

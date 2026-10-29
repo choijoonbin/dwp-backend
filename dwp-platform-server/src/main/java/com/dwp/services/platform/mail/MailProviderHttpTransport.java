@@ -43,7 +43,7 @@ final class MailProviderHttpTransport {
             boolean allowInsecureLocalhost,
             int maximumResponseBytes,
             int maximumRequestBytes) {
-        this.origin = trustedOrigin(baseUrl, csv(allowedHosts), allowInsecureLocalhost);
+        this.origin = validatedOrigin(baseUrl, csv(allowedHosts), allowInsecureLocalhost);
         HttpClient httpClient = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .connectTimeout(Duration.ofSeconds(10))
@@ -183,7 +183,8 @@ final class MailProviderHttpTransport {
         return uri;
     }
 
-    private static URI trustedOrigin(String value, Set<String> allowedHosts, boolean allowLocal) {
+    private static URI validatedOrigin(
+            String value, Set<String> allowedHosts, boolean allowLocal) {
         URI uri;
         try {
             uri = URI.create(value == null ? "" : value.trim());

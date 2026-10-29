@@ -1,6 +1,5 @@
 package com.dwp.gateway.productsurface;
 
-import com.dwp.gateway.filter.ProductSurfaceDecisionContextFilter;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -56,7 +55,8 @@ class TenantFeatureActivationV261RouteParityTest {
     }
 
     private static Set<String> privateSet(String name) throws Exception {
-        Field field = ProductSurfaceDecisionContextFilter.class.getDeclaredField(name);
+        Field field = Class.forName("com.dwp.gateway.filter.ProductSurfaceRoutePolicies")
+                .getDeclaredField(name);
         field.setAccessible(true);
         @SuppressWarnings("unchecked")
         Set<String> value = (Set<String>) field.get(null);

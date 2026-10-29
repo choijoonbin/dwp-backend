@@ -4,19 +4,15 @@ import com.dwp.platform.contracts.hris.separation.v1.HrisServiceGrantAuthorityV1
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013SafeErrorV1;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013WorkloadProofV1;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.math.BigInteger;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.cert.X509Certificate;
-import java.security.spec.RSAPublicKeySpec;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -319,13 +315,7 @@ public final class AuthHrm013ServiceAuthorityClient {
     }
 
     static PublicKey publicKey(HrisServiceGrantAuthorityV1.RsaPublicJwk value) {
-        try {
-            return KeyFactory.getInstance("RSA").generatePublic(new RSAPublicKeySpec(
-                    new BigInteger(1, Base64.getUrlDecoder().decode(value.n())),
-                    new BigInteger(1, Base64.getUrlDecoder().decode(value.e()))));
-        } catch (Exception failure) {
-            throw Hrm013SafeErrorV1.authorityDenied();
-        }
+        return Hrm013RsaPublicKeyDecoder.decode(value);
     }
 
     private static URI endpoint(String value) {

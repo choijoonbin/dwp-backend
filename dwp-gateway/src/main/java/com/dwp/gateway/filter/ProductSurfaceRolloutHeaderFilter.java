@@ -3,6 +3,7 @@ package com.dwp.gateway.filter;
 import com.dwp.gateway.productsurface.FeatureRolloutEvaluationClient;
 import com.dwp.gateway.productsurface.GeneratedProductRouteCatalog;
 import com.dwp.gateway.productsurface.ProductSurfaceContextDtos;
+import com.dwp.gateway.security.GatewayIdentityContext;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -103,7 +104,7 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
         }
 
         Long tenantId = positiveLong(sanitized.getHeaders().getFirst(
-                VerifiedIdentityFilter.TENANT_HEADER));
+                GatewayIdentityContext.TENANT_HEADER));
         if (tenantId == null) return complete(exchange, HttpStatus.UNAUTHORIZED);
 
         return DataBufferUtils.join(sanitized.getBody(), MAX_TELEMETRY_BYTES)
@@ -131,7 +132,7 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
             GatewayFilterChain chain,
             String productKey) {
         Long tenantId = positiveLong(request.getHeaders().getFirst(
-                VerifiedIdentityFilter.TENANT_HEADER));
+                GatewayIdentityContext.TENANT_HEADER));
         if (tenantId == null) return complete(exchange, HttpStatus.UNAUTHORIZED);
         return rolloutClient.evaluateProducts(
                         tenantId,

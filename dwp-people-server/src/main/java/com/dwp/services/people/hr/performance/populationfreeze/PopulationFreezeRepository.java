@@ -159,7 +159,7 @@ class PopulationFreezeRepository {
                 .addValue("receiptId", receiptId)
                 .addValue("tenantId", tenantId)
                 .addValue("idempotencyKey", idempotencyKey)
-                .addValue("action", PopulationFreezeService.ORIGINATING_ACTION)
+                .addValue("action", PopulationFreezeCommandContract.ORIGINATING_ACTION)
                 .addValue("actorId", actorId)
                 .addValue("subjectId", subjectId)
                 .addValue("cycleId", cycleId)

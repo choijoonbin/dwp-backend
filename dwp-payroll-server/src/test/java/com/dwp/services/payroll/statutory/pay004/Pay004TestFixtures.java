@@ -86,8 +86,8 @@ final class Pay004TestFixtures {
     static Pay004Models.RetirementProjection projection() {
         return new Pay004Models.RetirementProjection(
                 1, CASE, WORKER, 4,
-                RetirementYearEndCase.State.CALCULATED,
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                RetirementYearEndCaseContract.State.CALCULATED,
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                 LocalDate.parse("2026-10-22"),
                 new Pay004Models.PostedMoney(
                         new BigDecimal("1234.5000"), "GBP", "HALF_EVEN"),
@@ -96,7 +96,7 @@ final class Pay004TestFixtures {
     }
 
     static RetirementYearEndCase draft(
-            RetirementYearEndCase.CountryPackState packState) {
+            RetirementYearEndCaseContract.CountryPackState packState) {
         return RetirementYearEndCase.create(
                 1, CASE, WORKER,
                 new RetirementYearEndCase.OwnerReference(
@@ -109,7 +109,7 @@ final class Pay004TestFixtures {
     static RetirementYearEndCase.ResultLineage activeLineage() {
         return new RetirementYearEndCase.ResultLineage(
                 1, CASE, 3, WORKER, RUN, 3, 1, WORKER_RESULT, WORKER,
-                RetirementYearEndCase.CountryPackState.ACTIVE,
+                RetirementYearEndCaseContract.CountryPackState.ACTIVE,
                 PACK, 0, 4, null, 0, null,
                 "gb.retirement", 4, LocalDate.parse("2026-10-01"), null, A,
                 new Pay004Models.PostedMoney(
@@ -121,7 +121,7 @@ final class Pay004TestFixtures {
     static RetirementYearEndCase.ResultLineage nonPackLineage() {
         return new RetirementYearEndCase.ResultLineage(
                 1, CASE, 3, WORKER, RUN, 3, 1, WORKER_RESULT, WORKER,
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                 null, 0, 0, POLICY, 7, B,
                 "pay.retirement.foundation", 7,
                 LocalDate.parse("2026-10-01"), null, B,

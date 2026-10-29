@@ -191,21 +191,21 @@ public interface Hrm013ServiceAuthorityPort {
                     && sameDrainFence(drainAdmission, other.drainAdmission);
         }
 
-        public String signingKeyId(Hrm013WorkloadCredentialProvider.ServiceRole role) {
-            return role == Hrm013WorkloadCredentialProvider.ServiceRole.CALLER
+        public String signingKeyId(Hrm013CredentialRole role) {
+            return role == Hrm013CredentialRole.CALLER
                     ? callerSigningKeyId : required(ownerSigningKeyId, "ownerSigningKeyId");
         }
 
-        public PublicKey signingPublicKey(Hrm013WorkloadCredentialProvider.ServiceRole role) {
-            PublicKey result = role == Hrm013WorkloadCredentialProvider.ServiceRole.CALLER
+        public PublicKey signingPublicKey(Hrm013CredentialRole role) {
+            PublicKey result = role == Hrm013CredentialRole.CALLER
                     ? callerSigningPublicKey : ownerSigningPublicKey;
             return Objects.requireNonNull(result, "ownerSigningPublicKey");
         }
 
         public HrisServiceGrantAuthorityV1.RsaPublicJwk signingPublicJwk(
-                Hrm013WorkloadCredentialProvider.ServiceRole role) {
+                Hrm013CredentialRole role) {
             HrisServiceGrantAuthorityV1.RsaPublicJwk result =
-                    role == Hrm013WorkloadCredentialProvider.ServiceRole.CALLER
+                    role == Hrm013CredentialRole.CALLER
                             ? callerSigningPublicJwk : ownerSigningPublicJwk;
             return Objects.requireNonNull(result, "signingPublicJwk");
         }

@@ -32,8 +32,6 @@ final class PayrollPreparationModels {
     private PayrollPreparationModels() {
     }
 
-    enum RouteKind { PAGE, DATA, ACTION }
-
     enum SourceType {
         TARGET_POPULATION_PROJECTION,
         COMPENSATION_PLAN_SNAPSHOT,

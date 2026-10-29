@@ -13,12 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.dwp.services.payroll.calculation.PayrollCalculationModels.ActionCommand;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.QuantizationBinding;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.Category;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.EvaluatedLine;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.QuantizationStep;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.RoundingStage;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.Category;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.EvaluatedLine;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.QuantizationStep;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.RoundingStage;
 import static com.dwp.services.payroll.calculation.PayrollCalculationTestSupport.NOW;
 import static com.dwp.services.payroll.calculation.PayrollCalculationTestSupport.RUN_ID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -184,7 +183,7 @@ class PayrollCalculationSemanticMappingTest {
                 store, canonical, mock(PayrollHighRiskCommandGuard.class),
                 new PayrollCalculationSemanticBinder(
                         (snapshot, input) ->
-                                PayrollCalculationSemanticMappingPort.Resolution.unavailable(),
+                                PayrollCalculationSemanticContract.Resolution.unavailable(),
                         canonical),
                 Clock.fixed(NOW, ZoneOffset.UTC));
 

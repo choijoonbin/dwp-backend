@@ -67,7 +67,7 @@ class PayrollCalculationDurabilityPostgresTest extends PayrollMigrationPostgresF
                 resumedSnapshot, 9, resumedDigest);
         service.calculate(
                 calculator(), resumedRun, "resume-command", 2, UUID.randomUUID(),
-                new PayrollCalculationModels.ActionCommand("CALCULATE", null, null));
+                new ActionCommand("CALCULATE", null, null));
 
         assertThatThrownBy(() -> worker.execute(
                 1, resumedRun, 1, "worker-a",
@@ -110,7 +110,7 @@ class PayrollCalculationDurabilityPostgresTest extends PayrollMigrationPostgresF
                 unknownSnapshot, 9, unknownDigest);
         service.calculate(
                 calculator(), unknownRun, "unknown-command", 2, UUID.randomUUID(),
-                new PayrollCalculationModels.ActionCommand("CALCULATE", null, null));
+                new ActionCommand("CALCULATE", null, null));
         assertThat(worker.execute(
                 1, unknownRun, 1, "worker-unknown",
                 PayrollCalculationWorker.FailurePoint.BEFORE_COMPLETION_UNCERTAIN))
@@ -312,7 +312,7 @@ class PayrollCalculationDurabilityPostgresTest extends PayrollMigrationPostgresF
                     approver(202), runId, runId.toString(),
                     "rollback-command", expectedVersion,
                     UUID.randomUUID(),
-                    new PayrollCalculationModels.ActionCommand(
+                    new ActionCommand(
                             "APPROVE_REGULAR", null, null),
                     new PayrollStepUpHeaders(
                             "signed", "rollback-command", "decision-41",
@@ -425,7 +425,7 @@ class PayrollCalculationDurabilityPostgresTest extends PayrollMigrationPostgresF
         approve.approve(
                 approver(202), runId, runId.toString(), "event-approve",
                 validatedVersion, UUID.randomUUID(),
-                new PayrollCalculationModels.ActionCommand(
+                new ActionCommand(
                         "APPROVE_REGULAR", null, null),
                 new PayrollStepUpHeaders(
                         "signed", "event-approve", "decision-41",
@@ -449,7 +449,7 @@ class PayrollCalculationDurabilityPostgresTest extends PayrollMigrationPostgresF
         finalize.finalizeRun(
                 finalizer(202), runId, runId.toString(), "event-finalize",
                 approvedVersion, UUID.randomUUID(),
-                new PayrollCalculationModels.ActionCommand(
+                new ActionCommand(
                         "FINALIZE_REGULAR", null, null),
                 new PayrollStepUpHeaders(
                         "signed", "event-finalize", "decision-41",
@@ -600,7 +600,7 @@ class PayrollCalculationDurabilityPostgresTest extends PayrollMigrationPostgresF
 
         service.calculate(
                 calculator(), runId, "retry-after-failed", failedVersion,
-                UUID.randomUUID(), new PayrollCalculationModels.ActionCommand(
+                UUID.randomUUID(), new ActionCommand(
                 "RETRY_CALCULATION", null, null));
         assertThat(admin.queryForObject("""
                 SELECT COUNT(*) FROM pay_input_snapshots

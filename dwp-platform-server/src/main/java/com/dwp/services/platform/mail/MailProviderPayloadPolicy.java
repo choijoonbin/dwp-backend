@@ -122,7 +122,7 @@ class MailProviderPayloadPolicy {
     }
 
     private void fail(String code) {
-        throw new MailExternalSyncMaterializer.SyncFailure(code);
+        throw new MailSyncMaterializationFailure(code);
     }
 
     private static int positive(int value, String name) {

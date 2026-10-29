@@ -44,21 +44,13 @@ final class CompensationPlanSnapshotOwnerHttpClient
 
     static final String PATH_PREFIX =
             "/internal/hris-performance/v1/approved-compensation-plan-snapshots/";
-    static final String AUDIENCE =
-            "dwp-people:approved-compensation-snapshot-refetch";
-    static final String SUBJECT = "dwp-payroll-server";
-    static final String SCOPE = "hris.internal";
-    static final String CONSUMER_SESSION = "HRIS-PAY";
-    static final String POPULATION_POLICY =
-            "PAYROLL_INPUT_AUTHORIZED_WORKER_POPULATION_ONLY";
-    static final String FIELD_POLICY = "MINIMUM_PAYROLL_INPUT_FIELDS_ONLY";
     private static final String PREFIX =
             "dwp.hris.payroll-compensation-plan-input.owner-refetch.";
 
     private final RestClient client;
     private final CompensationPlanOwnerTokenIssuer tokens;
     private final Clock clock;
-    private final Map<Long, OwnerGrant> grants;
+    private final Map<Long, CompensationPlanOwnerWorkloadContract.OwnerGrant> grants;
 
     CompensationPlanSnapshotOwnerHttpClient(
             Environment environment,
@@ -74,7 +66,7 @@ final class CompensationPlanSnapshotOwnerHttpClient
             RestClient client,
             CompensationPlanOwnerTokenIssuer tokens,
             Clock clock,
-            Map<Long, OwnerGrant> grants) {
+            Map<Long, CompensationPlanOwnerWorkloadContract.OwnerGrant> grants) {
         this.client = Objects.requireNonNull(client);
         this.tokens = Objects.requireNonNull(tokens);
         this.clock = Objects.requireNonNull(clock);
@@ -87,7 +79,8 @@ final class CompensationPlanSnapshotOwnerHttpClient
     @Override
     public Xcon020ApprovedCompensationPlanSnapshotV1 refetch(
             ExactSnapshotRequest request) {
-        OwnerGrant grant = grants.get(request.tenantId());
+        CompensationPlanOwnerWorkloadContract.OwnerGrant grant =
+                grants.get(request.tenantId());
         if (grant == null) {
             throw new SnapshotRejectedException(
                     "The tenant has no current People snapshot owner grant.");
@@ -242,15 +235,18 @@ final class CompensationPlanSnapshotOwnerHttpClient
         return value;
     }
 
-    static Map<Long, OwnerGrant> grants(String value) {
-        LinkedHashMap<Long, OwnerGrant> result = new LinkedHashMap<>();
+    static Map<Long, CompensationPlanOwnerWorkloadContract.OwnerGrant> grants(
+            String value) {
+        LinkedHashMap<Long, CompensationPlanOwnerWorkloadContract.OwnerGrant> result =
+                new LinkedHashMap<>();
         try {
             for (String raw : value.split(",", -1)) {
                 String[] fields = raw.strip().split(":", -1);
                 if (fields.length != 3) throw new IllegalArgumentException();
                 long tenantId = Long.parseLong(fields[0]);
-                OwnerGrant grant = new OwnerGrant(
-                        Long.parseLong(fields[1]), Long.parseLong(fields[2]));
+                CompensationPlanOwnerWorkloadContract.OwnerGrant grant =
+                        new CompensationPlanOwnerWorkloadContract.OwnerGrant(
+                                Long.parseLong(fields[1]), Long.parseLong(fields[2]));
                 if (tenantId <= 0 || result.putIfAbsent(tenantId, grant) != null) {
                     throw new IllegalArgumentException();
                 }
@@ -263,11 +259,4 @@ final class CompensationPlanSnapshotOwnerHttpClient
         return Map.copyOf(result);
     }
 
-    record OwnerGrant(long tenantGrantRevision, long policyRevision) {
-        OwnerGrant {
-            if (tenantGrantRevision <= 0 || policyRevision <= 0) {
-                throw new IllegalArgumentException("Owner grant revisions must be positive.");
-            }
-        }
-    }
 }

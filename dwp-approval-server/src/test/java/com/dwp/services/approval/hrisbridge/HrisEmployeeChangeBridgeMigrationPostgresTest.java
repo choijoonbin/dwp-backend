@@ -105,8 +105,9 @@ class HrisEmployeeChangeBridgeMigrationPostgresTest {
         UUID proof = UUID.fromString("00000000-0000-4000-8000-000000000059");
         UUID nonce = UUID.fromString("00000000-0000-4000-8000-000000000060");
         var claims = claims(tenantId, proof, nonce, now.plusSeconds(20));
-        assertThat(store.reserve(HrisApprovalBridgeV2.CREATE_AND_SUBMIT, claims)).isTrue();
-        assertThat(store.reserve(HrisApprovalBridgeV2.CREATE_AND_SUBMIT,
+        assertThat(store.reserve(
+                HrisApprovalBridgeV2.CREATE_AND_SUBMIT.verificationContract(), claims)).isTrue();
+        assertThat(store.reserve(HrisApprovalBridgeV2.CREATE_AND_SUBMIT.verificationContract(),
                 claims(tenantId,
                         UUID.fromString("00000000-0000-4000-8000-000000000061"),
                         nonce, now.plusSeconds(20)))).isFalse();

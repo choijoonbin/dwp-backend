@@ -1,6 +1,6 @@
 package com.dwp.services.approval.hrisbridge;
 
-import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalBridgeV2;
+import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalVerificationContractV2;
 import com.dwp.platform.contracts.hris.approval.v2.HrisWorkloadProofV2;
 import java.time.Instant;
 import java.util.UUID;
@@ -31,7 +31,7 @@ final class HrisApprovalReplayStore implements HrisWorkloadProofV2.ReplayStore {
     }
 
     @Override
-    public boolean reserve(HrisApprovalBridgeV2.Endpoint endpoint,
+    public boolean reserve(HrisApprovalVerificationContractV2 endpoint,
             HrisWorkloadProofV2.ProofClaims claims) {
         Boolean result = requiresNew.execute(status -> {
             int inserted = jdbc.update("""

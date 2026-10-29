@@ -9,7 +9,7 @@ enum PayrollCalculationRoute {
             "route.hcm.operations.payroll-run-calculate.action",
             Action.CALCULATE, "PAYROLL_PROCESSING",
             Set.of("LEGAL_ENTITY", "PAY_GROUP"),
-            Set.of("PAY_INPUT", "PAY_RESULT"), false),
+            Set.of("PAY_INPUT", "PAY_RESULT"), true),
     RUN_VIEW(
             "route.hcm.operations.payroll-run.data",
             Action.RUN_VIEW, "PAYROLL_PROCESSING",

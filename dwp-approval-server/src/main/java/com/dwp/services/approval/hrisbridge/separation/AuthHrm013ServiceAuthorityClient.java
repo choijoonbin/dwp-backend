@@ -1,5 +1,6 @@
 package com.dwp.services.approval.hrisbridge.separation;
 
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.dwp.platform.contracts.hris.separation.v1.HrisServiceGrantAuthorityV1;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013WorkloadProofV1;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -88,6 +89,7 @@ public final class AuthHrm013ServiceAuthorityClient {
                     proof, request.correlationId())) {
                 builder.header(header.name(), header.value());
             }
+            OutboundHttpHeaders.propagateObservability(builder);
             HttpResponse<InputStream> response = credentials.client(snapshot).send(
                     builder.build(), HttpResponse.BodyHandlers.ofInputStream());
             try {

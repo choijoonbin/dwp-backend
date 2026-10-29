@@ -29,8 +29,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.hrisconfiguration.controlledtransfer.ControlledTransferDtos.*;
-import static com.dwp.services.platform.hrisconfiguration.controlledtransfer.ControlledTransferRepository.AccessSeal;
-
 @Validated
 @RestController
 @ConditionalOnProperty(

@@ -41,7 +41,7 @@ class MailSyncExecutorTest {
                         accountId, "owner@example.test", "provider-account", "cursor", 0);
         when(repository.connectionAccounts(7, connectionId)).thenReturn(List.of(account));
         when(materializer.materialize(anyLong(), anyLong(), any(), any()))
-                .thenReturn(new MailExternalSyncMaterializer.SyncResult(0, 0, 0, false));
+                .thenReturn(new MailSyncResult(0, 0, 0, false));
         AtomicBoolean observedTransaction = new AtomicBoolean(true);
         MailConnectorPort connector = new DwpSandboxMailConnector() {
             @Override
@@ -53,11 +53,11 @@ class MailSyncExecutorTest {
         };
         MailSyncExecutor executor = new MailSyncExecutor(
                 repository, new MailConnectorRegistry(List.of(connector)), materializer);
-        MailSyncJobRepository.SyncJob job = new MailSyncJobRepository.SyncJob(
+        MailSyncJob job = new MailSyncJob(
                 UUID.randomUUID(), 7, UUID.randomUUID(), connectionId,
                 91, 0, "MANUAL", 1, 5, "corr");
 
-        MailSyncExecutor.ExecutionResult result = executor.execute(job);
+        MailSyncExecutionResult result = executor.execute(job);
 
         assertThat(observedTransaction).isFalse();
         assertThat(result.accounts()).isOne();
@@ -77,8 +77,8 @@ class MailSyncExecutorTest {
         };
         Fixture fixture = fixture(connector, mock(MailSyncJobRepository.class));
 
-        MailSyncExecutor.SyncWorkFailure failure = assertThrows(
-                MailSyncExecutor.SyncWorkFailure.class,
+        MailSyncWorkFailure failure = assertThrows(
+                MailSyncWorkFailure.class,
                 () -> fixture.executor().execute(fixture.job()));
 
         assertThat(failure.code()).isEqualTo("GRAPH_RATE_LIMITED");
@@ -107,8 +107,8 @@ class MailSyncExecutorTest {
         when(syncJobs.resetCursorAndEnqueueRecovery(
                 fixture.job(), fixture.account(), fullSyncSeed)).thenReturn(transition);
 
-        MailSyncExecutor.SyncWorkFailure failure = assertThrows(
-                MailSyncExecutor.SyncWorkFailure.class,
+        MailSyncWorkFailure failure = assertThrows(
+                MailSyncWorkFailure.class,
                 () -> fixture.executor().execute(fixture.job()));
 
         assertThat(failure.code()).isEqualTo("SYNC_CURSOR_RESET_REQUIRED");
@@ -134,7 +134,7 @@ class MailSyncExecutorTest {
                         "provider-account", "cursor-0", 0);
         when(repository.connectionAccounts(7, connectionId)).thenReturn(List.of(account));
         when(materializer.materialize(anyLong(), anyLong(), any(), any()))
-                .thenReturn(new MailExternalSyncMaterializer.SyncResult(1, 0, 0, true));
+                .thenReturn(new MailSyncResult(1, 0, 0, true));
         AtomicInteger pages = new AtomicInteger();
         MailConnectorPort connector = new DwpSandboxMailConnector() {
             @Override
@@ -145,11 +145,11 @@ class MailSyncExecutorTest {
         };
         MailSyncExecutor executor = new MailSyncExecutor(
                 repository, new MailConnectorRegistry(List.of(connector)), materializer);
-        MailSyncJobRepository.SyncJob job = new MailSyncJobRepository.SyncJob(
+        MailSyncJob job = new MailSyncJob(
                 UUID.randomUUID(), 7, UUID.randomUUID(), connectionId,
                 91, 0, "MANUAL", 1, 5, "corr");
 
-        MailSyncExecutor.ExecutionResult result = executor.execute(job);
+        MailSyncExecutionResult result = executor.execute(job);
 
         assertThat(result.continuationRequired()).isTrue();
         assertThat(result.batches()).isEqualTo(20);
@@ -174,7 +174,7 @@ class MailSyncExecutorTest {
                         UUID.randomUUID(), "owner@example.test",
                         "provider-account", "cursor", 3);
         when(repository.connectionAccounts(7, connectionId)).thenReturn(List.of(account));
-        MailSyncJobRepository.SyncJob job = new MailSyncJobRepository.SyncJob(
+        MailSyncJob job = new MailSyncJob(
                 UUID.randomUUID(), 7, UUID.randomUUID(), connectionId,
                 91, 0, "MANUAL", 1, 5, "corr");
         MailSyncExecutor executor = new MailSyncExecutor(
@@ -185,6 +185,6 @@ class MailSyncExecutorTest {
 
     private record Fixture(
             MailSyncExecutor executor,
-            MailSyncJobRepository.SyncJob job,
+            MailSyncJob job,
             AdminMailCompletionRepository.AccountRow account) { }
 }

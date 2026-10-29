@@ -1,5 +1,6 @@
 package com.dwp.services.people.hris.performance.per004;
 
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.dwp.platform.contracts.hris.referenceconfiguration.HrisReferenceConfigurationProofIssuerV1;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -31,6 +32,10 @@ import static com.dwp.platform.contracts.hris.referenceconfiguration.HrisReferen
 final class Per004PlatformInternalClient implements
         Per004WorkbenchController.PlatformOwnerProjectionPort,
         Per004PreparationRecovery.AuthoritativeCreateLookupPort {
+    private static final String PROJECTION_PATH =
+            "/internal/hris-reference-configuration/v1/owner-projections:query";
+    private static final String CREATE_LOOKUP_PATH =
+            "/internal/hris-reference-configuration/v1/authoritative-create-lookups:query";
     private static final int MAX_REQUEST_BYTES = 65536;
     private static final int MAX_PROJECTION_BYTES = 262144;
     private static final int MAX_LOOKUP_BYTES = 8192;
@@ -56,6 +61,10 @@ final class Per004PlatformInternalClient implements
     Per004PlatformInternalClient(ObjectMapper mapper,
             HrisReferenceConfigurationProofIssuerV1.SigningKeyProvider keys,
             URI base, HttpClient client, Clock clock) {
+        if (!PROJECTION_PATH.equals(Endpoint.PROJECTION.path(null))
+                || !CREATE_LOOKUP_PATH.equals(Endpoint.CREATE_LOOKUP.path(null))) {
+            throw unavailable();
+        }
         this.projectionEndpoint = endpoint(base, Endpoint.PROJECTION);
         this.lookupEndpoint = endpoint(base, Endpoint.CREATE_LOOKUP);
         if (client == null || client.followRedirects() != HttpClient.Redirect.NEVER
@@ -137,10 +146,12 @@ final class Per004PlatformInternalClient implements
             if (body.length == 0 || body.length > MAX_REQUEST_BYTES) throw unavailable();
             String proof = HrisReferenceConfigurationProofIssuerV1.issue(mapper, clock, endpoint,
                     endpoint.path(null), tenantId, body, keys.current(endpoint));
-            HttpRequest request = HttpRequest.newBuilder(target).timeout(DEADLINE)
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(target).timeout(DEADLINE)
                     .header("Content-Type", "application/json").header("Accept", "application/json")
                     .header(SERVICE_IDENTITY_HEADER, endpoint.callerWorkloadId())
-                    .header(WORKLOAD_PROOF_HEADER, proof)
+                    .header(WORKLOAD_PROOF_HEADER, proof);
+            OutboundHttpHeaders.propagateObservability(requestBuilder);
+            HttpRequest request = requestBuilder
                     .POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
             var pending = client.sendAsync(request, ignored -> new BoundedBody(maxResponseBytes));
             HttpResponse<byte[]> wire;

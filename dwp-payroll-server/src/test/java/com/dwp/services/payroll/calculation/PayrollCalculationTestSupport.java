@@ -34,7 +34,7 @@ import static com.dwp.services.payroll.calculation.PayrollCalculationModels.Calc
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.Checkpoint;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.CommandIdentity;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.EventFact;
-import static com.dwp.services.payroll.calculation.PayrollCalculationModels.FormulaBinding;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.FormulaBinding;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.FrozenSnapshot;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.Lease;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.PayrollCommandReceipt;
@@ -43,11 +43,11 @@ import static com.dwp.services.payroll.calculation.PayrollCalculationModels.Rece
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.RunRevision;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.RunState;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.SourceInput;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.Category;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.EvaluatedLine;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.Resolution;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.QuantizationStep;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.RoundingStage;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.Category;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.EvaluatedLine;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.Resolution;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.QuantizationStep;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.RoundingStage;
 
 final class PayrollCalculationTestSupport {
 

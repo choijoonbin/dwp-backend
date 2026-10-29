@@ -17,7 +17,6 @@ import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantQuiesceService.Loc
 import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantQuiesceService.QuiesceBatch;
 import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantQuiesceService.RotationResult;
 import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantQuiesceService.SuccessorGrant;
-import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantRotationReadinessVerifier.ReadinessItem;
 import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantRotationReadinessVerifier.VerifiedReceipt;
 import static com.dwp.services.auth.hrisservicegrant.HrisServiceGrantQuiesceService.opaque;
 import static com.dwp.services.auth.hrisservicegrant.HrisServiceGrantQuiesceService.requireDigest;
@@ -38,19 +37,32 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /** Transactional V271 persistence boundary; RLS context is always the first statement. */
-public final class HrisServiceGrantAuthorityRepository {
+public final class HrisServiceGrantAuthorityRepository
+        implements HrisServiceGrantQuiesceService.AuthorityPort {
     static final String TENANT_CONTEXT = "dwp.auth.hrm013.tenant";
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
     private final ObjectMapper json;
     private final HrisServiceGrantAuthorityPersistence persistence;
+    private final HrisServiceGrantRotationReadinessVerifier readinessVerifier;
+
     public HrisServiceGrantAuthorityRepository(
             JdbcTemplate jdbc, PlatformTransactionManager transactionManager,
             ObjectMapper objectMapper) {
+        this(jdbc, transactionManager, objectMapper,
+                new HrisServiceGrantRotationReadinessVerifier(objectMapper));
+    }
+
+    public HrisServiceGrantAuthorityRepository(
+            JdbcTemplate jdbc, PlatformTransactionManager transactionManager,
+            ObjectMapper objectMapper,
+            HrisServiceGrantRotationReadinessVerifier readinessVerifier) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
         this.transactions = new TransactionTemplate(
                 Objects.requireNonNull(transactionManager, "transactionManager"));
         this.json = Objects.requireNonNull(objectMapper, "objectMapper");
+        this.readinessVerifier = Objects.requireNonNull(
+                readinessVerifier, "readinessVerifier");
         this.persistence = new HrisServiceGrantAuthorityPersistence(
                 this.jdbc, this.json);
     }
@@ -225,7 +237,6 @@ public final class HrisServiceGrantAuthorityRepository {
         if (result == null) throw Hrm013SafeErrorV1.authorityUnavailable(1);
         return result;
     }
-
     public QuiesceBatch abortQuiesce(long tenantId,
             List<HrisServiceGrantAuthorityV1.TargetTuple> orderedTargets,
             UUID commandCorrelationId) {
@@ -258,6 +269,13 @@ public final class HrisServiceGrantAuthorityRepository {
         });
         if (result == null) throw Hrm013SafeErrorV1.authorityUnavailable(1);
         return result;
+    }
+    public RotationResult cutover(long tenantId,
+            List<HrisServiceGrantAuthorityV1.TargetTuple> orderedTargets,
+            List<ReadinessItem> readinessItems,
+            SuccessorGrant successor, UUID commandCorrelationId) {
+        return cutover(tenantId, orderedTargets, readinessItems, successor,
+                commandCorrelationId, readinessVerifier);
     }
 
     public RotationResult cutover(long tenantId,
@@ -515,7 +533,6 @@ public final class HrisServiceGrantAuthorityRepository {
                 && Objects.equals(current.authorityFence(), expected.authorityFence())
                 && current.preparationSha256().equals(expected.preparationSha256());
     }
-
     private ResolveResponse resolveNewWork(ResolveRequest request) {
         CurrentGrant current = persistence.currentGrant(request.tenantId());
         if (current == null) return opaque(Status.MISSING, request);
@@ -530,7 +547,6 @@ public final class HrisServiceGrantAuthorityRepository {
         }
         return ResolveResponse.admit(authority, null, request.correlationId());
     }
-
     private ResolveResponse resolveDrain(ResolveRequest request, String proofSha256) {
         CurrentGrant current = persistence.currentGrant(request.tenantId());
         if (current == null) return opaque(Status.MISSING, request);

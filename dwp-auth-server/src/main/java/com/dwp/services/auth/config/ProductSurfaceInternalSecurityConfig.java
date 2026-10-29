@@ -49,11 +49,29 @@ public class ProductSurfaceInternalSecurityConfig {
 
     @Bean
     @Order(0)
+    SecurityFilterChain meetingFollowupInternalSecurityFilterChain(
+            HttpSecurity http,
+            @Value("${dwp.auth.meeting-followup-authority-token:}")
+            String meetingFollowupAuthorityToken,
+            ObjectMapper objectMapper) throws Exception {
+        http
+                .securityMatcher(MEETING_FOLLOWUP_PATH)
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .addFilterBefore(
+                        new MeetingFollowupTokenFilter(
+                                meetingFollowupAuthorityToken, objectMapper),
+                        AnonymousAuthenticationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    @Order(1)
     SecurityFilterChain productSurfaceInternalSecurityFilterChain(
             HttpSecurity http,
             @Value("${dwp.auth.product-surface-token:}") String productSurfaceToken,
-            @Value("${dwp.auth.meeting-followup-authority-token:}")
-            String meetingFollowupAuthorityToken,
             @Value("${dwp.auth.hris-origin-authority-token:}")
             String hrisOriginAuthorityToken,
             ObjectMapper objectMapper) throws Exception {
@@ -61,7 +79,6 @@ public class ProductSurfaceInternalSecurityConfig {
                 .securityMatcher(
                         PRODUCT_SURFACE_EVALUATE_PATH,
                         "/internal/auth/v1/governed-route-authority/evaluate",
-                        MEETING_FOLLOWUP_PATH,
                         HRIS_NAVIGATION_POLICY_DECISION_PATH,
                         HRM012_RECEIPT_FIRST_STEP_UP_VERIFY_PATH)
                 .csrf(csrf -> csrf.disable())
@@ -71,7 +88,6 @@ public class ProductSurfaceInternalSecurityConfig {
                 .addFilterBefore(
                         new ProductSurfaceTokenFilter(
                                 productSurfaceToken,
-                                meetingFollowupAuthorityToken,
                                 hrisOriginAuthorityToken,
                                 objectMapper),
                         AnonymousAuthenticationFilter.class);
@@ -81,29 +97,18 @@ public class ProductSurfaceInternalSecurityConfig {
     static final class ProductSurfaceTokenFilter extends OncePerRequestFilter {
 
         private final String expectedToken;
-        private final String expectedMeetingFollowupToken;
         private final String expectedHrisOriginAuthorityToken;
         private final ObjectMapper objectMapper;
 
         ProductSurfaceTokenFilter(String expectedToken, ObjectMapper objectMapper) {
-            this(expectedToken, "", "", objectMapper);
+            this(expectedToken, "", objectMapper);
         }
 
         ProductSurfaceTokenFilter(
                 String expectedToken,
-                String expectedMeetingFollowupToken,
-                ObjectMapper objectMapper) {
-            this(expectedToken, expectedMeetingFollowupToken, "", objectMapper);
-        }
-
-        ProductSurfaceTokenFilter(
-                String expectedToken,
-                String expectedMeetingFollowupToken,
                 String expectedHrisOriginAuthorityToken,
                 ObjectMapper objectMapper) {
             this.expectedToken = expectedToken == null ? "" : expectedToken.strip();
-            this.expectedMeetingFollowupToken = expectedMeetingFollowupToken == null
-                    ? "" : expectedMeetingFollowupToken.strip();
             this.expectedHrisOriginAuthorityToken = expectedHrisOriginAuthorityToken == null
                     ? "" : expectedHrisOriginAuthorityToken.strip();
             this.objectMapper = objectMapper;
@@ -116,8 +121,6 @@ public class ProductSurfaceInternalSecurityConfig {
                 FilterChain filterChain) throws ServletException, IOException {
             String identity = exactHeader(request, SERVICE_IDENTITY_HEADER);
             String productSurfaceToken = exactHeader(request, TOKEN_HEADER);
-            String meetingFollowupToken = exactHeader(
-                    request, MEETING_FOLLOWUP_TOKEN_HEADER);
             String hrisOriginAuthorityToken = exactHeader(
                     request, HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER);
             boolean productSurfaceCaller = (GATEWAY_SERVICE_IDENTITY.equals(identity)
@@ -135,12 +138,6 @@ public class ProductSurfaceInternalSecurityConfig {
                     && absentHeader(request, MEETING_FOLLOWUP_TOKEN_HEADER)
                     && absentHeader(request, HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER)
                     && matches(expectedToken, productSurfaceToken);
-            boolean meeting = MEETING_SERVICE_IDENTITY.equals(identity)
-                    && "POST".equals(request.getMethod())
-                    && MEETING_FOLLOWUP_PATH.equals(request.getRequestURI())
-                    && absentHeader(request, TOKEN_HEADER)
-                    && absentHeader(request, HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER)
-                    && matches(expectedMeetingFollowupToken, meetingFollowupToken);
             boolean people = PEOPLE_SERVICE_IDENTITY.equals(identity)
                     && "POST".equals(request.getMethod())
                     && (PRODUCT_SURFACE_EVALUATE_PATH.equals(request.getRequestURI())
@@ -149,7 +146,7 @@ public class ProductSurfaceInternalSecurityConfig {
                     && absentHeader(request, TOKEN_HEADER)
                     && absentHeader(request, MEETING_FOLLOWUP_TOKEN_HEADER)
                     && matches(expectedHrisOriginAuthorityToken, hrisOriginAuthorityToken);
-            if (!productSurfaceCaller && !hrisNavigationPolicy && !meeting && !people) {
+            if (!productSurfaceCaller && !hrisNavigationPolicy && !people) {
                 response.setStatus(ErrorCode.UNAUTHORIZED.getHttpStatus().value());
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                 objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(
@@ -160,25 +157,65 @@ public class ProductSurfaceInternalSecurityConfig {
             request.setAttribute(AUTHENTICATED_SERVICE_IDENTITY_ATTRIBUTE, identity);
             filterChain.doFilter(request, response);
         }
+    }
 
-        private boolean matches(String expected, String actual) {
-            return !expected.isBlank() && actual != null && MessageDigest.isEqual(
-                    expected.getBytes(StandardCharsets.UTF_8),
-                    actual.getBytes(StandardCharsets.UTF_8));
+    static final class MeetingFollowupTokenFilter extends OncePerRequestFilter {
+
+        private final String expectedMeetingFollowupToken;
+        private final ObjectMapper objectMapper;
+
+        MeetingFollowupTokenFilter(
+                String expectedMeetingFollowupToken,
+                ObjectMapper objectMapper) {
+            this.expectedMeetingFollowupToken = expectedMeetingFollowupToken == null
+                    ? "" : expectedMeetingFollowupToken.strip();
+            this.objectMapper = objectMapper;
         }
 
-        private String exactHeader(HttpServletRequest request, String name) {
-            var values = Collections.list(request.getHeaders(name));
-            if (values.size() != 1 || values.getFirst() == null
-                    || values.getFirst().isBlank()
-                    || !values.getFirst().equals(values.getFirst().strip())) {
-                return null;
+        @Override
+        protected void doFilterInternal(
+                HttpServletRequest request,
+                HttpServletResponse response,
+                FilterChain filterChain) throws ServletException, IOException {
+            String identity = exactHeader(request, SERVICE_IDENTITY_HEADER);
+            String meetingFollowupToken = exactHeader(
+                    request, MEETING_FOLLOWUP_TOKEN_HEADER);
+            boolean meeting = MEETING_SERVICE_IDENTITY.equals(identity)
+                    && "POST".equals(request.getMethod())
+                    && MEETING_FOLLOWUP_PATH.equals(request.getRequestURI())
+                    && absentHeader(request, TOKEN_HEADER)
+                    && absentHeader(request, HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER)
+                    && matches(expectedMeetingFollowupToken, meetingFollowupToken);
+            if (!meeting) {
+                response.setStatus(ErrorCode.UNAUTHORIZED.getHttpStatus().value());
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(
+                        ErrorCode.UNAUTHORIZED,
+                        "Meeting follow-up service identity is required."));
+                return;
             }
-            return values.getFirst();
+            request.setAttribute(AUTHENTICATED_SERVICE_IDENTITY_ATTRIBUTE, identity);
+            filterChain.doFilter(request, response);
         }
+    }
 
-        private boolean absentHeader(HttpServletRequest request, String name) {
-            return !request.getHeaders(name).hasMoreElements();
+    private static boolean matches(String expected, String actual) {
+        return !expected.isBlank() && actual != null && MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                actual.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String exactHeader(HttpServletRequest request, String name) {
+        var values = Collections.list(request.getHeaders(name));
+        if (values.size() != 1 || values.getFirst() == null
+                || values.getFirst().isBlank()
+                || !values.getFirst().equals(values.getFirst().strip())) {
+            return null;
         }
+        return values.getFirst();
+    }
+
+    private static boolean absentHeader(HttpServletRequest request, String name) {
+        return !request.getHeaders(name).hasMoreElements();
     }
 }

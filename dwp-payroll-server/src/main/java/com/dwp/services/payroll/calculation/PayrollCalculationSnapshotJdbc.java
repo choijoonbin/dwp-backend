@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.dwp.services.payroll.calculation.PayrollCalculationModels.FormulaBinding;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.FormulaBinding;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.FrozenSnapshot;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.RunRevision;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.SemanticBinding;

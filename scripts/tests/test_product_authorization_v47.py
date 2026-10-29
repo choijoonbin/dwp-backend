@@ -104,14 +104,17 @@ class ProductAuthorizationV47Test(unittest.TestCase):
         self.assertEqual({"domain": {"kind": "FIXED", "value": "ABSENCE"}},
                          leave_route["gatewayApiBindings"][0]["pathParameterConstraints"])
 
-    def test_latest_alias_advances_to_v50_while_historical_platform_pep_remains_pinned_to_v47(self) -> None:
+    def test_current_alias_is_v62_while_historical_platform_pep_remains_pinned_to_v47(self) -> None:
         alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
         seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
         projection = json.loads(PLATFORM_PEP.read_text())
-        self.assertEqual(self.v50, alias)
-        self.assertEqual(self.v50, seed)
-        self.assertEqual((50, V50_SHA256), (
+        latest = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v62.json").read_text()
+        )
+        self.assertEqual(latest, alias)
+        self.assertEqual(latest, seed)
+        self.assertEqual((62, latest["checksum"]), (
             index["latestVersion"], index["latestChecksum"]
         ))
         self.assertEqual({

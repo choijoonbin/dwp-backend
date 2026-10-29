@@ -216,6 +216,7 @@
           "EXPIRED",
           "ACTIVATION_REQUIRED",
           "STEP_UP_REQUIRED",
+          "OWNER_RECEIPT_AUTH_REQUIRED",
           "SOD_CONFLICT",
           "SUPPORT_SCOPE_DENIED",
           "AUTHORITY_UNAVAILABLE"
@@ -697,6 +698,9 @@
             "type": "string"
           },
           "targetPopulation": {
+            "type": "string"
+          },
+          "tenantControl": {
             "type": "string"
           }
         },

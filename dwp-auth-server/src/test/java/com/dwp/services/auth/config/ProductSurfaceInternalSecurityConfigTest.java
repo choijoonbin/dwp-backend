@@ -80,8 +80,7 @@ class ProductSurfaceInternalSecurityConfigTest {
 
     @Test
     void acceptsOnlyTheDedicatedMeetingTokenOnTheExactFollowupEndpoint() throws Exception {
-        var filter = new ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter(
-                "trusted-product-surface-token",
+        var filter = new ProductSurfaceInternalSecurityConfig.MeetingFollowupTokenFilter(
                 "trusted-meeting-followup-token",
                 objectMapper);
         MockHttpServletRequest accepted = new MockHttpServletRequest(
@@ -119,8 +118,7 @@ class ProductSurfaceInternalSecurityConfigTest {
 
     @Test
     void doesNotAcceptGatewayAndMeetingTokensAcrossServiceIdentities() throws Exception {
-        var filter = new ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter(
-                "trusted-product-surface-token",
+        var filter = new ProductSurfaceInternalSecurityConfig.MeetingFollowupTokenFilter(
                 "trusted-meeting-followup-token",
                 objectMapper);
         MockHttpServletRequest meetingWithGatewayToken = new MockHttpServletRequest(
@@ -167,8 +165,7 @@ class ProductSurfaceInternalSecurityConfigTest {
 
     @Test
     void rejectsAmbiguousDedicatedCredentialsAndNonPostRequests() throws Exception {
-        var filter = new ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter(
-                "trusted-product-surface-token",
+        var filter = new ProductSurfaceInternalSecurityConfig.MeetingFollowupTokenFilter(
                 "trusted-meeting-followup-token",
                 objectMapper);
         MockHttpServletRequest duplicate = new MockHttpServletRequest(
@@ -202,6 +199,22 @@ class ProductSurfaceInternalSecurityConfigTest {
         filter.doFilter(mixed, mixedResponse, new MockFilterChain());
 
         assertThat(mixedResponse.getStatus()).isEqualTo(401);
+
+        MockHttpServletRequest hrisMixed = new MockHttpServletRequest(
+                "POST", ProductSurfaceInternalSecurityConfig.MEETING_FOLLOWUP_PATH);
+        hrisMixed.addHeader(
+                ProductSurfaceInternalSecurityConfig.MEETING_FOLLOWUP_TOKEN_HEADER,
+                "trusted-meeting-followup-token");
+        hrisMixed.addHeader(
+                ProductSurfaceInternalSecurityConfig.HRIS_ORIGIN_AUTHORITY_TOKEN_HEADER,
+                "trusted-hris-origin-token");
+        hrisMixed.addHeader(ProductSurfaceInternalSecurityConfig.SERVICE_IDENTITY_HEADER,
+                ProductSurfaceInternalSecurityConfig.MEETING_SERVICE_IDENTITY);
+        MockHttpServletResponse hrisMixedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(hrisMixed, hrisMixedResponse, new MockFilterChain());
+
+        assertThat(hrisMixedResponse.getStatus()).isEqualTo(401);
 
         MockHttpServletRequest gatewayMixed = new MockHttpServletRequest(
                 "POST", "/internal/auth/v1/product-surface-authority/evaluate");
@@ -406,7 +419,6 @@ class ProductSurfaceInternalSecurityConfigTest {
             fullyConfiguredFilter() {
         return new ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter(
                 "trusted-product-surface-token",
-                "trusted-meeting-followup-token",
                 "trusted-hris-origin-token",
                 objectMapper);
     }

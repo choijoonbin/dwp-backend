@@ -2,6 +2,8 @@ package com.dwp.services.people.hris.separation.hrm013;
 
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013SafeErrorV1;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013SeparationBridgeV1;
+import com.dwp.services.people.hris.separation.hrm013.Hrm013OwnerContracts.CaseCreation;
+import com.dwp.services.people.hris.separation.hrm013.Hrm013OwnerContracts.PlannedDispatch;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -73,8 +75,8 @@ public final class JdbcHrm013OwnerStore {
 
     /** Returns true only when the complete root command already exists byte-for-byte. */
     public boolean createCaseAndTasks(
-            Hrm013OwnerService.CaseCreation command,
-            List<Hrm013OwnerService.PlannedDispatch> plans) {
+            CaseCreation command,
+            List<PlannedDispatch> plans) {
         Hrm013TenantScope.setLocal(jdbc, command.tenantId());
         jdbc.query("SELECT pg_advisory_xact_lock(hashtextextended(:value,0))",
                 new MapSqlParameterSource().addValue("value", "hrm013-case\n"
@@ -112,7 +114,7 @@ public final class JdbcHrm013OwnerStore {
                 RETURNING separation_case_id
                 """, caseParameters(command), Long.class);
         if (caseId == null) throw Hrm013SafeErrorV1.invalidState();
-        for (Hrm013OwnerService.PlannedDispatch plan : plans) {
+        for (PlannedDispatch plan : plans) {
             int inserted = jdbc.update("""
                     INSERT INTO ppl_separation_tasks(
                         public_id,tenant_id,separation_case_id,task_type,
@@ -444,7 +446,7 @@ public final class JdbcHrm013OwnerStore {
 
     private boolean sameTasks(
             long tenantId, long caseId,
-            List<Hrm013OwnerService.PlannedDispatch> plans) {
+            List<PlannedDispatch> plans) {
         List<java.util.Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT public_id,task_type,owner_workload_id,mandatory,irreversible
                   FROM ppl_separation_tasks
@@ -453,12 +455,12 @@ public final class JdbcHrm013OwnerStore {
                 """, new MapSqlParameterSource().addValue("tenant", tenantId)
                 .addValue("caseId", caseId));
         if (rows.size() != plans.size()) return false;
-        java.util.Map<String, Hrm013OwnerService.PlannedDispatch> expected = plans.stream()
+        java.util.Map<String, PlannedDispatch> expected = plans.stream()
                 .collect(java.util.stream.Collectors.toMap(
                         plan -> plan.profile().taskType(), plan -> plan));
         return rows.stream().allMatch(row -> {
             String type = (String) row.get("task_type");
-            Hrm013OwnerService.PlannedDispatch plan = expected.get(type);
+            PlannedDispatch plan = expected.get(type);
             return plan != null
                     && plan.body().taskPublicId().equals(row.get("public_id"))
                     && plan.profile().ownerWorkloadId().equals(row.get("owner_workload_id"))
@@ -469,7 +471,7 @@ public final class JdbcHrm013OwnerStore {
 
     private static boolean sameCase(
             java.util.Map<String, Object> row,
-            Hrm013OwnerService.CaseCreation value) {
+            CaseCreation value) {
         return ((Number) row.get("worker_id")).longValue() == value.workerId()
                 && ((Number) row.get("work_relationship_id")).longValue()
                 == value.workRelationshipId()
@@ -490,7 +492,7 @@ public final class JdbcHrm013OwnerStore {
     }
 
     private static MapSqlParameterSource caseParameters(
-            Hrm013OwnerService.CaseCreation value) {
+            CaseCreation value) {
         return new MapSqlParameterSource().addValue("casePublic", value.casePublicId())
                 .addValue("tenant", value.tenantId()).addValue("worker", value.workerId())
                 .addValue("relationship", value.workRelationshipId())

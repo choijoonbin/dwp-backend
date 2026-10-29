@@ -24,8 +24,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import static com.dwp.platform.contracts.hris.approval.v2.HrisApprovalBridgeV2.denied;
-
 /** Strict verifier for the single production HRIS workload-proof header. */
 public final class HrisWorkloadProofV2 {
 
@@ -87,7 +85,7 @@ public final class HrisWorkloadProofV2 {
     @FunctionalInterface
     public interface TenantAdmissionVerifier {
         boolean admits(
-                HrisApprovalBridgeV2.Endpoint endpoint,
+                HrisApprovalVerificationContractV2 endpoint,
                 String exactPath,
                 String callerWorkloadId,
                 long signedTenantId);
@@ -103,7 +101,9 @@ public final class HrisWorkloadProofV2 {
          * writing their durable evidence row. The compatibility default keeps
          * the small in-memory fixture contract unchanged.
          */
-        default boolean reserve(HrisApprovalBridgeV2.Endpoint endpoint, ProofClaims claims) {
+        default boolean reserve(
+                HrisApprovalVerificationContractV2 endpoint,
+                ProofClaims claims) {
             return reserve(claims.proofId(), claims.requestNonce(), claims.expiresAt());
         }
     }
@@ -136,7 +136,7 @@ public final class HrisWorkloadProofV2 {
     public static VerifiedAdmission verify(
             ObjectMapper mapper,
             Clock clock,
-            HrisApprovalBridgeV2.Endpoint endpoint,
+            HrisApprovalVerificationContractV2 endpoint,
             String exactPath,
             List<Header> requestHeaders,
             byte[] exactBodyBytes,
@@ -153,60 +153,62 @@ public final class HrisWorkloadProofV2 {
         Objects.requireNonNull(replayStore, "replayStore");
         if (!endpoint.matchesPath(exactPath)
                 || exactPath.indexOf('?') >= 0 || exactPath.indexOf('#') >= 0) {
-            throw denied("EXACT_INTERNAL_PATH_REQUIRED");
+            throw endpoint.denied("EXACT_INTERNAL_PATH_REQUIRED");
         }
 
-        Map<String, String> headers = validateHeaders(requestHeaders);
+        Map<String, String> headers = validateHeaders(endpoint, requestHeaders);
         if (!endpoint.callerWorkloadId().equals(headers.get("x-dwp-service-identity"))) {
-            throw denied("CALLER_SERVICE_IDENTITY_MISMATCH");
+            throw endpoint.denied("CALLER_SERVICE_IDENTITY_MISMATCH");
         }
         String compact = headers.get("x-dwp-workload-proof");
-        ProofParts parts = parseAndVerifyProof(mapper, compact, keyResolver);
-        ProofClaims claims = parseClaims(parts.claims(), parts.keyId());
-        String bodySha256 = HrisApprovalBridgeV2.sha256(exactBodyBytes);
+        ProofParts parts = parseAndVerifyProof(endpoint, mapper, compact, keyResolver);
+        ProofClaims claims = parseClaims(endpoint, parts.claims(), parts.keyId());
+        String bodySha256 = HrisApprovalVerificationContractV2.sha256(exactBodyBytes);
         requireExactClaims(endpoint, exactPath, bodySha256, claims, clock.instant(), parts.key());
         if (!tenantVerifier.admits(
                 endpoint, exactPath, endpoint.callerWorkloadId(), claims.tenantId())) {
-            throw denied("CURRENT_TENANT_AUTHORITY_REQUIRED");
+            throw endpoint.denied("CURRENT_TENANT_AUTHORITY_REQUIRED");
         }
         if (!replayStore.reserve(endpoint, claims)) {
-            throw denied("WORKLOAD_PROOF_REPLAYED");
+            throw endpoint.denied("WORKLOAD_PROOF_REPLAYED");
         }
-        return new VerifiedAdmission(claims, HrisApprovalBridgeV2.commandDigest(
-                endpoint, exactPath, claims.tenantId(), bodySha256));
+        return new VerifiedAdmission(
+                claims, endpoint.commandDigest(exactPath, claims.tenantId(), bodySha256));
     }
 
-    private static Map<String, String> validateHeaders(List<Header> requestHeaders) {
+    private static Map<String, String> validateHeaders(
+            HrisApprovalVerificationContractV2 endpoint,
+            List<Header> requestHeaders) {
         if (requestHeaders == null) {
-            throw denied("REQUEST_HEADER_EVIDENCE_REQUIRED");
+            throw endpoint.denied("REQUEST_HEADER_EVIDENCE_REQUIRED");
         }
         Map<String, String> normalized = new HashMap<>();
         for (Header header : requestHeaders) {
             if (header == null) {
-                throw denied("DUPLICATE_OR_INVALID_HEADER_EVIDENCE");
+                throw endpoint.denied("DUPLICATE_OR_INVALID_HEADER_EVIDENCE");
             }
             String name = header.name().toLowerCase(Locale.ROOT);
             if (normalized.putIfAbsent(name, header.value()) != null) {
-                throw denied("DUPLICATE_OR_INVALID_HEADER_EVIDENCE");
+                throw endpoint.denied("DUPLICATE_OR_INVALID_HEADER_EVIDENCE");
             }
             if (isProhibited(name)) {
-                throw denied("BROWSER_END_USER_OR_TENANT_HEADER_FORBIDDEN");
+                throw endpoint.denied("BROWSER_END_USER_OR_TENANT_HEADER_FORBIDDEN");
             }
             if (name.startsWith("x-dwp-") && !RECOGNIZED_DWP_HEADERS.contains(name)) {
-                throw denied("UNRECOGNIZED_DWP_HEADER_FORBIDDEN");
+                throw endpoint.denied("UNRECOGNIZED_DWP_HEADER_FORBIDDEN");
             }
         }
         String contentType = normalized.get("content-type");
         if (!isJsonContentType(contentType)) {
-            throw denied("EXACT_JSON_CONTENT_TYPE_REQUIRED");
+            throw endpoint.denied("EXACT_JSON_CONTENT_TYPE_REQUIRED");
         }
         String accept = normalized.get("accept");
         if (accept != null && !"application/json".equalsIgnoreCase(accept.trim())) {
-            throw denied("JSON_ACCEPT_REQUIRED");
+            throw endpoint.denied("JSON_ACCEPT_REQUIRED");
         }
         if (normalized.get("x-dwp-service-identity") == null
                 || normalized.get("x-dwp-workload-proof") == null) {
-            throw denied("WORKLOAD_HEADERS_REQUIRED");
+            throw endpoint.denied("WORKLOAD_HEADERS_REQUIRED");
         }
         return Map.copyOf(normalized);
     }
@@ -230,38 +232,40 @@ public final class HrisWorkloadProofV2 {
     }
 
     private static ProofParts parseAndVerifyProof(
+            HrisApprovalVerificationContractV2 endpoint,
             ObjectMapper mapper,
             String compact,
             SigningKeyResolver resolver) {
         String[] segments = compact == null ? new String[0] : compact.split("\\.", -1);
         if (segments.length != 3 || segments[0].isEmpty()
                 || segments[1].isEmpty() || segments[2].isEmpty()) {
-            throw denied("COMPACT_WORKLOAD_PROOF_REQUIRED");
+            throw endpoint.denied("COMPACT_WORKLOAD_PROOF_REQUIRED");
         }
-        byte[] headerBytes = decodeCanonicalBase64Url(segments[0]);
-        byte[] claimBytes = decodeCanonicalBase64Url(segments[1]);
-        byte[] signatureBytes = decodeCanonicalBase64Url(segments[2]);
-        JsonNode header = strictObject(mapper, headerBytes, JOSE_FIELDS, "JOSE_HEADER_INVALID");
-        if (!"RS256".equals(requiredText(header, "alg"))
-                || !"JWT".equals(requiredText(header, "typ"))) {
-            throw denied("JOSE_PROFILE_INVALID");
+        byte[] headerBytes = decodeCanonicalBase64Url(endpoint, segments[0]);
+        byte[] claimBytes = decodeCanonicalBase64Url(endpoint, segments[1]);
+        byte[] signatureBytes = decodeCanonicalBase64Url(endpoint, segments[2]);
+        JsonNode header = strictObject(
+                endpoint, mapper, headerBytes, JOSE_FIELDS, "JOSE_HEADER_INVALID");
+        if (!"RS256".equals(requiredText(endpoint, header, "alg"))
+                || !"JWT".equals(requiredText(endpoint, header, "typ"))) {
+            throw endpoint.denied("JOSE_PROFILE_INVALID");
         }
-        String keyId = requiredText(header, "kid");
+        String keyId = requiredText(endpoint, header, "kid");
         if (!KID.matcher(keyId).matches()) {
-            throw denied("JOSE_KEY_ID_INVALID");
+            throw endpoint.denied("JOSE_KEY_ID_INVALID");
         }
         VerifiedSigningKey key;
         try {
             key = resolver.resolve(keyId);
         } catch (RuntimeException exception) {
-            throw denied("WORKLOAD_SIGNING_KEY_UNTRUSTED");
+            throw endpoint.denied("WORKLOAD_SIGNING_KEY_UNTRUSTED");
         }
         if (key == null) {
-            throw denied("WORKLOAD_SIGNING_KEY_UNTRUSTED");
+            throw endpoint.denied("WORKLOAD_SIGNING_KEY_UNTRUSTED");
         }
         if (!(key.publicKey() instanceof RSAPublicKey rsa)
                 || rsa.getModulus().bitLength() < 2048) {
-            throw denied("RS256_SIGNING_KEY_REQUIRED");
+            throw endpoint.denied("RS256_SIGNING_KEY_REQUIRED");
         }
         try {
             Signature verifier = Signature.getInstance("SHA256withRSA");
@@ -269,47 +273,56 @@ public final class HrisWorkloadProofV2 {
             verifier.update((segments[0] + "." + segments[1])
                     .getBytes(StandardCharsets.US_ASCII));
             if (!verifier.verify(signatureBytes)) {
-                throw denied("WORKLOAD_PROOF_SIGNATURE_INVALID");
+                throw endpoint.denied("WORKLOAD_PROOF_SIGNATURE_INVALID");
             }
         } catch (GeneralSecurityException exception) {
-            throw denied("WORKLOAD_PROOF_SIGNATURE_INVALID");
+            throw endpoint.denied("WORKLOAD_PROOF_SIGNATURE_INVALID");
         }
-        JsonNode claims = strictObject(mapper, claimBytes, CLAIM_FIELDS, "WORKLOAD_CLAIMS_INVALID");
+        JsonNode claims = strictObject(
+                endpoint, mapper, claimBytes, CLAIM_FIELDS, "WORKLOAD_CLAIMS_INVALID");
         return new ProofParts(claims, keyId, key);
     }
 
-    private static ProofClaims parseClaims(JsonNode claims, String keyId) {
-        long iat = requiredLong(claims, "iat");
-        long nbf = requiredLong(claims, "nbf");
-        long exp = requiredLong(claims, "exp");
-        long tenantId = requiredLong(claims, "tenantId");
-        UUID proofId = canonicalUuid(requiredText(claims, "jti"));
-        UUID requestNonce = canonicalUuid(requiredText(claims, "requestNonce"));
+    private static ProofClaims parseClaims(
+            HrisApprovalVerificationContractV2 endpoint,
+            JsonNode claims,
+            String keyId) {
+        long iat = requiredLong(endpoint, claims, "iat");
+        long nbf = requiredLong(endpoint, claims, "nbf");
+        long exp = requiredLong(endpoint, claims, "exp");
+        long tenantId = requiredLong(endpoint, claims, "tenantId");
+        UUID proofId = canonicalUuid(endpoint, requiredText(endpoint, claims, "jti"));
+        UUID requestNonce = canonicalUuid(
+                endpoint, requiredText(endpoint, claims, "requestNonce"));
         WorkloadAuthentication authentication;
         try {
-            authentication = WorkloadAuthentication.valueOf(requiredText(claims, "authn"));
+            authentication = WorkloadAuthentication.valueOf(
+                    requiredText(endpoint, claims, "authn"));
         } catch (IllegalArgumentException exception) {
-            throw denied("WORKLOAD_AUTHENTICATION_PROFILE_INVALID");
+            throw endpoint.denied("WORKLOAD_AUTHENTICATION_PROFILE_INVALID");
         }
         try {
             return new ProofClaims(
-                    requiredText(claims, "iss"), requiredText(claims, "aud"),
-                    requiredText(claims, "sub"), Instant.ofEpochSecond(iat),
+                    requiredText(endpoint, claims, "iss"),
+                    requiredText(endpoint, claims, "aud"),
+                    requiredText(endpoint, claims, "sub"), Instant.ofEpochSecond(iat),
                     Instant.ofEpochSecond(nbf), Instant.ofEpochSecond(exp),
-                    proofId, requestNonce, requiredText(claims, "bindingId"),
-                    requiredText(claims, "purpose"), requiredText(claims, "method"),
-                    requiredText(claims, "path"), tenantId,
-                    requiredText(claims, "requestBodySha256"), authentication, keyId);
+                    proofId, requestNonce, requiredText(endpoint, claims, "bindingId"),
+                    requiredText(endpoint, claims, "purpose"),
+                    requiredText(endpoint, claims, "method"),
+                    requiredText(endpoint, claims, "path"), tenantId,
+                    requiredText(endpoint, claims, "requestBodySha256"),
+                    authentication, keyId);
         } catch (RuntimeException exception) {
-            if (exception instanceof HrisApprovalBridgeV2.BridgeFailure failure) {
-                throw failure;
+            if (endpoint.isVerificationFailure(exception)) {
+                throw exception;
             }
-            throw denied("WORKLOAD_CLAIMS_INVALID");
+            throw endpoint.denied("WORKLOAD_CLAIMS_INVALID");
         }
     }
 
     private static void requireExactClaims(
-            HrisApprovalBridgeV2.Endpoint endpoint,
+            HrisApprovalVerificationContractV2 endpoint,
             String exactPath,
             String bodySha256,
             ProofClaims claims,
@@ -325,7 +338,7 @@ public final class HrisWorkloadProofV2 {
                 || claims.path().indexOf('?') >= 0
                 || claims.tenantId() < 1
                 || !bodySha256.equals(claims.requestBodySha256())) {
-            throw denied("EXACT_WORKLOAD_CLAIMS_REQUIRED");
+            throw endpoint.denied("EXACT_WORKLOAD_CLAIMS_REQUIRED");
         }
         if (!claims.issuedAt().equals(claims.notBefore())
                 || claims.proofId().equals(claims.requestNonce())
@@ -333,19 +346,20 @@ public final class HrisWorkloadProofV2 {
                 || !claims.expiresAt().isAfter(now)
                 || !claims.expiresAt().isAfter(claims.issuedAt())
                 || claims.expiresAt().getEpochSecond() - claims.issuedAt().getEpochSecond() > 30) {
-            throw denied("FRESH_NON_REPLAYABLE_PROOF_REQUIRED");
+            throw endpoint.denied("FRESH_NON_REPLAYABLE_PROOF_REQUIRED");
         }
         if (key.authentication() != claims.authentication()
                 || !endpoint.callerWorkloadId().equals(key.workloadId())) {
-            throw denied("DERIVED_WORKLOAD_AUTHENTICATION_MISMATCH");
+            throw endpoint.denied("DERIVED_WORKLOAD_AUTHENTICATION_MISMATCH");
         }
         if (claims.authentication() == WorkloadAuthentication.MTLS_SPIFFE
                 && !claims.subject().equals(key.workloadId())) {
-            throw denied("SPIFFE_SUBJECT_MISMATCH");
+            throw endpoint.denied("SPIFFE_SUBJECT_MISMATCH");
         }
     }
 
     private static JsonNode strictObject(
+            HrisApprovalVerificationContractV2 endpoint,
             ObjectMapper mapper,
             byte[] bytes,
             Set<String> exactFields,
@@ -354,62 +368,73 @@ public final class HrisWorkloadProofV2 {
             parser.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
             JsonNode node = mapper.readTree(parser);
             if (node == null || !node.isObject() || parser.nextToken() != null) {
-                throw denied(error);
+                throw endpoint.denied(error);
             }
             Set<String> actual = new HashSet<>();
             node.fieldNames().forEachRemaining(actual::add);
             if (!actual.equals(exactFields)) {
-                throw denied(error);
+                throw endpoint.denied(error);
             }
             return node;
         } catch (IOException | RuntimeException exception) {
-            if (exception instanceof HrisApprovalBridgeV2.BridgeFailure failure) {
-                throw failure;
+            if (exception instanceof RuntimeException runtime
+                    && endpoint.isVerificationFailure(runtime)) {
+                throw runtime;
             }
-            throw denied(error);
+            throw endpoint.denied(error);
         }
     }
 
-    private static String requiredText(JsonNode node, String field) {
+    private static String requiredText(
+            HrisApprovalVerificationContractV2 endpoint,
+            JsonNode node,
+            String field) {
         JsonNode value = node.get(field);
         if (value == null || !value.isTextual() || value.textValue().isEmpty()) {
-            throw denied("WORKLOAD_CLAIMS_INVALID");
+            throw endpoint.denied("WORKLOAD_CLAIMS_INVALID");
         }
         return value.textValue();
     }
 
-    private static long requiredLong(JsonNode node, String field) {
+    private static long requiredLong(
+            HrisApprovalVerificationContractV2 endpoint,
+            JsonNode node,
+            String field) {
         JsonNode value = node.get(field);
         if (value == null || !value.isIntegralNumber() || !value.canConvertToLong()) {
-            throw denied("WORKLOAD_CLAIMS_INVALID");
+            throw endpoint.denied("WORKLOAD_CLAIMS_INVALID");
         }
         return value.longValue();
     }
 
-    private static UUID canonicalUuid(String raw) {
+    private static UUID canonicalUuid(
+            HrisApprovalVerificationContractV2 endpoint,
+            String raw) {
         try {
             UUID value = UUID.fromString(raw);
             if (!value.toString().equals(raw)) {
-                throw denied("CANONICAL_PROOF_UUID_REQUIRED");
+                throw endpoint.denied("CANONICAL_PROOF_UUID_REQUIRED");
             }
             return value;
         } catch (IllegalArgumentException exception) {
-            throw denied("CANONICAL_PROOF_UUID_REQUIRED");
+            throw endpoint.denied("CANONICAL_PROOF_UUID_REQUIRED");
         }
     }
 
-    private static byte[] decodeCanonicalBase64Url(String segment) {
+    private static byte[] decodeCanonicalBase64Url(
+            HrisApprovalVerificationContractV2 endpoint,
+            String segment) {
         if (segment.indexOf('=') >= 0) {
-            throw denied("CANONICAL_COMPACT_JWS_REQUIRED");
+            throw endpoint.denied("CANONICAL_COMPACT_JWS_REQUIRED");
         }
         try {
             byte[] decoded = Base64.getUrlDecoder().decode(segment);
             if (!Base64.getUrlEncoder().withoutPadding().encodeToString(decoded).equals(segment)) {
-                throw denied("CANONICAL_COMPACT_JWS_REQUIRED");
+                throw endpoint.denied("CANONICAL_COMPACT_JWS_REQUIRED");
             }
             return decoded;
         } catch (IllegalArgumentException exception) {
-            throw denied("CANONICAL_COMPACT_JWS_REQUIRED");
+            throw endpoint.denied("CANONICAL_COMPACT_JWS_REQUIRED");
         }
     }
 

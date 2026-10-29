@@ -261,7 +261,8 @@ final class AuthHrisExperienceOriginReceiptAuthoritySource
             AccessMode mode) {
         try {
             String response = auth.post().uri(AUTHORITY_PATH)
-                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .headers(headers ->
+                            OutboundHttpHeaders.propagateObservability(headers))
                     .header(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY)
                     .header(ORIGIN_TOKEN_HEADER, token)
                     .accept(MediaType.APPLICATION_JSON)

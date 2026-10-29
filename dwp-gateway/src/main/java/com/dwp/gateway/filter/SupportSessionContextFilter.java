@@ -1,9 +1,10 @@
 package com.dwp.gateway.filter;
 
 import com.dwp.gateway.audit.GatewayDenialAuditSink;
-import com.dwp.gateway.security.ProviderSupportSessionVerifier.SupportValidationRejectedException;
-import com.dwp.gateway.security.ProviderSupportSessionVerifier.SupportValidationUnavailableException;
+import com.dwp.gateway.security.GatewayIdentityContext;
 import com.dwp.gateway.security.SupportSessionVerifier;
+import com.dwp.gateway.security.SupportValidationRejectedException;
+import com.dwp.gateway.security.SupportValidationUnavailableException;
 import com.dwp.gateway.security.VerifiedSupportAccess;
 import com.dwp.gateway.productsurface.GeneratedProductRouteCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,10 +138,10 @@ public class SupportSessionContextFilter implements GlobalFilter, Ordered {
             ServerWebExchange exchange,
             VerifiedSupportAccess access) {
         String actorTenant = exchange.getRequest().getHeaders()
-                .getFirst(VerifiedIdentityFilter.TENANT_HEADER);
+                .getFirst(GatewayIdentityContext.TENANT_HEADER);
         ServerHttpRequest request = exchange.getRequest().mutate()
                 .headers(headers -> {
-                    headers.set(VerifiedIdentityFilter.TENANT_HEADER, access.authTenantId());
+                    headers.set(GatewayIdentityContext.TENANT_HEADER, access.authTenantId());
                     headers.set(SUPPORT_SESSION_HEADER, access.supportSessionId());
                     headers.set(SUPPORT_SCOPES_HEADER, String.join(",", access.scopes()));
                     headers.set(SUPPORT_REVISION_HEADER, "support-v" + access.version());

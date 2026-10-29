@@ -1,5 +1,8 @@
 package com.dwp.services.payroll.statutory.pay004;
 
+import static com.dwp.services.payroll.statutory.pay004.RetirementYearEndCaseContract.CountryPackState;
+import static com.dwp.services.payroll.statutory.pay004.RetirementYearEndCaseContract.State;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -9,13 +12,6 @@ import java.util.Set;
 import java.util.UUID;
 
 final class RetirementYearEndCase {
-
-    enum State {
-        DRAFT, VALIDATED, BLOCKED_PACK_REQUIRED, CALCULATED, APPROVED,
-        FINALIZED, CORRECTED, CANCELLED
-    }
-
-    enum CountryPackState { NOT_REQUIRED, NOT_INSTALLED, DISABLED, ACTIVE }
 
     private static final Set<State> TERMINAL = Set.of(
             State.FINALIZED, State.CORRECTED, State.CANCELLED);

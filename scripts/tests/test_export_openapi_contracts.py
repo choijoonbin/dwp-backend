@@ -486,7 +486,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_latest_v44_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_latest_v62_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -495,8 +495,12 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 44)
-        self.assertEqual(registry["version"], 44)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 62)
+        self.assertEqual(registry["version"], 62)
+        self.assertEqual(EXPORTER["HISTORICAL_PRODUCT_AUTHORIZATION_VERSION"], 44)
+        self.assertTrue(str(
+            EXPORTER["HISTORICAL_PRODUCT_AUTHORIZATION_REGISTRY"]
+        ).endswith("product-surfaces-v1.bundle-v44.json"))
         self.assertEqual(EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_VERSION"], 38)
         self.assertTrue(str(
             EXPORTER["HRM_EMPLOYEE_CHANGE_AUTHORIZATION_REGISTRY"]
@@ -521,8 +525,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         )
         approval_routes = [route for route in registry["routes"]
                            if route["subject"].get("productKey") == "approvals"]
-        self.assertEqual(len(approval_routes), 218)
-        self.assertEqual(sum(route["routeKind"] == "ACTION" for route in approval_routes), 113)
+        self.assertEqual(len(approval_routes), 219)
+        self.assertEqual(sum(route["routeKind"] == "ACTION" for route in approval_routes), 114)
 
         previous = json.loads(
             (ROOT / "contracts/product-authorization/product-surfaces-v1.bundle-v30.json")
@@ -535,7 +539,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["routeContractKey"] not in previous_keys
             for binding in route["gatewayApiBindings"]
         ]
-        self.assertEqual(len(added), 38)
+        self.assertEqual(len(added), 39)
         gateway = json.loads(
             (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
         )
@@ -555,6 +559,26 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 self.assertIn(
                     ("header", "X-DWP-Expected-Decision-Revision"), parameters
                 )
+            if route["routeContractKey"] == (
+                "route.approvals.work.hris-separation-waiver-task-approve.action"
+            ):
+                self.assertTrue(operation["x-dwp-command-proof-required"])
+                headers = {
+                    parameter["name"]: parameter
+                    for parameter in operation["parameters"]
+                    if parameter.get("in") == "header"
+                }
+                self.assertEqual(
+                    set(headers),
+                    {
+                        "Idempotency-Key",
+                        "X-Correlation-ID",
+                        "X-DWP-Step-Up-Challenge",
+                        "X-DWP-Expected-Decision-Revision",
+                        "X-DWP-Expected-Object-Version",
+                    },
+                )
+                self.assertTrue(all(header["required"] for header in headers.values()))
 
     def test_compensation_planning_exports_all_v39_bindings_and_preserves_employee_v38(self) -> None:
         registry = json.loads(
@@ -593,7 +617,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         ]["post"]["x-dwp-product-authorization-v38"]
         self.assertEqual(38, employee["registryVersion"])
 
-    def test_payroll_run_v41_exports_exact_peps_and_proof_boundary(self) -> None:
+    def test_payroll_run_v62_exports_exact_peps_and_proof_boundary(self) -> None:
         registry = json.loads(
             EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"].read_text(encoding="utf-8")
         )
@@ -611,6 +635,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         self.assertEqual(EXPORTER["PAYROLL_RUN_ROUTE_KEYS"], set(routes))
         EXPORTER["validate_payroll_run_contract"](payroll, gateway)
         proof_routes = {
+            "route.hcm.operations.payroll-run-calculate.action",
             "route.hcm.operations.payroll-run-approve.action",
             "route.hcm.operations.payroll-run-finalize.action",
         }
@@ -2670,20 +2695,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                         )
                         if isinstance(parameter, dict)
                     }
-                    reviewed_contract = owner_operation.get(
-                        "x-dwp-reviewed-design-time-contract"
-                    )
-                    sealed_without_context_override = (
-                        reviewed_contract == "R7-C1-PAY-SETTINGS-AUTHORITY-V1"
-                        or (
-                            reviewed_contract == "TIM-007-CENTRAL-BRIDGE-R1"
-                            and owner_path != "/v1/command-receipts/{receiptId}"
-                        )
-                    )
-                    if sealed_without_context_override:
-                        self.assertNotIn(("query", "contextScopeKey"), parameters)
-                    else:
-                        self.assertIn(("query", "contextScopeKey"), parameters)
+                    self.assertIn(("query", "contextScopeKey"), parameters)
 
     def test_v15_governs_and_mirrors_every_apr17_through_24_operation(self) -> None:
         current = json.loads(

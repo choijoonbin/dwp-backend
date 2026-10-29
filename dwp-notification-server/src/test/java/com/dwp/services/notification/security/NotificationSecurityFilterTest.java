@@ -6,7 +6,10 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NotificationSecurityFilterTest {
 
@@ -204,6 +207,42 @@ class NotificationSecurityFilterTest {
         assertThat(execute(denied).getStatus()).isEqualTo(403);
         assertThat(execute(wrongBinding).getStatus()).isEqualTo(403);
         assertThat(execute(gatewayToken).getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void rejectsInvalidMeetingProducerCredentialBeforeDispatch() throws Exception {
+        AtomicBoolean dispatched = new AtomicBoolean();
+        MockHttpServletResponse rejected = new MockHttpServletResponse();
+
+        filter.doFilter(
+                internal("dwp-meeting-server", APPROVAL_TOKEN),
+                rejected,
+                (request, response) -> dispatched.set(true));
+
+        assertThat(rejected.getStatus()).isEqualTo(403);
+        assertThat(dispatched).isFalse();
+
+        MockHttpServletResponse accepted = new MockHttpServletResponse();
+        filter.doFilter(
+                internal("dwp-meeting-server", MEETING_TOKEN),
+                accepted,
+                (request, response) -> dispatched.set(true));
+
+        assertThat(accepted.getStatus()).isEqualTo(200);
+        assertThat(dispatched).isTrue();
+    }
+
+    @Test
+    void requiresLegacyProducerTokenBindingBeforeAcceptingRotationKeys() {
+        assertThatThrownBy(() -> new NotificationSecurityFilter(
+                GATEWAY_TOKEN,
+                "dwp-gateway",
+                "dwp-meeting-server",
+                "",
+                "dwp-meeting-server=next-2026:" + MEETING_TOKEN,
+                new ObjectMapper().findAndRegisterModules()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("allowlisted notification producer");
     }
 
     @Test

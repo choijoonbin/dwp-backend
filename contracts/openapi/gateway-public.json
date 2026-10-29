@@ -48819,6 +48819,7 @@
           "EXPIRED",
           "ACTIVATION_REQUIRED",
           "STEP_UP_REQUIRED",
+          "OWNER_RECEIPT_AUTH_REQUIRED",
           "SOD_CONFLICT",
           "SUPPORT_SCOPE_DENIED",
           "AUTHORITY_UNAVAILABLE"
@@ -49300,6 +49301,9 @@
             "type": "string"
           },
           "targetPopulation": {
+            "type": "string"
+          },
+          "tenantControl": {
             "type": "string"
           }
         },
@@ -173137,6 +173141,109 @@
         ]
       }
     },
+    "/api/approvals/v1/hris/separation-waiver-tasks/{taskId}/approve": {
+      "post": {
+        "operationId": "approval_approveHrisSeparationWaiver",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/approval_DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseTaskDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ],
+        "x-dwp-command-proof-required": true
+      }
+    },
     "/api/approvals/v1/requests": {
       "get": {
         "operationId": "approval_requests",
@@ -195112,6 +195219,26 @@
           },
           {
             "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "maxLength": 16384,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
             "name": "X-DWP-Expected-Object-Version",
             "required": true,
             "schema": {
@@ -195140,24 +195267,6 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
-          },
-          {
-            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
-            "in": "header",
-            "name": "X-DWP-Expected-Decision-Revision",
-            "required": false,
-            "schema": {
-              "maxLength": 200,
-              "minLength": 1,
-              "type": "string"
-            },
-            "x-dwp-conditional-required": {
-              "enforcement": "FAIL_CLOSED",
-              "rolloutStates": [
-                "110",
-                "111"
-              ]
-            }
           }
         ],
         "responses": {
@@ -195168,6 +195277,7 @@
         "tags": [
           "payroll"
         ],
+        "x-dwp-command-proof-required": true,
         "x-dwp-controller-method": "calculate",
         "x-dwp-purpose-code": "PAYROLL_PROCESSING",
         "x-dwp-runtime-default": "OFF",
@@ -195276,6 +195386,18 @@
               "const": "PAYROLL_CONFIGURATION",
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -195312,12 +195434,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
+              "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -195326,6 +195457,18 @@
             "required": true,
             "schema": {
               "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -195375,6 +195518,18 @@
               "const": "PAYROLL_CONFIGURATION",
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -195420,12 +195575,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
+              "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -195434,6 +195598,18 @@
             "required": true,
             "schema": {
               "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -195493,12 +195669,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
+              "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -195515,6 +195700,18 @@
             "required": true,
             "schema": {
               "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -195574,12 +195771,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
+              "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -195596,6 +195802,18 @@
             "required": true,
             "schema": {
               "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -195655,12 +195873,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
+              "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -195669,6 +195896,18 @@
             "required": true,
             "schema": {
               "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -195718,6 +195957,18 @@
               "const": "PAYROLL_CONFIGURATION",
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -195755,6 +196006,18 @@
               "const": "PAYROLL_CONFIGURATION",
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -195785,12 +196048,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
+              "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -195799,6 +196071,18 @@
             "required": true,
             "schema": {
               "const": "PAYROLL_CONFIGURATION",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -201162,13 +201446,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
               "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -201277,13 +201569,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
               "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -265942,12 +266242,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
-              "pattern": "^psr-[0-9a-f]{64}$",
+              "maxLength": 200,
+              "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -265957,6 +266266,18 @@
             "schema": {
               "maxLength": 16384,
               "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -266362,11 +266683,32 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
-              "pattern": "^psr-[0-9a-f]{64}$",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -266772,12 +267114,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
-              "pattern": "^psr-[0-9a-f]{64}$",
+              "maxLength": 200,
+              "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -266787,6 +267138,18 @@
             "schema": {
               "maxLength": 16384,
               "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -267192,11 +267555,32 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
-              "pattern": "^psr-[0-9a-f]{64}$",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -268235,6 +268619,18 @@
                 }
               ]
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -268667,6 +269063,18 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
             }
           }
         ],
@@ -269447,6 +269855,18 @@
                 }
               ]
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -269923,6 +270343,18 @@
               "pattern": "^psr-[0-9a-f]{64}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -270340,13 +270772,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
               "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -270425,13 +270865,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
               "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {
@@ -270510,13 +270958,21 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
-            "required": true,
+            "required": false,
             "schema": {
               "maxLength": 200,
               "minLength": 1,
               "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           },
           {

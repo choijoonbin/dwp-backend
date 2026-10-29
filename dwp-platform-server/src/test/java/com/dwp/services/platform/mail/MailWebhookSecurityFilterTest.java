@@ -28,7 +28,7 @@ class MailWebhookSecurityFilterTest {
 
     @Test
     void graphOwnershipValidationEchoesExactTokenAsPlainText() throws Exception {
-        MailWebhookIngressService ingress = mock(MailWebhookIngressService.class);
+        MailWebhookIngressUseCase ingress = mock(MailWebhookIngressUseCase.class);
         MailWebhookSecurityFilter filter = new MailWebhookSecurityFilter(
                 ingress, objectMapper(), 32);
         MockMvc mvc = MockMvcBuilders.standaloneSetup(
@@ -48,7 +48,7 @@ class MailWebhookSecurityFilterTest {
     @Test
     void graphOwnershipValidationCannotBypassNotificationBodyVerification()
             throws Exception {
-        MailWebhookIngressService ingress = mock(MailWebhookIngressService.class);
+        MailWebhookIngressUseCase ingress = mock(MailWebhookIngressUseCase.class);
         MailWebhookSecurityFilter filter = new MailWebhookSecurityFilter(
                 ingress, objectMapper(), 32);
         MockMvc mvc = MockMvcBuilders.standaloneSetup(
@@ -66,7 +66,7 @@ class MailWebhookSecurityFilterTest {
     @Test
     void graphOwnershipValidationRejectsOversizedAndControlCharacterTokens()
             throws Exception {
-        MailWebhookIngressService ingress = mock(MailWebhookIngressService.class);
+        MailWebhookIngressUseCase ingress = mock(MailWebhookIngressUseCase.class);
         MailWebhookSecurityFilter filter = new MailWebhookSecurityFilter(
                 ingress, objectMapper(), 32);
         for (String token : List.of("x".repeat(2_049), "unsafe\nvalue")) {
@@ -149,7 +149,7 @@ class MailWebhookSecurityFilterTest {
 
     @Test
     void contentLengthAndStreamAreCappedBeforeMvcAllocation() throws Exception {
-        MailWebhookIngressService ingress = mock(MailWebhookIngressService.class);
+        MailWebhookIngressUseCase ingress = mock(MailWebhookIngressUseCase.class);
         MailWebhookSecurityFilter filter = new MailWebhookSecurityFilter(
                 ingress, objectMapper(), 4);
         MockHttpServletRequest request = new MockHttpServletRequest(

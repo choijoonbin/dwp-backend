@@ -45,7 +45,7 @@ class MailSyncJobWorker {
         if (!enabled) return;
         try {
             metrics.syncLeaseRecovery(jobs.releaseExpiredLeases());
-            for (MailSyncJobRepository.SyncJob job
+            for (MailSyncJob job
                     : jobs.claim(workerId, batchSize, leaseSeconds)) {
                 execute(job);
             }
@@ -55,10 +55,10 @@ class MailSyncJobWorker {
         }
     }
 
-    private void execute(MailSyncJobRepository.SyncJob job) {
+    private void execute(MailSyncJob job) {
         long startedAt = System.nanoTime();
         try {
-            MailSyncExecutor.ExecutionResult result = executor.execute(job);
+            MailSyncExecutionResult result = executor.execute(job);
             if (result.continuationRequired()) {
                 if (!jobs.completeContinuation(job, workerId, result)) {
                     throw new IllegalStateException("SYNC_LEASE_LOST");
@@ -70,7 +70,7 @@ class MailSyncJobWorker {
                 throw new IllegalStateException("SYNC_LEASE_LOST");
             }
             metrics.syncJob("succeeded", elapsed(startedAt));
-        } catch (MailSyncExecutor.SyncWorkFailure failure) {
+        } catch (MailSyncWorkFailure failure) {
             MailSyncJobRepository.FailureDisposition disposition = jobs.completeFailure(
                     job, workerId, failure.code(), failure.terminal(),
                     failure.classification(), failure.retryAt(), failure.resetEvidence());

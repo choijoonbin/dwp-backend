@@ -39,7 +39,7 @@ class Hrm013OwnerServicePostgresTest extends Hrm013PostgresTestSupport {
         assertThat(required.getTimeout()).isEqualTo(30);
     }
 
-    private Hrm013OwnerService.CaseCreation nullSafeCase() {
+    private Hrm013OwnerContracts.CaseCreation nullSafeCase() {
         Graph graph = graph("owner-bound", Hrm013TaskDispatchV1.TIME);
         Long worker = jdbc.queryForObject("""
                 SELECT worker_id FROM ppl_separation_cases
@@ -49,7 +49,7 @@ class Hrm013OwnerServicePostgresTest extends Hrm013PostgresTestSupport {
                 SELECT work_relationship_id FROM ppl_separation_cases
                  WHERE tenant_id=? AND separation_case_id=?
                 """, Long.class, TENANT, graph.caseId());
-        return new Hrm013OwnerService.CaseCreation(
+        return new Hrm013OwnerContracts.CaseCreation(
                 TENANT, java.util.UUID.randomUUID(), worker, relationship,
                 "RESIGNATION", "VOLUNTARY", java.time.LocalDate.parse("2026-11-01"),
                 java.time.LocalDate.parse("2026-10-31"), SHA_A,

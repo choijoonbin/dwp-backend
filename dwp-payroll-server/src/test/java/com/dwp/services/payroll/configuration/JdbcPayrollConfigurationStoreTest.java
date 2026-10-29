@@ -34,7 +34,7 @@ import java.util.UUID;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationAccess.Action;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.CreateFormulaVersionRequest;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.MutationResult;
-import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.PayValueType;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.PayValueType;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.RoundingPolicy;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.SimulationCommand;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.TypedValue;

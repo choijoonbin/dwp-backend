@@ -1,6 +1,6 @@
 package com.dwp.gateway.productsurface;
 
-import com.dwp.gateway.filter.VerifiedIdentityFilter;
+import com.dwp.gateway.security.GatewayIdentityContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
@@ -75,14 +75,14 @@ public class ProductSurfaceEligibilityClient {
         headers.set(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY);
         headers.set(USER_HEADER, Long.toString(context.actorId()));
         headers.set(TENANT_HEADER, Long.toString(context.tenantId()));
-        copy(headers, VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+        copy(headers, GatewayIdentityContext.PERSON_PUBLIC_ID_HEADER,
                 context.personPublicId());
         if (!context.roles().isEmpty()) {
-            headers.set(VerifiedIdentityFilter.ROLES_HEADER,
+            headers.set(GatewayIdentityContext.ROLES_HEADER,
                     String.join(",", context.roles()));
         }
         if (!context.permissions().isEmpty()) {
-            headers.set(VerifiedIdentityFilter.PERMISSIONS_HEADER,
+            headers.set(GatewayIdentityContext.PERMISSIONS_HEADER,
                     String.join(",", context.permissions()));
         }
         copy(headers, CORRELATION_HEADER, context.correlationId());

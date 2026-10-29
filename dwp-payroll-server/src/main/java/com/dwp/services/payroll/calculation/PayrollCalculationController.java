@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-import static com.dwp.services.payroll.calculation.PayrollCalculationModels.ActionCommand;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.PayrollCommandReceipt;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.RunResponse;
 
@@ -74,14 +73,20 @@ final class PayrollCalculationController {
             @Parameter(hidden = true)
             @ModelAttribute(value = "payrollCalculationActor", binding = false)
             PayrollCalculationAuthority.Actor actor,
-            @PathVariable UUID runId,
+            @PathVariable("runId") String runIdText,
             @RequestHeader(IDEMPOTENCY) String idempotencyKey,
             @RequestHeader(EXPECTED_VERSION) long expectedVersion,
+            @RequestHeader(EXPECTED_DECISION) String expectedDecisionRevision,
+            @RequestHeader(STEP_UP) String challenge,
             @RequestHeader(value = CORRELATION, required = false) UUID correlationId,
             @Valid @RequestBody ActionCommand command) {
         projection.requireFull(actor.subject());
+        UUID runId = pathUuid(runIdText);
         return ApiResponse.success(service.calculate(
-                actor, runId, idempotencyKey, expectedVersion, correlationId, command));
+                actor, runId, runIdText, idempotencyKey, expectedVersion,
+                correlationId, command,
+                new PayrollStepUpHeaders(
+                        challenge, idempotencyKey, expectedDecisionRevision, expectedVersion)));
     }
 
     @Operation(operationId = "getPayrollRun")

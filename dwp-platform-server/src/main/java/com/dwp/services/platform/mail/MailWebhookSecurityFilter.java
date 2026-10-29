@@ -49,12 +49,12 @@ public final class MailWebhookSecurityFilter extends OncePerRequestFilter {
     private static final int MAXIMUM_VALIDATION_TOKEN_BYTES = 2_048;
     private static final int MAXIMUM_VALIDATION_QUERY_BYTES = 4_096;
 
-    private final MailWebhookIngressService ingress;
+    private final MailWebhookIngressUseCase ingress;
     private final ObjectMapper objectMapper;
     private final int maximumBodyBytes;
 
     MailWebhookSecurityFilter(
-            MailWebhookIngressService ingress,
+            MailWebhookIngressUseCase ingress,
             ObjectMapper objectMapper,
             @Value("${dwp.platform.mail.webhooks.maximum-body-bytes:1048576}")
             int maximumBodyBytes) {

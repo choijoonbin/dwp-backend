@@ -34,7 +34,7 @@ final class PayrollCalculationCanonical {
             PayrollCalculationModels.CommandType commandType,
             UUID runId,
             long expectedVersion,
-            PayrollCalculationModels.ActionCommand command) {
+            ActionCommand command) {
         return digest(Map.of(
                 "schema", "PayrollActionCommand.v1",
                 "commandType", commandType.name(),

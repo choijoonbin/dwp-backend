@@ -228,7 +228,7 @@ class Pay003ContractTest {
                         UUID.randomUUID(), "COUNTRY_PACK_ACTIVATE",
                         Pay003Models.ACTIVATE_ACTION, Pay003TestFixtures.SUBJECT,
                         Pay003TestFixtures.DIGEST_A, 17,
-                        Pay003Models.ACTIVATION_PURPOSE, 23, "SUCCEEDED",
+                        Pay003Contract.ACTIVATION_PURPOSE, 23, "SUCCEEDED",
                         CORRELATION, Pay003TestFixtures.DIGEST_B, NOW, 4,
                         "country-pack:" + Pay003TestFixtures.PACK);
         assertThat(MAPPER.valueToTree(receipt).fieldNames()).toIterable()

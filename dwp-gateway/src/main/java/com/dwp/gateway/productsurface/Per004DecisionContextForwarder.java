@@ -70,7 +70,7 @@ public final class Per004DecisionContextForwarder {
     public Mono<Void> forward(
             ServerWebExchange exchange, GatewayFilterChain chain,
             GeneratedProductRouteCatalog.Route route,
-            ProductSurfaceContextAggregationService.TrustedProductEvaluation authority) {
+            TrustedProductDecision authority) {
         // Defer provider invocation as well as response handling: synchronous provider failures
         // and empty results are both unavailable authority, never successful empty forwarding.
         return Mono.defer(() -> evaluate(exchange, route, authority))
@@ -117,7 +117,7 @@ public final class Per004DecisionContextForwarder {
 
     private Mono<AuthorityContext> evaluate(
             ServerWebExchange exchange, GeneratedProductRouteCatalog.Route route,
-            ProductSurfaceContextAggregationService.TrustedProductEvaluation authority) {
+            TrustedProductDecision authority) {
         var policy = Per004GatewayRoutes.policy(route.routeContractKey());
         var data = authority.data();
         var scope = authority.scope();

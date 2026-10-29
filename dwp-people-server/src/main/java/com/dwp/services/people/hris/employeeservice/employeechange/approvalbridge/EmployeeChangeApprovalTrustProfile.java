@@ -1,6 +1,7 @@
 package com.dwp.services.people.hris.employeeservice.employeechange.approvalbridge;
 
 import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalBridgeV2;
+import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalVerificationContractV2;
 import com.dwp.platform.contracts.hris.approval.v2.HrisWorkloadProofV2;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEObjectType;
@@ -78,12 +79,12 @@ final class EmployeeChangeApprovalTrustProfile
 
     @Override
     public boolean admits(
-            HrisApprovalBridgeV2.Endpoint endpoint,
+            HrisApprovalVerificationContractV2 endpoint,
             String exactPath,
             String callerWorkloadId,
             long signedTenantId) {
         UUID requestPublicId = requestPublicId(exactPath);
-        if (!HrisApprovalBridgeV2.DECISION_CALLBACK.equals(endpoint)
+        if (!HrisApprovalBridgeV2.DECISION_CALLBACK.verificationContract().equals(endpoint)
                 || requestPublicId == null
                 || !endpoint.callerWorkloadId().equals(callerWorkloadId)
                 || !approvalTenantGrants.contains(signedTenantId)) {

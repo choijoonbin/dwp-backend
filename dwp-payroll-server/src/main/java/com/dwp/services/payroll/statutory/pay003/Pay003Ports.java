@@ -1,6 +1,5 @@
 package com.dwp.services.payroll.statutory.pay003;
 
-import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -51,17 +50,8 @@ final class Pay003Ports {
                 boolean preliminary);
     }
 
-    record StepUpEvidence(
-            String challengeId,
-            String nonce,
-            String issuer,
-            Instant expiresAt,
-            String payloadSha256,
-            String decisionRevision) {
-    }
-
     interface StepUpPort {
-        StepUpEvidence require(
+        Pay003StepUpEvidence require(
                 Pay003Authority.Actor actor,
                 Pay003Models.PackSnapshot snapshot,
                 Pay003Models.ActivationCommand command,

@@ -143,7 +143,7 @@ class Pay003Service {
             throw new BaseException(ErrorCode.FORBIDDEN,
                     "The current exact pack population is not authorized.");
         }
-        Pay003Ports.StepUpEvidence stepUpEvidence =
+        Pay003StepUpEvidence stepUpEvidence =
                 stepUp.require(actor, snapshot, command, headers);
         requireProvider("signature", signatures.verify(snapshot));
         Pay003Ports.ApprovalEvidence approval = approvals.resolve(
@@ -167,7 +167,7 @@ class Pay003Service {
                         actor.subject().subjectPrincipalPublicId(),
                         actor.scope().scopeDigest(),
                         actor.subject().fieldPolicyRevision(),
-                        Pay003Models.ACTIVATION_PURPOSE,
+                        Pay003Contract.ACTIVATION_PURPOSE,
                         actor.subject().authorizationRevision(),
                         "SUCCEEDED", headers.correlationId(), requestDigest,
                         now, activationRevision,

@@ -2,12 +2,10 @@ package com.dwp.gateway.productsurface;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.dwp.gateway.filter.ProductSurfaceDecisionContextFilter;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -19,7 +17,6 @@ class TenantFeatureActivationV259RouteParityTest {
     private static final Pattern V259_BINDING = Pattern.compile(
             "\\('([^']+)',\\s*'([^']+)',\\s*(\\d+),\\s*'([^']+)',\\s*'([^']+)',"
                     + "\\s*(\\d+),\\s*'(PAGE|DATA|ACTION)',\\s*'(PRODUCT)',\\s*'([^']+)'\\)");
-    private static final Pattern JAVA_ROUTE = Pattern.compile("\"(route\\.hcm\\.[^\"]+)\"");
     private static final List<SeedBinding> EXPECTED_BINDINGS = List.of(
             binding("route.hcm.operations.organization-positions.page", "HRIS_ORGANIZATION_POSITIONS", "PAGE", "hcm.operations"),
             binding("route.hcm.operations.organization-graph.data", "HRIS_ORGANIZATION_POSITIONS", "DATA", "hcm.operations"),
@@ -44,10 +41,6 @@ class TenantFeatureActivationV259RouteParityTest {
         String migration = Files.readString(root.resolve(
                 "dwp-auth-server/src/main/resources/db/migration/"
                         + "V259__govern_product_feature_activation_and_tenant_enrollment.sql"));
-        String gatewaySource = Files.readString(root.resolve(
-                "dwp-gateway/src/main/java/com/dwp/gateway/filter/"
-                        + "ProductSurfaceDecisionContextFilter.java"));
-
         List<SeedBinding> seeds = parseSeedBindings(section(
                 migration,
                 "INSERT INTO sys_product_feature_route_bindings",
@@ -55,30 +48,21 @@ class TenantFeatureActivationV259RouteParityTest {
         List<RouteTuple> migrationRoutes = seeds.stream()
                 .map(seed -> new RouteTuple(seed.routeKey(), seed.routeKind()))
                 .toList();
-        List<RouteTuple> gatewayRoutes = parseGatewayRoutes(section(
-                gatewaySource,
-                "private static final Set<String> TENANT_FEATURE_GOVERNED_ROUTE_KEYS",
-                "private static final Set<String> TIM_WAVE2_ROUTE_KEYS"));
-
         assertThat(seeds)
                 .as("V259 must preserve every governed route binding and its exact owner attributes")
                 .containsExactlyElementsOf(EXPECTED_BINDINGS);
         assertThat(seeds.stream().map(SeedBinding::routeKey).toList())
                 .doesNotHaveDuplicates();
 
-        assertThat(gatewayRoutes).hasSize(16).doesNotHaveDuplicates();
-        assertThat(gatewayRoutes)
-                .as("V259 binding order and semantics must match the Gateway closed set")
-                .containsExactlyElementsOf(migrationRoutes);
-
-        Field field = ProductSurfaceDecisionContextFilter.class
+        Field field = Class.forName("com.dwp.gateway.filter.ProductSurfaceRoutePolicies")
                 .getDeclaredField("TENANT_FEATURE_GOVERNED_ROUTE_KEYS");
         field.setAccessible(true);
         @SuppressWarnings("unchecked")
         Set<String> compiled = (Set<String>) field.get(null);
         assertThat(compiled)
-                .hasSize(16)
-                .containsExactlyInAnyOrderElementsOf(
+                .as("the current closed set retains every historical V259 binding")
+                .hasSize(84)
+                .containsAll(
                         migrationRoutes.stream().map(RouteTuple::routeKey).toList());
     }
 
@@ -98,25 +82,6 @@ class TenantFeatureActivationV259RouteParityTest {
                     matcher.group(9)));
         }
         return List.copyOf(result);
-    }
-
-    private static List<RouteTuple> parseGatewayRoutes(String source) {
-        List<RouteTuple> result = new ArrayList<>();
-        Matcher matcher = JAVA_ROUTE.matcher(source);
-        Set<String> unique = new LinkedHashSet<>();
-        while (matcher.find()) {
-            String routeKey = matcher.group(1);
-            assertThat(unique.add(routeKey)).as("duplicate Gateway route %s", routeKey).isTrue();
-            result.add(new RouteTuple(routeKey, kind(routeKey)));
-        }
-        return List.copyOf(result);
-    }
-
-    private static String kind(String routeKey) {
-        if (routeKey.endsWith(".page")) return "PAGE";
-        if (routeKey.endsWith(".data")) return "DATA";
-        if (routeKey.endsWith(".action")) return "ACTION";
-        throw new AssertionError("Unsupported governed route kind: " + routeKey);
     }
 
     private static SeedBinding binding(

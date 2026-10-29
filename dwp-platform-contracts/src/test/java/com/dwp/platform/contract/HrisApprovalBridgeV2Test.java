@@ -125,7 +125,8 @@ class HrisApprovalBridgeV2Test {
                 CREATE_AND_SUBMIT, CREATE_AND_SUBMIT.path(null), bytes);
 
         assertThatThrownBy(() -> HrisWorkloadProofV2.verify(
-                mapper, Clock.fixed(NOW, ZoneOffset.UTC), CREATE_AND_SUBMIT,
+                mapper, Clock.fixed(NOW, ZoneOffset.UTC),
+                CREATE_AND_SUBMIT.verificationContract(),
                 CREATE_AND_SUBMIT.path(null), headers, bytes,
                 keyId -> {
                     throw new IllegalArgumentException("unknown key");
@@ -140,7 +141,8 @@ class HrisApprovalBridgeV2Test {
                         });
 
         assertThatThrownBy(() -> HrisWorkloadProofV2.verify(
-                mapper, Clock.fixed(NOW, ZoneOffset.UTC), CREATE_AND_SUBMIT,
+                mapper, Clock.fixed(NOW, ZoneOffset.UTC),
+                CREATE_AND_SUBMIT.verificationContract(),
                 CREATE_AND_SUBMIT.path(null), headers, bytes,
                 keyId -> null,
                 (endpoint, path, caller, tenant) -> true,

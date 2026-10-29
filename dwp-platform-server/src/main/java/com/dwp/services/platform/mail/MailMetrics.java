@@ -48,7 +48,7 @@ class MailMetrics {
                 "outcome", bounded(outcome, DELIVERY_OUTCOMES)).increment());
     }
 
-    void sync(MailExternalSyncMaterializer.SyncResult result, Duration duration) {
+    void sync(MailSyncResult result, Duration duration) {
         String outcome = result.partial() ? "partial" : "succeeded";
         afterCommit(() -> {
             registry.counter("dwp.mail.sync.batches", "outcome", outcome).increment();
@@ -82,7 +82,7 @@ class MailMetrics {
                 .record(duration);
     }
 
-    void syncLeaseRecovery(MailSyncJobRepository.LeaseRecovery recovery) {
+    void syncLeaseRecovery(MailSyncLeaseRecovery recovery) {
         if (recovery == null) return;
         registry.counter("dwp.mail.sync.jobs", "outcome", "retry_wait")
                 .increment(recovery.retryWait());

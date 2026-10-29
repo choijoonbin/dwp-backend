@@ -1,5 +1,6 @@
 package com.dwp.services.people.hris.employeeservice.employeechange.approvalbridge;
 
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalBridgeV2;
 import com.dwp.platform.contracts.hris.approval.v2.HrisWorkloadProofV2;
 import com.dwp.platform.contracts.hris.generated.ApprovalRequestV1;
@@ -27,6 +28,8 @@ import org.springframework.web.client.RestClientResponseException;
 @ConditionalOnProperty(prefix = "dwp.hris.employee-change",
         name = {"enabled", "approval-bridge.relay-enabled"}, havingValue = "true")
 final class EmployeeChangeApprovalRequestRelay {
+    private static final String CREATE_AND_SUBMIT_PATH =
+            "/internal/hris-approval/v1/approval-requests";
     private static final String PREFIX = "dwp.hris.employee-change.approval-bridge.";
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -160,10 +163,16 @@ final class EmployeeChangeApprovalRequestRelay {
 
     private void deliver(Delivery delivery) {
         try {
+            if (!CREATE_AND_SUBMIT_PATH.equals(delivery.path())
+                    || !CREATE_AND_SUBMIT_PATH.equals(
+                    HrisApprovalBridgeV2.CREATE_AND_SUBMIT.path(null))) {
+                throw new IllegalArgumentException("Approval owner path mismatch.");
+            }
             String proof = signer.sign(
                     delivery.path(), delivery.tenantId(), delivery.bodySha256());
             byte[] response = approval.post().uri(delivery.path()).headers(headers -> {
                 headers.clear();
+                OutboundHttpHeaders.propagateObservability(headers);
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 headers.setAccept(List.of(MediaType.APPLICATION_JSON));
                 headers.set(HrisWorkloadProofV2.SERVICE_IDENTITY_HEADER,

@@ -15,6 +15,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import static com.dwp.platform.contracts.hris.home.HrisHomeContributionMaterializationV1.*;
+import static com.dwp.services.platform.hrisconfiguration.home.HrisHomeAuthorityContract.*;
 import static com.dwp.services.platform.hrisconfiguration.home.HrisHomeCompositionDtos.*;
 import static com.dwp.services.platform.hrisconfiguration.home.HrisHomeCompositionPorts.*;
 
@@ -48,7 +49,7 @@ public final class HrisHomeCompositionService {
     public HomeResponse compose(ViewRequest request, CurrentViewAuthority authority) {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(authority, "authority");
-        CurrentAuthoritySnapshot snapshot = CurrentAuthoritySnapshot.from(authority);
+        CurrentAuthoritySnapshot snapshot = authority.snapshot();
         if (request.browserAudience() != authority.browserAudience()) {
             throw new SecurityException("Current Home authority does not admit requested audience");
         }
@@ -94,7 +95,7 @@ public final class HrisHomeCompositionService {
             List<HrisHomeCompositionCoordinator.OwnerCall> calls,
             List<HomeWidgetFailure> failures) {
         UUID correlationId = ownerCorrelation(request.correlationId(), owner.module());
-        authority.guard().requireCurrent(CurrentAuthoritySnapshot.from(authority));
+        authority.guard().requireCurrent(authority.snapshot());
         List<HrisHomeContributionCandidate> resolved;
         try {
             resolved = List.copyOf(candidates.latest(new CandidateQuery(

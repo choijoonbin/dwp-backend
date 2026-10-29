@@ -53,9 +53,9 @@ final class PayrollPreparationAuthority {
             Set<PopulationTuple> populations) {
 
         Scope {
-            PayrollPreparationModels.token(
+            PayrollPreparationValidation.token(
                     projectionRevision, 200, "projectionRevision");
-            PayrollPreparationModels.digest(scopeDigest, "scopeDigest");
+            PayrollPreparationValidation.digest(scopeDigest, "scopeDigest");
             populations = Set.copyOf(populations);
             if (populations.isEmpty()) {
                 throw new IllegalArgumentException("trusted population scope is empty");
@@ -70,7 +70,7 @@ final class PayrollPreparationAuthority {
         PopulationTuple {
             Objects.requireNonNull(legalEntityId, "legalEntityId");
             Objects.requireNonNull(payrollGroupId, "payrollGroupId");
-            PayrollPreparationModels.token(contextScopeKey, 160, "contextScopeKey");
+            PayrollPreparationValidation.token(contextScopeKey, 160, "contextScopeKey");
         }
     }
 

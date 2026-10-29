@@ -5,7 +5,6 @@ import com.dwp.platform.contracts.hris.home.HomeMaterializationWorkloadProofV1;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -39,49 +38,6 @@ public final class HrisHomeCompositionPorts {
                 HrisHomeCompositionDtos.CurrentViewAuthority authority,
                 HrisHomeCompositionDtos.OwnerAuthority owner,
                 String ownerDeepLink);
-    }
-
-    @FunctionalInterface
-    public interface CurrentAuthorityGuard {
-        /** Re-resolves and exactly matches the complete trusted snapshot or throws. */
-        void requireCurrent(CurrentAuthoritySnapshot expected);
-    }
-
-    public record CurrentAuthoritySnapshot(
-            long tenantId,
-            UUID subjectPrincipalPublicId,
-            HrisHomeContributionMaterializationV1.BrowserAudience browserAudience,
-            long browserScopeRevision,
-            String browserPopulationScopeDigest,
-            long browserFieldPolicyRevision,
-            long authorizationRevision,
-            long compositionRevision,
-            Map<HrisHomeContributionMaterializationV1.Module,
-                    HrisHomeCompositionDtos.OwnerAuthority> owners) {
-
-        public CurrentAuthoritySnapshot {
-            if (tenantId < 1 || browserScopeRevision < 1 || browserFieldPolicyRevision < 1
-                    || authorizationRevision < 1 || compositionRevision < 1) {
-                throw new IllegalArgumentException("authority snapshot revisions must be positive");
-            }
-            Objects.requireNonNull(subjectPrincipalPublicId, "subjectPrincipalPublicId");
-            Objects.requireNonNull(browserAudience, "browserAudience");
-            if (browserPopulationScopeDigest == null
-                    || !browserPopulationScopeDigest.matches("^[0-9a-f]{64}$")) {
-                throw new IllegalArgumentException("browserPopulationScopeDigest is invalid");
-            }
-            owners = Map.copyOf(Objects.requireNonNull(owners, "owners"));
-        }
-
-        static CurrentAuthoritySnapshot from(
-                HrisHomeCompositionDtos.CurrentViewAuthority authority) {
-            return new CurrentAuthoritySnapshot(
-                    authority.tenantId(), authority.subjectPrincipalPublicId(),
-                    authority.browserAudience(), authority.browserScopeRevision(),
-                    authority.browserPopulationScopeDigest(),
-                    authority.browserFieldPolicyRevision(), authority.authorizationRevision(),
-                    authority.compositionRevision(), authority.owners());
-        }
     }
 
     public record CandidateQuery(

@@ -35,27 +35,27 @@ final class CompensationPlanOwnerTokenIssuer {
 
     String issue(
             CompensationPlanSnapshotOwnerPort.ExactSnapshotRequest request,
-            CompensationPlanSnapshotOwnerHttpClient.OwnerGrant grant,
+            CompensationPlanOwnerWorkloadContract.OwnerGrant grant,
             String path,
             Instant now) {
         long issuedAt = now.getEpochSecond();
         LinkedHashMap<String, Object> claims = new LinkedHashMap<>();
         claims.put("iss", issuer);
-        claims.put("aud", CompensationPlanSnapshotOwnerHttpClient.AUDIENCE);
-        claims.put("sub", CompensationPlanSnapshotOwnerHttpClient.SUBJECT);
+        claims.put("aud", CompensationPlanOwnerWorkloadContract.AUDIENCE);
+        claims.put("sub", CompensationPlanOwnerWorkloadContract.SUBJECT);
         claims.put("iat", issuedAt);
         claims.put("nbf", issuedAt);
         claims.put("exp", issuedAt + 30);
         claims.put("jti", request.correlationId().toString());
-        claims.put("scope", CompensationPlanSnapshotOwnerHttpClient.SCOPE);
+        claims.put("scope", CompensationPlanOwnerWorkloadContract.SCOPE);
         claims.put("tenantId", request.tenantId());
         claims.put("tenantGrantRevision", grant.tenantGrantRevision());
         claims.put("policyRevision", grant.policyRevision());
         claims.put("purpose", request.purposeCode());
         claims.put("projection", request.projectionId());
-        claims.put("consumerSession", CompensationPlanSnapshotOwnerHttpClient.CONSUMER_SESSION);
-        claims.put("populationPolicy", CompensationPlanSnapshotOwnerHttpClient.POPULATION_POLICY);
-        claims.put("fieldPolicy", CompensationPlanSnapshotOwnerHttpClient.FIELD_POLICY);
+        claims.put("consumerSession", CompensationPlanOwnerWorkloadContract.CONSUMER_SESSION);
+        claims.put("populationPolicy", CompensationPlanOwnerWorkloadContract.POPULATION_POLICY);
+        claims.put("fieldPolicy", CompensationPlanOwnerWorkloadContract.FIELD_POLICY);
         claims.put("method", "GET");
         claims.put("path", path);
         claims.put("snapshotId", request.snapshotId().toString());

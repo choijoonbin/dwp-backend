@@ -10,7 +10,7 @@ class references after removing comments and literals. It compares SCC membershi
 duplicate metadata, or an expired `reviewBy` date fails the build. The checker separately builds a
 Spring component constructor graph. Runtime cycles are never accepted by the baseline.
 
-The current 10 entries are compile-time owner/helper couplings, not Spring bean cycles. They use
+The current 12 entries are compile-time owner/helper couplings, not Spring bean cycles. They use
 manually constructed helpers, owner-nested immutable records, inheritance-based repository splits,
 or the intentional Jackson DTO/deserializer contract. Each exception records
 one accountable owner, a reason, and a mandatory review date. Resolving a cycle requires removing

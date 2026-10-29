@@ -57,7 +57,7 @@ class RemoteMailProviderTokenOwner implements MailProviderTokenOwner {
             boolean allowInsecureLocalhost,
             @Value("${dwp.platform.mail.token-broker.maximum-response-bytes:32768}")
             int maximumResponseBytes) {
-        URI base = trustedOrigin(baseUrl, csv(allowedHosts), allowInsecureLocalhost);
+        URI base = validatedOrigin(baseUrl, csv(allowedHosts), allowInsecureLocalhost);
         HttpClient httpClient = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .connectTimeout(Duration.ofSeconds(10))
@@ -205,7 +205,8 @@ class RemoteMailProviderTokenOwner implements MailProviderTokenOwner {
         return new BrokerResponse(token, expiresAt);
     }
 
-    private static URI trustedOrigin(String value, Set<String> allowedHosts, boolean allowLocal) {
+    private static URI validatedOrigin(
+            String value, Set<String> allowedHosts, boolean allowLocal) {
         URI uri;
         try {
             uri = URI.create(value == null ? "" : value.trim());

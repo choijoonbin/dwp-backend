@@ -32,7 +32,7 @@ class Hrm013WorkloadCredentialProviderTest {
         assertThat(provider.requireCurrent(
                 41L, "SVC-PEP-APR-002", "HRIS_SEPARATION_TASK_WAIVER_REQUEST",
                 "dwp-people-server", "dwp-approval-server",
-                Hrm013WorkloadCredentialProvider.ServiceRole.CALLER)).isEqualTo(lease);
+                Hrm013CredentialRole.CALLER)).isEqualTo(lease);
         provider.requireAttested(lease, authority);
     }
 
@@ -75,7 +75,7 @@ class Hrm013WorkloadCredentialProviderTest {
                 "HRIS_SEPARATION_TASK_WAIVER_REQUEST", "dwp-people-server",
                 "spiffe://dwp/service/dwp-people-server", "dwp-approval-server",
                 "spiffe://dwp/service/dwp-approval-server",
-                Hrm013WorkloadCredentialProvider.ServiceRole.CALLER,
+                Hrm013CredentialRole.CALLER,
                 keys.callerJwk().kid(), "people-caller-v1",
                 Hrm013WorkloadCredentialProvider.publicJwkThumbprint(keys.callerJwk()),
                 input -> {

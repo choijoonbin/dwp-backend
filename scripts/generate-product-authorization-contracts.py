@@ -758,6 +758,17 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     49: "5c1dccdc27d8b260fbf001de5695e983a7107072824a8087038340d0d84cbc60",
     50: "c52222caad2749c4048c694f6582e157f6ab1184f73237f0944c3d88807a2760",
     51: "3beda5c13a3af0e265ace4533a3afcee3691c2b7486465dcf46156e58ae5ed2c",
+    52: "b33fbf968e71f97b09fa497fdfad7d2f6854199170b79fd1602a0ea604977346",
+    53: "c655a850ae2ac01466edb37f2e1c69f9e269dd2a4a529c3a87b1610c0561a359",
+    54: "1a199b3ec84b6d6c16aaec57c9be0b09092c5f81e0c5566f893c4dbe0e0deed4",
+    55: "7fb2121a1209b87234bcb389a9bd4c4addca3c4e8c8776a9aac70d278c74d4e6",
+    56: "4c1e82c4ac70f7bbc4aba7a41d77b8fd238da0478501cbdfed97ebd4b5dd0930",
+    57: "f7d6e2ef92f563747ed062e496638ea83498a33414fc12586c794f517e626d6e",
+    58: "556f2cc1554f0aaab6f88e50c34d64ca5cdd95af9b2d55072f6e6745f4652cc2",
+    59: "56582749cebf382c5c2669d83a30fb4c81fcb532db2878b15e6a83ced6898094",
+    60: "405ac7c88d30a5730faa40c730968fffc873bd1a3679e4997532f0ea9ff1c47c",
+    61: "f7cf92a97f2fabf86f257010064a3183acf58f86cc2c9d7692a1555cab55aa24",
+    62: "cb370fd02a896452a64187fca8afb8bb3e3d281e490fba02e76f7a3c0d7f9770",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -2361,9 +2372,10 @@ def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
         _validate_v30_dwaion_authority_closure(snapshot)
     require(snapshot["bundleStatus"] == "DRAFT", f"v{version}: generated seed must remain DRAFT")
     immutable_checksum = IMMUTABLE_RELEASE_CHECKSUMS.get(version)
-    if immutable_checksum is not None:
-        require(snapshot["checksum"] == immutable_checksum,
-                f"v{version}: immutable release checksum drift")
+    require(immutable_checksum is not None,
+            f"v{version}: immutable release checksum is not registered")
+    require(snapshot["checksum"] == immutable_checksum,
+            f"v{version}: immutable release checksum drift")
 
 
     _validate_approval_projection_schema_metadata(snapshot)

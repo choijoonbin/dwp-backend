@@ -24,9 +24,9 @@ import static com.dwp.services.payroll.calculation.PayrollCalculationModels.Froz
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.SemanticBinding;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.SourceInput;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.WorkerResult;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.Category;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.EvaluatedLine;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.QuantizationStep;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.Category;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.EvaluatedLine;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.QuantizationStep;
 
 /** Pure, bounded calculation over an already frozen PAY-016 snapshot. */
 @Component
@@ -61,7 +61,7 @@ final class PayrollCalculationEngine {
     /** Package-local convenience remains fail closed, matching the production default. */
     PayrollCalculationEngine(PayrollCalculationCanonical canonical) {
         this(canonical, (snapshot, input) ->
-                PayrollCalculationSemanticMappingPort.Resolution.unavailable());
+                PayrollCalculationSemanticContract.Resolution.unavailable());
     }
 
     CalculationOutcome calculate(FrozenSnapshot snapshot) {

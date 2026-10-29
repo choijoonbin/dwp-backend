@@ -20,7 +20,7 @@ import java.io.IOException;
 final class ApprovedCompensationSnapshotController {
 
     static final String PATH =
-            ApprovedCompensationSnapshotIngressFilter.PATH_PREFIX + "{snapshotId}";
+            ApprovedCompensationSnapshotIngressContract.PATH_PREFIX + "{snapshotId}";
 
     private final ApprovedCompensationSnapshotRefetchService service;
     private final ApprovedCompensationSnapshotResponseSpool spool;

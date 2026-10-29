@@ -23,10 +23,10 @@ import java.util.function.LongSupplier;
 
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.FormulaErrorCode;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.FormulaFinding;
-import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.FormulaNode;
-import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.FormulaOperator;
-import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.PayFormulaAst;
-import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.PayValueType;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.FormulaNode;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.FormulaOperator;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.PayFormulaAst;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.PayValueType;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.RoundingPolicy;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.SimulationReport;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.TypedValue;

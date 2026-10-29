@@ -128,7 +128,7 @@ class Hrm011WorkloadControllerSecurityTest {
             String binding,
             String purpose,
             String projection) {
-        var snapshotRequest = new Hrm011WorkloadIngress.SnapshotRequest(
+        var snapshotRequest = new Hrm011WorkloadContract.SnapshotRequest(
                 purpose, Instant.parse("2026-10-19T02:00:00Z"),
                 projection, 100, null);
         return new Hrm011WorkloadRequestContext.VerifiedRequest(
@@ -136,7 +136,7 @@ class Hrm011WorkloadControllerSecurityTest {
                 fingerprint(servletRequest.getRequestURI(), snapshotRequest), binding,
                 UUID.fromString("10000000-0000-4000-8000-000000000001"),
                 UUID.fromString("10000000-0000-4000-8000-000000000002"), 3,
-                new Hrm011WorkloadIngress.TrustedWorkload(
+                new Hrm011WorkloadContract.TrustedWorkload(
                         71L, Hrm011WorkloadIngress.PAYROLL_CALLER,
                         Hrm011WorkloadIngress.AUDIENCE, purpose,
                         true, true, true, true, 9),
@@ -144,7 +144,7 @@ class Hrm011WorkloadControllerSecurityTest {
     }
 
     private String fingerprint(
-            String path, Hrm011WorkloadIngress.SnapshotRequest request) {
+            String path, Hrm011WorkloadContract.SnapshotRequest request) {
         String canonical = "GET\n" + path
                 + "\npurposeCode=" + request.purposeCode()
                 + "\nasOf=" + request.asOf()

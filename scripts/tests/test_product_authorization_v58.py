@@ -199,26 +199,31 @@ class ProductAuthorizationV58Test(unittest.TestCase):
             )
             self.assertNotIn("stepUpCommandBindings", route)
 
-    def test_latest_alias_indexes_fixtures_and_owner_peps_share_v58_lineage(self) -> None:
-        for path in (
-            CONTRACTS / "product-surfaces-v1.json",
-            AUTH / "product-surfaces-v1.generated.json",
-            AUTH / "product-surfaces-v1.bundle-v58.generated.json",
-        ):
-            self.assertEqual(self.bundle, json.loads(path.read_text()), str(path))
+    def test_current_alias_is_v62_and_v58_owner_peps_preserve_lineage(self) -> None:
+        latest = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v62.json").read_text()
+        )
+        for path in (CONTRACTS / "product-surfaces-v1.json",
+                     AUTH / "product-surfaces-v1.generated.json"):
+            self.assertEqual(latest, json.loads(path.read_text()), str(path))
+        historical_seed = AUTH / "product-surfaces-v1.bundle-v58.generated.json"
+        self.assertEqual(self.bundle, json.loads(historical_seed.read_text()))
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
         self.assertEqual(
-            (58, CHECKSUM, 58),
+            (62, latest["checksum"], 62),
             (index["latestVersion"], index["latestChecksum"], len(index["versions"])),
         )
+        historical = next(value for value in index["versions"] if value["version"] == 58)
+        self.assertEqual(CHECKSUM, historical["checksum"])
         self.assertEqual(
             index,
             json.loads((AUTH / "product-surfaces-v1.index.generated.json").read_text()),
         )
         fixture = json.loads((CONTRACTS / "pilot-fixtures.v1.generated.json").read_text())
-        self.assertEqual(58, fixture["registryLineage"]["latestAliasVersion"])
+        self.assertEqual(62, fixture["registryLineage"]["latestAliasVersion"])
         self.assertEqual(
-            {"bundleKey": "product-surfaces", "version": 58, "sha256": CHECKSUM},
+            {"bundleKey": "product-surfaces", "version": 62,
+             "sha256": latest["checksum"]},
             fixture["registryLineage"]["versions"][-1],
         )
         for service in ("people", "time", "platform", "payroll"):

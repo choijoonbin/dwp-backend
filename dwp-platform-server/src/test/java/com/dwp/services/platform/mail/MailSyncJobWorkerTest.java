@@ -24,16 +24,16 @@ class MailSyncJobWorkerTest {
         MailSyncJobRepository jobs = mock(MailSyncJobRepository.class);
         MailSyncExecutor executor = mock(MailSyncExecutor.class);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        MailSyncJobRepository.SyncJob first = job(1);
-        MailSyncJobRepository.SyncJob second = job(1);
+        MailSyncJob first = job(1);
+        MailSyncJob second = job(1);
         when(jobs.claim(anyString(), anyInt(), anyInt()))
                 .thenReturn(List.of(first, second));
         when(jobs.releaseExpiredLeases())
-                .thenReturn(new MailSyncJobRepository.LeaseRecovery(0, 0));
+                .thenReturn(new MailSyncLeaseRecovery(0, 0));
         when(executor.execute(first)).thenThrow(
-                new MailSyncExecutor.SyncWorkFailure("SYNC_PROVIDER_UNAVAILABLE", false));
-        MailSyncExecutor.ExecutionResult success =
-                new MailSyncExecutor.ExecutionResult(1, 1, 2, 0, 0);
+                new MailSyncWorkFailure("SYNC_PROVIDER_UNAVAILABLE", false));
+        MailSyncExecutionResult success =
+                new MailSyncExecutionResult(1, 1, 2, 0, 0);
         when(executor.execute(second)).thenReturn(success);
         when(jobs.completeFailure(
                 any(), anyString(), anyString(), anyBoolean(),
@@ -61,12 +61,12 @@ class MailSyncJobWorkerTest {
         MailSyncJobRepository jobs = mock(MailSyncJobRepository.class);
         MailSyncExecutor executor = mock(MailSyncExecutor.class);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        MailSyncJobRepository.SyncJob job = job(1);
-        MailSyncExecutor.ExecutionResult continuation =
-                new MailSyncExecutor.ExecutionResult(1, 20, 10, 2, 0, true);
+        MailSyncJob job = job(1);
+        MailSyncExecutionResult continuation =
+                new MailSyncExecutionResult(1, 20, 10, 2, 0, true);
         when(jobs.claim(anyString(), anyInt(), anyInt())).thenReturn(List.of(job));
         when(jobs.releaseExpiredLeases())
-                .thenReturn(new MailSyncJobRepository.LeaseRecovery(0, 0));
+                .thenReturn(new MailSyncLeaseRecovery(0, 0));
         when(executor.execute(job)).thenReturn(continuation);
         when(jobs.completeContinuation(any(), anyString(), any())).thenReturn(true);
         MailSyncJobWorker worker = new MailSyncJobWorker(
@@ -81,8 +81,8 @@ class MailSyncJobWorkerTest {
                 .tag("outcome", "continued").counter().count()).isOne();
     }
 
-    private MailSyncJobRepository.SyncJob job(int attempt) {
-        return new MailSyncJobRepository.SyncJob(
+    private MailSyncJob job(int attempt) {
+        return new MailSyncJob(
                 UUID.randomUUID(), 7, UUID.randomUUID(), UUID.randomUUID(),
                 91, 0, "MANUAL", attempt, 5, "corr-sync");
     }

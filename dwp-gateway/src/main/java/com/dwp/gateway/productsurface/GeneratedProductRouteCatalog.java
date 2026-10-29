@@ -622,7 +622,7 @@ public final class GeneratedProductRouteCatalog {
             boolean genericSessionStepUp,
             Pattern structuralPattern,
             Pattern exactPattern,
-            Map<String, QueryConstraint> queryConstraints) {
+            Map<String, QueryConstraint> queryConstraints) implements ProductRouteMetadata {
     }
 
     public record QueryConstraint(String kind, Set<String> values) {

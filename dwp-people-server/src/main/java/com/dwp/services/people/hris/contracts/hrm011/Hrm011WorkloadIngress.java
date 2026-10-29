@@ -5,6 +5,8 @@ import com.dwp.contracts.hris.xcon.v1.Xcon018WorkerTaxIdentitySnapshotV1;
 import com.dwp.contracts.hris.xcon.v1.Xcon019WorkerBankAccountTokenSnapshotV1;
 import com.dwp.platform.contract.AuditEventEnvelope;
 import com.dwp.platform.contract.DataClassification;
+import com.dwp.services.people.hris.contracts.hrm011.Hrm011WorkloadContract.SnapshotRequest;
+import com.dwp.services.people.hris.contracts.hrm011.Hrm011WorkloadContract.TrustedWorkload;
 import com.dwp.services.people.hris.employeeservice.employmentcontract.EmploymentContractCanonicalizer;
 import com.dwp.services.people.hris.employeeservice.employmentcontract.EmploymentContractException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -37,17 +39,15 @@ import java.util.UUID;
 @ConditionalOnProperty(prefix = "dwp.hris.contract-compensation-workbench",
         name = "enabled", havingValue = "true", matchIfMissing = false)
 public class Hrm011WorkloadIngress {
-    public static final String PAYROLL_CALLER = "dwp-payroll-server";
-    public static final String AUDIENCE = "dwp-people";
+    public static final String PAYROLL_CALLER = Hrm011WorkloadContract.PAYROLL_CALLER;
+    public static final String AUDIENCE = Hrm011WorkloadContract.AUDIENCE;
     public static final String SVC003_OPERATION = "bootstrapCompensationBasisSnapshots";
     public static final String SVC005_OPERATION = "bootstrapPayrollWorkerFactSnapshots";
-    public static final String SVC003_PURPOSE =
-            "HRIS_COMPENSATION_BASIS_SNAPSHOT_BOOTSTRAP";
-    public static final String SVC005_PURPOSE =
-            "HRIS_PAYROLL_WORKER_FACT_SNAPSHOT_BOOTSTRAP";
-    public static final String COMPENSATION = "COMPENSATION_BASIS_V1";
-    public static final Set<String> PAYROLL_PROJECTIONS = Set.of(
-            "DEPENDENT_ELIGIBILITY_V1", "TAX_IDENTITY_V1", "BANK_ACCOUNT_TOKEN_V1");
+    public static final String SVC003_PURPOSE = Hrm011WorkloadContract.SVC003_PURPOSE;
+    public static final String SVC005_PURPOSE = Hrm011WorkloadContract.SVC005_PURPOSE;
+    public static final String COMPENSATION = Hrm011WorkloadContract.COMPENSATION;
+    public static final Set<String> PAYROLL_PROJECTIONS =
+            Hrm011WorkloadContract.PAYROLL_PROJECTIONS;
 
     private final PayrollWorkerFactSource payrollFacts;
     private final EmploymentContractCanonicalizer canonicalizer;
@@ -75,8 +75,8 @@ public class Hrm011WorkloadIngress {
     @Transactional
     public SnapshotPage compensationSnapshots(
             Hrm011WorkloadRequestContext.VerifiedRequest verified) {
-        requireVerified(verified, Hrm011WorkloadIngressFilter.COMPENSATION_BINDING,
-                Hrm011WorkloadIngressFilter.COMPENSATION_PATH, SVC003_PURPOSE);
+        requireVerified(verified, Hrm011WorkloadRouteContract.COMPENSATION_BINDING,
+                Hrm011WorkloadRouteContract.COMPENSATION_PATH, SVC003_PURPOSE);
         SnapshotRequest request = verified.snapshotRequest();
         TrustedWorkload trusted = verified.trusted();
         requireRequest(request, SVC003_PURPOSE, Set.of(COMPENSATION));
@@ -96,8 +96,8 @@ public class Hrm011WorkloadIngress {
     @Transactional
     public SnapshotPage payrollWorkerFacts(
             Hrm011WorkloadRequestContext.VerifiedRequest verified) {
-        requireVerified(verified, Hrm011WorkloadIngressFilter.PAYROLL_FACTS_BINDING,
-                Hrm011WorkloadIngressFilter.PAYROLL_FACTS_PATH, SVC005_PURPOSE);
+        requireVerified(verified, Hrm011WorkloadRouteContract.PAYROLL_FACTS_BINDING,
+                Hrm011WorkloadRouteContract.PAYROLL_FACTS_PATH, SVC005_PURPOSE);
         SnapshotRequest request = verified.snapshotRequest();
         TrustedWorkload trusted = verified.trusted();
         requireRequest(request, SVC005_PURPOSE, PAYROLL_PROJECTIONS);
@@ -309,26 +309,6 @@ public class Hrm011WorkloadIngress {
             throw EmploymentContractException.unavailable(
                     "The workload cursor signing key is unavailable.");
         }
-    }
-
-    public record TrustedWorkload(
-            long tenantId,
-            String caller,
-            String audience,
-            String purposeCode,
-            boolean tls13,
-            boolean mtlsAuthenticated,
-            boolean oauthClientJwtAuthenticated,
-            boolean tenantGrantValid,
-            long policyRevision) {
-    }
-
-    public record SnapshotRequest(
-            String purposeCode,
-            Instant asOf,
-            String projection,
-            int limit,
-            String cursor) {
     }
 
     public record SnapshotPage(

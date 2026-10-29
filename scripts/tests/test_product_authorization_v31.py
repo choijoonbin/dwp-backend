@@ -82,13 +82,13 @@ class ProductAuthorizationV31Test(unittest.TestCase):
             {item["contractKey"] for item in self.v31["capabilities"]},
         )
 
-    def test_every_public_approval_operation_has_an_exact_v31_owner_binding(self) -> None:
+    def test_every_public_approval_operation_has_an_exact_current_owner_binding(self) -> None:
         openapi = json.loads((
             ROOT / "contracts" / "openapi" / "approval.json"
         ).read_text())
         governed = {
             (binding["method"], path_shape(binding["path"]))
-            for route in self.v31["routes"]
+            for route in self.snapshots[-1]["routes"]
             for binding in route.get("servicePepBindings", [])
             if binding.get("serviceKey") == "approval"
         }

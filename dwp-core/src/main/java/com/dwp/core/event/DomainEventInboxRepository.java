@@ -273,9 +273,13 @@ public class DomainEventInboxRepository {
             int attempt,
             int maximumAttempts,
             String error) {
-        return strictValidation.failActiveLease(
-                consumerName, eventId, lockToken,
-                attempt, maximumAttempts, error);
+        DomainEventInboxStrictValidationSupport.ActiveLeaseFailureState state =
+                strictValidation.failActiveLease(
+                        consumerName, eventId, lockToken,
+                        attempt, maximumAttempts, error);
+        return state == DomainEventInboxStrictValidationSupport.ActiveLeaseFailureState.DEAD
+                ? FailureState.DEAD
+                : FailureState.RETRYABLE;
     }
 
     public void quarantine(

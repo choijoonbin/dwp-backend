@@ -38,7 +38,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.dwp.services.payroll.calculation.PayrollCalculationModels.ActionCommand;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.CommandType;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.PayrollCommandReceipt;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.ReceiptStatus;
@@ -49,6 +48,7 @@ import static com.dwp.services.payroll.calculation.PayrollCalculationTestSupport
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -225,7 +225,7 @@ class PayrollG3SliceContractTest {
     }
 
     @Test
-    void operationIdsPathsAndStatusesMatchPinnedV41OpenApi() {
+    void operationIdsPathsAndStatusesMatchPinnedV62OpenApi() {
         Map<String, String> operationIds = Map.of(
                 "calculate", "calculatePayrollRun",
                 "run", "getPayrollRun",
@@ -259,21 +259,36 @@ class PayrollG3SliceContractTest {
         PayrollCalculationCanonical canonical = PayrollCalculationTestSupport.canonical();
         PayrollCalculationTestSupport.InMemoryStore store =
                 new PayrollCalculationTestSupport.InMemoryStore();
+        PayrollHighRiskCommandGuard guard = mock(PayrollHighRiskCommandGuard.class);
+        PayrollStepUpEvidence evidence = new PayrollStepUpEvidence(
+                "calculate-challenge", "calculate-nonce", "issuer",
+                NOW.plusSeconds(300), "e".repeat(64), "decision-41");
+        when(guard.require(any(), any(), anyLong(), any(), any(), any()))
+                .thenReturn(evidence);
         PayrollCalculationService service = PayrollCalculationTestSupport.service(
-                store, canonical, mock(PayrollHighRiskCommandGuard.class),
+                store, canonical, guard,
                 Clock.fixed(NOW, ZoneOffset.UTC));
         PayrollCalculationAuthority.Actor actor =
                 PayrollCalculationTestSupport.calculator(1, 101);
         ActionCommand command = new ActionCommand("REGULAR_RUN", null, null);
+        PayrollStepUpHeaders headers = new PayrollStepUpHeaders(
+                "signed", "pay-gold-003", "decision-41", 2);
         store.seedPreparedRun(PayrollCalculationTestSupport.preparedRun(1, 101, RUN_ID));
 
         PayrollCommandReceipt first = service.calculate(
-                actor, RUN_ID, "pay-gold-003", 2, UUID.randomUUID(), command);
+                actor, RUN_ID, RUN_ID.toString(), "pay-gold-003", 2,
+                UUID.randomUUID(), command, headers);
         PayrollCommandReceipt replay = service.calculate(
-                actor, RUN_ID, "pay-gold-003", 2,
-                first.correlationId(), command);
+                actor, RUN_ID, RUN_ID.toString(), "pay-gold-003", 2,
+                first.correlationId(), command, headers);
 
         assertThat(replay).isEqualTo(first);
+        assertThat(store.receipt(1, first.receiptId()).orElseThrow()
+                .stepUpEvidence()).isEqualTo(evidence);
+        verify(guard).require(
+                actor, RUN_ID, 2,
+                "/api/payroll/v1/runs/" + RUN_ID + "/attempts",
+                command, headers);
         assertThat(store.attemptCount(1, RUN_ID)).isEqualTo(1);
         assertThat(store.outboxCount(1, RUN_ID, "PayrollCalculated")).isZero();
         assertThatThrownBy(() -> service.calculate(

@@ -78,7 +78,7 @@ public final class Hrm011WorkloadAuditOutboxAdapter implements Hrm011WorkloadAud
         String payloadDigest = string(data, "payloadDigest");
         UUID eventId = canonicalUuid(envelope.id());
 
-        if (!Hrm011WorkloadIngress.PAYROLL_CALLER.equals(caller)
+        if (!Hrm011WorkloadContract.PAYROLL_CALLER.equals(caller)
                 || !OUTCOMES.contains(outcome)
                 || !payloadDigest.matches("[0-9a-f]{64}")
                 || !Long.toString(tenantId).equals(envelope.tenantId())
@@ -95,11 +95,11 @@ public final class Hrm011WorkloadAuditOutboxAdapter implements Hrm011WorkloadAud
     private boolean operationBinding(String operation, String purpose, String projection) {
         return switch (operation) {
             case Hrm011WorkloadIngress.SVC003_OPERATION ->
-                    Hrm011WorkloadIngress.SVC003_PURPOSE.equals(purpose)
-                            && Hrm011WorkloadIngress.COMPENSATION.equals(projection);
+                    Hrm011WorkloadContract.SVC003_PURPOSE.equals(purpose)
+                            && Hrm011WorkloadContract.COMPENSATION.equals(projection);
             case Hrm011WorkloadIngress.SVC005_OPERATION ->
-                    Hrm011WorkloadIngress.SVC005_PURPOSE.equals(purpose)
-                            && Hrm011WorkloadIngress.PAYROLL_PROJECTIONS.contains(projection);
+                    Hrm011WorkloadContract.SVC005_PURPOSE.equals(purpose)
+                            && Hrm011WorkloadContract.PAYROLL_PROJECTIONS.contains(projection);
             default -> false;
         };
     }

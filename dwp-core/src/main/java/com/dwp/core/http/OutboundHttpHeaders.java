@@ -8,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.net.http.HttpRequest;
 import java.util.regex.Pattern;
 
 /**
@@ -26,6 +27,18 @@ public final class OutboundHttpHeaders {
                 instanceof ServletRequestAttributes servletRequestAttributes) {
             propagateObservability(servletRequestAttributes.getRequest(), headers);
         }
+    }
+
+    /**
+     * JDK HTTP-client counterpart to the Spring {@link HttpHeaders} adapter.
+     * Values are derived through the same validation path so a raw
+     * {@link HttpRequest} cannot accidentally forward untrusted trace input.
+     */
+    public static void propagateObservability(HttpRequest.Builder builder) {
+        HttpHeaders headers = new HttpHeaders();
+        propagateObservability(headers);
+        headers.forEach((name, values) ->
+                values.forEach(value -> builder.header(name, value)));
     }
 
     public static void propagateObservability(HttpServletRequest request, HttpHeaders headers) {

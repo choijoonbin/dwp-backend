@@ -228,7 +228,7 @@ class EmployeeChangeApprovalRequestRelayPostgresTest {
             HrisWorkloadProofV2.verify(
                     mapper,
                     Clock.systemUTC(),
-                    HrisApprovalBridgeV2.CREATE_AND_SUBMIT,
+                    HrisApprovalBridgeV2.CREATE_AND_SUBMIT.verificationContract(),
                     exchange.getRequestURI().getRawPath(),
                     HrisWorkloadProofV2.headers(
                             exchange.getRequestHeaders().getFirst(

@@ -473,25 +473,21 @@ class EmploymentEventRepository {
     private String key(String prefix, UUID eventId) {
         return prefix + '-' + eventId.toString().replace("-", "");
     }
-
     private SubjectRow subjectRow(ResultSet result, int ignored) throws SQLException {
         return new SubjectRow(result.getLong("person_id"),
                 result.getObject("worker_id", Long.class),
                 result.getObject("worker_public_id", UUID.class),
                 result.getLong("worker_version"));
     }
-
     private ReferenceRow referenceRow(ResultSet result, int ignored) throws SQLException {
         return new ReferenceRow(result.getLong("internal_id"),
                 result.getObject("public_id", UUID.class), result.getLong("version"),
                 result.getString("business_key"), result.getString("time_zone"),
                 result.getObject("calendar_public_id", UUID.class));
     }
-
     private EventRow eventRow(ResultSet result, int ignored) throws SQLException {
         return rowMapper.eventRow(result, EventRow::new);
     }
-
     private ReceiptRow receiptRow(ResultSet result, int ignored) throws SQLException {
         return rowMapper.receiptRow(result, ReceiptRow::new);
     }
@@ -535,7 +531,8 @@ class EmploymentEventRepository {
             long version,
             String businessKey,
             String timeZone,
-            UUID calendarPublicId) { }
+            UUID calendarPublicId)
+            implements EmploymentEventPublicationContract.ReferenceView { }
 
     record PreflightSnapshot(
             long personId,
@@ -547,7 +544,8 @@ class EmploymentEventRepository {
             ReferenceRow position,
             ReferenceRow job,
             ReferenceRow location,
-            boolean primaryOverlap) { }
+            boolean primaryOverlap)
+            implements EmploymentEventPublicationContract.PreflightView { }
 
     record EventRow(
             long internalId,
@@ -579,7 +577,8 @@ class EmploymentEventRepository {
             Instant publishedAt,
             Instant createdAt,
             Instant updatedAt,
-            UUID originatingCorrelationId) {
+            UUID originatingCorrelationId)
+            implements EmploymentEventPublicationContract.EventView {
 
         EventRow(
                 long internalId,
@@ -656,9 +655,12 @@ class EmploymentEventRepository {
             UUID correlationId,
             Instant decidedAt) { }
 
-    record WorkerRow(long internalId, UUID publicId, long version) { }
-    record RelationshipRow(long internalId, UUID publicId, long version) { }
-    record AssignmentRow(long internalId, UUID publicId, long version) { }
+    record WorkerRow(long internalId, UUID publicId, long version)
+            implements EmploymentEventPublicationContract.WorkerView { }
+    record RelationshipRow(long internalId, UUID publicId, long version)
+            implements EmploymentEventPublicationContract.RelationshipView { }
+    record AssignmentRow(long internalId, UUID publicId, long version)
+            implements EmploymentEventPublicationContract.AssignmentView { }
     record PublishedLedger(EventRow event, WorkerRow worker,
                            RelationshipRow relationship, AssignmentRow assignment) { }
 

@@ -451,7 +451,7 @@ class Pay003ServiceTest {
                         Pay003TestFixtures.PAY_GROUP, "UK-REF-2026",
                         Pay003TestFixtures.DIGEST_A));
         when(stepUp.require(actor, snapshot, command, headers)).thenReturn(
-                new Pay003Ports.StepUpEvidence(
+                new Pay003StepUpEvidence(
                         "challenge-1", "nonce-1", "issuer-1",
                         NOW.plusSeconds(300), Pay003TestFixtures.DIGEST_B,
                         "decision-41"));
@@ -497,7 +497,7 @@ class Pay003ServiceTest {
                         Pay003TestFixtures.PAY_GROUP, "UK-REF-2026",
                         Pay003TestFixtures.DIGEST_A));
         when(stepUp.require(actor, snapshot, command, headers)).thenReturn(
-                new Pay003Ports.StepUpEvidence(
+                new Pay003StepUpEvidence(
                         "challenge-1", "nonce-1", "issuer-1",
                         NOW.plusSeconds(300), Pay003TestFixtures.DIGEST_B,
                         "decision-41"));
@@ -565,7 +565,7 @@ class Pay003ServiceTest {
         when(store.receipt(any(Long.class), any(), any())).thenReturn(Optional.empty());
         when(activations.allow(actor, snapshot, false)).thenReturn(true);
         when(stepUp.require(any(), any(), any(), any())).thenReturn(
-                new Pay003Ports.StepUpEvidence("challenge-1", "nonce-1", "issuer-1",
+                new Pay003StepUpEvidence("challenge-1", "nonce-1", "issuer-1",
                         NOW.plusSeconds(300), Pay003TestFixtures.DIGEST_B, "decision-41"));
     }
 
@@ -635,7 +635,7 @@ class Pay003ServiceTest {
                 UUID.randomUUID(), "COUNTRY_PACK_ACTIVATE",
                 Pay003Models.ACTIVATE_ACTION, Pay003TestFixtures.SUBJECT,
                 Pay003TestFixtures.DIGEST_A, 17,
-                Pay003Models.ACTIVATION_PURPOSE, 23, "SUCCEEDED",
+                Pay003Contract.ACTIVATION_PURPOSE, 23, "SUCCEEDED",
                 UUID.randomUUID(), digest, NOW, revision,
                 "country-pack:" + Pay003TestFixtures.PACK);
     }

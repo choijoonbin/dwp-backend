@@ -17,9 +17,9 @@ import jakarta.servlet.http.HttpServletRequest;
 @RequestMapping("/internal/v1/mail/webhooks")
 class MailWebhookIngressController {
 
-    private final MailWebhookIngressService ingress;
+    private final MailWebhookIngressUseCase ingress;
 
-    MailWebhookIngressController(MailWebhookIngressService ingress) {
+    MailWebhookIngressController(MailWebhookIngressUseCase ingress) {
         this.ingress = ingress;
     }
 
@@ -36,7 +36,7 @@ class MailWebhookIngressController {
         }
         MailWebhookVerificationPort.Verification verification =
                 MailWebhookSecurityFilter.verification(request);
-        MailSyncJobRepository.WebhookEnqueue accepted =
+        MailWebhookIngressUseCase.Accepted accepted =
                 ingress.acceptVerified(verification);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(
                 new WebhookAccepted(

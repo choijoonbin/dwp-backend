@@ -2,14 +2,33 @@
 
 ## Runtime gates
 
+Repository-complete controls and deployment-owned evidence are separate release conditions. An
+adapter bean, configuration value, or successful unit test is not provider approval. Keep each
+deployment-owned boundary at `BLOCKED_EXTERNAL` until the named owner supplies live, current
+evidence; never manufacture that evidence in a database row or configuration file.
+
+| Boundary | Repository state | Deployment state | Evidence required to clear the gate |
+| --- | --- | --- | --- |
+| Graph/Gmail outbound adapters | Conditional adapters, bounded HTTPS transports, exact host allowlists, remote token-broker client, the ten-minute activation diagnostic fence, and the `mailExternalProvider` composite readiness indicator are implemented. | `BLOCKED_EXTERNAL` | Customer-owned OAuth application and consent, approved Secret Store reference, reachable allowlisted token broker, provider HTTPS allowlist, subscription runtime, exact provider verifier ownership, and a fresh successful scoped readiness diagnostic. |
+| Provider webhooks | Graph ledger/client-state verification and Gmail Pub/Sub envelope, ledger, audience, and exact-one-authenticator verification are implemented fail closed. | `BLOCKED_EXTERNAL` | Active provider subscription evidence; for Gmail, exactly one approved `GmailPushAuthenticationOwner` plus the deployed audience, topic, and subscription binding. |
+| Trusted attachment scanner | The bounded, no-redirect HTTPS client, production startup guard, and `mailAttachmentScanner` health indicator are implemented. | `BLOCKED_EXTERNAL` | Approved scanner service, injected service token, pinned private DNS/egress allowlist, and a live successful `/health/ready` receipt. |
+| Central Product Authorization SSE routes | Platform owner bindings and Platform/Gateway OpenAPI paths are implemented. | `BLOCKED_EXTERNAL` | Central Product Authorization publishes both exact routes `route.mail.work.events.data` and `route.mail.work.events-catch-up.data` atomically and Gateway supplies a non-expired current decision. |
+
+`MailProductionReadinessContractTest` checks that the SSE owner/Gateway OpenAPI paths remain paired,
+that central publication is never partial, and that this table matches the highest-versioned
+central Product Authorization bundle in the repository.
+
 - Apply `V370__operate_mail_sync_stream_and_content_security.sql` before enabling the sync,
   subscription, webhook, or event-stream workers. Apply
   `V371__reconcile_mail_provider_delivery_and_purge.sql` before enabling external delivery or
   provider purge, and `V372__govern_mail_proposal_provenance_and_bulk_intents.sql` before enabling
   Agent-produced proposals or browser bulk mutations.
-- External provider callbacks remain fail-closed until a provider-owned
-  `MailWebhookVerificationPort` is deployed. Callback tokens and client-state values must never
-  be written to logs or database columns; only SHA-256 receipts are accepted by the ingress.
+- Microsoft Graph and Gmail `MailWebhookVerificationPort` implementations are present. Graph
+  notifications require exactly one active ledger/client-state match. Gmail additionally requires
+  exactly one `GmailPushAuthenticationOwner` whose verified audience matches the configured push
+  audience. Missing, ambiguous, expired, or mismatched evidence fails closed. Callback tokens and
+  client-state values must never be written to logs or database columns; only SHA-256 receipts are
+  accepted by the ingress.
 - In production, setting `DWP_MAIL_ATTACHMENTS_ENABLED=true` requires the trusted scanner owner.
   Set `DWP_MAIL_TRUSTED_SCANNER_ENABLED=true`, an HTTPS origin in
   `DWP_MAIL_TRUSTED_SCANNER_BASE_URL`, and a secret-injected
@@ -17,12 +36,18 @@
 - Treat the scanner hostname as an operator-managed allowlist entry: pin it in egress policy and
   private DNS, prohibit redirects, and do not point the setting at user-controlled or general
   proxy hosts. The application rejects non-HTTPS origins, URL userinfo, queries, and fragments.
-- The scanner must expose `POST /v1/scan` and `GET /health/ready`. Scan responses are bounded JSON
-  objects with `verdict` (`CLEAN` or `REJECTED`) and a non-sensitive evidence code.
+- The scanner must expose `POST /v1/scan` and `GET /health/ready`. Readiness succeeds only for the
+  bounded exact JSON receipt `{"ready":true}`. Scan responses are bounded JSON objects with
+  `verdict` (`CLEAN` or `REJECTED`) and a non-sensitive evidence code.
 - Microsoft Graph and Gmail adapters are disabled by default. Enabling one also requires an exact
   HTTPS allowlist, the remote token-broker owner, provider consent, and a fresh readiness receipt.
   The application never receives or persists refresh tokens; it leases a short-lived access token
   using the opaque approved Secret Store reference and clears the leased token after use.
+- The Actuator readiness group includes `mailExternalProvider` and `mailAttachmentScanner`.
+  `mailExternalProvider` reports `BLOCKED_EXTERNAL` for incomplete provider/token-broker,
+  subscription callback, webhook verifier, or Gmail push-owner bindings; production rejects those
+  incomplete combinations and every insecure localhost override at startup rather than advertising
+  partial provider availability.
 - Keep SSE disabled at the Gateway until the central product-authorization bundle publishes the
   exact owner routes `route.mail.work.events.data` and
   `route.mail.work.events-catch-up.data`. Platform owns both bindings already, but a missing or

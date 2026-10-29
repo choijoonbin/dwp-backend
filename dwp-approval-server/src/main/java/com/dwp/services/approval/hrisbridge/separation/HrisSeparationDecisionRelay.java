@@ -1,5 +1,6 @@
 package com.dwp.services.approval.hrisbridge.separation;
 
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013SeparationBridgeV1;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013WorkloadProofV1;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -141,6 +142,7 @@ final class HrisSeparationDecisionRelay {
                     profile, proof, body.correlationId())) {
                 builder.header(header.name(), header.value());
             }
+            OutboundHttpHeaders.propagateObservability(builder);
             DrainRoot root = authorized.root();
             authority.recheckTerminalChild(selected, claim.tenantId(),
                     claim.grantId(), claim.tenantGrantRevision(),

@@ -385,8 +385,8 @@ class Pay004IaEntryQueryContractTest {
                         1, UUID.fromString(
                         "00000000-0000-0000-0000-000000000499"),
                         Pay004TestFixtures.WORKER, 1,
-                        RetirementYearEndCase.State.DRAFT,
-                        RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                        RetirementYearEndCaseContract.State.DRAFT,
+                        RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                         LocalDate.parse("2026-10-22"), null, null, 0,
                         null, null);
         Pay004Store store = mock(Pay004Store.class);

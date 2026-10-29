@@ -3,6 +3,8 @@ package com.dwp.services.people.hris.separation.hrm013;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013SafeErrorV1;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013SeparationBridgeV1;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013TaskDispatchV1;
+import com.dwp.services.people.hris.separation.hrm013.Hrm013OwnerContracts.CaseCreation;
+import com.dwp.services.people.hris.separation.hrm013.Hrm013OwnerContracts.PlannedDispatch;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -296,7 +298,7 @@ public final class Hrm013OwnerService implements SeparationReconciliationPort {
                 credentials.requireCurrent(
                         command.tenantId(), "SVC-PEP-HRM-009", purpose,
                         caller, "dwp-people-server",
-                        Hrm013WorkloadCredentialProvider.ServiceRole.OWNER);
+                        Hrm013CredentialRole.OWNER);
         Hrm013ServiceAuthorityPort.Query query = new Hrm013ServiceAuthorityPort.Query(
                 command.tenantId(), caller, "SVC-PEP-HRM-009", purpose,
                 lease.tenantGrantRevision(), lease.authorizationRevision());
@@ -360,11 +362,11 @@ public final class Hrm013OwnerService implements SeparationReconciliationPort {
     private Hrm013ServiceAuthorityPort.SigningAuthority resolveAuthority(
             long tenantId, String bindingId, String caller,
             String ownerWorkload, String purpose) {
-        Hrm013WorkloadCredentialProvider.ServiceRole role =
+        Hrm013CredentialRole role =
                 "dwp-people-server".equals(caller)
-                        ? Hrm013WorkloadCredentialProvider.ServiceRole.CALLER
+                        ? Hrm013CredentialRole.CALLER
                         : "dwp-people-server".equals(ownerWorkload)
-                                ? Hrm013WorkloadCredentialProvider.ServiceRole.OWNER
+                                ? Hrm013CredentialRole.OWNER
                                 : null;
         if (role == null || caller.equals(ownerWorkload)) {
             throw Hrm013SafeErrorV1.authorityDenied();
@@ -437,43 +439,6 @@ public final class Hrm013OwnerService implements SeparationReconciliationPort {
                 && left.callbackAuthorizationRevision()
                 == right.callbackAuthorizationRevision()
                 && left.occurredAt().equals(right.occurredAt());
-    }
-
-    public record CaseCreation(
-            long tenantId, UUID casePublicId, long workerId,
-            long workRelationshipId, String separationType, String reasonCode,
-            LocalDate effectiveDate, LocalDate lastWorkingDate,
-            String inputSnapshotHash, UUID taskTemplatePublicId,
-            long taskTemplateRevision, String taskTemplateHash,
-            UUID makerPrincipalPublicId, UUID correlationId,
-            long actorId, Instant createdAt) {
-        public CaseCreation {
-            if (tenantId < 1 || workerId < 1 || workRelationshipId < 1
-                    || taskTemplateRevision < 1 || actorId < 1) {
-                throw new IllegalArgumentException("positive case values required");
-            }
-            Objects.requireNonNull(casePublicId); Objects.requireNonNull(effectiveDate);
-            Objects.requireNonNull(lastWorkingDate); Objects.requireNonNull(taskTemplatePublicId);
-            Objects.requireNonNull(makerPrincipalPublicId); Objects.requireNonNull(correlationId);
-            Objects.requireNonNull(createdAt);
-            if (separationType == null || separationType.isBlank()
-                    || reasonCode == null || reasonCode.isBlank()
-                    || inputSnapshotHash == null
-                    || !inputSnapshotHash.matches("[0-9a-f]{64}")
-                    || taskTemplateHash == null
-                    || !taskTemplateHash.matches("[0-9a-f]{64}")) {
-                throw new IllegalArgumentException("invalid case values");
-            }
-        }
-    }
-
-    public record PlannedDispatch(
-            Hrm013TaskDispatchV1.Profile profile,
-            Hrm013TaskDispatchV1.DispatchBody body,
-            boolean mandatory, boolean irreversible) {
-        public PlannedDispatch {
-            Objects.requireNonNull(profile); Objects.requireNonNull(body);
-        }
     }
 
     private record AuthorizedDispatch(

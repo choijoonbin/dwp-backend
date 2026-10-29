@@ -604,7 +604,7 @@ public class ProductSurfaceContextAggregationService {
             String contextKey,
             ProductSurfaceContextDtos.EffectiveScope scope,
             ProductSurfaceContextDtos.SourceRevisions revisions,
-            boolean authRouteProductNotRegistered) {
+            boolean authRouteProductNotRegistered) implements TrustedProductDecision {
 
         public TrustedProductEvaluation(
                 ProductSurfaceContextDtos.ProductEvaluationData data,

@@ -4,7 +4,6 @@ import com.dwp.platform.contracts.hris.separation.v1.Hrm013SeparationBridgeV1;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013WorkloadProofV1;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;

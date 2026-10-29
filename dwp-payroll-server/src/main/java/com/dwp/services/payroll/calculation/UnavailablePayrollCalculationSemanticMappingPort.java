@@ -2,6 +2,7 @@ package com.dwp.services.payroll.calculation;
 
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.FrozenSnapshot;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.SourceInput;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.Resolution;
 
 /** Fail-closed production default until the authoritative semantic owner is connected. */
 final class UnavailablePayrollCalculationSemanticMappingPort

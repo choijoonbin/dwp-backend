@@ -206,7 +206,10 @@ final class GovernedHttpMeetingInvitationNotificationGateway
 
     private static String requiredToken(String value) {
         String token = value == null ? "" : value.strip();
-        if (token.length() < 24 || !token.equals(value)) {
+        boolean headerSafe = token.chars().allMatch(character ->
+                character >= 0x21 && character <= 0x7e);
+        if (token.length() < 32 || token.length() > 512
+                || token.indexOf(',') >= 0 || !token.equals(value) || !headerSafe) {
             throw new IllegalArgumentException("Notification service token is unavailable.");
         }
         return token;

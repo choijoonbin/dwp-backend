@@ -1,6 +1,7 @@
 package com.dwp.gateway.filter;
 
 import com.dwp.gateway.productsurface.Sys006GatewayRoutes;
+import com.dwp.gateway.security.GatewayIdentityContext;
 import com.dwp.gateway.security.VerifiedIdentity;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -18,15 +19,15 @@ import java.util.Locale;
 @Component
 public final class Sys006InboundAuthorityFilter implements GlobalFilter, Ordered {
     public static final String INBOUND_CHECKED_ATTRIBUTE =
-            Sys006InboundAuthorityFilter.class.getName() + ".inboundChecked";
+            InboundAuthorityContextAttributes.SYS006_INBOUND_CHECKED;
     public static final String TENANT_SELECTOR_ATTRIBUTE =
-            Sys006InboundAuthorityFilter.class.getName() + ".tenantSelector";
+            InboundAuthorityContextAttributes.SYS006_TENANT_SELECTOR;
     public static final String VERIFIED_IDENTITY_ATTRIBUTE =
-            Sys006InboundAuthorityFilter.class.getName() + ".verifiedIdentity";
+            InboundAuthorityContextAttributes.SYS006_VERIFIED_IDENTITY;
 
     private static final String LEGACY_TENANT_HEADER = "X-Tenant-ID";
     private static final String EXPECTED_REVISION =
-            ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER.toLowerCase(Locale.ROOT);
+            ProductSurfaceDecisionHeaders.EXPECTED_REVISION_HEADER.toLowerCase(Locale.ROOT);
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -67,11 +68,11 @@ public final class Sys006InboundAuthorityFilter implements GlobalFilter, Ordered
         var headers = exchange.getRequest().getHeaders();
         return identity.tenantId().equals(tenantSelector)
                 && headers.getOrEmpty(LEGACY_TENANT_HEADER).isEmpty()
-                && single(headers.getOrEmpty(VerifiedIdentityFilter.TENANT_HEADER),
+                && single(headers.getOrEmpty(GatewayIdentityContext.TENANT_HEADER),
                         identity.tenantId())
-                && single(headers.getOrEmpty(VerifiedIdentityFilter.USER_HEADER),
+                && single(headers.getOrEmpty(GatewayIdentityContext.USER_HEADER),
                         identity.userId())
-                && single(headers.getOrEmpty(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER),
+                && single(headers.getOrEmpty(GatewayIdentityContext.PERSON_PUBLIC_ID_HEADER),
                         identity.personPublicId())
                 && correlation(headers.getOrEmpty("X-Correlation-ID"));
     }

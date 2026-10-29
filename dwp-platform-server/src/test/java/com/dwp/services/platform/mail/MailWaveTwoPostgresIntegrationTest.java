@@ -62,7 +62,7 @@ class MailWaveTwoPostgresIntegrationTest {
         jobs.enqueue(fixture.tenantId(), operationId, fixture.connectionId(),
                 fixture.ownerUserId(), fixture.connectionVersion(), "MANUAL", 3);
 
-        MailSyncJobRepository.SyncJob first = jobs.claim("worker-a", 1, 30).getFirst();
+        MailSyncJob first = jobs.claim("worker-a", 1, 30).getFirst();
         assertThat(first.attemptCount()).isOne();
         assertThat(jobs.claim("worker-b", 1, 30)).isEmpty();
         assertThat(jobs.completeFailure(
@@ -73,10 +73,10 @@ class MailWaveTwoPostgresIntegrationTest {
                 UPDATE mail_sync_jobs SET next_attempt_at = CURRENT_TIMESTAMP
                  WHERE job_id = ?
                 """, first.jobId());
-        MailSyncJobRepository.SyncJob retry = jobs.claim("worker-b", 1, 30).getFirst();
+        MailSyncJob retry = jobs.claim("worker-b", 1, 30).getFirst();
         assertThat(retry.attemptCount()).isEqualTo(2);
-        MailSyncExecutor.ExecutionResult continuation =
-                new MailSyncExecutor.ExecutionResult(1, 20, 3, 1, 0, true);
+        MailSyncExecutionResult continuation =
+                new MailSyncExecutionResult(1, 20, 3, 1, 0, true);
         assertThat(jobs.completeContinuation(retry, "worker-b", continuation)).isTrue();
         assertThat(jdbc.queryForMap("""
                 SELECT job_state, attempt_count, lease_owner
@@ -85,12 +85,12 @@ class MailWaveTwoPostgresIntegrationTest {
                 .containsEntry("job_state", "RETRY_WAIT")
                 .containsEntry("attempt_count", 0)
                 .containsEntry("lease_owner", null);
-        MailSyncJobRepository.SyncJob continued =
+        MailSyncJob continued =
                 jobs.claim("worker-c", 1, 30).getFirst();
         assertThat(continued.attemptCount()).isOne();
         assertThat(jobs.completeSuccess(
                 continued, "worker-c",
-                new MailSyncExecutor.ExecutionResult(1, 1, 0, 0, 0))).isTrue();
+                new MailSyncExecutionResult(1, 1, 0, 0, 0))).isTrue();
         assertThat(jdbc.queryForObject("""
                 SELECT operation_state FROM mail_connection_operations
                  WHERE operation_id = ?
@@ -102,7 +102,7 @@ class MailWaveTwoPostgresIntegrationTest {
                 currentFixture, fixture.ownerUserId(), "MANUAL", "e".repeat(64));
         jobs.enqueue(fixture.tenantId(), expiredOperation, fixture.connectionId(),
                 fixture.ownerUserId(), currentFixture.connectionVersion(), "MANUAL", 1);
-        MailSyncJobRepository.SyncJob expired =
+        MailSyncJob expired =
                 jobs.claim("worker-expired", 1, 30).getFirst();
         jdbc.update("""
                 UPDATE mail_sync_jobs
@@ -110,7 +110,7 @@ class MailWaveTwoPostgresIntegrationTest {
                  WHERE job_id = ?
                 """, expired.jobId());
         assertThat(jobs.releaseExpiredLeases())
-                .isEqualTo(new MailSyncJobRepository.LeaseRecovery(0, 1));
+                .isEqualTo(new MailSyncLeaseRecovery(0, 1));
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM mail_audit_events
                  WHERE tenant_id = ? AND actor_user_id = ?
@@ -134,7 +134,7 @@ class MailWaveTwoPostgresIntegrationTest {
                 currentFixture, fixture.ownerUserId(), "MANUAL", "b".repeat(64));
         jobs.enqueue(fixture.tenantId(), resetOperation, fixture.connectionId(),
                 fixture.ownerUserId(), currentFixture.connectionVersion(), "MANUAL", 3);
-        MailSyncJobRepository.SyncJob resetJob = jobs.claim("worker-reset", 1, 30).getFirst();
+        MailSyncJob resetJob = jobs.claim("worker-reset", 1, 30).getFirst();
         AdminMailCompletionRepository.SyncAccountRow beforeReset =
                 admin.syncAccount(fixture.tenantId(), fixture.accountId()).orElseThrow();
         AdminMailCompletionRepository.AccountRow expected =

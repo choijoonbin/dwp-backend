@@ -59,6 +59,8 @@ dwp:
       poll-delay: ${DWP_MEETING_INVITATION_DELIVERY_POLL_DELAY:PT10S}
       retry-delay: ${DWP_MEETING_INVITATION_DELIVERY_RETRY_DELAY:PT30S}
       lease-duration: ${DWP_MEETING_INVITATION_DELIVERY_LEASE_DURATION:PT2M}
+      health-startup-grace: ${DWP_MEETING_INVITATION_DELIVERY_HEALTH_STARTUP_GRACE:PT30S}
+      health-stale-after: ${DWP_MEETING_INVITATION_DELIVERY_HEALTH_STALE_AFTER:PT2M}
     followup-authority:
       provider: ${DWP_MEETING_FOLLOWUP_AUTHORITY_PROVIDER:disabled}
       base-url: ${SERVICE_AUTH_URL:http://localhost:8001}
@@ -187,6 +189,11 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,meetingInvitationDeliveryReadiness
+          show-components: always
+          show-details: always
 
 logging:
   level:

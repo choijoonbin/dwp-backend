@@ -1,6 +1,5 @@
 package com.dwp.gateway.productsurface;
 
-import com.dwp.gateway.filter.ProductSurfaceDecisionContextFilter;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -37,7 +36,7 @@ class TenantFeatureActivationV260RouteParityTest {
         SYS_AUTHORIZATION_ONLY_ROUTES.forEach(
                 route -> assertThat(migration).contains("'" + route + "'"));
 
-        Field field = ProductSurfaceDecisionContextFilter.class
+        Field field = Class.forName("com.dwp.gateway.filter.ProductSurfaceRoutePolicies")
                 .getDeclaredField("HRM007_ENTRY_QUERY_ROUTE_KEYS");
         field.setAccessible(true);
         @SuppressWarnings("unchecked")

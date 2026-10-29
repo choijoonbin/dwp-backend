@@ -129,7 +129,7 @@ final class Pay003Controller {
             String expectedDecisionRevision,
             @RequestHeader("X-Correlation-ID") UUID correlationId,
             @Valid @RequestBody Pay003Models.ActivationCommand command) {
-        String canonicalPackId = Pay003Models.canonicalUuid(packId, "packId");
+        String canonicalPackId = Pay003ValueValidation.canonicalUuid(packId, "packId");
         Long parsed = Pay003SecurityFilter.strongIfMatch(ifMatch);
         if (parsed == null || parsed != trustedExpectedRevision) {
             throw new BaseException(ErrorCode.OBJECT_VERSION_CONFLICT,

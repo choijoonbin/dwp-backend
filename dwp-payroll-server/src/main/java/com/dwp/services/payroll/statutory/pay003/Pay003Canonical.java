@@ -145,7 +145,7 @@ final class Pay003Canonical {
             }
             CursorState state = envelope.state();
             if (state.offset() < 0) throw invalidCursor();
-            Pay003Models.digest(state.bindingDigest(), "cursor bindingDigest");
+            Pay003ValueValidation.digest(state.bindingDigest(), "cursor bindingDigest");
             return state;
         } catch (BaseException exception) {
             throw exception;

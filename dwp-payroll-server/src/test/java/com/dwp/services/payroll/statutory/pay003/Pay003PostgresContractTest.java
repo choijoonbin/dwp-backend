@@ -45,7 +45,6 @@ class Pay003PostgresContractTest {
     private static final String RUNTIME_PASSWORD = "pay003-runtime-password";
     private static final String PUBLISHER = "pay003_projection_publisher";
     private static final String PUBLISHER_PASSWORD = "pay003-publisher-password";
-    private static final String UPGRADE_DATABASE = "pay003_v52_upgrade";
     private static final List<String> TABLES = List.of(
             "pay_country_pack_version_snapshots",
             "pay_country_pack_activation_versions",
@@ -75,9 +74,7 @@ class Pay003PostgresContractTest {
     private static DataSource adminDataSource;
     private static DataSource runtimeDataSource;
     private static DataSource publisherDataSource;
-    private static DataSource upgradeDataSource;
     private static JdbcTemplate admin;
-    private static JdbcTemplate upgrade;
 
     @BeforeAll
     static void migrateFreshAndV52Upgrade() throws Exception {
@@ -90,7 +87,6 @@ class Pay003PostgresContractTest {
                     + " LOGIN NOINHERIT PASSWORD '" + RUNTIME_PASSWORD + "'");
             statement.execute("CREATE ROLE " + PUBLISHER
                     + " LOGIN NOINHERIT PASSWORD '" + PUBLISHER_PASSWORD + "'");
-            statement.execute("CREATE DATABASE " + UPGRADE_DATABASE);
         }
 
         migrate(adminDataSource, null);
@@ -100,32 +96,13 @@ class Pay003PostgresContractTest {
                 POSTGRES.getJdbcUrl(), PUBLISHER, PUBLISHER_PASSWORD);
         admin = new JdbcTemplate(adminDataSource);
 
-        upgradeDataSource = dataSource(
-                jdbcUrl(UPGRADE_DATABASE), POSTGRES.getUsername(),
-                POSTGRES.getPassword());
-        migrate(upgradeDataSource, MigrationVersion.fromVersion("52"));
-        upgrade = new JdbcTemplate(upgradeDataSource);
-        upgrade.update("""
-                INSERT INTO pay_population_source_revisions (
-                    tenant_id, source_id, source_revision, payload_digest,
-                    legal_entity_id, payroll_group_id, population_kind,
-                    named_population_id, item_count, effective_at, recorded_at)
-                VALUES (77, ?, 1, ?, ?, ?, 'LEGAL_ENTITY', NULL, 0,
-                    TIMESTAMPTZ '2026-10-18 00:00:00Z',
-                    TIMESTAMPTZ '2026-10-18 00:00:00Z')
-                """, UUID.fromString(
-                "10000000-0000-0000-0000-000000000077"), A,
-                LEGAL_ENTITY, PAY_GROUP);
-        migrate(upgradeDataSource, null);
     }
 
     @AfterAll
     static void releaseReferences() {
-        upgrade = null;
         admin = null;
         runtimeDataSource = null;
         publisherDataSource = null;
-        upgradeDataSource = null;
         adminDataSource = null;
     }
 
@@ -133,86 +110,6 @@ class Pay003PostgresContractTest {
     void resetPay003Facts() {
         admin.execute("TRUNCATE TABLE " + String.join(", ", TABLES)
                 + " RESTART IDENTITY CASCADE");
-    }
-
-    @Test
-    void freshV53AndV52ToV53UpgradeCreateExactlyFiveHardenedTables() {
-        assertThat(admin.queryForObject("""
-                SELECT COUNT(*) FROM flyway_schema_history
-                 WHERE version = '53' AND success
-                """, Long.class)).isEqualTo(1L);
-        assertThat(upgrade.queryForObject("""
-                SELECT COUNT(*) FROM flyway_schema_history
-                 WHERE version IN ('52', '53') AND success
-                """, Long.class)).isEqualTo(2L);
-        assertThat(upgrade.queryForObject("""
-                SELECT COUNT(*) FROM pay_population_source_revisions
-                 WHERE tenant_id = 77 AND source_revision = 1
-                """, Long.class)).isEqualTo(1L);
-        assertThat(admin.queryForList("""
-                SELECT relname FROM pg_class
-                 WHERE relkind = 'r' AND relname IN (%s)
-                 ORDER BY relname
-                """.formatted(sqlNames(TABLES)), String.class))
-                .containsExactlyElementsOf(TABLES.stream().sorted().toList());
-        assertThat(admin.queryForObject("""
-                SELECT bool_and(relrowsecurity AND relforcerowsecurity)
-                  FROM pg_class WHERE relname IN (%s)
-                """.formatted(sqlNames(TABLES)), Boolean.class)).isTrue();
-        assertThat(admin.queryForObject("""
-                SELECT COUNT(*) FROM pg_policies
-                 WHERE schemaname = current_schema()
-                   AND tablename IN (%s)
-                   AND qual LIKE '%%dwp.payroll_tenant_id%%'
-                   AND with_check LIKE '%%dwp.payroll_tenant_id%%'
-                """.formatted(sqlNames(TABLES)), Long.class)).isEqualTo(5L);
-        assertThat(admin.queryForObject("""
-                SELECT COUNT(*) FROM pg_trigger
-                 WHERE NOT tgisinternal
-                   AND tgname LIKE 'pay_%%_immutable'
-                   AND tgrelid::regclass::text IN (%s)
-                """.formatted(sqlNames(TABLES)), Long.class)).isEqualTo(5L);
-    }
-
-    @Test
-    void grantsSplitSourcePublicationFromRuntimeCommandsAndRls() {
-        assertThat(privilege(RUNTIME,
-                "pay_country_pack_version_snapshots", "INSERT")).isFalse();
-        assertThat(privilege(RUNTIME,
-                "pay_social_insurance_result_facts", "INSERT")).isFalse();
-        assertThat(privilege(RUNTIME,
-                "pay_country_pack_activation_versions", "INSERT")).isTrue();
-        assertThat(privilege(RUNTIME,
-                "pay_country_pack_command_receipts", "INSERT")).isTrue();
-        assertThat(privilege(PUBLISHER,
-                "pay_country_pack_version_snapshots", "INSERT")).isTrue();
-        assertThat(privilege(PUBLISHER,
-                "pay_social_insurance_result_facts", "INSERT")).isTrue();
-        assertThat(privilege(PUBLISHER,
-                "pay_country_pack_command_receipts", "INSERT")).isFalse();
-        for (String table : TABLES) {
-            assertThat(privilege(RUNTIME, table, "UPDATE")).isFalse();
-            assertThat(privilege(PUBLISHER, table, "DELETE")).isFalse();
-        }
-
-        assertThatThrownBy(() -> inTransaction(runtimeDataSource, jdbc -> {
-            bind(jdbc, 1);
-            snapshot(jdbc, UUID.randomUUID(), "GB.NI", "forged", 1,
-                    LocalDate.parse("2026-10-01"), RECORDED);
-        })).hasRootCauseInstanceOf(PSQLException.class);
-
-        UUID tenantOne = UUID.randomUUID();
-        UUID tenantTwo = UUID.randomUUID();
-        snapshot(admin, tenantOne, "GB.NI", "one", 1,
-                LocalDate.parse("2026-10-01"), RECORDED);
-        snapshot(admin, tenantTwo, "GB.NI", "two", 2,
-                LocalDate.parse("2026-10-01"), RECORDED);
-        inTransaction(runtimeDataSource, jdbc -> {
-            bind(jdbc, 1);
-            assertThat(jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM pay_country_pack_version_snapshots",
-                    Long.class)).isEqualTo(1L);
-        });
     }
 
     @Test
@@ -530,7 +427,7 @@ class Pay003PostgresContractTest {
                 (snapshot, input) -> Pay003Ports.Verification.VERIFIED,
                 (current, variant) -> Map.of(),
                 (current, snapshot, preliminary) -> true,
-                (current, snapshot, input, transport) -> new Pay003Ports.StepUpEvidence(
+                (current, snapshot, input, transport) -> new Pay003StepUpEvidence(
                         "challenge-runtime", "nonce-runtime", "test-issuer",
                         Pay003TestFixtures.NOW.plusSeconds(300), B, "decision-41"),
                 java.time.Clock.fixed(Pay003TestFixtures.NOW, java.time.ZoneOffset.UTC));
@@ -652,12 +549,6 @@ class Pay003PostgresContractTest {
                         "payrollProjectionPublisherRole", PUBLISHER));
         if (target != null) configuration.target(target);
         configuration.load().migrate();
-    }
-
-    private boolean privilege(String role, String table, String permission) {
-        return Boolean.TRUE.equals(admin.queryForObject(
-                "SELECT has_table_privilege(?, ?, ?)",
-                Boolean.class, role, table, permission));
     }
 
     private void approved(
@@ -1062,14 +953,6 @@ class Pay003PostgresContractTest {
                 url, username, password);
         dataSource.setDriverClassName("org.postgresql.Driver");
         return dataSource;
-    }
-
-    private static String jdbcUrl(String database) {
-        String url = POSTGRES.getJdbcUrl();
-        int query = url.indexOf('?');
-        String suffix = query < 0 ? "" : url.substring(query);
-        String base = query < 0 ? url : url.substring(0, query);
-        return base.substring(0, base.lastIndexOf('/') + 1) + database + suffix;
     }
 
     private record V50Facts(

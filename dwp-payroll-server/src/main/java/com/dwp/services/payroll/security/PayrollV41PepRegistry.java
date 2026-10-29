@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
- * Fail-closed runtime view of the bundled generated Payroll PEP v41. The
+ * Fail-closed runtime view of the bundled current Payroll PEP v62. The
  * calculation owner never treats hand-authored route metadata as authority.
  */
 @Component
@@ -39,12 +39,12 @@ import java.util.regex.Pattern;
 final class PayrollV41PepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-payroll-pep-v41.generated.json";
+            "product-authorization/hcm-payroll-pep-v62.generated.json";
     static final String PROJECTION_CHECKSUM =
-            "211067fd8550388691f08ac5172257bbd7164a2942d39119415dc55a6e209206";
+            "cacfb42a68eaff23952c34e9b86a0e2f36f52930b5b851d6cdfc4f9aa687965c";
     static final String REGISTRY_CHECKSUM =
-            "026157acf598ebabf156b40e3c084c40d52346ebfd2019e2476f30ecdd2b8d93";
-    static final int AUTHORIZATION_VERSION = 41;
+            "cb370fd02a896452a64187fca8afb8bb3e3d281e490fba02e76f7a3c0d7f9770";
+    static final int AUTHORIZATION_VERSION = 62;
 
     private final ObjectMapper mapper;
     private final Map<PayrollCalculationRoute, Binding> bindings;
@@ -196,14 +196,15 @@ final class PayrollV41PepRegistry {
                         stepUp.path("expectedObjectVersionName").asText())
                         && "PAYROLL_RUN".equals(stepUp.path("targetType").asText())
                         && "runId".equals(stepUp.path("targetIdPathParameter").asText())
-                        && (route == PayrollCalculationRoute.APPROVE
+                        && (route == PayrollCalculationRoute.CALCULATE
+                        || route == PayrollCalculationRoute.APPROVE
                         || route == PayrollCalculationRoute.FINALIZE),
                 route.routeContractKey() + ": invalid generated step-up binding");
     }
 
     private void validateEnvelope(ObjectNode projection) {
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-payroll-pep-v41".equals(
+                        && "hcm-payroll-pep-v62".equals(
                         projection.path("projectionKey").asText())
                         && "payroll".equals(projection.path("ownerServiceKey").asText())
                         && "SHA-256".equals(
@@ -225,7 +226,7 @@ final class PayrollV41PepRegistry {
     private ObjectNode read(Supplier<InputStream> resource) {
         try (InputStream input = resource.get()) {
             if (input == null) throw new IllegalStateException(
-                    "Generated Payroll PEP v41 is absent");
+                    "Generated Payroll PEP v62 is absent");
             JsonNode value = mapper.readTree(input);
             if (!(value instanceof ObjectNode object)) {
                 throw new IllegalStateException("Generated Payroll PEP must be an object");
@@ -233,7 +234,7 @@ final class PayrollV41PepRegistry {
             return object;
         } catch (IOException exception) {
             throw new IllegalStateException(
-                    "Generated Payroll PEP v41 cannot be read", exception);
+                    "Generated Payroll PEP v62 cannot be read", exception);
         }
     }
 

@@ -173,7 +173,7 @@ abstract class PayrollMigrationPostgresFixture {
                     approver(202), runId, runId.toString(),
                     "same-command-key", expectedVersion,
                     UUID.randomUUID(),
-                    new PayrollCalculationModels.ActionCommand(
+                    new ActionCommand(
                             "APPROVE_REGULAR", null, null),
                     new PayrollStepUpHeaders(
                             "signed", "same-command-key", "decision-41",
@@ -236,7 +236,7 @@ abstract class PayrollMigrationPostgresFixture {
         UUID runId = preparedRun(snapshotId, 9, snapshotDigest);
         service.calculate(
                 calculator(), runId, "calculate-" + runId, 2, UUID.randomUUID(),
-                new PayrollCalculationModels.ActionCommand("CALCULATE", null, null));
+                new ActionCommand("CALCULATE", null, null));
         assertThat(worker.execute(1, runId, 1, "worker-" + runId)).isTrue();
         assertThat(admin.queryForObject("""
                 SELECT state FROM pay_payroll_runs
@@ -259,7 +259,7 @@ abstract class PayrollMigrationPostgresFixture {
         UUID runId = preparedRun(snapshotId, 9, snapshotDigest);
         service.calculate(
                 calculator(), runId, "calculate-" + runId, 2, UUID.randomUUID(),
-                new PayrollCalculationModels.ActionCommand("CALCULATE", null, null));
+                new ActionCommand("CALCULATE", null, null));
         return runId;
     }
 

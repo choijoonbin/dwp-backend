@@ -10,14 +10,14 @@ enum Pay003Route {
             Set.of("route.hcm.configuration.statutory.page",
                     "route.hcm.configuration.statutory.data"),
             "CONFIG.HRIS_WORKBENCH:VIEW",
-            Pay003Models.CONFIGURATION_PURPOSE, "CONFIG_SCOPE",
+            Pay003Contract.CONFIGURATION_PURPOSE, "CONFIG_SCOPE",
             "pay003.iaq-026.fields.v1", false),
     TAX_SOCIAL_INSURANCE(
             "GET", Pattern.compile("^/v1/workbench/pay-tax-social-insurance$"),
             Set.of("route.hcm.operations.pay-tax-social-insurance.page",
                     "route.hcm.operations.pay-tax-social-insurance.data"),
             "DATA.HRIS_PAYROLL_STATUS:VIEW",
-            Pay003Models.OPERATIONS_PURPOSE, "TARGET_POPULATION",
+            Pay003Contract.OPERATIONS_PURPOSE, "TARGET_POPULATION",
             "pay003.iaq-048.fields.v1", false),
     ACTIVATE(
             "POST", Pattern.compile(
@@ -25,7 +25,7 @@ enum Pay003Route {
                             + "[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/activate$"),
             Set.of("route.hcm.operations.country-pack-activate.action"),
             "ACTION.HRIS_STATUTORY_FILING:EXECUTE",
-            Pay003Models.ACTIVATION_PURPOSE, "TARGET_POPULATION", null, true);
+            Pay003Contract.ACTIVATION_PURPOSE, "TARGET_POPULATION", null, true);
 
     private final String method;
     private final Pattern path;

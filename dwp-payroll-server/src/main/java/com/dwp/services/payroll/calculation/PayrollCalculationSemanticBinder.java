@@ -11,13 +11,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static com.dwp.services.payroll.calculation.PayrollCalculationModels.FormulaBinding;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.FormulaBinding;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.FrozenSnapshot;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.QuantizationBinding;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.SemanticBinding;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.SourceInput;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.Availability;
-import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticMappingPort.EvaluatedLine;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.Availability;
+import static com.dwp.services.payroll.calculation.PayrollCalculationSemanticContract.EvaluatedLine;
 
 /** Seals authoritative component semantics before an attempt or receipt can exist. */
 @Component
@@ -86,7 +86,7 @@ final class PayrollCalculationSemanticBinder {
     }
 
     private EvaluatedLine requireExact(FrozenSnapshot snapshot, SourceInput input) {
-        PayrollCalculationSemanticMappingPort.Resolution resolution =
+        PayrollCalculationSemanticContract.Resolution resolution =
                 mappings.resolve(snapshot, input);
         if (resolution == null || resolution.availability() == Availability.UNAVAILABLE) {
             throw new BaseException(
@@ -116,7 +116,7 @@ final class PayrollCalculationSemanticBinder {
         if (dependencies.size() != evaluated.formulaDependencies().size()
                 || !frozenFormulaSet.containsAll(dependencies)
                 || evaluated.traceSteps().stream()
-                .map(PayrollCalculationSemanticMappingPort.QuantizationStep::formula)
+                .map(PayrollCalculationSemanticContract.QuantizationStep::formula)
                 .filter(Objects::nonNull).anyMatch(formula -> !dependencies.contains(formula))) {
             throw invalid("Formula dependency closure is not part of the frozen formula set.");
         }

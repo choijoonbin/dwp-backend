@@ -71,7 +71,7 @@ final class HrisApprovalBridgeService {
         }
         UUID employeeChangeId = employeeChangeId(request.subjectRef());
         var admission = HrisWorkloadProofV2.verify(mapper, clock,
-                HrisApprovalBridgeV2.CREATE_AND_SUBMIT,
+                HrisApprovalBridgeV2.CREATE_AND_SUBMIT.verificationContract(),
                 HrisApprovalBridgeV2.CREATE_AND_SUBMIT.path(null), headers, exactBody,
                 trust, trust, replays);
         Aliases aliases = new Aliases(admission.tenantId(), request.subjectRef(),

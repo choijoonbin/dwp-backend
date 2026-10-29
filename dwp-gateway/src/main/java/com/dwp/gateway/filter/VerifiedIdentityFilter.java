@@ -4,6 +4,7 @@ import com.dwp.gateway.audit.GatewayDenialAuditSink;
 import com.dwp.observability.api.ApiHistoryAttributes;
 import com.dwp.gateway.security.SessionVerifier;
 import com.dwp.gateway.security.VerifiedIdentity;
+import com.dwp.gateway.security.GatewayIdentityContext;
 import com.dwp.gateway.productsurface.Per004GatewayRoutes;
 import com.dwp.gateway.productsurface.Sys006GatewayRoutes;
 import com.dwp.gateway.productsurface.Sys008GatewayRoutes;
@@ -28,29 +29,34 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(VerifiedIdentityFilter.class);
 
-    public static final String USER_HEADER = "X-DWP-User-ID";
-    public static final String TENANT_HEADER = "X-DWP-Tenant-ID";
-    public static final String ROLES_HEADER = "X-DWP-Roles";
-    public static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
-    public static final String GROUP_REFS_HEADER = "X-DWP-Group-Refs";
-    public static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
-    public static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
-    public static final String DISPLAY_NAME_HEADER = "X-DWP-Display-Name-B64";
-    public static final String LEGACY_DISPLAY_NAME_HEADER = "X-DWP-User-Display-Name";
-    public static final String AUTH_SESSION_ID_HEADER = "X-DWP-Auth-Session-ID";
-    public static final String IDENTITY_PLANE_HEADER = "X-DWP-Identity-Plane";
+    public static final String USER_HEADER = GatewayIdentityContext.USER_HEADER;
+    public static final String TENANT_HEADER = GatewayIdentityContext.TENANT_HEADER;
+    public static final String ROLES_HEADER = GatewayIdentityContext.ROLES_HEADER;
+    public static final String PERMISSIONS_HEADER = GatewayIdentityContext.PERMISSIONS_HEADER;
+    public static final String GROUP_REFS_HEADER = GatewayIdentityContext.GROUP_REFS_HEADER;
+    public static final String RESOURCE_ROLES_HEADER = GatewayIdentityContext.RESOURCE_ROLES_HEADER;
+    public static final String PERSON_PUBLIC_ID_HEADER =
+            GatewayIdentityContext.PERSON_PUBLIC_ID_HEADER;
+    public static final String DISPLAY_NAME_HEADER = GatewayIdentityContext.DISPLAY_NAME_HEADER;
+    public static final String LEGACY_DISPLAY_NAME_HEADER =
+            GatewayIdentityContext.LEGACY_DISPLAY_NAME_HEADER;
+    public static final String AUTH_SESSION_ID_HEADER =
+            GatewayIdentityContext.AUTH_SESSION_ID_HEADER;
+    public static final String IDENTITY_PLANE_HEADER =
+            GatewayIdentityContext.IDENTITY_PLANE_HEADER;
     public static final String LEGACY_ROLE_FALLBACK_HEADER =
-            "X-DWP-Legacy-Role-Fallback-Allowed";
-    public static final String CONTROL_PLANE_HEADER = "X-DWP-Control-Plane";
+            GatewayIdentityContext.LEGACY_ROLE_FALLBACK_HEADER;
+    public static final String CONTROL_PLANE_HEADER = GatewayIdentityContext.CONTROL_PLANE_HEADER;
     public static final String WIDGET_OWNER_SCOPE_HEADER =
-            "X-DWP-Widget-Owner-Product-Keys";
-    public static final String RESPONSIBILITIES_HEADER = "X-DWP-Responsibilities";
+            GatewayIdentityContext.WIDGET_OWNER_SCOPE_HEADER;
+    public static final String RESPONSIBILITIES_HEADER =
+            GatewayIdentityContext.RESPONSIBILITIES_HEADER;
     public static final String LEGAL_ENTITY_PUBLIC_ID_HEADER =
-            "X-DWP-Legal-Entity-Public-ID";
+            GatewayIdentityContext.LEGAL_ENTITY_PUBLIC_ID_HEADER;
     public static final String TIME_GROUP_PUBLIC_ID_HEADER =
-            "X-DWP-Time-Group-Public-ID";
+            GatewayIdentityContext.TIME_GROUP_PUBLIC_ID_HEADER;
     public static final String VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE =
-            VerifiedIdentityFilter.class.getName() + ".verifiedActiveAccessMode";
+            GatewayIdentityContext.VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE;
 
     private final SessionVerifier sessionVerifier;
     private final GatewayDenialAuditSink denialAudit;
@@ -77,7 +83,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                         headers.remove(LEGAL_ENTITY_PUBLIC_ID_HEADER);
                         headers.remove(TIME_GROUP_PUBLIC_ID_HEADER);
                         headers.remove(
-                                ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER);
+                                ProductSurfaceDecisionHeaders.ACTIVE_ACCESS_MODE_HEADER);
                     })
                     .build();
             return chain.filter(exchange.mutate().request(sanitized).build());
@@ -101,7 +107,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     headers.remove(RESPONSIBILITIES_HEADER);
                     headers.remove(LEGAL_ENTITY_PUBLIC_ID_HEADER);
                     headers.remove(TIME_GROUP_PUBLIC_ID_HEADER);
-                    headers.remove(ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER);
+                    headers.remove(ProductSurfaceDecisionHeaders.ACTIVE_ACCESS_MODE_HEADER);
                 })
                 .build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
@@ -127,11 +133,13 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     }
                     if (Sys006GatewayRoutes.claimsPath(sanitizedRequest.getURI().getPath())) {
                         sanitizedExchange.getAttributes().put(
-                                Sys006InboundAuthorityFilter.VERIFIED_IDENTITY_ATTRIBUTE, identity);
+                                InboundAuthorityContextAttributes.SYS006_VERIFIED_IDENTITY,
+                                identity);
                     }
                     if (Sys008GatewayRoutes.claimsPath(sanitizedRequest.getURI().getPath())) {
                         sanitizedExchange.getAttributes().put(
-                                Sys008InboundAuthorityFilter.VERIFIED_IDENTITY_ATTRIBUTE, identity);
+                                InboundAuthorityContextAttributes.SYS008_VERIFIED_IDENTITY,
+                                identity);
                     }
                     String clientTenant = sanitizedRequest.getHeaders().getFirst("X-Tenant-ID");
                     if (isStepUpIssuer(sanitizedRequest.getURI().getPath())

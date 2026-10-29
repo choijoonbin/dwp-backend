@@ -16,14 +16,15 @@ import java.util.UUID;
 import static com.dwp.services.platform.calendar.CalendarSchedulingPollDtos.*;
 
 @Repository
-class CalendarSchedulingPollRepository {
-
+class CalendarSchedulingPollRepository extends CalendarSchedulingPollRows {
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
+    private final CalendarSchedulingPollHoldRepository holdRepository;
 
     CalendarSchedulingPollRepository(JdbcTemplate jdbc, ObjectMapper json) {
         this.jdbc = jdbc;
         this.json = json;
+        this.holdRepository = new CalendarSchedulingPollHoldRepository(jdbc);
     }
 
     boolean identityMatches(long tenantId, long userId, UUID personPublicId) {
@@ -362,19 +363,9 @@ class CalendarSchedulingPollRepository {
             OffsetDateTime expiresAt,
             long actorUserId,
             OffsetDateTime now) {
-        jdbc.update("""
-                INSERT INTO cal_scheduling_poll_holds (
-                    hold_id, tenant_id, poll_id, candidate_id, participant_id,
-                    kind, state, person_public_id, starts_at, ends_at, expires_at,
-                    version, created_at, updated_at, updated_by)
-                VALUES (?, ?, ?, ?, ?, 'PEOPLE_SOFT', 'ACTIVE', ?, ?, ?, ?, 0, ?, ?, ?)
-                ON CONFLICT (tenant_id, poll_id, candidate_id, participant_id)
-                    WHERE kind = 'PEOPLE_SOFT' AND state = 'ACTIVE'
-                DO NOTHING
-                """, holdId, tenantId, pollId, candidate.candidateId(),
-                participant.participantId(), participant.personPublicId(),
-                candidate.startsAt(), candidate.endsAt(), expiresAt,
-                now, now, actorUserId);
+        holdRepository.insertPeopleHold(
+                holdId, tenantId, pollId, candidate, participant,
+                expiresAt, actorUserId, now);
     }
 
     HoldRow insertRoomHold(
@@ -385,22 +376,12 @@ class CalendarSchedulingPollRepository {
             OffsetDateTime expiresAt,
             long actorUserId,
             OffsetDateTime now) {
-        return jdbc.queryForObject("""
-                INSERT INTO cal_scheduling_poll_holds (
-                    hold_id, tenant_id, poll_id, candidate_id, kind, state,
-                    resource_id, starts_at, ends_at, expires_at,
-                    version, created_at, updated_at, updated_by)
-                VALUES (?, ?, ?, ?, 'ROOM_HARD', 'ACTIVE', ?, ?, ?, ?, 0, ?, ?, ?)
-                RETURNING *
-                """, this::hold, holdId, tenantId, pollId, candidate.candidateId(),
-                candidate.resourceId(), candidate.startsAt(), candidate.endsAt(),
-                expiresAt, now, now, actorUserId);
+        return holdRepository.insertRoomHold(
+                holdId, tenantId, pollId, candidate, expiresAt, actorUserId, now);
     }
 
     void lockRoom(long tenantId, UUID resourceId) {
-        jdbc.queryForObject(
-                "SELECT cal_scheduling_poll_lock_room(?, ?) IS NULL",
-                Boolean.class, tenantId, resourceId);
+        holdRepository.lockRoom(tenantId, resourceId);
     }
 
     int expireRoomHolds(
@@ -408,14 +389,7 @@ class CalendarSchedulingPollRepository {
             UUID resourceId,
             OffsetDateTime now,
             long actorUserId) {
-        return jdbc.update("""
-                UPDATE cal_scheduling_poll_holds
-                   SET state = 'EXPIRED', version = version + 1,
-                       updated_at = ?, updated_by = ?
-                 WHERE tenant_id = ? AND resource_id = ?
-                   AND kind = 'ROOM_HARD' AND state = 'ACTIVE'
-                   AND expires_at <= ?
-                """, now, actorUserId, tenantId, resourceId, now);
+        return holdRepository.expireRoomHolds(tenantId, resourceId, now, actorUserId);
     }
 
     boolean activeResourceBookingConflict(
@@ -423,15 +397,8 @@ class CalendarSchedulingPollRepository {
             UUID resourceId,
             OffsetDateTime startsAt,
             OffsetDateTime endsAt) {
-        Boolean conflict = jdbc.queryForObject("""
-                SELECT EXISTS (
-                    SELECT 1 FROM cal_resource_bookings booking
-                     WHERE booking.tenant_id = ? AND booking.resource_id = ?
-                       AND booking.booking_status IN ('PENDING', 'CONFIRMED')
-                       AND tstzrange(booking.starts_at, booking.ends_at, '[)')
-                           && tstzrange(?::timestamptz, ?::timestamptz, '[)'))
-                """, Boolean.class, tenantId, resourceId, startsAt, endsAt);
-        return Boolean.TRUE.equals(conflict);
+        return holdRepository.activeResourceBookingConflict(
+                tenantId, resourceId, startsAt, endsAt);
     }
 
     boolean activeRoomHoldConflict(
@@ -442,45 +409,20 @@ class CalendarSchedulingPollRepository {
             OffsetDateTime startsAt,
             OffsetDateTime endsAt,
             OffsetDateTime now) {
-        Boolean conflict = jdbc.queryForObject("""
-                SELECT EXISTS (
-                    SELECT 1 FROM cal_scheduling_poll_holds hold_row
-                     WHERE hold_row.tenant_id = ? AND hold_row.resource_id = ?
-                       AND hold_row.kind = 'ROOM_HARD'
-                       AND hold_row.state = 'ACTIVE' AND hold_row.expires_at > ?
-                       AND NOT (hold_row.poll_id = ? AND hold_row.candidate_id = ?)
-                       AND tstzrange(hold_row.starts_at, hold_row.ends_at, '[)')
-                           && tstzrange(?::timestamptz, ?::timestamptz, '[)'))
-                """, Boolean.class, tenantId, resourceId, now, pollId, candidateId,
-                startsAt, endsAt);
-        return Boolean.TRUE.equals(conflict);
+        return holdRepository.activeRoomHoldConflict(
+                tenantId, pollId, candidateId, resourceId, startsAt, endsAt, now);
     }
 
     List<HoldRow> holds(long tenantId, UUID pollId) {
-        return jdbc.query("""
-                SELECT * FROM cal_scheduling_poll_holds
-                 WHERE tenant_id = ? AND poll_id = ?
-                 ORDER BY candidate_id, kind, hold_id
-                """, this::hold, tenantId, pollId);
+        return holdRepository.holds(tenantId, pollId);
     }
 
     int expireHolds(long tenantId, UUID pollId, OffsetDateTime now, long actorUserId) {
-        return jdbc.update("""
-                UPDATE cal_scheduling_poll_holds
-                   SET state = 'EXPIRED', version = version + 1,
-                       updated_at = ?, updated_by = ?
-                 WHERE tenant_id = ? AND poll_id = ?
-                   AND state = 'ACTIVE' AND expires_at <= ?
-                """, now, actorUserId, tenantId, pollId, now);
+        return holdRepository.expireHolds(tenantId, pollId, now, actorUserId);
     }
 
     int releaseHolds(long tenantId, UUID pollId, long actorUserId, OffsetDateTime now) {
-        return jdbc.update("""
-                UPDATE cal_scheduling_poll_holds
-                   SET state = 'RELEASED', version = version + 1,
-                       updated_at = ?, updated_by = ?
-                 WHERE tenant_id = ? AND poll_id = ? AND state = 'ACTIVE'
-                """, now, actorUserId, tenantId, pollId);
+        return holdRepository.releaseHolds(tenantId, pollId, actorUserId, now);
     }
 
     int releaseRoomHold(
@@ -489,24 +431,13 @@ class CalendarSchedulingPollRepository {
             UUID candidateId,
             long actorUserId,
             OffsetDateTime now) {
-        return jdbc.update("""
-                UPDATE cal_scheduling_poll_holds
-                   SET state = 'RELEASED', version = version + 1,
-                       updated_at = ?, updated_by = ?
-                 WHERE tenant_id = ? AND poll_id = ? AND candidate_id = ?
-                   AND kind = 'ROOM_HARD' AND state = 'ACTIVE'
-                """, now, actorUserId, tenantId, pollId, candidateId);
+        return holdRepository.releaseRoomHold(
+                tenantId, pollId, candidateId, actorUserId, now);
     }
 
     int releaseRoomHolds(
             long tenantId, UUID pollId, long actorUserId, OffsetDateTime now) {
-        return jdbc.update("""
-                UPDATE cal_scheduling_poll_holds
-                   SET state = 'RELEASED', version = version + 1,
-                       updated_at = ?, updated_by = ?
-                 WHERE tenant_id = ? AND poll_id = ?
-                   AND kind = 'ROOM_HARD' AND state = 'ACTIVE'
-                """, now, actorUserId, tenantId, pollId);
+        return holdRepository.releaseRoomHolds(tenantId, pollId, actorUserId, now);
     }
 
     int consumeCandidateHolds(
@@ -515,13 +446,8 @@ class CalendarSchedulingPollRepository {
             UUID candidateId,
             long actorUserId,
             OffsetDateTime now) {
-        return jdbc.update("""
-                UPDATE cal_scheduling_poll_holds
-                   SET state = 'CONSUMED', version = version + 1,
-                       updated_at = ?, updated_by = ?
-                 WHERE tenant_id = ? AND poll_id = ? AND candidate_id = ?
-                   AND state = 'ACTIVE' AND expires_at > ?
-                """, now, actorUserId, tenantId, pollId, candidateId, now);
+        return holdRepository.consumeCandidateHolds(
+                tenantId, pollId, candidateId, actorUserId, now);
     }
 
     int releaseOtherHolds(
@@ -530,33 +456,18 @@ class CalendarSchedulingPollRepository {
             UUID candidateId,
             long actorUserId,
             OffsetDateTime now) {
-        return jdbc.update("""
-                UPDATE cal_scheduling_poll_holds
-                   SET state = 'RELEASED', version = version + 1,
-                       updated_at = ?, updated_by = ?
-                 WHERE tenant_id = ? AND poll_id = ? AND candidate_id <> ?
-                   AND state = 'ACTIVE'
-                """, now, actorUserId, tenantId, pollId, candidateId);
+        return holdRepository.releaseOtherHolds(
+                tenantId, pollId, candidateId, actorUserId, now);
     }
 
     boolean activeRoomHold(
             long tenantId, UUID pollId, UUID candidateId, OffsetDateTime now) {
-        Integer count = jdbc.queryForObject("""
-                SELECT count(*) FROM cal_scheduling_poll_holds
-                 WHERE tenant_id = ? AND poll_id = ? AND candidate_id = ?
-                   AND kind = 'ROOM_HARD' AND state = 'ACTIVE' AND expires_at > ?
-                """, Integer.class, tenantId, pollId, candidateId, now);
-        return count != null && count == 1;
+        return holdRepository.activeRoomHold(tenantId, pollId, candidateId, now);
     }
 
     int activePeopleHoldCount(
             long tenantId, UUID pollId, UUID candidateId, OffsetDateTime now) {
-        Integer count = jdbc.queryForObject("""
-                SELECT count(*) FROM cal_scheduling_poll_holds
-                 WHERE tenant_id = ? AND poll_id = ? AND candidate_id = ?
-                   AND kind = 'PEOPLE_SOFT' AND state = 'ACTIVE' AND expires_at > ?
-                """, Integer.class, tenantId, pollId, candidateId, now);
-        return count == null ? 0 : count;
+        return holdRepository.activePeopleHoldCount(tenantId, pollId, candidateId, now);
     }
 
     void audit(
@@ -690,21 +601,6 @@ class CalendarSchedulingPollRepository {
                 result.getObject("resulting_event_id", UUID.class));
     }
 
-    private HoldRow hold(ResultSet result, int ignored) throws SQLException {
-        return new HoldRow(
-                result.getObject("hold_id", UUID.class),
-                result.getObject("candidate_id", UUID.class),
-                result.getObject("participant_id", UUID.class),
-                PollHoldKind.valueOf(result.getString("kind")),
-                PollHoldState.valueOf(result.getString("state")),
-                result.getObject("person_public_id", UUID.class),
-                result.getObject("resource_id", UUID.class),
-                result.getObject("starts_at", OffsetDateTime.class),
-                result.getObject("ends_at", OffsetDateTime.class),
-                result.getObject("expires_at", OffsetDateTime.class),
-                result.getLong("fencing_token"), result.getLong("version"));
-    }
-
     private String write(Object value) {
         try {
             return json.writeValueAsString(value == null ? Map.of() : value);
@@ -726,79 +622,4 @@ class CalendarSchedulingPollRepository {
         return value == null ? null : value.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
-    record IdentityRow(long userId, UUID personPublicId) { }
-
-    record IdentityProfile(
-            long userId,
-            UUID personPublicId,
-            String email,
-            String displayName) { }
-
-    record PollRow(
-            long tenantId,
-            UUID pollId,
-            long organizerUserId,
-            UUID organizerPersonPublicId,
-            PollState state,
-            String title,
-            String description,
-            String timeZone,
-            OffsetDateTime expiresAt,
-            UUID confirmedCandidateId,
-            UUID confirmedEventId,
-            UUID createIdempotencyKey,
-            String createFingerprint,
-            OffsetDateTime purgeAfter,
-            boolean legalHold,
-            long version,
-            OffsetDateTime updatedAt) { }
-
-    record CandidateRow(
-            UUID candidateId,
-            int ordinal,
-            OffsetDateTime startsAt,
-            OffsetDateTime endsAt,
-            UUID resourceId,
-            String availabilityState,
-            String availabilityReason,
-            long version,
-            OffsetDateTime updatedAt) { }
-
-    record ParticipantRow(
-            UUID participantId,
-            Long userId,
-            UUID personPublicId,
-            String externalEmail,
-            String displayName,
-            boolean required,
-            boolean externalVotingEnabled) { }
-
-    record VoteRow(
-            UUID participantId,
-            UUID candidateId,
-            VoteChoice choice,
-            String comment,
-            long version) { }
-
-    record CommandReceiptRow(
-            UUID pollId,
-            String commandType,
-            String fingerprint,
-            PollState resultingState,
-            long resultingVersion,
-            UUID resultingEventId) { }
-
-    record HoldRow(
-            UUID holdId,
-            UUID candidateId,
-            UUID participantId,
-            PollHoldKind kind,
-            PollHoldState state,
-            UUID personPublicId,
-            UUID resourceId,
-            OffsetDateTime startsAt,
-            OffsetDateTime endsAt,
-            OffsetDateTime expiresAt,
-            long fencingToken,
-            long version) { }
 }

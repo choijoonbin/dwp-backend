@@ -17,13 +17,13 @@ public final class Hrm011WorkloadController {
         this.ingress = ingress;
     }
 
-    @GetMapping(value = Hrm011WorkloadIngressFilter.COMPENSATION_PATH,
+    @GetMapping(value = Hrm011WorkloadRouteContract.COMPENSATION_PATH,
             produces = MediaType.APPLICATION_JSON_VALUE)
     Hrm011WorkloadIngress.SnapshotPage compensation(HttpServletRequest request) {
         return ingress.compensationSnapshots(Hrm011WorkloadRequestContext.require(request));
     }
 
-    @GetMapping(value = Hrm011WorkloadIngressFilter.PAYROLL_FACTS_PATH,
+    @GetMapping(value = Hrm011WorkloadRouteContract.PAYROLL_FACTS_PATH,
             produces = MediaType.APPLICATION_JSON_VALUE)
     Hrm011WorkloadIngress.SnapshotPage payrollFacts(HttpServletRequest request) {
         return ingress.payrollWorkerFacts(Hrm011WorkloadRequestContext.require(request));

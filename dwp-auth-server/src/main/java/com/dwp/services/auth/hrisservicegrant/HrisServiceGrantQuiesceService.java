@@ -56,17 +56,10 @@ public final class HrisServiceGrantQuiesceService {
                     .thenComparing(HrisServiceGrantAuthorityV1.TargetTuple::ownerWorkloadId)
                     .thenComparing(HrisServiceGrantAuthorityV1.TargetTuple::purpose);
 
-    private final HrisServiceGrantAuthorityRepository repository;
-    private final HrisServiceGrantRotationReadinessVerifier readinessVerifier;
+    private final AuthorityPort repository;
 
-    public HrisServiceGrantQuiesceService(HrisServiceGrantAuthorityRepository repository) {
-        this(repository, new HrisServiceGrantRotationReadinessVerifier());
-    }
-
-    public HrisServiceGrantQuiesceService(HrisServiceGrantAuthorityRepository repository,
-            HrisServiceGrantRotationReadinessVerifier readinessVerifier) {
+    public HrisServiceGrantQuiesceService(AuthorityPort repository) {
         this.repository = Objects.requireNonNull(repository, "repository");
-        this.readinessVerifier = Objects.requireNonNull(readinessVerifier, "readinessVerifier");
     }
 
     public QuiesceBatch beginQuiesce(long tenantId,
@@ -85,11 +78,11 @@ public final class HrisServiceGrantQuiesceService {
 
     public RotationResult cutover(long tenantId,
             Collection<HrisServiceGrantAuthorityV1.TargetTuple> requested,
-            List<HrisServiceGrantRotationReadinessVerifier.ReadinessItem> readinessItems,
+            List<ReadinessItem> readinessItems,
             SuccessorGrant successor, UUID commandCorrelationId) {
         List<HrisServiceGrantAuthorityV1.TargetTuple> scope = expandedLockOrder(requested);
         return repository.cutover(tenantId, scope, readinessItems, successor,
-                commandCorrelationId, readinessVerifier);
+                commandCorrelationId);
     }
 
     public RotationResult emergencyRevoke(long tenantId,
@@ -302,6 +295,36 @@ public final class HrisServiceGrantQuiesceService {
         } catch (Exception impossible) {
             throw new IllegalStateException("SHA-256 unavailable", impossible);
         }
+    }
+
+    /** Persistence port; domain records remain owned by this application boundary. */
+    public interface AuthorityPort {
+        QuiesceBatch beginQuiesce(long tenantId,
+                List<HrisServiceGrantAuthorityV1.TargetTuple> orderedTargets,
+                UUID commandCorrelationId);
+
+        QuiesceBatch abortQuiesce(long tenantId,
+                List<HrisServiceGrantAuthorityV1.TargetTuple> orderedTargets,
+                UUID commandCorrelationId);
+
+        RotationResult cutover(long tenantId,
+                List<HrisServiceGrantAuthorityV1.TargetTuple> orderedTargets,
+                List<ReadinessItem> readinessItems,
+                SuccessorGrant successor, UUID commandCorrelationId);
+
+        RotationResult emergencyRevoke(long tenantId, String incidentEvidenceDigest,
+                String revokedGrantDigest, UUID commandCorrelationId);
+
+        ResolveResponse resolveLocal(ResolveRequest request, String businessProofSha256);
+
+        LocalVerification prepareLocalVerification(ResolveRequest request);
+
+        LocalAdmission authorizeLocalVerified(
+                LocalVerification preparation, String businessProofSha256);
+
+        void recheckLocal(LocalAdmission admission);
+
+        void recheckLocal(LocalVerification preparation);
     }
 
     public record QuiesceBatch(long tenantId, UUID oldGrantSetId,

@@ -93,7 +93,7 @@ public final class Sys006GatewayRoutes {
     }
 
     public static boolean matches(
-            GeneratedProductRouteCatalog.Route route,
+            ProductRouteMetadata route,
             String requestMethod,
             String requestPath) {
         if (route == null) return false;

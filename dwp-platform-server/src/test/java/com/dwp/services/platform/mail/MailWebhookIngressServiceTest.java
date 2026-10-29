@@ -38,11 +38,12 @@ class MailWebhookIngressServiceTest {
                 List.of(verifier), jobs,
                 new MailMetrics(new SimpleMeterRegistry()), 1024, 5);
 
-        MailSyncJobRepository.WebhookEnqueue result = service.accept(
+        MailWebhookIngressUseCase.Accepted result = service.accept(
                 "google_gmail", Map.of("X-Provider-Token", List.of("raw-secret")),
                 "callback-body".getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
-        assertThat(result).isEqualTo(queued);
+        assertThat(result).isEqualTo(new MailWebhookIngressUseCase.Accepted(
+                queued.operationId(), queued.jobId()));
         verify(jobs).enqueueVerifiedWebhook(receipt, 5);
         MailWebhookVerificationPort.Callback callback =
                 new MailWebhookVerificationPort.Callback(

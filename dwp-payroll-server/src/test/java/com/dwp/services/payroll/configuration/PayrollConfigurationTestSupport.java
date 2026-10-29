@@ -23,11 +23,11 @@ import static com.dwp.services.payroll.configuration.PayrollConfigurationAccess.
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.CommandReceipt;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.CommandType;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.ElementVersion;
-import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.FormulaNode;
-import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.FormulaOperator;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.FormulaNode;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.FormulaOperator;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.FormulaVersion;
-import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.PayFormulaAst;
-import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.PayValueType;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.PayFormulaAst;
+import static com.dwp.services.payroll.configuration.PayFormulaAstContract.PayValueType;
 import static com.dwp.services.payroll.configuration.PayrollConfigurationModels.PayrollConfigurationPublished;
 
 final class PayrollConfigurationTestSupport {

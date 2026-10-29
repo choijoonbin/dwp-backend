@@ -5,7 +5,7 @@ import java.util.Set;
 enum PayrollPreparationRoute {
     PAGE(
             "route.hcm.operations.payroll-population.page", "GET",
-            "/v1/workbench/population", PayrollPreparationModels.RouteKind.PAGE,
+            "/v1/workbench/population", PayrollPreparationRouteKind.PAGE,
             "hcm.operations.payroll-support.view",
             "DATA.HRIS_PAYROLL_STATUS:VIEW",
             "predicate.hcm-payroll-population-authority.v1",
@@ -13,7 +13,7 @@ enum PayrollPreparationRoute {
             Set.of("LEGAL_ENTITY", "PAY_GROUP", "NAMED_POPULATION"), false),
     DATA(
             "route.hcm.operations.payroll-support.data", "GET",
-            "/v1/workbench/population", PayrollPreparationModels.RouteKind.DATA,
+            "/v1/workbench/population", PayrollPreparationRouteKind.DATA,
             "hcm.operations.payroll-support.view",
             "DATA.HRIS_PAYROLL_STATUS:VIEW",
             "predicate.hcm-payroll-population-authority.v1",
@@ -21,7 +21,7 @@ enum PayrollPreparationRoute {
             Set.of("LEGAL_ENTITY", "PAY_GROUP", "NAMED_POPULATION"), false),
     PREPARE(
             "route.hcm.operations.payroll-run.action", "POST", "/v1/runs",
-            PayrollPreparationModels.RouteKind.ACTION,
+            PayrollPreparationRouteKind.ACTION,
             "hcm.operations.payroll-run.execute",
             "ACTION.HRIS_PAYROLL_RUN:EXECUTE",
             "predicate.hcm-payroll-run-prepare-authority.v1",
@@ -31,7 +31,7 @@ enum PayrollPreparationRoute {
     private final String routeContractKey;
     private final String method;
     private final String path;
-    private final PayrollPreparationModels.RouteKind routeKind;
+    private final PayrollPreparationRouteKind routeKind;
     private final String capabilityContractKey;
     private final String capabilityCode;
     private final String predicatePolicyKey;
@@ -44,7 +44,7 @@ enum PayrollPreparationRoute {
             String routeContractKey,
             String method,
             String path,
-            PayrollPreparationModels.RouteKind routeKind,
+            PayrollPreparationRouteKind routeKind,
             String capabilityContractKey,
             String capabilityCode,
             String predicatePolicyKey,
@@ -71,7 +71,7 @@ enum PayrollPreparationRoute {
 
     String path() { return path; }
 
-    PayrollPreparationModels.RouteKind routeKind() { return routeKind; }
+    PayrollPreparationRouteKind routeKind() { return routeKind; }
 
     String capabilityContractKey() { return capabilityContractKey; }
 

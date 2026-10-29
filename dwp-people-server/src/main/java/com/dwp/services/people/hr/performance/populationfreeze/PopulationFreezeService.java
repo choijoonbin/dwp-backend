@@ -24,7 +24,8 @@ import java.util.function.Supplier;
 @Service
 public class PopulationFreezeService {
 
-    static final String ORIGINATING_ACTION = "performance.population.freeze";
+    static final String ORIGINATING_ACTION =
+            PopulationFreezeCommandContract.ORIGINATING_ACTION;
     static final String APPLICATION_ENTITLEMENT = "APP.HRIS";
     static final String RESOURCE = "DATA.HR_TALENT";
     static final String AUTHORITY_ACTION = "APPROVE";

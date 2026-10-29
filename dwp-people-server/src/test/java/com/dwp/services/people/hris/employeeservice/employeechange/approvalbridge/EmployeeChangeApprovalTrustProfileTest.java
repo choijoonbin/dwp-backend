@@ -75,7 +75,8 @@ class EmployeeChangeApprovalTrustProfileTest {
         assertThat(first).isNotEqualTo(second);
         var admission = HrisWorkloadProofV2.verify(
                 mapper, Clock.fixed(now.plusSeconds(1), ZoneOffset.UTC),
-                HrisApprovalBridgeV2.CREATE_AND_SUBMIT, outbound.path(),
+                HrisApprovalBridgeV2.CREATE_AND_SUBMIT.verificationContract(),
+                outbound.path(),
                 HrisWorkloadProofV2.headers("dwp-people-server", first),
                 outbound.exactBodyBytes(), keyId ->
                         new HrisWorkloadProofV2.VerifiedSigningKey(

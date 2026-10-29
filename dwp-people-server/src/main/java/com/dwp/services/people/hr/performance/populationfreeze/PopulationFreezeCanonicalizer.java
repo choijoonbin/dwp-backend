@@ -39,7 +39,7 @@ final class PopulationFreezeCanonicalizer {
         root.put("actorId", actorId);
         root.put("subjectPrincipalPublicId", subjectId.toString());
         root.put("cycleId", cycleId.toString());
-        root.put("originatingAction", PopulationFreezeService.ORIGINATING_ACTION);
+        root.put("originatingAction", PopulationFreezeCommandContract.ORIGINATING_ACTION);
         return hashJson(root);
     }
 

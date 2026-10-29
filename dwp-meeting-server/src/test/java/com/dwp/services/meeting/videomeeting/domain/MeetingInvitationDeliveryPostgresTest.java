@@ -190,6 +190,34 @@ class MeetingInvitationDeliveryPostgresTest {
     }
 
     @Test
+    void anExpiredUnknownOutcomeAtTheFinalAttemptIsExhaustedBeforeFanoutContinues() {
+        properties.setMaximumAttempts(1);
+        Claim uncertain = transactions.claim();
+        jdbc.update("""
+                UPDATE vm_meeting_invitation_outbox
+                   SET lease_expires_at = ? WHERE event_id = ?
+                """, NOW.minusSeconds(1), eventId);
+        jdbc.update("""
+                UPDATE vm_meeting_invitation_notification_deliveries
+                   SET lease_expires_at = ?
+                 WHERE event_id = ? AND recipient_user_id = ?
+                """, NOW.minusSeconds(1), eventId, uncertain.recipientUserId());
+
+        Claim remaining = transactions.claim();
+
+        assertThat(remaining.recipientUserId()).isEqualTo(102L);
+        assertThat(targetState(uncertain.recipientUserId())).isEqualTo("FAILED");
+        assertThat(jdbc.queryForObject("""
+                SELECT last_failure_code
+                  FROM vm_meeting_invitation_notification_deliveries
+                 WHERE event_id = ? AND recipient_user_id = ?
+                """, String.class, eventId, uncertain.recipientUserId()))
+                .isEqualTo("RETRY_EXHAUSTED");
+        transactions.accept(remaining, acceptance(12));
+        assertThat(parentState()).isEqualTo("FAILED");
+    }
+
+    @Test
     void migrationIndexesTheRecipientIdentityForeignKey() {
         String definition = jdbc.queryForObject("""
                 SELECT indexdef

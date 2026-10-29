@@ -22,9 +22,8 @@ PERSONAL_TIME_CAPABILITY = "hcm.personal.time.submit"
 class ProductAuthorizationV37Test(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.v36, cls.v37 = GENERATOR.build_snapshots(
-            GENERATOR.load_source()
-        )[-2:]
+        snapshots = GENERATOR.build_snapshots(GENERATOR.load_source())
+        cls.v36, cls.v37 = snapshots[35:37]
         cls.by_section = {
             section: (
                 {value[key]: value for value in cls.v36[section]},

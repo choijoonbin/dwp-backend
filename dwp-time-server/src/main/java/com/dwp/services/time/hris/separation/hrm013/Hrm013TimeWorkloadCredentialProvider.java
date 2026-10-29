@@ -126,7 +126,7 @@ public final class Hrm013TimeWorkloadCredentialProvider {
                     .getBytes(StandardCharsets.UTF_8);
             byte[] signature = lease.businessSigner().sign(challenge);
             Signature verifier = Signature.getInstance("SHA256withRSA");
-            verifier.initVerify(AuthHrm013ServiceAuthorityClient.publicKey(jwk));
+            verifier.initVerify(Hrm013RsaPublicKeyDecoder.decode(jwk));
             verifier.update(challenge);
             if (!verifier.verify(signature)) throw Hrm013SafeErrorV1.authorityDenied();
         } catch (Hrm013SafeErrorV1.Failure failure) {

@@ -7,7 +7,6 @@ import com.dwp.platform.contracts.hris.separation.v1.HrisServiceGrantAuthorityV1
 import com.dwp.platform.contracts.hris.separation.v1.HrisServiceGrantAuthorityV1.ServiceRole;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013SafeErrorV1;
 import com.dwp.platform.contracts.hris.separation.v1.Hrm013WorkloadProofV1;
-import com.dwp.services.auth.hrisservicegrant.HrisServiceGrantRotationReadinessVerifier.ReadinessItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;

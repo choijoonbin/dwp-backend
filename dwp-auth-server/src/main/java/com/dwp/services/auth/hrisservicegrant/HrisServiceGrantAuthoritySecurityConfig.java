@@ -51,8 +51,10 @@ public class HrisServiceGrantAuthoritySecurityConfig {
     @ConditionalOnProperty(name = GRANT_ENABLED, havingValue = "true")
     HrisServiceGrantAuthorityRepository hrisServiceGrantAuthorityRepository(
             JdbcTemplate jdbc, PlatformTransactionManager transactionManager,
-            ObjectMapper mapper) {
-        return new HrisServiceGrantAuthorityRepository(jdbc, transactionManager, mapper);
+            ObjectMapper mapper,
+            HrisServiceGrantRotationReadinessVerifier readinessVerifier) {
+        return new HrisServiceGrantAuthorityRepository(
+                jdbc, transactionManager, mapper, readinessVerifier);
     }
 
     @Bean
@@ -65,9 +67,8 @@ public class HrisServiceGrantAuthoritySecurityConfig {
     @Bean
     @ConditionalOnProperty(name = GRANT_ENABLED, havingValue = "true")
     HrisServiceGrantQuiesceService hrisServiceGrantQuiesceService(
-            HrisServiceGrantAuthorityRepository repository,
-            HrisServiceGrantRotationReadinessVerifier readinessVerifier) {
-        return new HrisServiceGrantQuiesceService(repository, readinessVerifier);
+            HrisServiceGrantAuthorityRepository repository) {
+        return new HrisServiceGrantQuiesceService(repository);
     }
 
     @Bean

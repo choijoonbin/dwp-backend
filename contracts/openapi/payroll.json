@@ -2332,6 +2332,26 @@
           },
           {
             "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "maxLength": 16384,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
             "name": "X-DWP-Expected-Object-Version",
             "required": true,
             "schema": {
@@ -2358,6 +2378,7 @@
         "tags": [
           "payroll-run-controller"
         ],
+        "x-dwp-command-proof-required": true,
         "x-dwp-controller-method": "calculate",
         "x-dwp-purpose-code": "PAYROLL_PROCESSING",
         "x-dwp-runtime-default": "OFF",

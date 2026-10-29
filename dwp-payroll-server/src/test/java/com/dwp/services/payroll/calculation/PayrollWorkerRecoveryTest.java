@@ -7,7 +7,6 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import java.time.Duration;
 import java.util.UUID;
 
-import static com.dwp.services.payroll.calculation.PayrollCalculationModels.ActionCommand;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.AttemptState;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.ReceiptStatus;
 import static com.dwp.services.payroll.calculation.PayrollCalculationModels.RunState;

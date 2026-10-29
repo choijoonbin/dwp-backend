@@ -1086,11 +1086,14 @@
             "parameters": [
               {"in": "path", "name": "runId", "required": true, "schema": {"format": "uuid", "type": "string"}},
               {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"maxLength": 16384, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
               {"in": "header", "name": "X-DWP-Expected-Object-Version", "required": true, "schema": {"format": "int64", "minimum": 0, "type": "integer"}},
               {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"format": "uuid", "type": "string"}}
             ],
             "responses": {"202": {"description": "Payroll calculation attempt accepted"}},
             "tags": ["payroll-run-controller"],
+            "x-dwp-command-proof-required": true,
             "x-dwp-controller-method": "calculate",
             "x-dwp-overlay-mode": "ADD",
             "x-dwp-purpose-code": "PAYROLL_PROCESSING",

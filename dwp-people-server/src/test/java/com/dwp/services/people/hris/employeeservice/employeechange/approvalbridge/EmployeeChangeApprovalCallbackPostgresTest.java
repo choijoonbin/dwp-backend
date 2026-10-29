@@ -223,7 +223,8 @@ class EmployeeChangeApprovalCallbackPostgresTest {
         Fixture fixture = fixture(600, 0);
         String path = HrisApprovalBridgeV2.DECISION_CALLBACK.path(
                 fixture.requestPublicId());
-        assertThat(trust.admits(HrisApprovalBridgeV2.DECISION_CALLBACK, path,
+        assertThat(trust.admits(
+                HrisApprovalBridgeV2.DECISION_CALLBACK.verificationContract(), path,
                 "dwp-approval-server", TENANT)).isTrue();
         jdbc.update("""
                 UPDATE sys_service_tenants

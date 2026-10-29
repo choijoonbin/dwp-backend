@@ -16,18 +16,18 @@ class Pay004RetirementResultLineageTest {
     @Test
     void activeAndNotRequiredLineageAreMutuallyExclusive() {
         assertThat(Pay004TestFixtures.activeLineage().countryPackState())
-                .isEqualTo(RetirementYearEndCase.CountryPackState.ACTIVE);
+                .isEqualTo(RetirementYearEndCaseContract.CountryPackState.ACTIVE);
         assertThat(Pay004TestFixtures.nonPackLineage().countryPackState())
-                .isEqualTo(RetirementYearEndCase.CountryPackState.NOT_REQUIRED);
+                .isEqualTo(RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED);
 
         assertThatThrownBy(() -> lineage(
-                RetirementYearEndCase.CountryPackState.ACTIVE,
+                RetirementYearEndCaseContract.CountryPackState.ACTIVE,
                 Pay004TestFixtures.PACK, 0, 4,
                 Pay004TestFixtures.POLICY, 7, Pay004TestFixtures.A,
                 Pay004TestFixtures.WORKER))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> lineage(
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                 Pay004TestFixtures.PACK, 0, 0,
                 Pay004TestFixtures.POLICY, 7, Pay004TestFixtures.A,
                 Pay004TestFixtures.WORKER))
@@ -37,18 +37,18 @@ class Pay004RetirementResultLineageTest {
     @Test
     void blockedPackAndCrossWorkerLineageCannotProduceResult() {
         assertThatThrownBy(() -> lineage(
-                RetirementYearEndCase.CountryPackState.NOT_INSTALLED,
+                RetirementYearEndCaseContract.CountryPackState.NOT_INSTALLED,
                 null, 0, 0, null, 0, null, Pay004TestFixtures.WORKER))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> lineage(
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                 null, 0, 0, Pay004TestFixtures.POLICY, 7,
                 Pay004TestFixtures.A, UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class);
 
         RetirementYearEndCase validated = Pay004TestFixtures.draft(
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED)
-                .validate(RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED)
+                .validate(RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                         Pay004TestFixtures.SUBJECT,
                         Pay004TestFixtures.NOW.plusSeconds(1));
         RetirementYearEndCase.ResultLineage anotherCase =
@@ -57,7 +57,7 @@ class Pay004RetirementResultLineageTest {
                         Pay004TestFixtures.RUN, 3, 1,
                         Pay004TestFixtures.WORKER_RESULT,
                         Pay004TestFixtures.WORKER,
-                        RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                        RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                         null, 0, 0, Pay004TestFixtures.POLICY, 7,
                         Pay004TestFixtures.A,
                         "pay.retirement.foundation", 7,
@@ -74,7 +74,7 @@ class Pay004RetirementResultLineageTest {
                 Pay004TestFixtures.NOW.plusSeconds(2)))
                 .isInstanceOf(IllegalArgumentException.class);
         RetirementYearEndCase.ResultLineage staleCaseRevision = lineage(
-                4, RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                4, RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                 null, 0, 0, Pay004TestFixtures.POLICY, 7,
                 Pay004TestFixtures.A, Pay004TestFixtures.WORKER);
         assertThatThrownBy(() -> validated.calculate(
@@ -154,7 +154,7 @@ class Pay004RetirementResultLineageTest {
     }
 
     private RetirementYearEndCase.ResultLineage lineage(
-            RetirementYearEndCase.CountryPackState packState,
+            RetirementYearEndCaseContract.CountryPackState packState,
             UUID pack,
             long packSnapshotRevision,
             long activationRevision,
@@ -169,7 +169,7 @@ class Pay004RetirementResultLineageTest {
 
     private RetirementYearEndCase.ResultLineage lineage(
             long caseRevision,
-            RetirementYearEndCase.CountryPackState packState,
+            RetirementYearEndCaseContract.CountryPackState packState,
             UUID pack,
             long packSnapshotRevision,
             long activationRevision,
@@ -183,12 +183,12 @@ class Pay004RetirementResultLineageTest {
                 Pay004TestFixtures.RUN, 3, 1, Pay004TestFixtures.WORKER_RESULT,
                 workerResultWorker, packState, pack, packSnapshotRevision,
                 activationRevision, policy, policyRevision, policyDigest,
-                packState == RetirementYearEndCase.CountryPackState.ACTIVE
+                packState == RetirementYearEndCaseContract.CountryPackState.ACTIVE
                         ? "gb.retirement" : "pay.retirement.foundation",
-                packState == RetirementYearEndCase.CountryPackState.ACTIVE
+                packState == RetirementYearEndCaseContract.CountryPackState.ACTIVE
                         ? activationRevision : policyRevision,
                 java.time.LocalDate.parse("2026-10-01"), null,
-                packState == RetirementYearEndCase.CountryPackState.ACTIVE
+                packState == RetirementYearEndCaseContract.CountryPackState.ACTIVE
                         ? Pay004TestFixtures.A : policyDigest,
                 new Pay004Models.PostedMoney(
                         new BigDecimal("1.0000"), "GBP", "HALF_EVEN"),
@@ -206,7 +206,7 @@ class Pay004RetirementResultLineageTest {
                 Pay004TestFixtures.RUN, runRevision, 1,
                 Pay004TestFixtures.WORKER_RESULT,
                 Pay004TestFixtures.WORKER,
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                 null, 0, 0, Pay004TestFixtures.POLICY, 7,
                 Pay004TestFixtures.B,
                 "pay.retirement.foundation", 7,
@@ -231,7 +231,7 @@ class Pay004RetirementResultLineageTest {
                 Pay004TestFixtures.RUN, 3, 1,
                 Pay004TestFixtures.WORKER_RESULT,
                 Pay004TestFixtures.WORKER,
-                RetirementYearEndCase.CountryPackState.NOT_REQUIRED,
+                RetirementYearEndCaseContract.CountryPackState.NOT_REQUIRED,
                 null, 0, 0, Pay004TestFixtures.POLICY, 7,
                 policyDigest, policyKey, 7,
                 LocalDate.parse("2026-10-01"), effectiveTo, policyDigest,

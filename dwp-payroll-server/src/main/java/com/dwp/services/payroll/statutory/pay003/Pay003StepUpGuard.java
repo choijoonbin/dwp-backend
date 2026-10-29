@@ -30,7 +30,7 @@ final class Pay003StepUpGuard implements Pay003Ports.StepUpPort {
     }
 
     @Override
-    public Pay003Ports.StepUpEvidence require(
+    public Pay003StepUpEvidence require(
             Pay003Authority.Actor actor,
             Pay003Models.PackSnapshot snapshot,
             Pay003Models.ActivationCommand command,
@@ -42,7 +42,7 @@ final class Pay003StepUpGuard implements Pay003Ports.StepUpPort {
             throw new BaseException(ErrorCode.DECISION_REVISION_CONFLICT,
                     "PAY-003 authority changed after challenge issuance.");
         }
-        if (!Pay003Models.ACTIVATION_PURPOSE.equals(subject.purposeCode())
+        if (!Pay003Contract.ACTIVATION_PURPOSE.equals(subject.purposeCode())
                 || !"ELEVATED".equals(subject.accessMode())
                 || !Pay003Route.ACTIVATE.routeContractKey().equals(
                 subject.route().routeContractKey())) {
@@ -63,7 +63,7 @@ final class Pay003StepUpGuard implements Pay003Ports.StepUpPort {
                         payloadSha256, subject.decisionRevision());
         ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge verified =
                 verifier.verify(headers.challenge(), binding);
-        return new Pay003Ports.StepUpEvidence(
+        return new Pay003StepUpEvidence(
                 verified.challengeId(), verified.nonce(), verified.issuer(),
                 verified.expiresAt(), payloadSha256, subject.decisionRevision());
     }

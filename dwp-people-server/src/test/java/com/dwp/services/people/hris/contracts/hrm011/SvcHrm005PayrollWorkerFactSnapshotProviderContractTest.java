@@ -118,20 +118,20 @@ class SvcHrm005PayrollWorkerFactSnapshotProviderContractTest {
                 "01234567890123456789012345678901");
     }
 
-    private Hrm011WorkloadIngress.SnapshotRequest request(String projection) {
-        return new Hrm011WorkloadIngress.SnapshotRequest(
+    private Hrm011WorkloadContract.SnapshotRequest request(String projection) {
+        return new Hrm011WorkloadContract.SnapshotRequest(
                 Hrm011WorkloadIngress.SVC005_PURPOSE,
                 Instant.parse("2026-10-19T03:00:00Z"), projection, 100, null);
     }
 
     private Hrm011WorkloadRequestContext.VerifiedRequest verified(
-            Hrm011WorkloadIngress.SnapshotRequest request) {
+            Hrm011WorkloadContract.SnapshotRequest request) {
         return new Hrm011WorkloadRequestContext.VerifiedRequest(
                 "GET", Hrm011WorkloadIngressFilter.PAYROLL_FACTS_PATH,
                 "fixture-fingerprint", Hrm011WorkloadIngressFilter.PAYROLL_FACTS_BINDING,
                 UUID.fromString("66666666-6666-4666-8666-666666666666"),
                 UUID.fromString("55555555-5555-4555-8555-555555555555"), 3,
-                new Hrm011WorkloadIngress.TrustedWorkload(
+                new Hrm011WorkloadContract.TrustedWorkload(
                         71L, Hrm011WorkloadIngress.PAYROLL_CALLER,
                         Hrm011WorkloadIngress.AUDIENCE, request.purposeCode(),
                         true, true, true, true, 7),

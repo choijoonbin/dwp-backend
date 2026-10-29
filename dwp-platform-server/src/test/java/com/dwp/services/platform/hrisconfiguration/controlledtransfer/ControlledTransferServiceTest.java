@@ -258,7 +258,8 @@ class ControlledTransferServiceTest {
                 new HttpControlledTransferAuthorities(builder.build(), true, "secret-token");
         server.expect(once(), requestTo(
                         "https://authority.test" + HttpControlledTransferAuthorities.METADATA_PATH))
-                .andExpect(header("X-DWP-Service-Token", "secret-token"))
+                .andExpect(header(HttpControlledTransferAuthorities.AUTHORITY_TOKEN_HEADER,
+                        "secret-token"))
                 .andRespond(withSuccess("""
                         {"tenantId":1,
                          "subjectPrincipalPublicId":"11111111-1111-4111-8111-111111111111",
@@ -321,7 +322,8 @@ class ControlledTransferServiceTest {
                 OBJECT_DIGEST, 10, "application/json");
         egressServer.expect(once(), requestTo(
                         "https://authority.test" + HttpControlledTransferAuthorities.EGRESS_PATH))
-                .andExpect(header("X-DWP-Service-Token", "secret-token"))
+                .andExpect(header(HttpControlledTransferAuthorities.AUTHORITY_TOKEN_HEADER,
+                        "secret-token"))
                 .andRespond(withSuccess("""
                         {"allowed":true,"tenantId":1,
                          "subjectPrincipalPublicId":"11111111-1111-4111-8111-111111111111",

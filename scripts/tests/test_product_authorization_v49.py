@@ -131,8 +131,17 @@ class ProductAuthorizationV49Test(unittest.TestCase):
         )
 
     def test_exact_route_and_gateway_purpose_tuples(self) -> None:
-        gateway = (ROOT / "dwp-gateway/src/main/java/com/dwp/gateway/filter/"
-                         "ProductSurfaceDecisionContextFilter.java").read_text()
+        gateway_filter = (
+            ROOT / "dwp-gateway/src/main/java/com/dwp/gateway/filter/"
+                   "ProductSurfaceDecisionContextFilter.java"
+        ).read_text()
+        gateway_policies = (
+            ROOT / "dwp-gateway/src/main/java/com/dwp/gateway/filter/"
+                   "ProductSurfaceRoutePolicies.java"
+        ).read_text()
+        self.assertIn("import static com.dwp.gateway.filter.ProductSurfaceRoutePolicies.*;",
+                      gateway_filter)
+        self.assertIn("ownerPurpose(route.routeContractKey())", gateway_filter)
         for key, expected in NEW_ROUTES.items():
             kind, method, public_path, service_key, owner_path, purpose = expected
             route = self.routes[key]
@@ -147,8 +156,11 @@ class ProductAuthorizationV49Test(unittest.TestCase):
                     route["servicePepBindings"][0]["path"],
                 ))
                 marker = f'Map.entry("{key}",'
-                self.assertIn(marker, gateway)
-                self.assertIn(f'"{purpose}"', gateway.split(marker, 1)[1].split("),", 1)[0])
+                self.assertIn(marker, gateway_policies)
+                self.assertIn(
+                    f'"{purpose}"',
+                    gateway_policies.split(marker, 1)[1].split("),", 1)[0],
+                )
         self.assertNotIn("SVC-PEP-TIM-001", json.dumps(self.v49, sort_keys=True))
         self.assertNotIn("/internal/hris-time/", json.dumps(self.v49, sort_keys=True))
 
@@ -238,10 +250,16 @@ class ProductAuthorizationV49Test(unittest.TestCase):
                              self.routes[key]["accessProfiles"][0]["activeAccessModes"])
             self.assertNotIn("stepUpCommandBindings", self.routes[key])
 
-    def test_generator_seals_exactly_twelve_generic_session_topologies(self) -> None:
+    def test_generator_seals_exactly_the_twelve_v49_generic_session_topologies(self) -> None:
         self.assertEqual(
             GENERIC_SESSION_STEP_UP_ROUTES,
-            set(GENERATOR.GENERIC_SESSION_STEP_UP_ROUTE_KEYS),
+            set(GENERATOR.GRANDFATHERED_GENERIC_SESSION_STEP_UP_ROUTE_KEYS)
+            | set(GENERATOR.V49_GENERIC_SESSION_STEP_UP_ROUTE_KEYS),
+        )
+        self.assertTrue(
+            GENERIC_SESSION_STEP_UP_ROUTES.issubset(
+                GENERATOR.GENERIC_SESSION_STEP_UP_ROUTE_KEYS
+            )
         )
         for key in GENERIC_SESSION_STEP_UP_ROUTES:
             route = self.routes[key]
@@ -314,13 +332,16 @@ class ProductAuthorizationV49Test(unittest.TestCase):
             "predicate.hcm-time-reopen-sod.v1"
         ]["targetBindingKinds"])
 
-    def test_latest_alias_index_fixture_and_owner_projections_are_pinned(self) -> None:
+    def test_current_alias_is_v62_and_historical_v49_owner_projections_are_pinned(self) -> None:
         alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
         seed = json.loads((AUTH_SEEDS / "product-surfaces-v1.generated.json").read_text())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual(self.v50, alias)
-        self.assertEqual(self.v50, seed)
-        self.assertEqual((50, V50_CHECKSUM),
+        latest = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v62.json").read_text()
+        )
+        self.assertEqual(latest, alias)
+        self.assertEqual(latest, seed)
+        self.assertEqual((62, latest["checksum"]),
                          (index["latestVersion"], index["latestChecksum"]))
         expected = {
             "people": (103, 130, {"ACTION": 48, "DATA": 20, "PAGE": 35},

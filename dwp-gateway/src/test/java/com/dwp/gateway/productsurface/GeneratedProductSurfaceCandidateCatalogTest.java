@@ -35,6 +35,7 @@ class GeneratedProductSurfaceCandidateCatalogTest {
                 candidate("hcm", "hcm.operations"),
                 candidate("hcm", "hcm.personal"),
                 candidate("hcm", "hcm.team"),
+                candidate("hcm", "hcm.utility"),
                 candidate("mail", "mail.work"),
                 candidate("meetings", "meetings.work"),
                 candidate("messaging", "messaging.work"),

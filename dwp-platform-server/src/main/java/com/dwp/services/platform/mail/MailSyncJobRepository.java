@@ -48,8 +48,8 @@ class MailSyncJobRepository {
     }
 
     @Transactional
-    List<SyncJob> claim(String workerId, int limit, int leaseSeconds) {
-        List<SyncJob> jobs = jdbc.query("""
+    List<MailSyncJob> claim(String workerId, int limit, int leaseSeconds) {
+        List<MailSyncJob> jobs = jdbc.query("""
                 WITH candidates AS (
                     SELECT job_id
                       FROM mail_sync_jobs
@@ -78,7 +78,7 @@ class MailSyncJobRepository {
                     ON operation.tenant_id = leased.tenant_id
                    AND operation.operation_id = leased.operation_id
                  ORDER BY leased.created_at, leased.job_id
-                """, (result, ignored) -> new SyncJob(
+                """, (result, ignored) -> new MailSyncJob(
                 result.getObject("job_id", UUID.class),
                 result.getLong("tenant_id"),
                 result.getObject("operation_id", UUID.class),
@@ -90,7 +90,7 @@ class MailSyncJobRepository {
                 result.getInt("maximum_attempts"),
                 result.getString("correlation_id")),
                 limit, workerId, leaseSeconds);
-        for (SyncJob job : jobs) {
+        for (MailSyncJob job : jobs) {
             jdbc.update("""
                     UPDATE mail_connection_operations
                        SET operation_state = 'RUNNING', error_code = NULL,
@@ -103,7 +103,7 @@ class MailSyncJobRepository {
     }
 
     @Transactional
-    LeaseRecovery releaseExpiredLeases() {
+    MailSyncLeaseRecovery releaseExpiredLeases() {
         List<ExpiredLease> expired = jdbc.query("""
                 WITH released AS (
                     UPDATE mail_sync_jobs
@@ -127,7 +127,7 @@ class MailSyncJobRepository {
                     ON operation.tenant_id = released.tenant_id
                    AND operation.operation_id = released.operation_id
                 """, (result, ignored) -> new ExpiredLease(
-                new SyncJob(
+                new MailSyncJob(
                         result.getObject("job_id", UUID.class),
                         result.getLong("tenant_id"),
                         result.getObject("operation_id", UUID.class),
@@ -165,14 +165,14 @@ class MailSyncJobRepository {
                 retryWait++;
             }
         }
-        return new LeaseRecovery(retryWait, deadLetter);
+        return new MailSyncLeaseRecovery(retryWait, deadLetter);
     }
 
     @Transactional
     boolean completeSuccess(
-            SyncJob job,
+            MailSyncJob job,
             String workerId,
-            MailSyncExecutor.ExecutionResult result) {
+            MailSyncExecutionResult result) {
         int connectionUpdated = jdbc.update("""
                 UPDATE mail_provider_connections
                    SET connection_state = 'ACTIVE', last_synchronized_at = CURRENT_TIMESTAMP,
@@ -182,7 +182,7 @@ class MailSyncJobRepository {
                 """, job.actorId(), job.tenantId(), job.connectionId(),
                 job.connectionVersion());
         if (connectionUpdated != 1) {
-            throw new MailSyncExecutor.SyncWorkFailure(
+            throw new MailSyncWorkFailure(
                     "CONNECTION_VERSION_CONFLICT", true);
         }
         Map<String, Object> evidence = Map.of(
@@ -203,7 +203,7 @@ class MailSyncJobRepository {
                    AND lease_owner = ? AND lease_expires_at > CURRENT_TIMESTAMP
                 """, json(evidence), job.tenantId(), job.jobId(), workerId);
         if (completed != 1) {
-            throw new MailSyncExecutor.SyncWorkFailure("SYNC_LEASE_LOST", false);
+            throw new MailSyncWorkFailure("SYNC_LEASE_LOST", false);
         }
         jdbc.update("""
                 UPDATE mail_connection_operations
@@ -223,9 +223,9 @@ class MailSyncJobRepository {
      */
     @Transactional
     boolean completeContinuation(
-            SyncJob job,
+            MailSyncJob job,
             String workerId,
-            MailSyncExecutor.ExecutionResult result) {
+            MailSyncExecutionResult result) {
         if (!result.continuationRequired()) {
             throw new IllegalArgumentException("SYNC_CONTINUATION_NOT_REQUIRED");
         }
@@ -263,7 +263,7 @@ class MailSyncJobRepository {
 
     @Transactional
     FailureDisposition completeFailure(
-            SyncJob job,
+            MailSyncJob job,
             String workerId,
             String errorCode,
             boolean terminal,
@@ -378,11 +378,11 @@ class MailSyncJobRepository {
 
     @Transactional
     ResetTransition resetCursorAndEnqueueRecovery(
-            SyncJob source,
+            MailSyncJob source,
             AdminMailCompletionRepository.AccountRow expectedAccount,
             String resetCursor) {
         if (resetCursor == null || resetCursor.isBlank() || resetCursor.length() > 2000) {
-            throw new MailSyncExecutor.SyncWorkFailure(
+            throw new MailSyncWorkFailure(
                     "SYNC_RESET_CURSOR_INVALID", true);
         }
         Optional<ResetTransition> replay = resetTransition(
@@ -403,7 +403,7 @@ class MailSyncJobRepository {
                    AND attempt_count = ? AND lease_expires_at > CURRENT_TIMESTAMP
                 """, source.tenantId(), source.jobId(), source.attemptCount());
         if (sourceFenced != 1) {
-            throw new MailSyncExecutor.SyncWorkFailure("SYNC_LEASE_LOST", false);
+            throw new MailSyncWorkFailure("SYNC_LEASE_LOST", false);
         }
         CursorIdentity current = jdbc.query("""
                 SELECT synchronization_cursor, synchronization_cursor_generation
@@ -415,11 +415,11 @@ class MailSyncJobRepository {
                 result.getString("synchronization_cursor"),
                 result.getLong("synchronization_cursor_generation")),
                 source.tenantId(), expectedAccount.id()).stream().findFirst()
-                .orElseThrow(() -> new MailSyncExecutor.SyncWorkFailure(
+                .orElseThrow(() -> new MailSyncWorkFailure(
                         "SYNC_ACCOUNT_UNAVAILABLE", true));
         if (!java.util.Objects.equals(current.cursor(), expectedAccount.cursor())
                 || current.generation() != expectedAccount.cursorGeneration()) {
-            throw new MailSyncExecutor.SyncWorkFailure("SYNC_CURSOR_CONFLICT", true);
+            throw new MailSyncWorkFailure("SYNC_CURSOR_CONFLICT", true);
         }
         int fenced = jdbc.update("""
                 UPDATE mail_accounts
@@ -434,7 +434,7 @@ class MailSyncJobRepository {
                 expectedAccount.id(), expectedAccount.cursor(),
                 expectedAccount.cursorGeneration());
         if (fenced != 1) {
-            throw new MailSyncExecutor.SyncWorkFailure("SYNC_CURSOR_CONFLICT", true);
+            throw new MailSyncWorkFailure("SYNC_CURSOR_CONFLICT", true);
         }
         long recoveryActor = ensureSystemPrincipal(
                 source.tenantId(), "MAIL_SYNC_RECOVERY");
@@ -525,7 +525,7 @@ class MailSyncJobRepository {
                 resetId, recoveryOperation, recoveryJob, Map.copyOf(receipt));
     }
 
-    private boolean completedCursorReset(SyncJob job) {
+    private boolean completedCursorReset(MailSyncJob job) {
         Boolean completed = jdbc.query("""
                 SELECT job_state = 'DEAD_LETTER'
                        AND cursor_reset_receipt IS NOT NULL
@@ -588,7 +588,7 @@ class MailSyncJobRepository {
     }
 
     private void audit(
-            SyncJob job,
+            MailSyncJob job,
             String result,
             String errorCode,
             Map<String, Object> evidence) {
@@ -628,20 +628,7 @@ class MailSyncJobRepository {
         }
     }
 
-    record SyncJob(
-            UUID jobId,
-            long tenantId,
-            UUID operationId,
-            UUID connectionId,
-            long actorId,
-            long connectionVersion,
-            String triggerKind,
-            int attemptCount,
-            int maximumAttempts,
-            String correlationId) { }
-
     record FailureDisposition(boolean persisted, boolean terminal) { }
-    record LeaseRecovery(int retryWait, int deadLetter) { }
     record WebhookEnqueue(UUID operationId, UUID jobId) { }
     record ResetTransition(
             UUID resetId,
@@ -651,5 +638,5 @@ class MailSyncJobRepository {
     private record ConnectionIdentity(
             long tenantId, UUID connectionId, String providerType, long version) { }
     private record CursorIdentity(String cursor, long generation) { }
-    private record ExpiredLease(SyncJob job, String state) { }
+    private record ExpiredLease(MailSyncJob job, String state) { }
 }

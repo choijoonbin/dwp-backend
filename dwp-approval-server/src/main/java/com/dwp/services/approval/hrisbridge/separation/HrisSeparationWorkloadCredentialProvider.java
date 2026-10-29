@@ -35,6 +35,7 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(prefix = "dwp.approval.hrm013-bridge", name = "enabled",
         havingValue = "true")
 public final class HrisSeparationWorkloadCredentialProvider {
+    private static final String INTERNAL_PATH_PREFIX = "/internal/";
     public enum ServiceRole { CALLER, OWNER }
 
     @FunctionalInterface
@@ -295,6 +296,9 @@ public final class HrisSeparationWorkloadCredentialProvider {
     }
 
     static void requireEndpoint(URI endpoint, String path) {
+        if (path == null || !path.startsWith(INTERNAL_PATH_PREFIX)) {
+            throw HrisSeparationProtocolException.unavailable();
+        }
         if (endpoint == null || !"https".equals(endpoint.getScheme())
                 || endpoint.getHost() == null || endpoint.getUserInfo() != null
                 || endpoint.getQuery() != null || endpoint.getFragment() != null

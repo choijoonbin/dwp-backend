@@ -14,12 +14,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -62,10 +59,6 @@ public final class HrisApprovalBridgeV2 {
     private static final Pattern REQUESTER_REF = Pattern.compile(
             "^person:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
                     + "[0-9a-f]{4}-[0-9a-f]{12})$");
-    private static final Pattern CALLBACK_PATH = Pattern.compile(
-            "^/internal/hris-people/v1/employee-change-requests/"
-                    + "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
-                    + "[0-9a-f]{4}-[0-9a-f]{12})/approval-decisions$");
     private static final Set<String> CALLBACK_FIELDS = Set.of(
             "approvalRequestId", "decisionEventId", "decision", "decidedAt",
             "decisionActorPublicId", "approvalPolicyRevision", "correlationId",
@@ -91,22 +84,18 @@ public final class HrisApprovalBridgeV2 {
         }
 
         public String path(UUID requestPublicId) {
-            if (!pathTemplate.contains("{requestPublicId}")) {
-                if (requestPublicId != null) {
-                    throw new IllegalArgumentException(
-                            "requestPublicId is forbidden for an exact endpoint");
-                }
-                return pathTemplate;
-            }
-            return pathTemplate.replace(
-                    "{requestPublicId}", Objects.requireNonNull(requestPublicId).toString());
+            return verificationContract().path(requestPublicId);
         }
 
         public boolean matchesPath(String path) {
-            if (!pathTemplate.contains("{requestPublicId}")) {
-                return pathTemplate.equals(path);
-            }
-            return path != null && CALLBACK_PATH.matcher(path).matches();
+            return verificationContract().matchesPath(path);
+        }
+
+        public HrisApprovalVerificationContractV2 verificationContract() {
+            return new HrisApprovalVerificationContractV2(
+                    bindingId, ownerWorkloadId, callerWorkloadId, method,
+                    pathTemplate, purpose, HrisApprovalBridgeV2::denied,
+                    failure -> failure instanceof BridgeFailure);
         }
     }
 
@@ -339,7 +328,8 @@ public final class HrisApprovalBridgeV2 {
             }
             UUID requesterPersonId = requesterPersonId(body.requesterRef());
             var admission = HrisWorkloadProofV2.verify(
-                    mapper, clock, CREATE_AND_SUBMIT, CREATE_AND_SUBMIT.path(null),
+                    mapper, clock, CREATE_AND_SUBMIT.verificationContract(),
+                    CREATE_AND_SUBMIT.path(null),
                     headers, exactBodyBytes, keys, tenants, replays);
             CreateAuthority authority = Objects.requireNonNull(
                     authorityResolver.resolve(admission.tenantId(), body),
@@ -396,7 +386,8 @@ public final class HrisApprovalBridgeV2 {
             ApprovalDecisionCallbackV1 body = decodeCallback(mapper, exactBodyBytes);
             String path = DECISION_CALLBACK.path(requestPublicId);
             var admission = HrisWorkloadProofV2.verify(
-                    mapper, clock, DECISION_CALLBACK, path, headers, exactBodyBytes,
+                    mapper, clock, DECISION_CALLBACK.verificationContract(), path,
+                    headers, exactBodyBytes,
                     keys, tenants, replays);
             PersistedResponse<CommandReceiptV1> response = ledger.execute(
                     admission.tenantId(), body.decisionEventId(),
@@ -458,34 +449,13 @@ public final class HrisApprovalBridgeV2 {
             String exactPath,
             long tenantId,
             String bodySha256) {
-        Objects.requireNonNull(endpoint, "endpoint");
-        if (!endpoint.matchesPath(exactPath) || exactPath.indexOf('?') >= 0) {
-            throw new IllegalArgumentException("exactPath does not match endpoint");
-        }
-        if (tenantId < 1) {
-            throw new IllegalArgumentException("tenantId must be positive");
-        }
-        requireDigest(bodySha256, "bodySha256");
-        String material = "HRIS-BRIDGE-V2\n"
-                + endpoint.bindingId() + "\n"
-                + endpoint.method() + "\n"
-                + exactPath + "\n"
-                + endpoint.callerWorkloadId() + "\n"
-                + endpoint.ownerWorkloadId() + "\n"
-                + tenantId + "\n"
-                + endpoint.purpose() + "\n"
-                + "application/json\n"
-                + bodySha256;
-        return sha256(material.getBytes(StandardCharsets.UTF_8));
+        return Objects.requireNonNull(endpoint, "endpoint")
+                .verificationContract()
+                .commandDigest(exactPath, tenantId, bodySha256);
     }
 
     public static String sha256(byte[] bytes) {
-        try {
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException("SHA-256 unavailable", impossible);
-        }
+        return HrisApprovalVerificationContractV2.sha256(bytes);
     }
 
     static BridgeFailure denied(String reason) {

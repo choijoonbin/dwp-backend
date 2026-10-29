@@ -26,8 +26,6 @@ import java.util.List;
 @Component
 public final class MessagingOperationalReadiness {
 
-    private static final Duration RETENTION_EVIDENCE_MAXIMUM_AGE = Duration.ofHours(2);
-
     private final AttachmentStorage storage;
     private final AttachmentScanner scanner;
     private final AttachmentProperties attachmentProperties;
@@ -40,6 +38,7 @@ public final class MessagingOperationalReadiness {
     private final MessagingRealtimeFanoutProbe realtimeFanoutProbe;
     private final boolean telemetryConfigured;
     private final Duration providerEvidenceMaximumAge;
+    private final Duration retentionEvidenceMaximumAge;
     private final Clock clock;
     private volatile ProviderEvidence providerEvidence;
 
@@ -57,12 +56,14 @@ public final class MessagingOperationalReadiness {
             MessagingRealtimeFanoutProbe realtimeFanoutProbe,
             @Value("${otel.sdk.disabled:true}") boolean telemetryDisabled,
             @Value("${dwp.messaging.readiness.maximum-age:PT3M}")
-            Duration providerEvidenceMaximumAge) {
+            Duration providerEvidenceMaximumAge,
+            @Value("${dwp.messaging.retention.evidence-maximum-age:PT2H}")
+            Duration retentionEvidenceMaximumAge) {
         this(
                 storage, scanner, attachmentProperties, meetingProvider, presenceService,
                 presenceHealth, retentionService, scheduledDeliveryOperations,
                 deliveryReadinessOperations, realtimeFanoutProbe, !telemetryDisabled,
-                providerEvidenceMaximumAge, Clock.systemUTC());
+                providerEvidenceMaximumAge, retentionEvidenceMaximumAge, Clock.systemUTC());
     }
 
     MessagingOperationalReadiness(
@@ -78,12 +79,19 @@ public final class MessagingOperationalReadiness {
             MessagingRealtimeFanoutProbe realtimeFanoutProbe,
             boolean telemetryConfigured,
             Duration providerEvidenceMaximumAge,
+            Duration retentionEvidenceMaximumAge,
             Clock clock) {
         if (providerEvidenceMaximumAge == null
                 || providerEvidenceMaximumAge.compareTo(Duration.ofSeconds(30)) < 0
                 || providerEvidenceMaximumAge.compareTo(Duration.ofHours(1)) > 0) {
             throw new IllegalArgumentException(
                     "Messaging provider readiness maximum age must be 30 seconds to 1 hour.");
+        }
+        if (retentionEvidenceMaximumAge == null
+                || retentionEvidenceMaximumAge.compareTo(Duration.ofMinutes(1)) < 0
+                || retentionEvidenceMaximumAge.compareTo(Duration.ofHours(24)) > 0) {
+            throw new IllegalArgumentException(
+                    "Messaging retention evidence maximum age must be 1 minute to 24 hours.");
         }
         this.storage = storage;
         this.scanner = scanner;
@@ -97,6 +105,7 @@ public final class MessagingOperationalReadiness {
         this.realtimeFanoutProbe = realtimeFanoutProbe;
         this.telemetryConfigured = telemetryConfigured;
         this.providerEvidenceMaximumAge = providerEvidenceMaximumAge;
+        this.retentionEvidenceMaximumAge = retentionEvidenceMaximumAge;
         this.clock = clock;
         this.providerEvidence = ProviderEvidence.unverified(realtimeFanoutProbe.configured());
     }
@@ -279,7 +288,7 @@ public final class MessagingOperationalReadiness {
             reason = "RETENTION_DISABLED";
         }
         String freshness = freshness(
-                retention.lastVerifiedAt(), evaluatedAt, RETENTION_EVIDENCE_MAXIMUM_AGE);
+                retention.lastVerifiedAt(), evaluatedAt, retentionEvidenceMaximumAge);
         if (effective && !"CURRENT".equals(freshness)) {
             effective = false;
             state = "DEGRADED";

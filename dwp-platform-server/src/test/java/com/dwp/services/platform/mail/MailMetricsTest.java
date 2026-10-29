@@ -16,7 +16,7 @@ class MailMetricsTest {
 
         metrics.delivery(MailTypes.ProviderType.DWP_SANDBOX, "delivered");
         metrics.delivery(MailTypes.ProviderType.MICROSOFT_GRAPH, "provider_accepted");
-        metrics.sync(new MailExternalSyncMaterializer.SyncResult(3, 2, 1, false),
+        metrics.sync(new MailSyncResult(3, 2, 1, false),
                 Duration.ofMillis(12));
         metrics.syncJob("continued", Duration.ofMillis(5));
         metrics.webhook("ambiguous");

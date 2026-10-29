@@ -25,7 +25,7 @@ public final class Hrm011WorkloadRequestContext {
     static VerifiedRequest require(HttpServletRequest request) {
         Object value = request.getAttribute(REQUEST_ATTRIBUTE);
         if (value instanceof VerifiedRequest verified
-                && Hrm011WorkloadIngressFilter.matchesVerifiedRequest(request, verified)) {
+                && Hrm011WorkloadRouteContract.matchesVerifiedRequest(request, verified)) {
             return verified;
         }
         throw new IllegalStateException("Verified HRM-011 workload context is required.");
@@ -49,8 +49,9 @@ public final class Hrm011WorkloadRequestContext {
             UUID attemptId,
             UUID correlationId,
             long tenantGrantRevision,
-            Hrm011WorkloadIngress.TrustedWorkload trusted,
-            Hrm011WorkloadIngress.SnapshotRequest snapshotRequest) {
+            Hrm011WorkloadContract.TrustedWorkload trusted,
+            Hrm011WorkloadContract.SnapshotRequest snapshotRequest)
+            implements Hrm011WorkloadContract.VerifiedRequestView {
         VerifiedRequest {
             Objects.requireNonNull(method, "method");
             Objects.requireNonNull(path, "path");

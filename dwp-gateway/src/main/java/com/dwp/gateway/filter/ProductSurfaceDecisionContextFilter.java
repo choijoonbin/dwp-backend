@@ -4,10 +4,12 @@ import com.dwp.gateway.audit.GatewayDenialAuditSink;
 import com.dwp.gateway.productsurface.GeneratedProductRouteCatalog;
 import com.dwp.gateway.productsurface.ProductSurfaceContextAggregationService;
 import com.dwp.gateway.productsurface.ProductSurfaceContextDtos;
+import com.dwp.gateway.productsurface.TrustedProductDecision;
 import com.dwp.gateway.productsurface.Per004GatewayRoutes;
 import com.dwp.gateway.productsurface.Per004DecisionContextForwarder;
 import com.dwp.gateway.productsurface.Sys006GatewayRoutes;
 import com.dwp.gateway.productsurface.Sys008GatewayRoutes;
+import com.dwp.gateway.security.GatewayIdentityContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -23,6 +25,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Set;
 
 import com.dwp.gateway.filter.ProductSurfaceScopeSelection.ScopeSelection;
 import static com.dwp.gateway.filter.ProductSurfaceScopeSelection.scopeSelection;
@@ -37,6 +40,11 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
 
     private static final Logger LOGGER = LoggerFactory.getLogger(
             ProductSurfaceDecisionContextFilter.class);
+
+    // Retained for authority contract tests and older reflective diagnostics. Policy ownership
+    // remains in ProductSurfaceRoutePolicies.
+    private static final Set<String> TENANT_FEATURE_GOVERNED_ROUTE_KEYS =
+            ProductSurfaceRoutePolicies.TENANT_FEATURE_GOVERNED_ROUTE_KEYS;
 
     public static final String ROUTE_HEADER = ProductSurfaceDecisionHeaders.ROUTE_HEADER;
     public static final String CURRENT_REVISION_HEADER = ProductSurfaceDecisionHeaders.CURRENT_REVISION_HEADER;
@@ -65,10 +73,10 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             AUTHORIZATION_REVISION_HEADER, POPULATION_KIND_HEADER,
             PURPOSE_HEADER, VERIFIED_LEGAL_ENTITY_HEADER,
             LEGAL_ENTITY_OWNER_EVIDENCE_HEADER,
-            VerifiedIdentityFilter.RESPONSIBILITIES_HEADER,
-            VerifiedIdentityFilter.LEGAL_ENTITY_PUBLIC_ID_HEADER,
+            GatewayIdentityContext.RESPONSIBILITIES_HEADER,
+            GatewayIdentityContext.LEGAL_ENTITY_PUBLIC_ID_HEADER,
             PAY_GROUP_PUBLIC_ID_HEADER,
-            VerifiedIdentityFilter.TIME_GROUP_PUBLIC_ID_HEADER,
+            GatewayIdentityContext.TIME_GROUP_PUBLIC_ID_HEADER,
             MASKED_FIELD_GROUPS_HEADER, OMITTED_FIELD_GROUPS_HEADER,
             HRM012_MARKER_HEADER, STEP_UP_CHALLENGE_HEADER,
             "X-DWP-Current-Decision-Valid-Until");
@@ -90,7 +98,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         this.routeCatalog = routeCatalog;
         this.responses = new ProductSurfaceDecisionResponseWriter(objectMapper, denialAudit);
         this.forwarding = new ProductSurfaceDecisionForwarder(
-                responses, VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                responses, GatewayIdentityContext.PERSON_PUBLIC_ID_HEADER,
                 Sys006InboundAuthorityFilter::validInbound,
                 Sys008InboundAuthorityFilter::validInbound);
         this.per004Forwarder = per004Forwarder;
@@ -415,8 +423,8 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             return chain.filter(sanitizedExchange);
         }
 
-        Long actorId = positive(sanitized.getHeaders().getFirst(VerifiedIdentityFilter.USER_HEADER));
-        Long tenantId = positive(sanitized.getHeaders().getFirst(VerifiedIdentityFilter.TENANT_HEADER));
+        Long actorId = positive(sanitized.getHeaders().getFirst(GatewayIdentityContext.USER_HEADER));
+        Long tenantId = positive(sanitized.getHeaders().getFirst(GatewayIdentityContext.TENANT_HEADER));
         if (actorId == null || tenantId == null) {
             return responses.error(sanitizedExchange, HttpStatus.UNAUTHORIZED,
                     "AUTHENTICATION_REQUIRED", null);
@@ -511,16 +519,16 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 request.getHeaders().getFirst("X-Correlation-ID"),
                 request.getHeaders().getFirst("traceparent"),
                 request.getHeaders().getFirst("tracestate"),
-                request.getHeaders().getFirst(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER),
-                splitScopes(request.getHeaders().getFirst(VerifiedIdentityFilter.ROLES_HEADER)),
+                request.getHeaders().getFirst(GatewayIdentityContext.PERSON_PUBLIC_ID_HEADER),
+                splitScopes(request.getHeaders().getFirst(GatewayIdentityContext.ROLES_HEADER)),
                 splitScopes(request.getHeaders().getFirst(
-                        VerifiedIdentityFilter.PERMISSIONS_HEADER)));
+                        GatewayIdentityContext.PERMISSIONS_HEADER)));
     }
 
     private ProductSurfaceContextDtos.AccessMode verifiedTenantAccessMode(
             ServerWebExchange exchange) {
         Object value = exchange.getAttribute(
-                VerifiedIdentityFilter.VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE);
+                GatewayIdentityContext.VERIFIED_ACTIVE_ACCESS_MODE_ATTRIBUTE);
         if (value == null) return ProductSurfaceContextDtos.AccessMode.NORMAL;
         if ("NORMAL".equals(value)) return ProductSurfaceContextDtos.AccessMode.NORMAL;
         if ("ELEVATED".equals(value)) return ProductSurfaceContextDtos.AccessMode.ELEVATED;
@@ -532,7 +540,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             ServerHttpRequest request,
             GatewayFilterChain chain,
             GeneratedProductRouteCatalog.Route route,
-            ProductSurfaceContextAggregationService.TrustedProductEvaluation trustedResult,
+            TrustedProductDecision trustedResult,
             String expected,
             ProductSurfaceContextDtos.AccessMode activeAccessMode) {
         return forwarding.forwardOrDeny(

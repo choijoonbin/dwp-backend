@@ -135,7 +135,7 @@ class Hrm011WorkloadAuditContractTest {
                             .anySatisfy(advisor -> assertThat(advisor.getAdvice())
                                     .isInstanceOf(TransactionInterceptor.class));
 
-                    var request = new Hrm011WorkloadIngress.SnapshotRequest(
+                    var request = new Hrm011WorkloadContract.SnapshotRequest(
                             Hrm011WorkloadIngress.SVC003_PURPOSE, NOW,
                             Hrm011WorkloadIngress.COMPENSATION, 100, null);
                     ingress.compensationSnapshots(
@@ -146,7 +146,7 @@ class Hrm011WorkloadAuditContractTest {
                                     UUID.fromString(
                                             "88888888-8888-4888-8888-888888888888"),
                                     CORRELATION, 3,
-                                    new Hrm011WorkloadIngress.TrustedWorkload(
+                                    new Hrm011WorkloadContract.TrustedWorkload(
                                             71L, Hrm011WorkloadIngress.PAYROLL_CALLER,
                                             Hrm011WorkloadIngress.AUDIENCE,
                                             request.purposeCode(), true, true,

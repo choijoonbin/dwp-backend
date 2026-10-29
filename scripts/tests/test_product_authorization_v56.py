@@ -131,12 +131,21 @@ class ProductAuthorizationV56Test(unittest.TestCase):
                          profile["responseProjectionBindings"][0]["responseSchemaKey"])
         self.assertNotIn("stepUpCommandBindings", detail)
 
-    def test_latest_seed_index_and_platform_only_peps_have_exact_v56_lineage(self) -> None:
-        for path in (CONTRACTS / "product-surfaces-v1.json", AUTH / "product-surfaces-v1.generated.json",
-                     AUTH / "product-surfaces-v1.bundle-v56.generated.json"):
-            self.assertEqual(self.bundle, json.loads(path.read_text()))
+    def test_current_alias_is_v62_and_v56_platform_peps_preserve_lineage(self) -> None:
+        latest = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v62.json").read_text()
+        )
+        for path in (CONTRACTS / "product-surfaces-v1.json",
+                     AUTH / "product-surfaces-v1.generated.json"):
+            self.assertEqual(latest, json.loads(path.read_text()))
+        self.assertEqual(
+            self.bundle,
+            json.loads((AUTH / "product-surfaces-v1.bundle-v56.generated.json").read_text()),
+        )
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
-        self.assertEqual((56, CHECKSUM, 56), (index["latestVersion"], index["latestChecksum"], len(index["versions"])))
+        self.assertEqual((62, latest["checksum"], 62), (index["latestVersion"], index["latestChecksum"], len(index["versions"])))
+        historical = next(value for value in index["versions"] if value["version"] == 56)
+        self.assertEqual(CHECKSUM, historical["checksum"])
         self.assertEqual(index, json.loads((AUTH / "product-surfaces-v1.index.generated.json").read_text()))
         for service in ("people", "time", "platform", "payroll"):
             pep = json.loads((ROOT / f"dwp-{service}-server/src/main/resources/product-authorization/"

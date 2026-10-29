@@ -195,7 +195,7 @@ public final class DomainEventInboxStrictValidationSupport {
     }
 
     /** Records a TIM-003 failure only while the exact processing lease remains active. */
-    DomainEventInboxRepository.FailureState failActiveLease(
+    ActiveLeaseFailureState failActiveLease(
             String consumerName,
             UUID eventId,
             String lockToken,
@@ -203,9 +203,9 @@ public final class DomainEventInboxStrictValidationSupport {
             int maximumAttempts,
             String error) {
         requireTim003Consumer(consumerName);
-        DomainEventInboxRepository.FailureState state = attempt >= maximumAttempts
-                ? DomainEventInboxRepository.FailureState.DEAD
-                : DomainEventInboxRepository.FailureState.RETRYABLE;
+        ActiveLeaseFailureState state = attempt >= maximumAttempts
+                ? ActiveLeaseFailureState.DEAD
+                : ActiveLeaseFailureState.RETRYABLE;
         int delaySeconds = Math.min(300, Math.max(2, 1 << Math.min(8, attempt)));
         int changed = jdbc.update("""
                 UPDATE sys_domain_event_inbox
@@ -223,7 +223,7 @@ public final class DomainEventInboxStrictValidationSupport {
                    AND locked_until > CURRENT_TIMESTAMP
                 """, new MapSqlParameterSource()
                         .addValue("status",
-                                state == DomainEventInboxRepository.FailureState.DEAD
+                                state == ActiveLeaseFailureState.DEAD
                                         ? "DEAD" : "FAILED")
                         .addValue("delaySeconds", delaySeconds)
                         .addValue("error", consumerFailure(error))
@@ -235,6 +235,11 @@ public final class DomainEventInboxStrictValidationSupport {
                     "TIM-003 failure outcome lost its active lease.");
         }
         return state;
+    }
+
+    enum ActiveLeaseFailureState {
+        RETRYABLE,
+        DEAD
     }
 
     /** Quarantines a TIM-003 delivery without overwriting immutable conflict evidence. */

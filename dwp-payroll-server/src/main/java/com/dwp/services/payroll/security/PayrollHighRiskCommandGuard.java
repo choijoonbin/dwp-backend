@@ -97,7 +97,7 @@ public final class PayrollHighRiskCommandGuard {
         java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(
                 "^/api/payroll/v1/runs/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
                         + "[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-"
-                        + "[0-9a-fA-F]{12})/(approvals|finalize)$")
+                        + "[0-9a-fA-F]{12})/(attempts|approvals|finalize)$")
                 .matcher(publicPath);
         if (!matcher.matches()
                 || !UUID.fromString(matcher.group(1)).equals(runId)) {

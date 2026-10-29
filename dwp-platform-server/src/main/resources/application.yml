@@ -466,6 +466,9 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,mailAttachmentScanner,mailExternalProvider
 
 logging:
   level:

@@ -373,7 +373,7 @@ public final class Hrm013IdentityTaskDispatchStore {
             var lease = credentials.requireCurrent(preparation.authority());
             ReceiptClaim effectiveClaim = claim.withAuthority(
                     selected.mode(), selected.drain());
-            var signed = credentials.callbackProof(lease, effectiveClaim, body,
+            var signed = credentials.callbackProof(lease, effectiveClaim.proofContext(), body,
                     clock.instant().plusSeconds(30));
             String proofSha256 = Hrm013WorkloadProofV1.sha256(
                     signed.compact().getBytes(StandardCharsets.US_ASCII));
@@ -632,6 +632,10 @@ public final class Hrm013IdentityTaskDispatchStore {
             }
         }
         @Override public byte[] exactCallbackBody() { return exactCallbackBody.clone(); }
+        Hrm013IdentityReceiptProofContext proofContext() {
+            return new Hrm013IdentityReceiptProofContext(
+                    exactCallbackBody, authorityMode, drainClaims);
+        }
         ReceiptClaim withAuthority(Hrm013WorkloadProofV1.BusinessAuthority mode,
                 Hrm013WorkloadProofV1.DrainClaims drain) {
             return new ReceiptClaim(tenantId, callbackEventId, dispatchEventId,

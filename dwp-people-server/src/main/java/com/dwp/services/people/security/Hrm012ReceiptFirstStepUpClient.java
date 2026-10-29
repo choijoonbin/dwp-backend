@@ -2,6 +2,7 @@ package com.dwp.services.people.security;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.http.OutboundHttpHeaders;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -66,6 +67,7 @@ public final class Hrm012ReceiptFirstStepUpClient {
     private void trustedHeaders(
             HttpHeaders headers,
             Hrm012ReceiptFirstStepUpDtos.VerifyRequest request) {
+        OutboundHttpHeaders.propagateObservability(headers);
         headers.set(TOKEN_HEADER, token);
         headers.set(IDENTITY_HEADER, "dwp-people-server");
         headers.set("X-Correlation-ID", request.correlationId());

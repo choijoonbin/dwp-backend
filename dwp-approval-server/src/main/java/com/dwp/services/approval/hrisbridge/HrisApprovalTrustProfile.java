@@ -1,6 +1,7 @@
 package com.dwp.services.approval.hrisbridge;
 
 import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalBridgeV2;
+import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalVerificationContractV2;
 import com.dwp.platform.contracts.hris.approval.v2.HrisWorkloadProofV2;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEObjectType;
@@ -62,9 +63,9 @@ final class HrisApprovalTrustProfile
     }
 
     @Override
-    public boolean admits(HrisApprovalBridgeV2.Endpoint endpoint, String exactPath,
+    public boolean admits(HrisApprovalVerificationContractV2 endpoint, String exactPath,
             String callerWorkloadId, long signedTenantId) {
-        if (!HrisApprovalBridgeV2.CREATE_AND_SUBMIT.equals(endpoint)
+        if (!HrisApprovalBridgeV2.CREATE_AND_SUBMIT.verificationContract().equals(endpoint)
                 || !endpoint.path(null).equals(exactPath)
                 || !endpoint.callerWorkloadId().equals(callerWorkloadId)
                 || !peopleTenantGrants.contains(signedTenantId)) {

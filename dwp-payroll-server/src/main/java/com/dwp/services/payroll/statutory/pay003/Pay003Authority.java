@@ -37,9 +37,9 @@ final class Pay003Authority {
             }
             Objects.requireNonNull(subjectPrincipalPublicId, "subjectPrincipalPublicId");
             Objects.requireNonNull(route, "route");
-            Pay003Models.token(contextKey, 160, "contextKey");
-            Pay003Models.token(contextScopeKey, 160, "contextScopeKey");
-            Pay003Models.token(decisionRevision, 200, "decisionRevision");
+            Pay003ValueValidation.token(contextKey, 160, "contextKey");
+            Pay003ValueValidation.token(contextScopeKey, 160, "contextScopeKey");
+            Pay003ValueValidation.token(decisionRevision, 200, "decisionRevision");
             Objects.requireNonNull(revalidateAt, "revalidateAt");
             permissions = Set.copyOf(permissions);
             if (!route.purpose().equals(purposeCode)
@@ -63,8 +63,8 @@ final class Pay003Authority {
         Scope {
             Objects.requireNonNull(legalEntityId, "legalEntityId");
             Objects.requireNonNull(payrollGroupId, "payrollGroupId");
-            Pay003Models.token(projectionRevision, 200, "projectionRevision");
-            Pay003Models.digest(scopeDigest, "scopeDigest");
+            Pay003ValueValidation.token(projectionRevision, 200, "projectionRevision");
+            Pay003ValueValidation.digest(scopeDigest, "scopeDigest");
         }
     }
 

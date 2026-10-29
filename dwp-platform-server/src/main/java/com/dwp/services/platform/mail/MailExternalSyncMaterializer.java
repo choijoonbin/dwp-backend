@@ -64,7 +64,7 @@ class MailExternalSyncMaterializer {
                 MailProviderPayloadPolicy.defaults());
     }
 
-    SyncResult materialize(
+    MailSyncResult materialize(
             long tenantId,
             long actorId,
             AdminMailCompletionRepository.AccountRow expectedAccount,
@@ -72,7 +72,7 @@ class MailExternalSyncMaterializer {
         long startedAt = System.nanoTime();
         try {
             payloadPolicy.validate(batch);
-            SyncResult result = materializeBatch(
+            MailSyncResult result = materializeBatch(
                     tenantId, actorId, expectedAccount, batch);
             if (metrics != null) {
                 metrics.sync(result, Duration.ofNanos(System.nanoTime() - startedAt));
@@ -86,7 +86,7 @@ class MailExternalSyncMaterializer {
         }
     }
 
-    private SyncResult materializeBatch(
+    private MailSyncResult materializeBatch(
             long tenantId,
             long actorId,
             AdminMailCompletionRepository.AccountRow expectedAccount,
@@ -123,7 +123,7 @@ class MailExternalSyncMaterializer {
                     tenantId, actorId, expectedAccount, batch,
                     preparedMessages, duplicatesBeforeCommit));
             cleanup(tenantId, committed.orphanedReferences());
-            return new SyncResult(
+            return new MailSyncResult(
                     committed.inserted(), committed.duplicates(),
                     committed.blockedAttachments(), batch.partial());
         } catch (RuntimeException failure) {
@@ -448,24 +448,8 @@ class MailExternalSyncMaterializer {
         }
     }
 
-    private SyncFailure failure(String code) {
-        return new SyncFailure(code);
-    }
-
-    record SyncResult(int inserted, int duplicate, int blockedAttachments, boolean partial) { }
-
-    static final class SyncFailure extends RuntimeException {
-        private static final long serialVersionUID = 1L;
-        private final String code;
-
-        SyncFailure(String code) {
-            super(code);
-            this.code = code;
-        }
-
-        String code() {
-            return code;
-        }
+    private MailSyncMaterializationFailure failure(String code) {
+        return new MailSyncMaterializationFailure(code);
     }
 
     private record Sender(String email, String name) { }

@@ -101,17 +101,24 @@ class ProductAuthorizationV50Test(unittest.TestCase):
                 normalized["accessProfiles"][0]["responseProjectionBindings"] = old_bindings
                 self.assertEqual(before, normalized)
 
-    def test_latest_alias_index_auth_seed_and_service_peps_pin_v50_draft(self) -> None:
+    def test_current_alias_is_v62_and_v50_service_peps_remain_pinned(self) -> None:
         alias = json.loads((CONTRACTS / "product-surfaces-v1.json").read_text())
         seed = json.loads((AUTH / "product-surfaces-v1.generated.json").read_text())
         index = json.loads((CONTRACTS / "product-surfaces-v1.index.json").read_text())
         auth_index = json.loads(
             (AUTH / "product-surfaces-v1.index.generated.json").read_text()
         )
-        self.assertEqual(self.v50, alias)
-        self.assertEqual(self.v50, seed)
+        latest = json.loads(
+            (CONTRACTS / "product-surfaces-v1.bundle-v62.json").read_text()
+        )
+        historical_seed = json.loads(
+            (AUTH / "product-surfaces-v1.bundle-v50.generated.json").read_text()
+        )
+        self.assertEqual(latest, alias)
+        self.assertEqual(latest, seed)
+        self.assertEqual(self.v50, historical_seed)
         self.assertEqual(index, auth_index)
-        self.assertEqual((50, V50_CHECKSUM, 50), (
+        self.assertEqual((62, latest["checksum"], 62), (
             index["latestVersion"], index["latestChecksum"], len(index["versions"]),
         ))
         self.assertEqual("DRAFT", index["versions"][-1]["bundleStatus"])

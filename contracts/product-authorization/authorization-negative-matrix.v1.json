@@ -13,7 +13,7 @@
   },
   "canonicalNegativeFixtures": {
     "reference": "contracts/product-authorization/pilot-fixtures.v1.generated.json",
-    "checksum": "68386c1c7e83c501a63edd3b765dd707dd59b87680de2d3498e3c19db1abaf90",
+    "checksum": "bf9dd055bf8368e32409bfa0287317beda83de049ab4ea66cdcbce2a7961f218",
     "expectedCount": 46,
     "catalogIntegrityTestReferences": [
       "dwp-gateway/src/test/java/com/dwp/gateway/support/PilotAuthorizationFixtureAdapterTest.java#projectsEveryCanonicalNegativeFixtureWithItsSignedDenialExpectation"
